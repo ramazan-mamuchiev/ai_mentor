@@ -1,0 +1,456 @@
+# IPCodex — Project Context & Technical Specification
+
+## Product Vision
+
+**IPCodex** — коммерческий standalone-продукт (платформа) для управления и версионирования API-документации физических устройств (IP-камеры, POS-терминалы, СКУД, IoT-устройства).
+
+### Ключевая идея
+Компании, интегрирующие физические устройства, тратят значительное время на работу с хаотичной документацией от производителей. IPCodex решает это, преобразуя документацию в структурированный Markdown, и делает её доступной для AI-помощников в IDE (Cursor, Antigravity, Windsurf, GitHub Copilot) через RAG + MCP.
+
+### Elevator Pitch
+IPCodex превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в **структурированную базу знаний**, на основе которой **AI-помощники пишут рабочий код интеграции**. Прямых аналогов на рынке нет.
+
+---
+
+## Architecture Overview
+
+### Phase 1 — Document Management Platform
+
+```
+┌─────────────────┐     ┌──────────────┐     ┌─────────────┐
+│  React Frontend │────▶│ FastAPI      │────▶│ PostgreSQL  │
+│  (TypeScript)   │     │ Backend      │     │ (metadata)  │
+└─────────────────┘     └──────┬───────┘     └─────────────┘
+                               │
+                        ┌──────▼───────┐
+                        │ MinIO / S3   │
+                        │ (Markdown)   │
+                        └──────────────┘
+```
+
+**Компоненты:**
+- **Frontend**: React + TypeScript SPA
+- **Backend**: FastAPI + uvicorn (Python)
+- **Database**: PostgreSQL 16 (метаданные устройств, версий, аудит)
+- **Object Storage**: MinIO / AWS S3 (хранение Markdown файлов)
+- **Background Jobs**: Celery / FastAPI BackgroundTasks (конвертация документов)
+- **Deployment**: Docker Compose (single `docker-compose up`)
+
+### Phase 2 — AI/RAG Layer
+
+```
+┌──────────────┐     ┌──────────────┐     ┌─────────────────┐
+│ Chunking     │────▶│ Embedding    │────▶│ PostgreSQL +    │
+│ Pipeline     │     │ Service      │     │ pgvector        │
+└──────────────┘     └──────────────┘     └────────┬────────┘
+                                                    │
+                     ┌──────────────┐     ┌────────▼────────┐
+                     │ MCP Server   │◀────│ RAG Engine      │
+                     │ (AI IDEs)    │     │ (search+rerank) │
+                     └──────────────┘     └────────┬────────┘
+                                                    │
+                                          ┌────────▼────────┐
+                                          │ AI Chat         │
+                                          │ (web interface) │
+                                          └─────────────────┘
+```
+
+**Компоненты Phase 2:**
+- **Chunking Pipeline**: Разбиение Markdown по заголовкам (H1/H2/H3) на семантические фрагменты
+- **Embedding Service**: Векторизация чанков (OpenAI text-embedding-3-small или локальный all-MiniLM-L6-v2)
+- **pgvector**: PostgreSQL extension для хранения и поиска по векторным embeddings
+- **HNSW Index**: Cosine similarity search (работает на любом объёме, не требует минимума строк как IVFFlat)
+- **MCP Server**: Model Context Protocol для интеграции с AI IDE (Cursor, Antigravity, Windsurf)
+- **AI Chat**: Веб-интерфейс для общения с документацией через LLM
+
+---
+
+## Core Conversion Engine
+
+Ядро конвертации уже реализовано в `doc2md-mcp/server.py`. Основные пайплайны:
+
+### 1. PDF → Markdown
+- Поддержка OCR для сканированных PDF (pytesseract / Tesseract)
+- Пользователь указывает язык OCR
+- Опциональный перевод на английский перед конвертацией
+- Дедупликация по хешу содержимого
+
+### 2. Swagger/OpenAPI → Markdown
+- Парсинг JSON/YAML спецификаций
+- Структурированный вывод: endpoints, параметры, responses
+- Поддержка OpenAPI 3.x и Swagger 2.0
+
+### 3. URL (Web Page) → Markdown
+- Скрапинг веб-страниц
+- Очистка HTML, извлечение контента
+- Обработка JavaScript-rendered страниц
+
+### Multilingual Support
+- Входящая документация на **любом языке** — система определяет формат
+- Опциональный перевод на английский **до** конвертации в Markdown
+- OCR язык указывается пользователем
+
+---
+
+## S3 Key Structure
+
+```
+ipcodex/
+  devices/{device_id}/
+    {firmware_version}/{document_title}/
+      v1.md
+      v2.md
+      v3.md
+```
+
+---
+
+## Data Model (PostgreSQL)
+
+### Core Tables
+- **devices** — каталог устройств (manufacturer, model, category)
+- **firmware_versions** — версии прошивок для каждого устройства
+- **documents** — метаданные документов (title, format, s3_key, hash)
+- **document_versions** — история версий каждого документа
+- **import_jobs** — аудит-лог всех импортов (status, source, timestamps)
+- **users** — пользователи системы
+
+### Phase 2 Tables
+- **chunks** — семантические фрагменты документов
+- **embeddings** — векторные представления (pgvector column)
+- **chat_sessions** — сессии AI чата
+- **chat_messages** — сообщения в чатах
+
+---
+
+## Business Model
+
+### Revenue Streams
+
+1. **B2B SaaS Subscription**
+   - Starter (Free): до 20 устройств, базовый импорт
+   - Pro ($99/мес): до 100 устройств, AI Chat, MCP
+   - Team ($299/мес): безлимит устройств, MCP Server, перевод, приоритетная поддержка
+   - Enterprise ($999+/мес): on-premise, SLA, SSO
+
+2. **On-Premise License**
+   - Единоразово от $5K + годовая поддержка 20%
+   - Для компаний с требованиями безопасности
+
+3. **Vendor Marketplace**
+   - Производители устройств публикуют официальную документацию
+   - Комиссия 15-30% с подписки
+
+4. **AI API (usage-based)**
+   - $0.01-0.05 за запрос к RAG
+   - Для интеграции в сторонние продукты
+
+### Market Size
+- **TAM**: $2.4B (глобальный рынок технической документации)
+- **SAM**: $180M (IoT/физические устройства)
+- **SOM**: $5M (первые 3 года, интеграторы видеонаблюдения + СКУД)
+
+### Target Audience
+1. Системные интеграторы видеонаблюдения и СКУД
+2. IoT-платформы и разработчики
+3. Производители устройств (Hikvision, Dahua, Axis, etc.)
+4. Enterprise с большим парком устройств
+
+---
+
+## Infrastructure Costs
+
+### MVP / Starter (~$36-56/мес)
+- VPS 4 vCPU / 8GB RAM — $30-50
+- PostgreSQL (same VPS) — $0
+- MinIO (same VPS, 100GB) — $0
+- Domain + SSL (Let's Encrypt) — $1
+- Backups (S3 offsite) — $5
+- Подходит для 1-20 устройств, 1-5 пользователей
+
+### Production / Pro (~$212-352/мес)
+- VPS 8 vCPU / 16GB RAM — $80-120
+- Managed PostgreSQL — $30-50
+- S3 storage (500GB) — $12
+- OpenAI Embeddings API — $20-50
+- LLM API (AI Chat) — $50-100
+- Monitoring + Backups — $20
+- Подходит для 100 устройств, 10-30 пользователей, AI Chat включён
+
+### Enterprise (~$865-1715+/мес)
+- Kubernetes cluster (3 nodes) — $300-500
+- Managed PostgreSQL HA — $100-200
+- S3 storage (5TB) — $115
+- OpenAI / local GPU embedding — $100-300
+- LLM API (high volume) — $200-500
+- CDN + WAF + Monitoring — $50-100
+- Подходит для 500+ устройств, 50+ пользователей, on-premise опция
+
+**On-premise**: нет облачных затрат, только оборудование. Локальные embedding модели (all-MiniLM) устраняют расходы на OpenAI API.
+
+---
+
+## Competitive Landscape
+
+### Adjacent Market Players
+
+| Product | Type | Funding | What They Do | IPCodex Difference |
+|---------|------|---------|-------------|-------------------|
+| **Context7** (Upstash) | MCP for software libs | Upstash-backed | Доставляет документацию софтверных библиотек (React, Next.js) в AI IDE через MCP | Только софт-библиотеки. Нет PDF/OCR, нет устройств, нет конвертации |
+| **Documentation.AI** | Docs creation platform | #1 Product Hunt | AI-платформа для создания документации продуктов. AI-агент, MCP, llms.txt | Пользователи пишут свои docs. Нет импорта из PDF, нет OCR, нет версионирования по прошивкам |
+| **Mintlify** | Docs platform | YC W22, $18.5M (Series A); $21.3M total | Красивая документация для разработчиков. Swagger import, AI search, MCP-сервер | Нет PDF/OCR, нет firmware versioning, MCP ограничен собственной платформой |
+| **GitBook** | Docs platform | Est. 2014 | Git-based документация, AI search, командная работа, MCP-сервер | Нет PDF/OCR, git branches ≠ firmware versions, MCP ограничен собственной платформой |
+| **ReadMe.com** | API docs | $9M raised | API-документация с playground, Swagger import, analytics | Нет PDF/OCR, нет firmware versioning, нет MCP |
+
+### Ключевой вывод
+Рынок AI-документации **валидирован** хорошо профинансированными компаниями (Mintlify $21.3M, ReadMe $9M). Они доказывают, что разработчики платят за инструменты документации. IPCodex занимает **незанятую вертикаль** — документация физических устройств — применяя проверенные паттерны (MCP, RAG, AI Chat) к рынку без специализированного решения.
+
+### Потенциальные партнёрства
+- **Context7**: IPCodex-документация устройств может быть проиндексирована Context7, делая hardware APIs доступными через их MCP рядом с софтверными библиотеками
+- **Documentation.AI**: Вендоры могут использовать Documentation.AI для публикации документации устройств, пока IPCodex обрабатывает конвертацию и AI-обогащение
+
+Подробный анализ: `IPCodex/comparison.html`
+
+---
+
+## Competitive Advantages
+
+1. **Нет прямых конкурентов** — ни один продукт не специализируется на API-документации физических устройств + AI
+2. **Валидированный рынок** — Adjacent players (Context7, Documentation.AI, Mintlify) подтверждают спрос на AI-документацию
+3. **Вертикальная ниша** — глубокая экспертиза в домене (видеонаблюдение, СКУД, IoT)
+4. **Network effects** — чем больше документации, тем ценнее база знаний
+5. **Vendor lock-in** — интеграторы зависят от накопленной базы
+6. **MCP Protocol** — нативная интеграция для AI IDE (как Context7, но для устройств)
+7. **On-premise** — критично для security-sensitive интеграторов (чего нет у конкурентов)
+
+---
+
+## Tech Stack Summary
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React + TypeScript |
+| Backend | Python, FastAPI, uvicorn |
+| Database | PostgreSQL 16 + pgvector |
+| Object Storage | MinIO / AWS S3 |
+| Background Jobs | Celery / BackgroundTasks |
+| OCR | Tesseract / pytesseract |
+| Embedding | OpenAI text-embedding-3-small / all-MiniLM-L6-v2 |
+| Vector Search | pgvector (HNSW index, cosine similarity) |
+| AI Chat | LLM (GPT-4 / Claude / self-hosted) |
+| MCP Server | Model Context Protocol (Python SDK) |
+| Deployment | Docker Compose / Kubernetes |
+| SSL | Configurable via env (default: strict) |
+
+---
+
+## Key Technical Decisions
+
+1. **HNSW vs IVFFlat**: Выбран HNSW для pgvector — работает на любом объёме данных, не требует минимального количества строк (IVFFlat требует sqrt(n) для кластеризации)
+2. **Chunking strategy**: По заголовкам Markdown (H1/H2/H3) — сохраняет семантическую целостность API-секций
+3. **Embedding model**: OpenAI text-embedding-3-small для облака, all-MiniLM-L6-v2 для on-premise (без внешних зависимостей)
+4. **S3 versioning**: Собственная нумерация v1/v2/v3 вместо S3 native versioning — для удобства UI и diff
+5. **Translation before conversion**: Перевод на английский до Markdown-конвертации, а не после — лучшее качество OCR/парсинга
+6. **Single docker-compose**: Вся платформа запускается одной командой для MVP
+
+---
+
+## File Structure (Current)
+
+```
+IPCodex/
+├── ipcodex.html              # Интерактивная презентация (EN/RU, light/dark)
+├── comparison.html            # Детальный конкурентный анализ
+├── ipcodex-logo.png           # Логотип для светлой темы (512px PNG)
+├── ipcodex-logo-dark.png      # Логотип для тёмной темы (512px PNG)
+├── ipcodex-plan-backup.html   # Резервная копия ранней версии
+├── CONTEXT.md                 # Этот файл — полный контекст проекта
+```
+
+---
+
+## Presentation Features (ipcodex.html)
+
+- **Интерактивная одностраничная презентация** для инвесторов/партнёров
+- **Двуязычность**: EN (default) / RU с переключателем
+- **Темы**: Светлая (default) / Тёмная с переключателем
+- **Логотип**: Гексагон + `</>` с градиентом blue→purple→pink, разные версии для тем
+- **Секции**: Hero, Проблемы, Цели, Elevator Pitch, Demo Flow, Revenue Model, ROI Calculator, TAM/SAM/SOM, Target Audience, ICP, GTM, Competitive Landscape, Revenue Roadmap, Key Metrics, Moat, Competitive Advantages, Tech Details (tabs: Architecture, Database, S3, Phase 2), Infrastructure Costs
+- **Интерактивность**: Анимированный Demo Flow, ROI Calculator, аккордеоны, scroll animations, progress navigation
+- **Мобильная адаптивность**: Оптимизировано для iPhone и планшетов
+- **Автор**: Войтехович Олег (LinkedIn: https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/)
+
+---
+
+## GitHub Pages
+
+- **URL**: https://olegvphoenix.github.io/mcp-servers/
+- **index.html** в корне репозитория делает redirect на `IPCodex/ipcodex.html`
+- Ветка: `main`, папка: `/` (root)
+
+---
+
+## Next Steps (Planned)
+
+1. **Backend MVP**: FastAPI + PostgreSQL + MinIO (Docker Compose)
+2. **Import Wizard UI**: React компонент для загрузки документов
+3. **Device Catalog**: CRUD для устройств и прошивок
+4. **Markdown Viewer**: Рендеринг сконвертированных документов с diff
+5. **Phase 2 — RAG**: pgvector + chunking + embedding pipeline
+6. **Phase 2 — AI Chat**: Веб-интерфейс для общения с документацией
+7. **Phase 2 — MCP Server**: Интеграция с AI IDE
+
+---
+
+## Existing Codebase to Reuse
+
+Файл `doc2md-mcp/server.py` содержит готовые функции конвертации:
+- `convert_pdf_to_markdown()` — PDF → Markdown с OCR
+- `convert_swagger_to_markdown()` — OpenAPI/Swagger → Markdown
+- `convert_url_to_markdown()` — Web page → Markdown
+- Progress reporting, deduplication, audit logging
+- Environment variables для настройки
+- SSL handling (configurable: strict/relaxed)
+
+Эти функции будут импортированы и использованы бэкендом FastAPI.
+
+---
+
+## Session Log: Аудит, Исследование, Дизайн-решения (Март 2026)
+
+### 1. Аудит фактических данных о конкурентах
+
+Проведена сверка данных из `ipcodex.html`, `comparison.html` и `CONTEXT.md` с публичными источниками (Crunchbase, Tracxn, официальные сайты).
+
+#### Обнаруженные и исправленные ошибки:
+
+| Параметр | Было (ошибка) | Стало (факт) | Источник |
+|----------|---------------|--------------|----------|
+| ReadMe.com funding | $34M raised | $9M raised | Crunchbase — единственный раунд Series A $9M (2020) |
+| Mintlify total funding | $18.5M (только Series A) | $21.3M total ($2.8M Seed + $18.5M Series A) | Tracxn, Crunchbase |
+| Mintlify MCP-сервер | ✗ (нет) | ✓ (есть, ограничен собственной платформой) | mintlify.com/docs/integrations/mcp |
+| GitBook MCP-сервер | ✗ (нет) | ✓ (есть, ограничен собственной платформой) | gitbook.com/solutions/mcp |
+| SAM (CONTEXT.md) | $340M | $180M (приведено к ipcodex.html) | Внутренняя сверка |
+| SOM (CONTEXT.md) | $12M | $5M (приведено к ipcodex.html) | Внутренняя сверка |
+| Pricing Free tier | 3 устройства | 20 устройств (приведено к ipcodex.html) | Внутренняя сверка |
+| Pricing Pro tier | 50 устройств | 100 устройств (приведено к ipcodex.html) | Внутренняя сверка |
+| Pricing Team tier | 200 устройств | Безлимит (приведено к ipcodex.html) | Внутренняя сверка |
+| Infrastructure MVP PostgreSQL | $15-25 (managed) | $0 (same VPS) | Приведено к ipcodex.html |
+
+#### Ключевой вывод по MCP-серверам конкурентов:
+
+Mintlify и GitBook **имеют** MCP-серверы, но они ограничены работой с документацией, созданной на их собственных платформах. IPCodex отличается тем, что:
+- Конвертирует **внешнюю** документацию (PDF, Swagger, URL) в формат, пригодный для MCP
+- Поддерживает **firmware-based versioning** — уникальная функция для физических устройств
+- Работает с **любой** документацией, а не только с той, что создана на платформе
+
+### 2. Исследование конкурентов (Web Research)
+
+#### Context7 (Upstash)
+- MCP-сервер для доставки документации open-source библиотек в AI IDE
+- За спиной Upstash — инфраструктурная компания с серьёзным финансированием
+- Только софтверные библиотеки, нет поддержки физических устройств
+- **Потенциальный партнёр**: IPCodex-документация может быть проиндексирована Context7
+
+#### Documentation.AI
+- #1 Product Hunt, AI-платформа для создания документации
+- MCP-сервер, llms.txt, AI-агент для автообновления
+- Пользователи создают документацию сами — нет импорта из PDF/OCR
+- **Потенциальный партнёр**: вендоры могут публиковать через Documentation.AI
+
+#### Mintlify ($21.3M total, YC W22)
+- Красивая документация для SaaS/API компаний
+- AI search, Swagger import, MCP-сервер (для собственной платформы)
+- Нет PDF import, нет OCR, нет firmware versioning
+- Подтверждает: рынок AI+документация горячий
+
+#### GitBook (Est. 2014)
+- Зрелая платформа, тысячи компаний
+- Git-based versioning, AI search, MCP-сервер (для собственной платформы)
+- Нет PDF/OCR, git branches ≠ firmware versions
+- Подтверждает: огромный спрос на структурированную документацию
+
+#### ReadMe.com ($9M Series A)
+- API-документация с playground, Swagger import, analytics
+- Enterprise-уровень (SSO, RBAC), 5000+ компаний
+- Нет PDF/OCR, нет firmware versioning, нет MCP
+- Ориентирован на SaaS-компании
+
+### 3. Дизайн-решения для comparison.html
+
+#### Редизайн (основной)
+- Заменены inline-стили на CSS-классы для всех секций
+- Карточки игроков (`.player`) получили цветные градиенты слева (blue, purple, pink, green, amber)
+- Блоки Strengths/Limitations — цветные фоны (green/red) с иконками
+- Таблица сравнения — sticky first column для мобильных
+- Market Map — выделение IPCodex карточки градиентной рамкой
+- Conclusion — градиентная верхняя граница, выделение ключевых цифр `<strong>`
+
+#### Выравнивание стилей с ipcodex.html
+- Заменены Unicode-эмодзи на SVG-иконки (Lucide-style) в Market Map
+- Section titles: `text-align:center`, `color:var(--text)`, `font-size:1.15rem`, `font-weight:600`
+- Section descriptions: `font-weight:300`, `max-width:780px`, `margin:0 auto`
+- Body: `font-family:'Inter'`, `letter-spacing:-0.01em`, `-webkit-font-smoothing:antialiased`
+- Hero: padding `100px 40px 60px`, logo `88px`
+- Tables: `font-size:.85rem`, `th` padding `14px 18px`
+- Player cards: `background:var(--surface)`, `padding:28px`, hover с `transform:translateY(-2px)`
+- Theme/lang toggles: hover с `scale(1.1)` и `box-shadow`
+- Footer: `padding:48px 24px 32px`, `font-size:.82rem`
+- Subtitle: `font-size:.88rem`, `font-weight:300`
+
+### 4. Дизайн-решения для ipcodex.html
+
+#### Мобильная адаптивность
+- Tabs: `flex-wrap:nowrap`, `overflow-x:auto`, `scrollbar-width:none`
+- Screen mocks: `overflow-x:auto` для широкого контента
+- Application Screens: отдельный класс `screens-grid` — 1 колонка по умолчанию, 2 колонки при `min-width:1201px`
+- Audit Log table: скрытие колонок `:nth-child(n+5)` на мобильных
+
+#### Таблицы
+- Sticky first column (`table-sticky`) для горизонтальной прокрутки
+- Уменьшенные padding и font-size на мобильных
+
+#### Competitive Advantages (секция)
+- Градиентный фон секции
+- Крупный gradient-text заголовок
+- Карточки `.adv-card` с SVG-иконками и hover-эффектами
+
+#### Problems Today (секция)
+- Нумерованные карточки с иконками
+- Градиентные фоны, hover-эффекты
+
+#### Конкуренты
+- Добавлены карточки Mintlify и GitBook
+- Используется `data-i18n-html` для HTML-контента в описаниях
+
+### 5. Экономическая модель (сводка)
+
+| Метрика | Значение |
+|---------|----------|
+| TAM | $1.2B (developer documentation tools) |
+| SAM | $180M (IoT/физические устройства) |
+| SOM | $5M (первые 3 года) |
+| Starter (Free) | до 20 устройств |
+| Pro ($99/мес) | до 100 устройств, AI Chat, MCP |
+| Team ($299/мес) | безлимит, MCP Server, перевод |
+| Enterprise ($999+/мес) | on-premise, SLA, SSO |
+| MVP инфраструктура | ~$36-56/мес (всё на одном VPS) |
+| Production инфраструктура | ~$212-352/мес |
+| Enterprise инфраструктура | ~$865-1715+/мес |
+
+### 6. Ключевые файлы проекта
+
+| Файл | Назначение |
+|------|-----------|
+| `IPCodex/ipcodex.html` | Основная интерактивная презентация (лендинг для инвесторов) |
+| `IPCodex/comparison.html` | Детальный конкурентный анализ |
+| `IPCodex/CONTEXT.md` | Техническая спецификация и контекст проекта |
+| `doc2md-mcp/server.py` | Готовые функции конвертации (PDF, Swagger, URL → Markdown) |
+| `index.html` | Redirect на IPCodex/ipcodex.html для GitHub Pages |
+
+### 7. GitHub Pages
+
+- URL: https://olegvphoenix.github.io/mcp-servers/
+- Основная страница: `IPCodex/ipcodex.html`
+- Конкурентный анализ: `IPCodex/comparison.html`
+- Ветка: `main`, папка: `/` (root)
