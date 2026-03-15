@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "doc2md": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/olegvphoenix/mcp-servers.git#subdirectory=doc2md-mcp",
+        "doc2md-mcp"
+      ],
+      "env": {
+        "DOC2MD_OUTPUT_DIR": "${DOC2MD_OUTPUT_DIR}"
+      }
+    }
+  }
+}
