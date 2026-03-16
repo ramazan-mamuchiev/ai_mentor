@@ -1,0 +1,14 @@
+[project]
+name = "ipcodex-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "smoke: slow tests with real embedding model (deselect with '-m not smoke')",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
