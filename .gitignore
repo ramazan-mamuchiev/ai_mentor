@@ -20,7 +20,7 @@ venv/
 Thumbs.db
 
 # Test documents (temporary)
-Test/
+TestDocs/
 
 # Docker volumes
 pgdata/
