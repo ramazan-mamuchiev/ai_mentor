@@ -166,19 +166,10 @@ Three-stage approach to avoid over-engineering at launch while having a clear pa
 |-------|---------|----------|:--------:|
 | **1. Start** | 0–2M chunks, 0–500 tenants | pgvector, single HNSW index | ~64 GB RAM server |
 | **2. Growth** | 2–10M chunks, 500–2000 tenants | pgvector + HASH partitioning (32–64 partitions) | ~128 GB RAM server |
-| **3. Scale** | 10M+ chunks, 2000+ tenants | **Qdrant** for vectors + PostgreSQL for metadata | Horizontal sharding, unlimited |
 
-**Why Qdrant at Stage 3** (not Milvus, Pinecone, Weaviate):
-- Written in Rust — low memory overhead, predictable latency
-- Native **payload pre-filtering** (filter by tenant_id BEFORE ANN search → no wasted recall)
-- Horizontal sharding with automatic rebalancing
-- On-premise deployment (no vendor lock-in, GDPR-compatible)
-- Simpler operationally than Milvus (single binary vs. distributed cluster)
-- Used by Notion, Canva, Disney+ at scale
+At projected Year 3 scale (1,000 developers + 60 vendors ≈ 3M chunks), Stage 2 provides sufficient headroom (up to 10M chunks). A dedicated vector database (Qdrant, Milvus) would only be needed if the platform grows to 10,000+ customers — a decision to revisit if and when that growth materializes.
 
-**Stage 3 architecture change**: PostgreSQL keeps all metadata (tenants, devices, documents, usage_log, billing). Qdrant stores only `{chunk_id, tenant_id, embedding, payload}`. Search flow becomes: Qdrant ANN → chunk_ids → PostgreSQL JOIN for full content.
-
-Full partitioning DDL and migration details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scaling)
+Full partitioning DDL and details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scaling)
 
 ---
 
@@ -313,7 +304,7 @@ ipcodex/
 |-------|-----------|
 | API Gateway | FastAPI + uvicorn |
 | MCP Server | FastMCP (Python MCP SDK), HTTP/SSE transport |
-| Database | PostgreSQL 16 + pgvector (HNSW index) → Qdrant at scale (Stage 3) |
+| Database | PostgreSQL 16 + pgvector (HNSW index, HASH partitioning at scale) |
 | Cache / Rate Limit | Redis 7 |
 | Object Storage | MinIO / AWS S3 |
 | Background Jobs | Celery + Redis broker + Celery Beat (periodic) |
@@ -411,9 +402,7 @@ ipcodex/
 | 31 | pgvector HASH partitioning (32 partitions on `tenant_id`) | >2M chunks | `db/migrations/`, schema.sql |
 | 32 | Split cross-tenant search into 2 queries (private + public) and merge in app | with partitioning | `search/service.py` |
 | 33 | Self-hosted embedding model (replace OpenAI dependency) | production readiness | `ingestion/embedder.py`, Docker GPU worker |
-| 34 | Qdrant deployment + data migration script | >10M chunks | `docker-compose.prod.yml`, `search/qdrant.py` |
-| 35 | Search service abstraction (pgvector vs Qdrant backend, switchable via env) | with Qdrant | `search/service.py`, `search/backends/` |
-| 36 | CDN (CloudFront) for firmware downloads | egress > 1 TB/mo | infrastructure config |
+| 34 | CDN (CloudFront) for firmware downloads | egress > 1 TB/mo | infrastructure config |
 
 Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scaling)
 
