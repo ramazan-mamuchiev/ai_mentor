@@ -71,10 +71,21 @@ services:
     volumes:
       - clamav_data:/var/lib/clamav    # virus definition database
 
+  # Qdrant — dedicated vector DB (Stage 3 scaling, optional)
+  # Uncomment when migrating from pgvector to Qdrant
+  # qdrant:
+  #   image: qdrant/qdrant:v1.12
+  #   ports: ["6333:6333", "6334:6334"]
+  #   volumes:
+  #     - qdrant_data:/qdrant/storage
+  #   environment:
+  #     QDRANT__SERVICE__GRPC_PORT: 6334
+
 volumes:
   pgdata:
   minio_data:
   clamav_data:
+  # qdrant_data:    # uncomment with Qdrant service
 ```
 
 ---
@@ -179,6 +190,14 @@ CLAMAV_PORT=3310
 CLAMAV_TIMEOUT=120                       # seconds (large files)
 ARTIFACT_MAX_SIZE_MB=2048                # 2 GB max upload
 ARTIFACT_SCAN_ENABLED=true
+
+# === Vector Search Backend ===
+SEARCH_BACKEND=pgvector                      # pgvector | qdrant
+QDRANT_HOST=qdrant                           # only when SEARCH_BACKEND=qdrant
+QDRANT_PORT=6333
+QDRANT_GRPC_PORT=6334
+QDRANT_COLLECTION=ipcodex_chunks
+QDRANT_API_KEY=                              # optional, for Qdrant Cloud
 
 # === Application ===
 APP_ENV=development                          # development | staging | production

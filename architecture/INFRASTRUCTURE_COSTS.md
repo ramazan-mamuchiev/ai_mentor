@@ -223,17 +223,20 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | Component | Monthly Cost |
 |-----------|:------------:|
 | Compute (API servers ×3, workers ×4) | $2,500 |
-| PostgreSQL (managed HA) | $2,500 |
+| PostgreSQL (managed HA, metadata only*) | $1,800 |
+| Qdrant (vector search, 2-node cluster*) | $800 |
 | Redis (managed HA) | $250 |
 | S3 storage (5 TB) | $115 |
 | S3 egress + CDN | $600 |
-| OpenAI Embeddings | $60 |
+| OpenAI Embeddings (or self-hosted) | $60 |
 | CDN (CloudFront) | $150 |
 | Stripe fees | $3,200 |
 | Monitoring (Datadog) | $400 |
 | Email (SES) | $30 |
 | Domain + SSL + WAF | $50 |
-| **Total** | **$9,855/mo** |
+| **Total** | **$9,955/mo** |
+
+*At Year 3 scale (10M+ chunks), vector search moves to Qdrant (Stage 3). PostgreSQL cost decreases (no more HNSW index in RAM), Qdrant adds ~$800/mo for a 2-node cluster (8 vCPU, 32 GB RAM each). Net change: +$100/mo vs pgvector-only scenario — Qdrant is cheaper than upgrading PostgreSQL to 128 GB RAM.
 
 **Revenue (Year 3)**: ~$110K/mo (conservative) + Platinum revenue ~$100K/mo (20 × $5K)
 **Gross margin**: 95%+
@@ -258,12 +261,13 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 ## 5. Where the Money Goes (Top 5 Cost Drivers)
 
 ```
-Year 3 breakdown ($9,855/mo):
+Year 3 breakdown ($9,955/mo):
 
-  PostgreSQL managed HA ............ $2,500  (25%)  ← #1 biggest cost
+  Stripe transaction fees .......... $3,200  (32%)  ← #1 (unavoidable, scales with revenue)
   Compute (servers + workers) ...... $2,500  (25%)  ← #2
-  Stripe transaction fees .......... $3,200  (32%)  ← #3 (unavoidable, scales with revenue)
-  S3 egress + CDN .................. $750   (8%)   ← #4 (firmware downloads)
+  PostgreSQL (metadata, HA) ........ $1,800  (18%)  ← #3 (lighter without HNSW index)
+  Qdrant (vector search cluster) ... $800   (8%)   ← #4 (dedicated vector DB)
+  S3 egress + CDN .................. $750   (8%)   ← #5 (firmware downloads)
   Monitoring ....................... $400   (4%)   ← #5
   Everything else .................. $505   (5%)
 ```
@@ -283,7 +287,7 @@ Year 3 breakdown ($9,855/mo):
 |----------|:------------:|:--------------:|:----------------:|
 | Launch | $930 | $930 | ~10 Pro ($99) customers |
 | Growth | $3,560 | $3,560 | ~36 Pro or ~9 Team customers |
-| Scale | $9,855 | $9,855 | ~100 Pro or ~25 Team customers |
+| Scale | $9,955 | $9,955 | ~100 Pro or ~25 Team customers |
 
 **Break-even is reached very early** — even 10 paying Pro customers cover all infrastructure costs at launch. The pricing model has comfortable margins at every scale.
 
@@ -305,7 +309,7 @@ Year 3 breakdown ($9,855/mo):
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
 | Viral firmware download (one popular file, millions of downloads) | S3 egress bill spike | CDN caching + rate limiting on downloads |
-| pgvector index doesn't fit in RAM | Search latency spikes, need bigger instance | Monitor index size, upgrade proactively |
+| pgvector index doesn't fit in RAM | Search latency spikes, need bigger instance | Stage 2: partition by tenant_id; Stage 3: migrate to Qdrant |
 | OpenAI price increase | Embedding costs increase | Switch to self-hosted model (already supported) |
 | Massive OCR ingestion spike | GPU compute costs | Queue-based throttling, OCR worker autoscaling |
 | DDoS on public endpoints | Compute overload | WAF + rate limiting + CloudFlare |
@@ -375,7 +379,7 @@ REVENUE:
   Total revenue:              $217,760/mo
   (+ Platinum vendors: $5K × N extra)
 
-INFRASTRUCTURE:                $9,855/mo
+INFRASTRUCTURE:                $9,955/mo
 
 MARGIN:                       $207,905/mo (95%)
 REVENUE-TO-INFRA RATIO:       22×
@@ -389,7 +393,7 @@ REVENUE-TO-INFRA RATIO:       22×
 |:----:|:----------:|:--------:|:------:|:---------:|---------|
 | 1 | $1,750 | $930 | 47% | 1.9× | Break-even at ~10 Pro customers |
 | 2 | $42,125 | $3,560 | 91% | 11.8× | Healthy, reinvest in growth |
-| 3 | $217,760 | $9,855 | 95% | 22× | Excellent SaaS economics |
+| 3 | $217,760 | $9,955 | 95% | 22× | Excellent SaaS economics |
 
 **Conclusion**: Current pricing model is validated. No price adjustments needed. Infrastructure costs are well below revenue at every scale. The main expense will be people (engineers, support, sales), not servers.
 

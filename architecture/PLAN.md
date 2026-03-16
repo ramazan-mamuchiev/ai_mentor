@@ -158,6 +158,28 @@ Full details: [FLOWS.md — Supported Document Formats](FLOWS.md#supported-docum
 - Optional cross-encoder reranking for top results (Phase 4+)
 - Full query: [DATABASE.md — Vector Search Query](DATABASE.md#vector-search-query-tenant-isolated)
 
+### Vector Search Scaling Strategy
+
+Three-stage approach to avoid over-engineering at launch while having a clear path to scale:
+
+| Stage | Trigger | Solution | Capacity |
+|-------|---------|----------|:--------:|
+| **1. Start** | 0–2M chunks, 0–500 tenants | pgvector, single HNSW index | ~64 GB RAM server |
+| **2. Growth** | 2–10M chunks, 500–2000 tenants | pgvector + HASH partitioning (32–64 partitions) | ~128 GB RAM server |
+| **3. Scale** | 10M+ chunks, 2000+ tenants | **Qdrant** for vectors + PostgreSQL for metadata | Horizontal sharding, unlimited |
+
+**Why Qdrant at Stage 3** (not Milvus, Pinecone, Weaviate):
+- Written in Rust — low memory overhead, predictable latency
+- Native **payload pre-filtering** (filter by tenant_id BEFORE ANN search → no wasted recall)
+- Horizontal sharding with automatic rebalancing
+- On-premise deployment (no vendor lock-in, GDPR-compatible)
+- Simpler operationally than Milvus (single binary vs. distributed cluster)
+- Used by Notion, Canva, Disney+ at scale
+
+**Stage 3 architecture change**: PostgreSQL keeps all metadata (tenants, devices, documents, usage_log, billing). Qdrant stores only `{chunk_id, tenant_id, embedding, payload}`. Search flow becomes: Qdrant ANN → chunk_ids → PostgreSQL JOIN for full content.
+
+Full partitioning DDL and migration details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scaling)
+
 ---
 
 ## Project Structure
@@ -291,7 +313,7 @@ ipcodex/
 |-------|-----------|
 | API Gateway | FastAPI + uvicorn |
 | MCP Server | FastMCP (Python MCP SDK), HTTP/SSE transport |
-| Database | PostgreSQL 16 + pgvector (HNSW index) |
+| Database | PostgreSQL 16 + pgvector (HNSW index) → Qdrant at scale (Stage 3) |
 | Cache / Rate Limit | Redis 7 |
 | Object Storage | MinIO / AWS S3 |
 | Background Jobs | Celery + Redis broker + Celery Beat (periodic) |
@@ -382,6 +404,19 @@ ipcodex/
 | 29 | Vendor admin: configure importer schedule, view sync status | `vendor/router.py` |
 | 30 | Change detection: diff new scrape vs previous → re-index only changed docs | `importers/base.py` |
 
+### Phase 7 — Vector Search Scaling (triggered by growth)
+
+| # | Task | Trigger | Key Changes |
+|---|------|---------|-------------|
+| 31 | pgvector HASH partitioning (32 partitions on `tenant_id`) | >2M chunks | `db/migrations/`, schema.sql |
+| 32 | Split cross-tenant search into 2 queries (private + public) and merge in app | with partitioning | `search/service.py` |
+| 33 | Self-hosted embedding model (replace OpenAI dependency) | production readiness | `ingestion/embedder.py`, Docker GPU worker |
+| 34 | Qdrant deployment + data migration script | >10M chunks | `docker-compose.prod.yml`, `search/qdrant.py` |
+| 35 | Search service abstraction (pgvector vs Qdrant backend, switchable via env) | with Qdrant | `search/service.py`, `search/backends/` |
+| 36 | CDN (CloudFront) for firmware downloads | egress > 1 TB/mo | infrastructure config |
+
+Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scaling)
+
 ---
 
 ## Open Questions / TODO
@@ -394,6 +429,7 @@ ipcodex/
 - [ ] CDN for static assets and S3 presigned URLs
 - [ ] Backup strategy: pg_dump schedule, S3 versioning
 - [ ] AI Chat interface (Phase 2 from CONTEXT.md): LLM + RAG conversational UI
+- [ ] Self-hosted embedding model selection: nomic-embed-text-v1.5 vs BGE-M3 vs all-MiniLM-L6-v2
 
 ### Billing & Payments
 - [ ] Stripe integration: Subscriptions for base tiers + Usage Records for overage

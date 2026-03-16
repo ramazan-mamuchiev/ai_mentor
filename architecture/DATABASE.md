@@ -337,3 +337,244 @@ CREATE POLICY tenant_chunks ON chunks
 -- Set tenant context on each request (in FastAPI middleware)
 -- SET LOCAL app.current_tenant_id = '{tenant_id}';
 ```
+
+---
+
+## Vector Search Scaling
+
+Three-stage scaling strategy for vector search. Each stage is triggered by data growth, not by time.
+
+### Stage 1: pgvector Single Index (0–2M chunks)
+
+Default configuration. No changes needed from the base schema above.
+
+```
+chunks table → single HNSW index → all tenants in one index
+                                    post-filter by tenant_id
+```
+
+**Capacity**: ~2M chunks on a 64 GB RAM server (HNSW index ~12 GB + working memory).
+**Search latency**: 20–80ms (p95).
+**Limitation**: post-filtering means pgvector scans vectors from all tenants, then discards non-matching ones. At 2M+ chunks with 500+ tenants, recall degrades for small tenants (their chunks are "drowned" by larger tenants).
+
+### Stage 2: pgvector HASH Partitioning (2–10M chunks)
+
+Partition the `chunks` table by `tenant_id` hash. Each partition gets its own HNSW index.
+
+```sql
+-- Migration: recreate chunks table with partitioning
+-- (Alembic migration, requires data copy)
+
+CREATE TABLE chunks_partitioned (
+    id BIGSERIAL,
+    document_id INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL,
+    chunk_index INT NOT NULL,
+    heading_path TEXT NOT NULL,
+    heading_level INT NOT NULL,
+    content TEXT NOT NULL,
+    token_count INT NOT NULL DEFAULT 0,
+    embedding vector(1536),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(document_id, chunk_index)
+) PARTITION BY HASH (tenant_id);
+
+-- Create 32 partitions (balance between granularity and planner overhead)
+DO $$
+BEGIN
+    FOR i IN 0..31 LOOP
+        EXECUTE format(
+            'CREATE TABLE chunks_p%s PARTITION OF chunks_partitioned
+             FOR VALUES WITH (MODULUS 32, REMAINDER %s)',
+            i, i
+        );
+        EXECUTE format(
+            'CREATE INDEX idx_chunks_p%s_embedding ON chunks_p%s
+             USING hnsw (embedding vector_cosine_ops)
+             WITH (m = 16, ef_construction = 128)',
+            i, i
+        );
+        EXECUTE format(
+            'CREATE INDEX idx_chunks_p%s_tenant ON chunks_p%s(tenant_id)',
+            i, i
+        );
+    END LOOP;
+END $$;
+
+-- Swap tables
+ALTER TABLE chunks RENAME TO chunks_old;
+ALTER TABLE chunks_partitioned RENAME TO chunks;
+
+-- Migrate data (can be done in batches for zero-downtime)
+INSERT INTO chunks SELECT * FROM chunks_old;
+DROP TABLE chunks_old;
+```
+
+**How partition pruning works**: when query has `WHERE tenant_id = $t`, PostgreSQL hashes `$t` and routes to exactly one partition (e.g., partition 7 of 32). Only that partition's HNSW index is scanned.
+
+**Cross-tenant search (vendor public docs)**: partition pruning requires a single tenant_id. For the combined query (private + public docs), split into two queries in the application layer:
+
+```python
+# search/service.py — Stage 2 adaptation
+
+async def search(tenant_id: UUID, query_embedding, filters, limit: int = 5):
+    # Query 1: tenant's private docs (partition-pruned, fast)
+    private_results = await db.execute(
+        select(Chunk).where(
+            Chunk.tenant_id == tenant_id,
+            # ... device/firmware filters
+        ).order_by(Chunk.embedding.cosine_distance(query_embedding))
+        .limit(limit)
+    )
+
+    # Query 2: public vendor docs the tenant subscribes to
+    subscribed_device_ids = await get_subscribed_devices(tenant_id)
+    if subscribed_device_ids:
+        public_results = await db.execute(
+            select(Chunk).join(Document).where(
+                Document.device_id.in_(subscribed_device_ids),
+                Document.vendor_id.isnot(None),
+                # ... device/firmware filters
+            ).order_by(Chunk.embedding.cosine_distance(query_embedding))
+            .limit(limit)
+        )
+    else:
+        public_results = []
+
+    # Merge by similarity score, return top N
+    merged = sorted(
+        private_results + public_results,
+        key=lambda c: c.similarity, reverse=True
+    )[:limit]
+    return merged
+```
+
+**Capacity**: ~10M chunks on a 128 GB RAM server. Each partition holds ~300K chunks → HNSW index ~1.8 GB per partition, easily fits in RAM.
+**Search latency**: 15–50ms (p95) — faster than Stage 1 due to smaller indexes.
+
+### Stage 3: Qdrant for Vector Search (10M+ chunks)
+
+At this scale, move vector search to a dedicated vector database. PostgreSQL remains the source of truth for all metadata.
+
+```
+                    ┌──────────────────────────┐
+                    │      Qdrant Cluster       │
+                    │  vectors + payload only   │
+   search query ──► │  {chunk_id, tenant_id,    │ ──► chunk_ids
+                    │   device_id, embedding}   │
+                    └──────────────────────────┘
+                                │
+                                ▼
+                    ┌──────────────────────────┐
+   chunk_ids ────► │      PostgreSQL           │ ──► full content
+                    │  chunks.content,          │
+                    │  documents, devices, etc. │
+                    └──────────────────────────┘
+```
+
+**Qdrant collection schema:**
+
+```json
+{
+  "collection_name": "ipcodex_chunks",
+  "vectors": {
+    "size": 1536,
+    "distance": "Cosine"
+  },
+  "shard_number": 4,
+  "replication_factor": 2,
+  "payload_schema": {
+    "tenant_id": "uuid",
+    "device_id": "integer",
+    "firmware_version_id": "integer",
+    "document_id": "integer",
+    "vendor_id": "uuid",
+    "is_public": "bool"
+  }
+}
+```
+
+**Search with native pre-filtering (Qdrant):**
+
+```python
+from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+async def search_qdrant(tenant_id, query_embedding, device_id=None, limit=5):
+    must_conditions = [
+        # Pre-filter: only scan tenant's vectors (BEFORE ANN search)
+        FieldCondition(key="tenant_id", match=MatchValue(value=str(tenant_id)))
+    ]
+    if device_id:
+        must_conditions.append(
+            FieldCondition(key="device_id", match=MatchValue(value=device_id))
+        )
+
+    results = qdrant.search(
+        collection_name="ipcodex_chunks",
+        query_vector=query_embedding,
+        query_filter=Filter(must=must_conditions),
+        limit=limit,
+    )
+
+    # Get full content from PostgreSQL
+    chunk_ids = [r.id for r in results]
+    chunks = await db.execute(
+        select(Chunk).where(Chunk.id.in_(chunk_ids))
+    )
+    return chunks
+```
+
+**Key advantages over pgvector at this scale:**
+- **Pre-filtering**: Qdrant filters by tenant_id/device_id BEFORE ANN search → no wasted recall
+- **Horizontal sharding**: add nodes to handle more data, automatic rebalancing
+- **Dedicated resources**: vector search doesn't compete with billing/analytics queries for PostgreSQL resources
+- **Quantization**: Qdrant supports scalar/product quantization → 4-8x memory reduction
+
+**Search service abstraction** (`search/backends/`):
+
+```python
+# search/backends/base.py
+class SearchBackend(ABC):
+    @abstractmethod
+    async def search(self, tenant_id, query_embedding, filters, limit) -> list[ChunkResult]: ...
+    @abstractmethod
+    async def upsert(self, chunks: list[ChunkData]) -> None: ...
+    @abstractmethod
+    async def delete(self, document_id: int) -> None: ...
+
+# search/backends/pgvector.py
+class PgVectorBackend(SearchBackend): ...
+
+# search/backends/qdrant.py
+class QdrantBackend(SearchBackend): ...
+
+# search/service.py
+backend = PgVectorBackend() if settings.SEARCH_BACKEND == "pgvector" else QdrantBackend()
+```
+
+Switchable via `SEARCH_BACKEND=pgvector|qdrant` env variable. Allows gradual migration: run both in parallel, compare results, switch when confident.
+
+**Docker Compose (Qdrant):**
+
+```yaml
+  qdrant:
+    image: qdrant/qdrant:v1.12
+    ports: ["6333:6333", "6334:6334"]
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+```
+
+**Data migration script**: iterate over `chunks` table in PostgreSQL, upsert vectors + payload to Qdrant in batches of 1000. Can run online (no downtime). Estimated time: ~1 hour per 1M chunks.
+
+### Scaling Decision Matrix
+
+| Metric | Check | Action |
+|--------|-------|--------|
+| chunks count > 2M | `SELECT count(*) FROM chunks` | Start Stage 2 planning |
+| HNSW index > 50% of shared_buffers | `pg_relation_size('idx_chunks_embedding')` | Migrate to Stage 2 |
+| Search p95 latency > 200ms | monitoring | Investigate: partition or Qdrant |
+| chunks count > 10M | monitoring | Start Stage 3 planning |
+| Need horizontal scaling | business growth | Migrate to Stage 3 (Qdrant) |
