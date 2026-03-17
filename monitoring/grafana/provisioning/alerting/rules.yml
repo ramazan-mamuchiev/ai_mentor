@@ -1,0 +1,132 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: IPCodex Alerts
+    folder: IPCodex
+    interval: 1m
+    rules:
+      - uid: ipcodex-high-error-rate
+        title: "High Error Rate (>5% 5xx)"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="/ipcodex-api-1", logger="access"} | json | status_code >= 500 [5m]))'
+              queryType: instant
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="/ipcodex-api-1", logger="access"} | json [5m]))'
+              queryType: instant
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: math
+              expression: "($A / $B) * 100 > 5"
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Error rate exceeds 5% (5xx responses)"
+          description: "The API is returning more than 5% server errors over the last 5 minutes."
+        labels:
+          severity: critical
+
+      - uid: ipcodex-high-latency
+        title: "High Latency (p95 > 10s)"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'quantile_over_time(0.95, {container="/ipcodex-api-1", logger="access"} | json | unwrap duration_ms [5m]) > 10000'
+              queryType: instant
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "p95 response time exceeds 10 seconds"
+          description: "The 95th percentile response time has been above 10s for 5 minutes."
+        labels:
+          severity: warning
+
+      - uid: ipcodex-db-pool-saturation
+        title: "DB Pool Saturation (>80%)"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'last_over_time({container="/ipcodex-api-1", logger="system"} | json | unwrap db_pool_checked_out [5m]) / last_over_time({container="/ipcodex-api-1", logger="system"} | json | unwrap db_pool_size [5m]) > 0.8'
+              queryType: instant
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Database connection pool is over 80% utilized"
+          description: "The PostgreSQL connection pool has been above 80% capacity for 5 minutes."
+        labels:
+          severity: warning
+
+      - uid: ipcodex-service-down
+        title: "Service Down (no logs 5m)"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'absent_over_time({container="/ipcodex-api-1"} [5m])'
+              queryType: instant
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "IPCodex API appears to be down"
+          description: "No logs received from the API container for 5 minutes."
+        labels:
+          severity: critical
+
+      - uid: ipcodex-ingestion-failures
+        title: "Ingestion Failures (>3 in 15m)"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="/ipcodex-api-1"} | json | event =~ "Ingestion failed|URL ingestion failed|PDF conversion failed|Swagger conversion failed" [15m])) > 3'
+              queryType: instant
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "Multiple ingestion failures detected"
+          description: "More than 3 document ingestion failures in the last 15 minutes."
+        labels:
+          severity: warning
