@@ -17,6 +17,37 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-ipcodex}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-ipcodex_dev}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   api:
     build: ./backend
     restart: unless-stopped
@@ -25,8 +56,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
+      DATABASE_URL_SYNC: postgresql://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-ipcodex}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-ipcodex_dev}
+      S3_BUCKET: ${S3_BUCKET:-ipcodex-storage}
       API_KEY: ${API_KEY:-ipx_dev_key_12345}
       EMBEDDING_PROVIDER: local
       APP_ENV: production
@@ -43,6 +84,34 @@ services:
       retries: 5
       start_period: 60s
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
+      DATABASE_URL_SYNC: postgresql://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-ipcodex}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-ipcodex_dev}
+      S3_BUCKET: ${S3_BUCKET:-ipcodex-storage}
+      EMBEDDING_PROVIDER: local
+      APP_ENV: production
+      APP_LOG_LEVEL: INFO
+      LOG_DIR: /app/logs
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - hfcache:/root/.cache/huggingface
+      - ${LOG_DIR:-./logs}:/app/logs
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
 
   loki:
     image: grafana/loki:3.4.2
@@ -83,5 +152,7 @@ services:
 volumes:
   pgdata:
   hfcache:
+  redisdata:
+  minio_data:
   lokidata:
   grafanadata:

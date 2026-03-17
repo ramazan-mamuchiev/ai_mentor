@@ -14,6 +14,17 @@ class Settings(BaseSettings):
     embedding_dims: int = 1536
     openai_api_key: str = ""
 
+    redis_url: str = "redis://localhost:6379/0"
+
+    s3_endpoint: str = "http://localhost:9000"
+    s3_access_key: str = "ipcodex"
+    s3_secret_key: str = "ipcodex_dev"
+    s3_bucket: str = "ipcodex-storage"
+
+    database_url_sync: str = "postgresql://ipcodex:ipcodex_dev@localhost:5432/ipcodex"
+
+    max_upload_size_mb: int = 50
+
     ocr_enabled: bool = False
     ocr_languages: str = "en"
 

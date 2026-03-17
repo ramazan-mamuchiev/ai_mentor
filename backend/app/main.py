@@ -12,6 +12,7 @@ from starlette.routing import Mount
 from mcp.server.fastmcp import FastMCP
 
 from app.config import settings
+from app.documents.router import router as documents_router
 from app.logging_config import setup_logging, active_requests_count
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.mcp.server import (
@@ -85,6 +86,11 @@ async def lifespan(app: FastAPI):
         "IPCodex MCP server starting",
         extra={"env": settings.app_env, "version": "0.1.0"},
     )
+    from app.s3 import ensure_bucket
+    try:
+        ensure_bucket()
+    except Exception:
+        logger.warning("S3 bucket init failed (will retry on first upload)", exc_info=True)
     monitor_task = asyncio.create_task(_system_monitor())
     async with mcp.session_manager.run():
         yield
@@ -103,6 +109,7 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestLoggingMiddleware)
+app.include_router(documents_router, prefix="/api/v1")
 app.router.routes.append(Mount("/mcp", app=mcp.streamable_http_app()))
 
 
@@ -114,13 +121,24 @@ async def health():
 @app.get("/ready")
 async def ready():
     from app.database import engine
+    from app.s3 import check_health as s3_health
 
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         db_status = "ok"
     except Exception as e:
-        logger.error("Readiness check failed", extra={"error_type": type(e).__name__, "error": str(e)})
+        logger.error("Readiness check failed (DB)", extra={"error_type": type(e).__name__, "error": str(e)})
         db_status = f"error: {e}"
 
-    return {"db": db_status}
+    try:
+        import redis as redis_lib
+        r = redis_lib.from_url(settings.redis_url, socket_connect_timeout=2)
+        r.ping()
+        redis_status = "ok"
+    except Exception as e:
+        redis_status = f"error: {e}"
+
+    s3_status = "ok" if s3_health() else "error"
+
+    return {"db": db_status, "redis": redis_status, "s3": s3_status}

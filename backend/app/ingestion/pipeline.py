@@ -436,6 +436,147 @@ async def ingest_url(
         return {"status": "error", "error": str(e), "document_id": doc.id}
 
 
+def ingest_from_bytes(
+    session,
+    document: "Document",
+    file_path: str,
+    original_filename: str,
+) -> dict:
+    """Synchronous ingestion for Celery worker: file already on disk, Document already in DB.
+
+    Runs convert -> parse -> chunk -> embed -> store. Updates document status in-place.
+    """
+    t0 = time.perf_counter()
+    fmt = document.format
+    if fmt == "auto":
+        fmt = detect_format(file_path)
+        document.format = fmt
+
+    logger.info(
+        "Worker ingestion started",
+        extra={
+            "document_id": document.id,
+            "format": fmt,
+            "file_path": original_filename,
+            "file_size_bytes": document.file_size_bytes,
+        },
+    )
+
+    convert_ms = 0.0
+    convert_metadata: dict = {}
+
+    t_read = time.perf_counter()
+    if fmt == "pdf":
+        try:
+            text, convert_metadata = convert_pdf(file_path, ocr_mode="auto", ocr_languages="en")
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"PDF conversion failed: {e}"
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
+    elif fmt == "swagger":
+        try:
+            text, convert_metadata = convert_swagger_file(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"Swagger conversion failed: {e}"
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
+    else:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                text = f.read()
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"Failed to read file: {e}"
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = fmt
+
+    read_ms = round((time.perf_counter() - t_read) * 1000, 1)
+
+    try:
+        t_parse = time.perf_counter()
+        sections = _parse_content(text, fmt_effective, file_path)
+        chunks = chunk_sections(sections)
+        parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
+
+        if not chunks:
+            document.status = "error"
+            document.error_message = "No content extracted"
+            session.commit()
+            return {"status": "error", "error": "No content extracted", "document_id": document.id}
+
+        t_embed = time.perf_counter()
+        contents = [c.content for c in chunks]
+        embeddings = embed_texts(contents)
+        embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
+
+        t_db = time.perf_counter()
+        from sqlalchemy import select as sa_select
+        existing_chunks = session.execute(
+            sa_select(Chunk).where(Chunk.document_id == document.id)
+        ).scalars().all()
+        for c in existing_chunks:
+            session.delete(c)
+        session.flush()
+
+        for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+            db_chunk = Chunk(
+                document_id=document.id,
+                chunk_index=i,
+                heading_path=chunk_data.heading_path,
+                heading_level=chunk_data.heading_level,
+                content=chunk_data.content,
+                token_count=chunk_data.token_count,
+                embedding=embedding,
+            )
+            session.add(db_chunk)
+
+        document.total_chunks = len(chunks)
+        document.status = "ready"
+        session.commit()
+        db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+        duration = time.perf_counter() - t0
+        logger.info(
+            "Worker ingestion completed",
+            extra={
+                "document_id": document.id,
+                "file": original_filename,
+                "chunks": len(chunks),
+                "duration_sec": round(duration, 2),
+                "read_ms": read_ms,
+                "convert_ms": convert_ms,
+                "parse_ms": parse_ms,
+                "embed_ms": embed_ms,
+                "db_ms": db_ms,
+                "format": fmt,
+                "file_size_bytes": document.file_size_bytes,
+            },
+        )
+        result = {
+            "status": "ok",
+            "document_id": document.id,
+            "format": fmt,
+            "chunks": len(chunks),
+            "duration_sec": round(duration, 2),
+        }
+        if convert_metadata:
+            result["convert_metadata"] = convert_metadata
+        return result
+
+    except Exception as e:
+        document.status = "error"
+        document.error_message = str(e)[:2000]
+        session.commit()
+        return {"status": "error", "error": str(e), "document_id": document.id}
+
+
 async def _get_or_create_device(session: AsyncSession, name: str, manufacturer: str) -> Device:
     result = await session.execute(
         select(Device).where(Device.name == name)
