@@ -5,6 +5,7 @@ compatibility with future OpenAI embeddings.
 """
 
 import logging
+import time
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -28,9 +29,17 @@ def _get_local_model() -> "SentenceTransformer":
     if _local_model is None:
         from sentence_transformers import SentenceTransformer
 
-        logger.info("Loading local embedding model: %s", settings.embedding_model_local)
+        t0 = time.perf_counter()
+        logger.info(
+            "Loading local embedding model",
+            extra={"model": settings.embedding_model_local},
+        )
         _local_model = SentenceTransformer(settings.embedding_model_local)
-        logger.info("Local embedding model loaded (dims=%d)", LOCAL_DIMS)
+        duration_sec = round(time.perf_counter() - t0, 2)
+        logger.info(
+            "Local embedding model loaded",
+            extra={"model": settings.embedding_model_local, "dims": LOCAL_DIMS, "duration_sec": duration_sec},
+        )
     return _local_model
 
 
@@ -55,14 +64,31 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 def _embed_local(texts: list[str]) -> list[list[float]]:
     model = _get_local_model()
     all_embeddings: list[np.ndarray] = []
+    total_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
 
-    for i in range(0, len(texts), BATCH_SIZE):
+    for batch_idx, i in enumerate(range(0, len(texts), BATCH_SIZE)):
         batch = texts[i : i + BATCH_SIZE]
+        t0 = time.perf_counter()
         vecs = model.encode(batch, normalize_embeddings=True, show_progress_bar=False)
+        batch_ms = round((time.perf_counter() - t0) * 1000, 1)
         all_embeddings.append(vecs)
+
+        log_extra = {
+            "batch_index": batch_idx + 1, "total_batches": total_batches,
+            "texts_count": len(batch), "duration_ms": batch_ms,
+        }
+        if batch_ms > 30000:
+            logger.warning("Embedding batch slow", extra=log_extra)
+        else:
+            logger.debug("Embedding batch completed", extra=log_extra)
 
     combined = np.vstack(all_embeddings) if len(all_embeddings) > 1 else all_embeddings[0]
     padded = _zero_pad(combined, EMBEDDING_DIMS)
+
+    logger.info(
+        "Embedding completed",
+        extra={"texts_count": len(texts), "provider": "local", "dims": EMBEDDING_DIMS},
+    )
     return padded.tolist()
 
 
@@ -74,10 +100,21 @@ def _embed_openai(texts: list[str]) -> list[list[float]]:
 
     for i in range(0, len(texts), BATCH_SIZE):
         batch = texts[i : i + BATCH_SIZE]
+        t0 = time.perf_counter()
         response = client.embeddings.create(model=settings.embedding_model_openai, input=batch)
+        batch_ms = round((time.perf_counter() - t0) * 1000, 1)
         for item in response.data:
             all_embeddings.append(item.embedding)
 
+        logger.debug(
+            "OpenAI embedding batch completed",
+            extra={"texts_count": len(batch), "duration_ms": batch_ms},
+        )
+
+    logger.info(
+        "Embedding completed",
+        extra={"texts_count": len(texts), "provider": "openai", "dims": EMBEDDING_DIMS},
+    )
     return all_embeddings
 
 

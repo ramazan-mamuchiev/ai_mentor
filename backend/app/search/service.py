@@ -1,6 +1,7 @@
 """Vector search service: pgvector cosine similarity + heading_path exact match."""
 
 import logging
+import time
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +22,11 @@ async def search_documents(
 
     Returns list of dicts with content, heading_path, similarity, device info.
     """
+    t0 = time.perf_counter()
+
+    t_embed = time.perf_counter()
     query_embedding = embed_query(query)
+    embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
     embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
 
@@ -57,10 +62,17 @@ async def search_documents(
         LIMIT :limit
     """)
 
+    logger.debug(
+        "Search query executing",
+        extra={"query": query, "device": device, "version": version, "embed_ms": embed_ms},
+    )
+
+    t_db = time.perf_counter()
     result = await session.execute(sql, params)
+    db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
     rows = result.mappings().all()
-    return [
+    results = [
         {
             "content": row["content"],
             "heading_path": row["heading_path"],
@@ -75,6 +87,23 @@ async def search_documents(
         for row in rows
     ]
 
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    result_count = len(results)
+    top_similarity = results[0]["similarity"] if results else 0.0
+
+    log_extra = {
+        "query": query, "device": device, "version": version,
+        "result_count": result_count, "top_similarity": top_similarity,
+        "duration_ms": duration_ms, "embed_ms": embed_ms, "db_ms": db_ms,
+    }
+
+    if result_count == 0:
+        logger.warning("Search returned 0 results", extra=log_extra)
+    else:
+        logger.info("Search completed", extra=log_extra)
+
+    return results
+
 
 async def search_endpoint(
     session: AsyncSession,
@@ -85,6 +114,8 @@ async def search_endpoint(
 
     First tries exact heading_path match (ILIKE), then falls back to vector search.
     """
+    t0 = time.perf_counter()
+
     where_clauses = [
         "d.status = 'ready'",
         "c.heading_path ILIKE '%' || :endpoint || '%'",
@@ -118,6 +149,15 @@ async def search_endpoint(
     rows = result.mappings().all()
 
     if rows:
+        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+        logger.info(
+            "Endpoint search: exact match",
+            extra={
+                "endpoint": endpoint, "device": device,
+                "result_count": len(rows), "match_type": "exact",
+                "duration_ms": duration_ms,
+            },
+        )
         return [
             {
                 "content": row["content"],
@@ -130,5 +170,8 @@ async def search_endpoint(
             for row in rows
         ]
 
-    logger.info("No exact match for endpoint '%s', falling back to vector search", endpoint)
+    logger.warning(
+        "Endpoint search: no exact match, falling back to vector search",
+        extra={"endpoint": endpoint, "device": device},
+    )
     return await search_documents(session, f"API endpoint {endpoint}", device=device, limit=5)

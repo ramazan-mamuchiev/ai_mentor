@@ -1,48 +1,41 @@
-"""Tests for Swagger/OpenAPI helpers."""
+"""Tests for Swagger/OpenAPI converter (migrated from doc2md-mcp)."""
 
 import json
 
 import pytest
 
-from server import (
-    _is_swagger_file,
+from app.ingestion.converters.swagger import (
+    is_swagger_file,
     _parse_openapi,
     _resolve_ref,
     _type_str,
     _openapi_to_markdown,
-    _swagger_metadata,
+    convert_swagger_file,
+    convert_swagger_text,
 )
-from tests.conftest import OPENAPI_V3_SPEC, SWAGGER_V2_SPEC
+from tests.unit.converters.conftest import OPENAPI_V3_SPEC, SWAGGER_V2_SPEC
 
-
-# ---------------------------------------------------------------------------
-# _is_swagger_file
-# ---------------------------------------------------------------------------
 
 class TestIsSwaggerFile:
     def test_valid_swagger_yaml(self, sample_swagger_yaml):
-        assert _is_swagger_file(sample_swagger_yaml) is True
+        assert is_swagger_file(str(sample_swagger_yaml)) is True
 
     def test_valid_swagger_json(self, sample_swagger_json):
-        assert _is_swagger_file(sample_swagger_json) is True
+        assert is_swagger_file(str(sample_swagger_json)) is True
 
     def test_plain_yaml(self, plain_yaml):
-        assert _is_swagger_file(plain_yaml) is False
+        assert is_swagger_file(str(plain_yaml)) is False
 
     def test_txt_file(self, tmp_path):
         f = tmp_path / "readme.txt"
         f.write_text("just text", encoding="utf-8")
-        assert _is_swagger_file(f) is False
+        assert is_swagger_file(str(f)) is False
 
     def test_invalid_json(self, tmp_path):
         f = tmp_path / "broken.json"
         f.write_text("{broken", encoding="utf-8")
-        assert _is_swagger_file(f) is False
+        assert is_swagger_file(str(f)) is False
 
-
-# ---------------------------------------------------------------------------
-# _parse_openapi
-# ---------------------------------------------------------------------------
 
 class TestParseOpenapi:
     def test_yaml(self, sample_swagger_yaml):
@@ -55,10 +48,6 @@ class TestParseOpenapi:
         assert spec["swagger"] == "2.0"
         assert spec["info"]["title"] == "Test Pet API v2"
 
-
-# ---------------------------------------------------------------------------
-# _resolve_ref
-# ---------------------------------------------------------------------------
 
 class TestResolveRef:
     def test_valid_ref(self):
@@ -80,10 +69,6 @@ class TestResolveRef:
         result = _resolve_ref(spec, "#/components/schemas/Dog")
         assert result == {"type": "object"}
 
-
-# ---------------------------------------------------------------------------
-# _type_str
-# ---------------------------------------------------------------------------
 
 class TestTypeStr:
     def test_ref(self):
@@ -110,10 +95,6 @@ class TestTypeStr:
     def test_empty(self):
         assert _type_str({}) == ""
 
-
-# ---------------------------------------------------------------------------
-# _openapi_to_markdown
-# ---------------------------------------------------------------------------
 
 class TestOpenapiToMarkdown:
     def test_v3_title(self):
@@ -159,20 +140,41 @@ class TestOpenapiToMarkdown:
         assert "Pet" in md
 
 
-# ---------------------------------------------------------------------------
-# _swagger_metadata
-# ---------------------------------------------------------------------------
-
-class TestSwaggerMetadata:
-    def test_v3_counts(self):
-        meta = _swagger_metadata(OPENAPI_V3_SPEC)
+class TestConvertSwaggerFile:
+    def test_yaml_returns_markdown_and_metadata(self, sample_swagger_yaml):
+        md_text, meta = convert_swagger_file(str(sample_swagger_yaml))
+        assert "Test Pet API" in md_text
+        assert "GET /pets" in md_text
         assert meta["endpoints"] == 2
         assert meta["models"] == 1
         assert meta["api_title"] == "Test Pet API"
         assert meta["swagger_version"] == "3.0.0"
 
-    def test_v2_counts(self):
-        meta = _swagger_metadata(SWAGGER_V2_SPEC)
+    def test_json_returns_markdown_and_metadata(self, sample_swagger_json):
+        md_text, meta = convert_swagger_file(str(sample_swagger_json))
+        assert "Test Pet API v2" in md_text
+        assert meta["swagger_version"] == "2.0"
         assert meta["endpoints"] == 1
         assert meta["models"] == 1
-        assert meta["swagger_version"] == "2.0"
+
+
+class TestConvertSwaggerText:
+    def test_valid_json(self):
+        text = json.dumps(OPENAPI_V3_SPEC)
+        result = convert_swagger_text(text, "application/json")
+        assert result is not None
+        md_text, meta = result
+        assert "Test Pet API" in md_text
+        assert meta["endpoints"] == 2
+
+    def test_invalid_text(self):
+        result = convert_swagger_text("just plain text", "text/plain")
+        assert result is None
+
+    def test_valid_yaml(self):
+        import yaml
+        text = yaml.dump(SWAGGER_V2_SPEC)
+        result = convert_swagger_text(text, "text/yaml")
+        assert result is not None
+        md_text, meta = result
+        assert "Test Pet API v2" in md_text

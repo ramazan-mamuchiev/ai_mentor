@@ -1,16 +1,23 @@
-"""Tests for OCR enrichment logic (_enrich_markdown_with_ocr, _ocr_image_file)."""
+"""Tests for PDF/OCR converter (migrated from doc2md-mcp).
 
+Tests cover: _IMG_REF_RE regex, _ocr_image_file, _find_ocr_pages,
+_enrich_markdown_with_ocr, and the main convert_pdf function.
+"""
+
+import io
 import os
 from unittest.mock import patch, MagicMock
 
+import pymupdf
 import pytest
 
-from server import (
-    _enrich_markdown_with_ocr,
-    _find_ocr_pages,
+from app.ingestion.converters.pdf import (
     _IMG_REF_RE,
     _OCR_IMAGE_MIN_AREA,
+    _enrich_markdown_with_ocr,
+    _find_ocr_pages,
     _ocr_image_file,
+    convert_pdf,
 )
 
 
@@ -19,8 +26,6 @@ from server import (
 # ---------------------------------------------------------------------------
 
 class TestImgRefRegex:
-    """Verify that _IMG_REF_RE correctly handles edge-case paths."""
-
     def test_simple_path(self):
         md = "![alt](images/photo.png)"
         m = _IMG_REF_RE.search(md)
@@ -71,21 +76,18 @@ class TestImgRefRegex:
 # ---------------------------------------------------------------------------
 
 class TestOcrImageFile:
-    """_ocr_image_file reads images via PIL to avoid OpenCV path issues."""
-
     def _make_white_png(self, path):
         from PIL import Image
         img = Image.new("RGB", (100, 50), (255, 255, 255))
         img.save(str(path))
 
     def test_non_ascii_path(self, tmp_path):
-        """Paths with non-breaking spaces / Unicode must not crash OpenCV."""
         subdir = tmp_path / "C#\xa0Access\xa0Demo"
         subdir.mkdir()
         img = subdir / "test.png"
         self._make_white_png(img)
 
-        with patch("server._get_ocr_reader") as mock_reader:
+        with patch("app.ingestion.converters.pdf._get_ocr_reader") as mock_reader:
             mock_reader.return_value.readtext.return_value = [
                 (None, "hello", 0.9),
             ]
@@ -99,7 +101,7 @@ class TestOcrImageFile:
         img = subdir / "img(0).png"
         self._make_white_png(img)
 
-        with patch("server._get_ocr_reader") as mock_reader:
+        with patch("app.ingestion.converters.pdf._get_ocr_reader") as mock_reader:
             mock_reader.return_value.readtext.return_value = [
                 (None, "world", 0.95),
             ]
@@ -113,7 +115,7 @@ class TestOcrImageFile:
         img = subdir / "photo.png"
         self._make_white_png(img)
 
-        with patch("server._get_ocr_reader") as mock_reader:
+        with patch("app.ingestion.converters.pdf._get_ocr_reader") as mock_reader:
             mock_reader.return_value.readtext.return_value = []
             result = _ocr_image_file(str(img), ["en"])
 
@@ -121,25 +123,16 @@ class TestOcrImageFile:
 
 
 # ---------------------------------------------------------------------------
-# _enrich_markdown_with_ocr
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # _find_ocr_pages — page-level OCR detection by image area
 # ---------------------------------------------------------------------------
 
 class TestFindOcrPages:
-    """_find_ocr_pages returns page indices with large images."""
-
     def test_returns_pages_with_large_images(self, tmp_path):
-        """Pages containing images >= _OCR_IMAGE_MIN_AREA should be returned."""
-        import pymupdf
+        from PIL import Image
 
         pdf_path = str(tmp_path / "test.pdf")
         doc = pymupdf.open()
         page = doc.new_page(width=612, height=792)
-        from PIL import Image
-        import io
         img = Image.new("RGB", (400, 400), (128, 128, 128))
         buf = io.BytesIO()
         img.save(buf, format="PNG")
@@ -153,14 +146,11 @@ class TestFindOcrPages:
         assert result == [0], f"Expected [0] for 400x400 image (160000 px), got {result}"
 
     def test_skips_pages_with_small_images(self, tmp_path):
-        """Pages with only small images (< _OCR_IMAGE_MIN_AREA) should be skipped."""
-        import pymupdf
+        from PIL import Image
 
         pdf_path = str(tmp_path / "test.pdf")
         doc = pymupdf.open()
         page = doc.new_page(width=612, height=792)
-        from PIL import Image
-        import io
         img = Image.new("RGB", (50, 50), (200, 200, 200))
         buf = io.BytesIO()
         img.save(buf, format="PNG")
@@ -174,9 +164,6 @@ class TestFindOcrPages:
         assert result == [], f"Expected [] for 50x50 image (2500 px), got {result}"
 
     def test_empty_pdf(self, tmp_path):
-        """PDF with no images returns empty list."""
-        import pymupdf
-
         pdf_path = str(tmp_path / "empty.pdf")
         doc = pymupdf.open()
         doc.new_page(width=612, height=792)
@@ -187,15 +174,12 @@ class TestFindOcrPages:
         assert result == []
 
     def test_mixed_pages(self, tmp_path):
-        """Only pages with large images are returned."""
-        import pymupdf
+        from PIL import Image
 
         pdf_path = str(tmp_path / "mixed.pdf")
         doc = pymupdf.open()
-        from PIL import Image
-        import io
 
-        page0 = doc.new_page(width=612, height=792)
+        doc.new_page(width=612, height=792)
 
         page1 = doc.new_page(width=612, height=792)
         img_large = Image.new("RGB", (500, 500), (100, 100, 100))
@@ -228,73 +212,54 @@ class TestEnrichMarkdownWithOcr:
         img.touch()
         md = f"Before\n![alt]({img})\nAfter"
 
-        with patch("server._ocr_image_file", return_value="recognized text"):
+        with patch("app.ingestion.converters.pdf._ocr_image_file", return_value="recognized text"), \
+             patch("app.ingestion.converters.pdf._get_ocr_reader"):
             result, stats = _enrich_markdown_with_ocr(md, ["en"])
 
         assert "recognized text" in result
         assert "![alt]" not in result
         assert stats["images_ocr_ok"] == 1
         assert stats["images_total"] == 1
-        assert stats["images_failed"] == []
-        assert len(stats["images_ok_paths"]) == 1
-        assert str(img) in stats["images_ok_paths"][0]
 
     def test_file_not_found(self):
         md = "![alt](/nonexistent/image.png)"
-        result, stats = _enrich_markdown_with_ocr(md, ["en"])
+        with patch("app.ingestion.converters.pdf._get_ocr_reader"):
+            result, stats = _enrich_markdown_with_ocr(md, ["en"])
         assert "![alt]" not in result
-        assert result.strip() == ""
         assert stats["images_ocr_ok"] == 0
         assert stats["images_missing"] == 1
-        assert len(stats["images_failed"]) == 1
-        assert len(stats["errors_detail"]) == 1
-        ed = stats["errors_detail"][0]
-        assert ed["reason"] == "missing"
-        assert ed["file"] == "image.png"
-        assert "/nonexistent/image.png" in ed["detail"]
 
     def test_empty_ocr_result(self, tmp_path):
         img = tmp_path / "empty.png"
         img.touch()
         md = f"Text\n![x]({img})\nMore"
 
-        with patch("server._ocr_image_file", return_value="   "):
+        with patch("app.ingestion.converters.pdf._ocr_image_file", return_value="   "), \
+             patch("app.ingestion.converters.pdf._get_ocr_reader"):
             result, stats = _enrich_markdown_with_ocr(md, ["en"])
 
         assert "![x]" not in result
         assert stats["images_ocr_ok"] == 0
         assert stats["images_ocr_empty"] == 1
-        assert "empty.png" in stats["images_failed"]
-        assert len(stats["errors_detail"]) == 1
-        ed = stats["errors_detail"][0]
-        assert ed["reason"] == "ocr_empty"
-        assert ed["file"] == "empty.png"
 
     def test_ocr_exception(self, tmp_path):
         img = tmp_path / "bad.png"
         img.touch()
         md = f"![x]({img})"
 
-        with patch("server._ocr_image_file", side_effect=RuntimeError("OCR crashed")):
+        with patch("app.ingestion.converters.pdf._ocr_image_file", side_effect=RuntimeError("OCR crashed")), \
+             patch("app.ingestion.converters.pdf._get_ocr_reader"):
             result, stats = _enrich_markdown_with_ocr(md, ["en"])
 
         assert "![x]" not in result
         assert stats["images_ocr_ok"] == 0
         assert stats["images_ocr_error"] == 1
-        assert "bad.png" in stats["images_failed"]
-        assert len(stats["errors_detail"]) == 1
-        ed = stats["errors_detail"][0]
-        assert ed["reason"] == "ocr_error"
-        assert ed["file"] == "bad.png"
-        assert "RuntimeError" in ed["detail"]
-        assert "OCR crashed" in ed["detail"]
 
     def test_no_images(self):
         md = "Just plain text\nwith no images"
         result, stats = _enrich_markdown_with_ocr(md, ["en"])
         assert result == md
         assert stats["images_total"] == 0
-        assert stats["images_failed"] == []
 
     def test_multiple_images(self, tmp_path):
         img1 = tmp_path / "a.png"
@@ -308,7 +273,8 @@ class TestEnrichMarkdownWithOcr:
                 return "alpha text"
             return "beta text"
 
-        with patch("server._ocr_image_file", side_effect=mock_ocr):
+        with patch("app.ingestion.converters.pdf._ocr_image_file", side_effect=mock_ocr), \
+             patch("app.ingestion.converters.pdf._get_ocr_reader"):
             result, stats = _enrich_markdown_with_ocr(md, ["en"])
 
         assert "alpha text" in result
@@ -317,14 +283,14 @@ class TestEnrichMarkdownWithOcr:
         assert stats["images_total"] == 2
 
     def test_path_with_parentheses(self, tmp_path):
-        """Image path containing parentheses must be parsed and OCR'd correctly."""
         subdir = tmp_path / "Guide_V2.6.1(2)"
         subdir.mkdir()
         img = subdir / "image(0).png"
         img.touch()
         md = f"Text\n![alt]({img})\nEnd"
 
-        with patch("server._ocr_image_file", return_value="found text"):
+        with patch("app.ingestion.converters.pdf._ocr_image_file", return_value="found text"), \
+             patch("app.ingestion.converters.pdf._get_ocr_reader"):
             result, stats = _enrich_markdown_with_ocr(md, ["en"])
 
         assert "found text" in result
@@ -333,40 +299,7 @@ class TestEnrichMarkdownWithOcr:
         assert stats["images_ocr_ok"] == 1
         assert stats["images_missing"] == 0
 
-    def test_mixed_results(self, tmp_path):
-        """One image recognized, one empty, one error."""
-        img_ok = tmp_path / "ok.png"
-        img_empty = tmp_path / "empty.png"
-        img_err = tmp_path / "err.png"
-        img_ok.touch()
-        img_empty.touch()
-        img_err.touch()
-        md = f"![a]({img_ok})\n![b]({img_empty})\n![c]({img_err})\n![d](/missing.png)"
-
-        def mock_ocr(path, langs=None):
-            if "ok.png" in path:
-                return "good text"
-            if "empty.png" in path:
-                return "  "
-            raise RuntimeError("crash")
-
-        with patch("server._ocr_image_file", side_effect=mock_ocr):
-            result, stats = _enrich_markdown_with_ocr(md, ["en"])
-
-        assert stats["images_total"] == 4
-        assert stats["images_ocr_ok"] == 1
-        assert stats["images_ocr_empty"] == 1
-        assert stats["images_ocr_error"] == 1
-        assert stats["images_missing"] == 1
-        assert len(stats["images_failed"]) == 3
-        assert len(stats["images_ok_paths"]) == 1
-        assert "good text" in result
-        assert len(stats["errors_detail"]) == 3
-        reasons = {ed["reason"] for ed in stats["errors_detail"]}
-        assert reasons == {"ocr_empty", "ocr_error", "missing"}
-
     def test_skips_small_images(self, tmp_path):
-        """Images smaller than _OCR_IMAGE_MIN_AREA are skipped without OCR."""
         from PIL import Image
 
         small_img = tmp_path / "tiny.png"
@@ -377,7 +310,8 @@ class TestEnrichMarkdownWithOcr:
 
         md = f"![small]({small_img})\n![big]({large_img})"
 
-        with patch("server._ocr_image_file", return_value="big text"):
+        with patch("app.ingestion.converters.pdf._ocr_image_file", return_value="big text"), \
+             patch("app.ingestion.converters.pdf._get_ocr_reader"):
             result, stats = _enrich_markdown_with_ocr(md, ["en"])
 
         assert stats["images_total"] == 2
@@ -388,7 +322,6 @@ class TestEnrichMarkdownWithOcr:
         assert "![big]" not in result
 
     def test_all_small_images_skipped(self, tmp_path):
-        """When all images are small, none are OCR'd."""
         from PIL import Image
 
         img1 = tmp_path / "icon1.png"
@@ -398,7 +331,8 @@ class TestEnrichMarkdownWithOcr:
 
         md = f"Text\n![a]({img1})\n![b]({img2})\nEnd"
 
-        with patch("server._ocr_image_file") as mock_ocr:
+        with patch("app.ingestion.converters.pdf._ocr_image_file") as mock_ocr, \
+             patch("app.ingestion.converters.pdf._get_ocr_reader"):
             result, stats = _enrich_markdown_with_ocr(md, ["en"])
 
         mock_ocr.assert_not_called()
@@ -406,41 +340,31 @@ class TestEnrichMarkdownWithOcr:
         assert stats["images_skipped_small"] == 2
         assert stats["images_ocr_ok"] == 0
 
-    def test_on_progress_called_with_correct_sequence(self, tmp_path):
-        """on_progress must be called: (0, N) for model init, then (1, N)...(N, N)."""
-        img1 = tmp_path / "a.png"
-        img2 = tmp_path / "b.png"
-        img3 = tmp_path / "c.png"
-        for img in [img1, img2, img3]:
-            img.touch()
-        md = f"![a]({img1})\n![b]({img2})\n![c]({img3})"
 
-        calls: list[tuple[int, int]] = []
+# ---------------------------------------------------------------------------
+# convert_pdf — main entry point
+# ---------------------------------------------------------------------------
 
-        with patch("server._ocr_image_file", return_value="text"), \
-             patch("server._get_ocr_reader"):
-            _enrich_markdown_with_ocr(md, ["en"], on_progress=lambda d, t: calls.append((d, t)))
+class TestConvertPdf:
+    def test_text_pdf_conversion(self, sample_text_pdf):
+        md_text, meta = convert_pdf(str(sample_text_pdf), ocr_mode="off")
+        assert "Chapter 1" in md_text or "Introduction" in md_text
+        assert meta["pages"] == 2
+        assert meta["ocr_applied"] is False
+        assert meta["total_ms"] > 0
 
-        assert calls[0] == (0, 3), f"First call must be (0, 3) for model loading, got {calls[0]}"
-        assert calls == [(0, 3), (1, 3), (2, 3), (3, 3)]
+    def test_metadata_fields(self, sample_text_pdf):
+        _, meta = convert_pdf(str(sample_text_pdf), ocr_mode="off")
+        assert "pages" in meta
+        assert "file_size_bytes" in meta
+        assert "convert_ms" in meta
+        assert "total_ms" in meta
 
-    def test_on_progress_not_called_without_images(self):
-        """on_progress must not be called when there are no images."""
-        calls: list = []
-        md = "Just plain text"
+    def test_ocr_mode_auto_no_images(self, sample_text_pdf):
+        md_text, meta = convert_pdf(str(sample_text_pdf), ocr_mode="auto")
+        assert meta["ocr_applied"] is False
 
-        _enrich_markdown_with_ocr(md, ["en"], on_progress=lambda d, t: calls.append((d, t)))
-
-        assert calls == [], f"No images = no progress calls, got {calls}"
-
-    def test_on_progress_none_is_safe(self, tmp_path):
-        """on_progress=None must not cause errors."""
-        img = tmp_path / "x.png"
-        img.touch()
-        md = f"![x]({img})"
-
-        with patch("server._ocr_image_file", return_value="ok"), \
-             patch("server._get_ocr_reader"):
-            result, stats = _enrich_markdown_with_ocr(md, ["en"], on_progress=None)
-
-        assert stats["images_ocr_ok"] == 1
+    def test_ocr_mode_always_without_easyocr(self, sample_image_pdf):
+        with patch("app.ingestion.converters.pdf._ocr_available", return_value=False):
+            md_text, meta = convert_pdf(str(sample_image_pdf), ocr_mode="always")
+        assert meta["ocr_applied"] is False

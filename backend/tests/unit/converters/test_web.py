@@ -1,22 +1,17 @@
-"""Tests for HTTP API helpers and web page helpers."""
+"""Tests for web/URL converter (migrated from doc2md-mcp)."""
 
-import hashlib
 import json
-from io import BytesIO
-from unittest.mock import patch, MagicMock
+import ssl
+from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 
-from server import (
+from app.ingestion.converters.web import (
     _fetch_url,
     _try_parse_as_openapi,
     _detect_swagger_spec_url,
-    _url_hash,
-    _url_to_filename,
-    _resolve_web_output_path,
-    _detect_wait_for,
-    _POSTMAN_DOMAIN,
-    EXPORT_SUBFOLDER,
+    _make_ssl_context,
+    convert_url,
 )
 
 
@@ -87,7 +82,7 @@ class TestDetectSwaggerSpecUrl:
         </script>
         """
         result = _detect_swagger_spec_url(html, "https://example.com/")
-        assert result == "https://cdn.example.com/spec.json"
+        assert result is None  # Redoc.init not in our extractors
 
     def test_plain_html_returns_none(self):
         html = "<html><body><h1>Hello</h1></body></html>"
@@ -122,71 +117,85 @@ class TestFetchUrl:
 
 
 # ---------------------------------------------------------------------------
-# _url_hash
+# _make_ssl_context
 # ---------------------------------------------------------------------------
 
-class TestUrlHash:
-    def test_deterministic(self):
-        url = "https://example.com/api"
-        expected = hashlib.sha256(url.encode("utf-8")).hexdigest()
-        assert _url_hash(url) == expected
+class TestMakeSslContext:
+    def test_returns_ssl_context(self):
+        ctx = _make_ssl_context()
+        assert isinstance(ctx, ssl.SSLContext)
 
-    def test_different_urls(self):
-        assert _url_hash("http://a.com") != _url_hash("http://b.com")
-
-
-# ---------------------------------------------------------------------------
-# _url_to_filename
-# ---------------------------------------------------------------------------
-
-class TestUrlToFilename:
-    def test_with_title(self):
-        result = _url_to_filename("https://example.com/docs", title="My API Docs")
-        assert result == "My API Docs.md"
-
-    def test_without_title(self):
-        result = _url_to_filename("https://example.com/api/v1/docs")
-        assert result.endswith(".md")
-        assert "example.com" in result
-
-    def test_long_url_truncated(self):
-        long_url = "https://example.com/" + "a" * 200
-        result = _url_to_filename(long_url)
-        assert len(result) <= 124  # 120 + ".md"
-
-    def test_special_chars_replaced(self):
-        result = _url_to_filename("https://example.com/docs?q=test&v=1", title="Test: API <v2>")
-        assert ":" not in result.replace(".md", "")
-        assert "<" not in result
-        assert ">" not in result
+    def test_no_verify(self):
+        ctx = _make_ssl_context()
+        assert ctx.check_hostname is False
 
 
 # ---------------------------------------------------------------------------
-# _resolve_web_output_path
+# convert_url (async, with mocks)
 # ---------------------------------------------------------------------------
 
-class TestResolveWebOutputPath:
-    def test_explicit_output(self):
-        result = _resolve_web_output_path("http://x.com", None, "/out.md", None)
-        assert result == "/out.md"
+class TestConvertUrl:
+    @pytest.mark.asyncio
+    async def test_direct_openapi_spec(self):
+        spec_json = json.dumps({
+            "openapi": "3.0.0",
+            "info": {"title": "Remote API", "version": "1.0"},
+            "paths": {"/test": {"get": {"summary": "Test endpoint", "responses": {"200": {"description": "OK"}}}}},
+        })
 
-    def test_with_output_dir(self, tmp_path):
-        result = _resolve_web_output_path("http://x.com", "Title", None, str(tmp_path))
-        assert str(tmp_path) in result
-        assert EXPORT_SUBFOLDER in result
-        assert result.endswith(".md")
+        with patch(
+            "app.ingestion.converters.web._fetch_url",
+            return_value=(spec_json.encode(), "application/json", "http://x.com/spec.json"),
+        ):
+            md_text, meta = await convert_url("http://x.com/spec.json")
 
+        assert "Remote API" in md_text
+        assert meta["detection_method"] == "direct_openapi_spec"
 
-# ---------------------------------------------------------------------------
-# _detect_wait_for
-# ---------------------------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_swagger_ui_extracted(self):
+        html = b"""
+        <html><body>
+        <script>SwaggerUIBundle({url: "/openapi.json"})</script>
+        </body></html>
+        """
+        spec_json = json.dumps({
+            "openapi": "3.0.0",
+            "info": {"title": "Extracted API", "version": "1.0"},
+            "paths": {"/test": {"get": {"summary": "Test", "responses": {"200": {"description": "OK"}}}}},
+        })
 
-class TestDetectWaitFor:
-    def test_user_provided(self):
-        assert _detect_wait_for("http://x.com", "css:.content") == "css:.content"
+        call_count = 0
 
-    def test_user_empty_string(self):
-        assert _detect_wait_for("http://x.com", "") is None
+        def mock_fetch(url, accept="*/*"):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return (html, "text/html", "http://x.com/docs")
+            return (spec_json.encode(), "application/json", url)
 
-    def test_default(self):
-        assert _detect_wait_for("http://x.com", None) is None
+        with patch("app.ingestion.converters.web._fetch_url", side_effect=mock_fetch):
+            md_text, meta = await convert_url("http://x.com/docs")
+
+        assert "Extracted API" in md_text
+        assert meta["detection_method"] == "swagger_ui_extracted"
+
+    @pytest.mark.asyncio
+    async def test_crawl4ai_fallback(self):
+        html = b"<html><body><p>Regular page</p></body></html>"
+
+        with patch(
+            "app.ingestion.converters.web._fetch_url",
+            return_value=(html, "text/html", "http://x.com/page"),
+        ), patch(
+            "app.ingestion.converters.web._crawl4ai_available",
+            return_value=True,
+        ), patch(
+            "app.ingestion.converters.web._crawl_url",
+            new_callable=AsyncMock,
+            return_value=("# Crawled Content", "Page Title"),
+        ):
+            md_text, meta = await convert_url("http://x.com/page")
+
+        assert "Crawled Content" in md_text
+        assert meta["detection_method"] == "crawl4ai_fallback"

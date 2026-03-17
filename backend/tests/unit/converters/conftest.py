@@ -1,8 +1,6 @@
-"""Shared fixtures for doc2md-mcp tests."""
+"""Shared fixtures for converter tests (migrated from doc2md-mcp)."""
 
 import json
-import sys
-import pathlib
 import textwrap
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -10,13 +8,8 @@ from threading import Thread
 
 import pymupdf
 import pytest
+import yaml
 
-# sys.path is configured by the root conftest.py
-
-
-# ---------------------------------------------------------------------------
-# Sample OpenAPI specs as dicts
-# ---------------------------------------------------------------------------
 
 OPENAPI_V3_SPEC = {
     "openapi": "3.0.0",
@@ -92,13 +85,8 @@ SWAGGER_V2_SPEC = {
 }
 
 
-# ---------------------------------------------------------------------------
-# PDF fixtures
-# ---------------------------------------------------------------------------
-
 @pytest.fixture
 def sample_text_pdf(tmp_path):
-    """Create a simple 2-page PDF with known text."""
     path = tmp_path / "sample_text.pdf"
     doc = pymupdf.open()
     page1 = doc.new_page()
@@ -112,15 +100,12 @@ def sample_text_pdf(tmp_path):
 
 @pytest.fixture
 def sample_image_pdf(tmp_path):
-    """Create a PDF with an embedded large image (>= 100k px) for OCR testing."""
     path = tmp_path / "sample_image.pdf"
     doc = pymupdf.open()
     page = doc.new_page()
-
     pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 400, 400), 1)
     pix.set_rect(pix.irect, (255, 255, 255, 255))
     img_bytes = pix.tobytes("png")
-
     rect = pymupdf.Rect(72, 72, 472, 472)
     page.insert_image(rect, stream=img_bytes)
     doc.save(str(path))
@@ -129,53 +114,7 @@ def sample_image_pdf(tmp_path):
 
 
 @pytest.fixture
-def sample_ocr_pdf(tmp_path):
-    """Create a PDF where a page contains an image with KNOWN text rendered on it.
-
-    Page 1: regular text "Chapter 1: Regular text paragraph."
-    Page 2: image with large "HELLO WORLD" rendered via Pillow (no real PDF text).
-
-    Returns (path, expected_ocr_text) tuple.
-    """
-    from PIL import Image, ImageDraw, ImageFont
-
-    img = Image.new("RGB", (600, 150), color=(255, 255, 255))
-    draw = ImageDraw.Draw(img)
-    try:
-        font = ImageFont.truetype("arial.ttf", 60)
-    except OSError:
-        font = ImageFont.load_default(size=60)
-    draw.text((30, 30), "HELLO WORLD", fill=(0, 0, 0), font=font)
-
-    img_path = tmp_path / "_ocr_test_image.png"
-    img.save(str(img_path))
-    img_bytes = img_path.read_bytes()
-
-    path = tmp_path / "sample_ocr.pdf"
-    doc = pymupdf.open()
-
-    page1 = doc.new_page()
-    page1.insert_text((72, 72), "Chapter 1: Regular text paragraph.")
-
-    page2 = doc.new_page()
-    rect = pymupdf.Rect(50, 50, 550, 180)
-    page2.insert_image(rect, stream=img_bytes)
-
-    doc.save(str(path))
-    doc.close()
-    img_path.unlink()
-
-    return path, "HELLO WORLD"
-
-
-# ---------------------------------------------------------------------------
-# Swagger file fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
 def sample_swagger_yaml(tmp_path):
-    """Create a sample OpenAPI 3.0 YAML file."""
-    import yaml
     path = tmp_path / "openapi.yaml"
     path.write_text(yaml.dump(OPENAPI_V3_SPEC, allow_unicode=True), encoding="utf-8")
     return path
@@ -183,7 +122,6 @@ def sample_swagger_yaml(tmp_path):
 
 @pytest.fixture
 def sample_swagger_json(tmp_path):
-    """Create a sample Swagger 2.0 JSON file."""
     path = tmp_path / "swagger.json"
     path.write_text(json.dumps(SWAGGER_V2_SPEC, indent=2), encoding="utf-8")
     return path
@@ -191,15 +129,10 @@ def sample_swagger_json(tmp_path):
 
 @pytest.fixture
 def plain_yaml(tmp_path):
-    """Create a YAML file that is NOT a Swagger/OpenAPI spec."""
     path = tmp_path / "config.yaml"
     path.write_text("database:\n  host: localhost\n  port: 5432\n", encoding="utf-8")
     return path
 
-
-# ---------------------------------------------------------------------------
-# Local HTTP server fixture
-# ---------------------------------------------------------------------------
 
 class _QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -208,8 +141,6 @@ class _QuietHandler(SimpleHTTPRequestHandler):
 
 @pytest.fixture(scope="module")
 def local_http_server(tmp_path_factory):
-    """Start a local HTTP server serving test files."""
-    import yaml
     serve_dir = tmp_path_factory.mktemp("http_serve")
 
     (serve_dir / "openapi.yaml").write_text(

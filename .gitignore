@@ -24,3 +24,6 @@ TestDocs/
 
 # Docker volumes
 pgdata/
+
+# Runtime logs
+logs/*.log

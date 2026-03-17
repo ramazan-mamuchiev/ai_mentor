@@ -14,8 +14,15 @@ class Settings(BaseSettings):
     embedding_dims: int = 1536
     openai_api_key: str = ""
 
+    ocr_enabled: bool = False
+    ocr_languages: str = "en"
+
     app_env: str = "development"
     app_log_level: str = "INFO"
+
+    log_dir: str = "/app/logs"
+    log_max_size_mb: int = 50
+    log_retention_days: int = 30
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

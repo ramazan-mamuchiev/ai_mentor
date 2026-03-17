@@ -1,4 +1,4 @@
-"""Ingestion pipeline: detect format -> parse -> chunk -> embed -> store."""
+"""Ingestion pipeline: detect format -> convert -> parse -> chunk -> embed -> store."""
 
 import hashlib
 import logging
@@ -9,6 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingestion.chunker import chunk_sections
+from app.ingestion.converters.pdf import convert_pdf
+from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_file
+from app.ingestion.converters.web import convert_url
 from app.ingestion.embedder import embed_texts
 from app.ingestion.parsers.markdown import parse_markdown
 from app.ingestion.parsers.swagger import parse_swagger
@@ -33,17 +36,12 @@ def detect_format(file_path: str) -> str:
         return "markdown"
     if ext == ".pdf":
         return "pdf"
-    if ext in (".yaml", ".yml"):
+    if ext in (".yaml", ".yml", ".json"):
+        if is_swagger_file(file_path):
+            return "swagger"
+        if ext == ".json":
+            return "markdown"
         return "swagger"
-    if ext == ".json":
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                start = f.read(512)
-            if '"swagger"' in start or '"openapi"' in start:
-                return "swagger"
-        except Exception:
-            pass
-        return "markdown"
 
     return "markdown"
 
@@ -61,36 +59,89 @@ async def ingest_file(
     firmware_version: str = "1.0",
     manufacturer: str = "",
     fmt: str = "auto",
+    ocr_mode: str = "auto",
+    ocr_languages: str = "en",
 ) -> dict:
-    """Full ingestion pipeline: file -> parse -> chunk -> embed -> DB.
+    """Full ingestion pipeline: file -> convert -> parse -> chunk -> embed -> DB.
 
-    Returns dict with status, document_id, chunks count, duration.
+    Args:
+        ocr_mode: "auto" (OCR pages with large images), "always", or "off".
+        ocr_languages: Comma-separated language codes for OCR (e.g. "en,ru").
+
+    Returns dict with status, document_id, chunks count, duration, stage timings.
     """
     t0 = time.perf_counter()
     file_path = os.path.normpath(file_path)
 
+    file_size = 0
+    try:
+        file_size = os.path.getsize(file_path)
+    except OSError:
+        pass
+
     if not os.path.isfile(file_path):
+        logger.error(
+            "File not found",
+            extra={"file_path": file_path, "error_type": "FileNotFoundError"},
+        )
         return {"status": "error", "error": f"File not found: {file_path}"}
 
     if fmt == "auto":
         fmt = detect_format(file_path)
 
-    logger.info("Ingesting %s (format=%s, device=%s, fw=%s)", file_path, fmt, device_name, firmware_version)
+    logger.info(
+        "Ingestion started",
+        extra={
+            "file_path": file_path, "format": fmt,
+            "device": device_name, "firmware_version": firmware_version,
+            "file_size_bytes": file_size, "ocr_mode": ocr_mode,
+        },
+    )
 
+    convert_ms = 0.0
+    convert_metadata: dict = {}
+
+    t_read = time.perf_counter()
     if fmt == "pdf":
         try:
-            import pymupdf4llm
-            text = pymupdf4llm.to_markdown(file_path)
+            text, convert_metadata = convert_pdf(
+                file_path, ocr_mode=ocr_mode, ocr_languages=ocr_languages,
+            )
+            convert_ms = convert_metadata.get("total_ms", 0.0)
         except Exception as e:
+            logger.error(
+                "PDF conversion failed",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
             return {"status": "error", "error": f"PDF conversion failed: {e}"}
+        fmt_effective = "markdown"
+    elif fmt == "swagger":
+        try:
+            text, convert_metadata = convert_swagger_file(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            logger.error(
+                "Swagger conversion failed",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
+            return {"status": "error", "error": f"Swagger conversion failed: {e}"}
         fmt_effective = "markdown"
     else:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 text = f.read()
         except Exception as e:
+            logger.error(
+                "Failed to read file",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
             return {"status": "error", "error": f"Failed to read file: {e}"}
         fmt_effective = fmt
+
+    read_ms = round((time.perf_counter() - t_read) * 1000, 1)
 
     source_hash = _file_hash(file_path)
 
@@ -106,6 +157,10 @@ async def ingest_file(
     )
     existing_doc = existing.scalar_one_or_none()
     if existing_doc and existing_doc.status == "ready":
+        logger.warning(
+            "Document already ingested (same hash)",
+            extra={"file_path": file_path, "document_id": existing_doc.id},
+        )
         return {
             "status": "skipped",
             "document_id": existing_doc.id,
@@ -134,20 +189,35 @@ async def ingest_file(
     await session.flush()
 
     try:
+        t_parse = time.perf_counter()
         sections = _parse_content(text, fmt_effective, file_path)
         chunks = chunk_sections(sections)
+        parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
         if not chunks:
             doc.status = "error"
             doc.error_message = "No content extracted"
             await session.commit()
+            logger.warning(
+                "No content extracted (0 chunks)",
+                extra={"file_path": file_path, "document_id": doc.id, "sections": len(sections)},
+            )
             return {"status": "error", "error": "No content extracted", "document_id": doc.id}
 
-        logger.info("Parsed %d sections -> %d chunks, embedding...", len(sections), len(chunks))
+        logger.debug(
+            "Parsing completed",
+            extra={
+                "sections": len(sections), "chunks": len(chunks),
+                "parse_ms": parse_ms, "read_ms": read_ms,
+            },
+        )
 
+        t_embed = time.perf_counter()
         contents = [c.content for c in chunks]
         embeddings = embed_texts(contents)
+        embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
+        t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
             db_chunk = Chunk(
                 document_id=doc.id,
@@ -163,13 +233,21 @@ async def ingest_file(
         doc.total_chunks = len(chunks)
         doc.status = "ready"
         await session.commit()
+        db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
         duration = time.perf_counter() - t0
         logger.info(
-            "Ingested %s: %d chunks, %.1fs",
-            os.path.basename(file_path), len(chunks), duration,
+            "Ingestion completed",
+            extra={
+                "file": os.path.basename(file_path),
+                "chunks": len(chunks), "duration_sec": round(duration, 2),
+                "read_ms": read_ms, "convert_ms": convert_ms,
+                "parse_ms": parse_ms, "embed_ms": embed_ms, "db_ms": db_ms,
+                "device": device_name, "format": fmt,
+                "file_size_bytes": file_size,
+            },
         )
-        return {
+        result = {
             "status": "ok",
             "document_id": doc.id,
             "device": device_name,
@@ -178,12 +256,183 @@ async def ingest_file(
             "chunks": len(chunks),
             "duration_sec": round(duration, 2),
         }
+        if convert_metadata:
+            result["convert_metadata"] = convert_metadata
+        return result
 
     except Exception as e:
         doc.status = "error"
         doc.error_message = str(e)[:2000]
         await session.commit()
-        logger.exception("Ingestion failed for %s", file_path)
+        logger.error(
+            "Ingestion failed",
+            extra={
+                "file_path": file_path, "document_id": doc.id,
+                "error_type": type(e).__name__,
+            },
+            exc_info=True,
+        )
+        return {"status": "error", "error": str(e), "document_id": doc.id}
+
+
+def _text_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+async def ingest_url(
+    session: AsyncSession,
+    url: str,
+    device_name: str,
+    firmware_version: str = "1.0",
+    manufacturer: str = "",
+) -> dict:
+    """Ingest documentation from a URL: fetch -> convert -> parse -> chunk -> embed -> DB.
+
+    Auto-detects: direct OpenAPI spec, Swagger UI page, or generic web page.
+
+    Returns dict with status, document_id, chunks count, duration.
+    """
+    t0 = time.perf_counter()
+
+    logger.info(
+        "URL ingestion started",
+        extra={"url": url, "device": device_name, "firmware_version": firmware_version},
+    )
+
+    try:
+        text, convert_metadata = await convert_url(url)
+    except Exception as e:
+        logger.error(
+            "URL conversion failed",
+            extra={"url": url, "error_type": type(e).__name__},
+            exc_info=True,
+        )
+        return {"status": "error", "error": f"URL conversion failed: {e}"}
+
+    convert_ms = convert_metadata.get("total_ms", 0.0)
+    detection = convert_metadata.get("detection_method", "unknown")
+
+    source_hash = _text_hash(text)
+
+    device = await _get_or_create_device(session, device_name, manufacturer)
+    fw = await _get_or_create_firmware(session, device.id, firmware_version)
+
+    existing = await session.execute(
+        select(Document).where(
+            Document.device_id == device.id,
+            Document.firmware_version_id == fw.id,
+            Document.source_hash == source_hash,
+        )
+    )
+    existing_doc = existing.scalar_one_or_none()
+    if existing_doc and existing_doc.status == "ready":
+        logger.warning(
+            "URL content already ingested (same hash)",
+            extra={"url": url, "document_id": existing_doc.id},
+        )
+        return {
+            "status": "skipped",
+            "document_id": existing_doc.id,
+            "message": "Content already ingested (same hash)",
+        }
+
+    if existing_doc:
+        for chunk in (await session.execute(
+            select(Chunk).where(Chunk.document_id == existing_doc.id)
+        )).scalars().all():
+            await session.delete(chunk)
+        await session.delete(existing_doc)
+        await session.flush()
+
+    title = convert_metadata.get("page_title") or convert_metadata.get("api_title") or url
+    doc = Document(
+        device_id=device.id,
+        firmware_version_id=fw.id,
+        format="url",
+        source_path=url,
+        source_hash=source_hash,
+        title=title,
+        status="processing",
+    )
+    session.add(doc)
+    await session.flush()
+
+    try:
+        t_parse = time.perf_counter()
+        sections = parse_markdown(text)
+        chunks = chunk_sections(sections)
+        parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
+
+        if not chunks:
+            doc.status = "error"
+            doc.error_message = "No content extracted from URL"
+            await session.commit()
+            logger.warning(
+                "No content extracted from URL (0 chunks)",
+                extra={"url": url, "document_id": doc.id},
+            )
+            return {"status": "error", "error": "No content extracted", "document_id": doc.id}
+
+        t_embed = time.perf_counter()
+        contents = [c.content for c in chunks]
+        embeddings = embed_texts(contents)
+        embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
+
+        t_db = time.perf_counter()
+        for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+            db_chunk = Chunk(
+                document_id=doc.id,
+                chunk_index=i,
+                heading_path=chunk_data.heading_path,
+                heading_level=chunk_data.heading_level,
+                content=chunk_data.content,
+                token_count=chunk_data.token_count,
+                embedding=embedding,
+            )
+            session.add(db_chunk)
+
+        doc.total_chunks = len(chunks)
+        doc.status = "ready"
+        await session.commit()
+        db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+        duration = time.perf_counter() - t0
+        logger.info(
+            "URL ingestion completed",
+            extra={
+                "url": url, "chunks": len(chunks),
+                "duration_sec": round(duration, 2),
+                "convert_ms": convert_ms, "parse_ms": parse_ms,
+                "embed_ms": embed_ms, "db_ms": db_ms,
+                "detection": detection, "device": device_name,
+            },
+        )
+        result = {
+            "status": "ok",
+            "document_id": doc.id,
+            "device": device_name,
+            "firmware_version": firmware_version,
+            "format": "url",
+            "detection_method": detection,
+            "chunks": len(chunks),
+            "duration_sec": round(duration, 2),
+        }
+        if convert_metadata:
+            result["convert_metadata"] = convert_metadata
+        return result
+
+    except Exception as e:
+        doc.status = "error"
+        doc.error_message = str(e)[:2000]
+        await session.commit()
+        logger.error(
+            "URL ingestion failed",
+            extra={
+                "url": url, "document_id": doc.id,
+                "error_type": type(e).__name__,
+            },
+            exc_info=True,
+        )
         return {"status": "error", "error": str(e), "document_id": doc.id}
 
 

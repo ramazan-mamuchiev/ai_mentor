@@ -1,7 +1,9 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    ports: ["5432:5432"]
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: ipcodex
       POSTGRES_USER: ipcodex
@@ -17,16 +19,68 @@ services:
 
   api:
     build: ./backend
-    ports: ["8000:8000"]
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
       API_KEY: ${API_KEY:-ipx_dev_key_12345}
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
+      EMBEDDING_PROVIDER: local
+      APP_ENV: production
+      APP_LOG_LEVEL: INFO
+      LOG_DIR: /app/logs
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - hfcache:/root/.cache/huggingface
+      - ${LOG_DIR:-./logs}:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
+
+  loki:
+    image: grafana/loki:3.4.2
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml
+      - lokidata:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - loki
 
 volumes:
   pgdata:
+  hfcache:
+  lokidata:
+  grafanadata:

@@ -9,3 +9,11 @@ sentence-transformers>=3.0.0
 numpy>=1.26.0
 pyyaml>=6.0
 pymupdf4llm>=0.3.0
+pymupdf>=1.24.0
+structlog>=24.0.0
+httpx>=0.27.0
+pillow>=10.0.0
+# Optional: OCR support (uncomment to enable)
+# easyocr>=1.7.0
+# Optional: headless browser for web page crawling
+# crawl4ai>=0.4.0
