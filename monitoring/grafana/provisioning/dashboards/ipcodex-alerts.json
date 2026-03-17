@@ -328,7 +328,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.95, {container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" | unwrap duration_ms [5m])",
+          "expr": "quantile_over_time(0.95, {container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "p95 duration_ms"
         }
       ],
@@ -377,7 +377,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) / last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) * 100",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by () / last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by () * 100",
           "legendFormat": "pool utilization %"
         }
       ],

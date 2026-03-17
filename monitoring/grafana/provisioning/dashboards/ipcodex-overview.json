@@ -128,7 +128,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [5m])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [5m]) by ()",
           "queryType": "range"
         }
       ],
@@ -171,7 +171,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\", logger=\"system\"} | json | unwrap active_requests [5m])",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\", logger=\"system\"} | json | unwrap active_requests [5m]) by ()",
           "queryType": "range"
         }
       ],
@@ -212,7 +212,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/ipcodex-api-1\", logger=\"system\"} | json | unwrap uptime_sec",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\", logger=\"system\"} | json | unwrap uptime_sec [5m]) by ()",
           "queryType": "range"
         }
       ],
@@ -341,21 +341,21 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.5, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval])",
+          "expr": "quantile_over_time(0.5, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
           "legendFormat": "p50",
           "queryType": "range"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.95, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval])",
+          "expr": "quantile_over_time(0.95, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
           "legendFormat": "p95",
           "queryType": "range"
         },
         {
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.99, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval])",
+          "expr": "quantile_over_time(0.99, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
           "legendFormat": "p99",
           "queryType": "range"
         }

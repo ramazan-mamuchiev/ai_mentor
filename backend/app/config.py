@@ -25,6 +25,14 @@ class Settings(BaseSettings):
 
     max_upload_size_mb: int = 50
 
+    ollama_url: str = "http://ollama:11434"
+    llm_model: str = "mistral"
+    llm_max_tokens: int = 2048
+    llm_temperature: float = 0.3
+    llm_timeout: int = 120
+    rag_top_k: int = 5
+    rag_history_messages: int = 10
+
     ocr_enabled: bool = False
     ocr_languages: str = "en"
 

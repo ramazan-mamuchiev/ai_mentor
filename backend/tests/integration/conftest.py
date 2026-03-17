@@ -74,6 +74,10 @@ async def db_session(db_engine):
 @pytest.fixture(autouse=True)
 def _mock_embedder():
     """Auto-mock embedding functions for all integration tests."""
+    import app.ingestion.embedder  # noqa: F401
+    import app.ingestion.pipeline  # noqa: F401
+    import app.search.service  # noqa: F401
+
     with (
         patch("app.ingestion.embedder.embed_texts", side_effect=fake_embed_texts),
         patch("app.ingestion.embedder.embed_query", side_effect=fake_embed_query),

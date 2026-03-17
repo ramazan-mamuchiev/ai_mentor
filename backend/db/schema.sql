@@ -58,3 +58,26 @@ CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks
     WITH (m = 16, ef_construction = 128);
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
+
+-- Chat sessions
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id SERIAL PRIMARY KEY,
+    title TEXT,
+    device_filter TEXT,
+    version_filter TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Chat messages
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    sources JSONB,
+    duration_ms FLOAT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);

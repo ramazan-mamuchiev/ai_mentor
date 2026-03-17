@@ -76,7 +76,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"MCP.*completed|MCP.*slow\" | unwrap duration_ms [$__range])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"MCP.*completed|MCP.*slow\" | unwrap duration_ms [$__range]) by ()",
           "queryType": "instant",
           "legendFormat": ""
         }
@@ -168,7 +168,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"MCP.*completed|MCP.*slow\" | unwrap duration_ms [$__range])",
+          "expr": "max_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"MCP.*completed|MCP.*slow\" | unwrap duration_ms [$__range]) by ()",
           "queryType": "instant",
           "legendFormat": ""
         }
@@ -271,35 +271,35 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"search_documentation\" | unwrap duration_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"search_documentation\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "search_documentation"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"ingest_document\" | unwrap duration_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"ingest_document\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "ingest_document"
         },
         {
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"ingest_url\" | unwrap duration_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"ingest_url\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "ingest_url"
         },
         {
           "refId": "D",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"list_devices\" | unwrap duration_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"list_devices\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "list_devices"
         },
         {
           "refId": "E",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"get_api_endpoint\" | unwrap duration_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | tool=\"get_api_endpoint\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "get_api_endpoint"
         }

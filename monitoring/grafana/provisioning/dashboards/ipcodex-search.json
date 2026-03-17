@@ -116,7 +116,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap top_similarity [$__range])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap top_similarity [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -160,7 +160,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap result_count [$__range])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap result_count [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -210,7 +210,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap top_similarity [5m])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap top_similarity [5m]) by ()",
           "legendFormat": "avg top_similarity"
         }
       ],
@@ -318,13 +318,13 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap embed_ms [5m])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap embed_ms [5m]) by ()",
           "legendFormat": "embed_ms"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap db_ms [5m])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap db_ms [5m]) by ()",
           "legendFormat": "db_ms"
         }
       ],
@@ -371,13 +371,13 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap duration_ms [5m])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "avg duration_ms"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap duration_ms [5m])",
+          "expr": "max_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "max duration_ms"
         }
       ],

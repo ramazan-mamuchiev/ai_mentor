@@ -33,7 +33,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap uptime_sec [$__range])",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap uptime_sec [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -74,7 +74,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [$__range]) / last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [$__range]) * 100",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [$__range]) by () / last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [$__range]) by () * 100",
           "queryType": "instant"
         }
       ],
@@ -118,7 +118,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap active_requests [$__range])",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap active_requests [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -212,19 +212,19 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m])",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by ()",
           "legendFormat": "pool_size"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m])",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by ()",
           "legendFormat": "checked_out"
         },
         {
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_overflow [1m])",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_overflow [1m]) by ()",
           "legendFormat": "overflow"
         }
       ],
@@ -271,7 +271,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) / last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) * 100",
+          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by () / last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by () * 100",
           "legendFormat": "utilization %"
         }
       ],
@@ -330,13 +330,13 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap duration_ms [5m])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "avg duration_ms"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap duration_ms [5m])",
+          "expr": "max_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "max duration_ms"
         }
       ],
@@ -383,7 +383,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap texts_count [$__range])",
+          "expr": "sum_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap texts_count [$__range]) by ()",
           "queryType": "instant"
         }
       ],

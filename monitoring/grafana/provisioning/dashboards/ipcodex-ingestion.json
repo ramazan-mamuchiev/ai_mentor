@@ -163,7 +163,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap chunks [$__range])",
+          "expr": "sum_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap chunks [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -271,7 +271,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap convert_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap convert_ms [$__interval]) by ()",
           "legendFormat": "convert_ms",
           "queryType": "range"
         },
@@ -279,7 +279,7 @@
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap parse_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap parse_ms [$__interval]) by ()",
           "legendFormat": "parse_ms",
           "queryType": "range"
         },
@@ -287,7 +287,7 @@
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap embed_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap embed_ms [$__interval]) by ()",
           "legendFormat": "embed_ms",
           "queryType": "range"
         },
@@ -295,7 +295,7 @@
           "refId": "D",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap db_ms [$__interval])",
+          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap db_ms [$__interval]) by ()",
           "legendFormat": "db_ms",
           "queryType": "range"
         }

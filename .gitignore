@@ -22,6 +22,10 @@ Thumbs.db
 # Test documents (temporary)
 TestDocs/
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
 # Docker volumes
 pgdata/
 

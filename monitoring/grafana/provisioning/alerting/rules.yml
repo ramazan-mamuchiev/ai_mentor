@@ -57,7 +57,7 @@ groups:
               to: 0
             datasourceUid: loki
             model:
-              expr: 'quantile_over_time(0.95, {container="/ipcodex-api-1", logger="access"} | json | unwrap duration_ms [5m]) > 10000'
+              expr: 'quantile_over_time(0.95, {container="/ipcodex-api-1", logger="access"} | json | unwrap duration_ms [5m]) by () > 10000'
               queryType: instant
         noDataState: OK
         execErrState: Error
@@ -78,7 +78,7 @@ groups:
               to: 0
             datasourceUid: loki
             model:
-              expr: 'last_over_time({container="/ipcodex-api-1", logger="system"} | json | unwrap db_pool_checked_out [5m]) / last_over_time({container="/ipcodex-api-1", logger="system"} | json | unwrap db_pool_size [5m]) > 0.8'
+              expr: 'last_over_time({container="/ipcodex-api-1", logger="system"} | json | unwrap db_pool_checked_out [5m]) by () / last_over_time({container="/ipcodex-api-1", logger="system"} | json | unwrap db_pool_size [5m]) by () > 0.8'
               queryType: instant
         noDataState: OK
         execErrState: Error
@@ -130,3 +130,66 @@ groups:
           description: "More than 3 document ingestion failures in the last 15 minutes."
         labels:
           severity: warning
+
+      - uid: ipcodex-chat-high-latency
+        title: "Chat High Latency (p95 > 60s)"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'quantile_over_time(0.95, {container="/ipcodex-api-1"} | json | event = "Chat message completed" | unwrap duration_ms [5m]) by () > 60000'
+              queryType: instant
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Chat response time p95 exceeds 60 seconds"
+          description: "The 95th percentile chat response time has been above 60s for 5 minutes. Check Ollama performance."
+        labels:
+          severity: warning
+
+      - uid: ipcodex-chat-errors
+        title: "Chat Errors (>5 in 15m)"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="/ipcodex-api-1"} | json | event = "Chat stream error" [15m])) > 5'
+              queryType: instant
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "Multiple chat errors detected"
+          description: "More than 5 chat stream errors in the last 15 minutes."
+        labels:
+          severity: warning
+
+      - uid: ipcodex-ollama-down
+        title: "Ollama Unreachable"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container="/ipcodex-api-1"} | json | event =~ "Ollama unreachable|Ollama API error" [5m])) > 2'
+              queryType: instant
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Ollama LLM server appears unreachable"
+          description: "Multiple Ollama connection failures detected in the last 5 minutes."
+        labels:
+          severity: critical
