@@ -1,17 +1,23 @@
 # IPCodex — Brand Slogans & Competitive Messaging
 
-> **Status**: v1.0 — March 18, 2026 · **DRAFT — слоган не выбран**
+> **Status**: v1.1 — March 18, 2026 · **СЛОГАН ВЫБРАН**
 > **Author**: Oleg Voitekhovich
-> **Purpose**: Анализ слоганов косвенных конкурентов и варианты слоганов IPCodex для обсуждения с партнёрами
+> **Purpose**: Анализ слоганов косвенных конкурентов, варианты слоганов IPCodex, финальный выбор
 >
 > Related: [GTM_STRATEGY.md](GTM_STRATEGY.md) · [MARKET_RESEARCH.md](MARKET_RESEARCH.md) · [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md)
 
 ---
 
-> **⚠️ Статус выбора слогана: НЕ ОПРЕДЕЛЁН**
+> **✅ Выбранный слоган**
 >
-> Все варианты ниже — рабочие предложения. Финальный слоган будет выбран после обсуждения
-> с партнёрами (AxxonSoft, Grundig Security) и тестирования на целевой аудитории.
+> **EN: "Protocols speak. Codex translates."**
+> **RU: "Протоколы говорят. Codex переводит."**
+>
+> Обыгрывает название продукта (IPCodex → Codex), точно попадает в суть (протоколы — ONVIF, RTSP, MQTT, HTTP, SOAP),
+> создаёт метафору "переводчика" между языком протоколов и кодом разработчика.
+> Подсознательно связывается с "IP" в названии (Internet Protocol).
+>
+> Остальные варианты ниже сохранены для справки и возможного использования в маркетинговых материалах.
 
 ---
 
@@ -55,7 +61,8 @@
 
 ## 2. Варианты слоганов IPCodex
 
-> **⚠️ Все варианты ниже — рабочие. Финальный выбор — после обсуждения с партнёрами.**
+> Финальный слоган выбран (см. выше). Остальные варианты сохранены для использования
+> в разных маркетинговых контекстах (субтитры, баннеры, landing pages).
 
 ### 2.1 С учётом конкурентного ландшафта
 
@@ -110,12 +117,31 @@
 | 27 | Ctrl+F won't save you. AI will. | Ctrl+F тебя не спасёт. AI — спасёт. |
 | 28 | Still reading manuals? Seriously? | Всё ещё читаешь мануалы? Серьёзно? |
 
+### 2.6 Обыгрывающие название продукта (IPCodex → Codex / IP / Protocols)
+
+| # | EN | RU |
+|---|----|----|
+| 29 | **Protocols speak. Codex translates.** ⭐ ВЫБРАН | **Протоколы говорят. Codex переводит.** ⭐ ВЫБРАН |
+| 30 | Devices speak. Codex translates. | Устройства говорят. Codex переводит. |
+| 31 | APIs speak. Codex translates. | API говорят. Codex переводит. |
+| 32 | The Codex your code was missing. | Кодекс, которого не хватало твоему коду. |
+| 33 | One Codex. Every device API. | Один Codex. Все API устройств. |
+| 34 | Crack the Codex. Ship the code. | Разгадай Codex. Выпусти код. |
+| 35 | IP devices speak. Codex translates. | IP-устройства говорят. Codex переводит. |
+| 36 | From IP to code — via Codex. | От IP до кода — через Codex. |
+| 37 | IPCodex — decode any device. | IPCodex — расшифруй любое устройство. |
+| 38 | IPCodex — where docs become code. | IPCodex — где документация становится кодом. |
+| 39 | IPCodex — AI that speaks device. | IPCodex — AI, который говорит на языке устройств. |
+| 40 | IPCodex — complex APIs, simple answers. | IPCodex — сложные API, простые ответы. |
+
 ---
 
 ## 3. Следующие шаги
 
-- [ ] Обсудить варианты с AxxonSoft (стратегический партнёр)
-- [ ] Обсудить варианты с Grundig Security (hardware-партнёр)
-- [ ] Протестировать топ-3 варианта на целевой аудитории (developer survey)
-- [ ] Выбрать финальный слоган и адаптировать под контексты: сайт, GitHub README, конференции, презентации
-- [ ] Обновить [GTM_STRATEGY.md](GTM_STRATEGY.md) выбранным слоганом
+- [x] ~~Выбрать финальный слоган~~ → **"Protocols speak. Codex translates."**
+- [x] ~~Обновить [GTM_STRATEGY.md](GTM_STRATEGY.md) выбранным слоганом~~
+- [x] ~~Добавить слоган в промо-материалы (ipcodex.html, comparison.html)~~
+- [ ] Обсудить слоган с AxxonSoft (стратегический партнёр) — подтвердить или скорректировать
+- [ ] Обсудить слоган с Grundig Security (hardware-партнёр)
+- [ ] Протестировать на целевой аудитории (developer survey)
+- [ ] Адаптировать под контексты: GitHub README, конференции, email-рассылки

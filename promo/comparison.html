@@ -326,6 +326,7 @@ footer a { color:var(--accent); text-decoration:none; }
   <img src="ipcodex-logo.png" alt="IPCodex" class="hero-logo hero-logo-light" width="72" height="72">
   <img src="ipcodex-logo-dark.png" alt="IPCodex" class="hero-logo hero-logo-dark" width="72" height="72">
   <h1>IPCodex</h1>
+  <p style="font-size:1.15rem;font-weight:600;color:var(--text2);margin-bottom:12px;letter-spacing:-0.3px;font-style:italic" data-i18n="hero.slogan">Protocols speak. Codex translates.</p>
   <p class="hero-author" data-i18n-html="hero.author">Author: Oleg Vaitsekhovich · <a href="https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/" target="_blank" rel="noopener">LinkedIn</a></p>
 </div>
 
@@ -637,6 +638,7 @@ function toggleTheme() {
 
 let currentLang = localStorage.getItem('ipcodex-lang') || 'en';
 const T = {
+'hero.slogan':{en:'Protocols speak. Codex translates.',ru:'Протоколы говорят. Codex переводит.'},
 'hero.author':{en:'Author: Oleg Vaitsekhovich · <a href="https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">LinkedIn</a>',ru:'Автор: Войтехович Олег · <a href="https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">LinkedIn</a>'},
 'back':{en:'← Back to IPCodex',ru:'← Назад к IPCodex'},
 'page.title':{en:'Competitive Analysis',ru:'Конкурентный анализ'},

@@ -23,13 +23,20 @@ The fastest path from "new device"       A manual knowledge base
   to "working integration code"
 ```
 
-### 1.2 Central message
+### 1.2 Brand slogan
+
+> **"Protocols speak. Codex translates."**
+> *"Протоколы говорят. Codex переводит."*
+
+See [BRAND_SLOGANS.md](BRAND_SLOGANS.md) for competitive analysis and alternative variants.
+
+### 1.3 Central message
 
 **IPCodex is AI that reads device documentation so developers don't have to. Integration that took days now takes hours.**
 
 The technology stack — RAG (Retrieval-Augmented Generation) + MCP (Model Context Protocol) + semantic search over device documentation — enables AI coding assistants like Cursor to generate accurate, working integration code by understanding the actual API specs of physical security devices.
 
-### 1.3 Audience-specific messaging
+### 1.4 Audience-specific messaging
 
 | Audience | Pain point | IPCodex message | Proof point |
 |----------|-----------|-----------------|-------------|
@@ -37,7 +44,7 @@ The technology stack — RAG (Retrieval-Augmented Generation) + MCP (Model Conte
 | **Integration companies** | Projects delayed because developers struggle with device documentation | "Cut integration time by 60-80%. Ship projects faster, win more deals" | 10-20 hrs/month saved per developer = $500-2,000/mo value |
 | **Device vendors** | Integrators avoid their devices because documentation is hard to use | "Make your devices the easiest to integrate — with AI-powered documentation" | More integrations = more device sales |
 
-### 1.4 Competitive differentiation
+### 1.5 Competitive differentiation
 
 IPCodex occupies a unique position: **AI-native, device-specialized, IDE-integrated**.
 
