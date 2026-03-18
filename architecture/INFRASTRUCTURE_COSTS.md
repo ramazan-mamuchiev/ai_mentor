@@ -1,6 +1,6 @@
 # IPCodex — Infrastructure Cost Analysis
 
-> **Status**: v1.0 — March 15, 2026
+> **Status**: v1.1 — March 18, 2026 (added Gemini API LLM costs)
 > **Author**: Oleg Voitekhovich
 > **Purpose**: Detailed infrastructure cost breakdown by component, scenario-based projections, and cost-to-revenue analysis to validate pricing model
 
@@ -26,8 +26,11 @@
             │                   │              │
  ┌──────────▼───────────────────▼──────────────▼───────────────┐
  │                   EXTERNAL SERVICES                         │
- │  OpenAI API     │  Stripe     │  SendGrid   │  ClamAV      │
- │  (embeddings)   │  (billing)  │  (email)    │  (antivirus) │
+ │  OpenAI API     │  Gemini API │  Stripe     │  SendGrid    │
+ │  (embeddings)   │  (LLM)     │  (billing)  │  (email)     │
+ │                 │             │             │              │
+ │                 │  ClamAV     │             │              │
+ │                 │  (antivirus)│             │              │
  └─────────────────┴─────────────┴─────────────┴──────────────┘
 ```
 
@@ -135,7 +138,45 @@ Pricing: **$0.02 per 1M tokens** (text-embedding-3-small, as of March 2026)
 
 **Alternative**: self-hosted `all-MiniLM-L6-v2` eliminates API cost entirely (GPU instance ~$100-200/mo, but also handles other tasks).
 
-### 2.6 ClamAV (Antivirus)
+### 2.6 Gemini API (LLM for RAG Answers)
+
+Every user chat query triggers an LLM call to generate the answer from retrieved documentation chunks. Since March 2026, IPCodex uses **Google Gemini 2.5 Flash** via the OpenAI-compatible API (Google AI Studio).
+
+**Pricing** (Google AI Studio, as of March 2026):
+
+| Parameter | Value |
+|-----------|:-----:|
+| Input tokens | **$0.15 per 1M tokens** |
+| Output tokens | **$0.60 per 1M tokens** |
+| Free tier | 15 RPM, limited daily quota |
+
+**Per-query cost estimate:**
+
+| Component | Tokens | Cost |
+|-----------|:------:|:----:|
+| System prompt + RAG context (8 chunks) | ~3,000–5,000 input | $0.00045–$0.00075 |
+| Chat history (up to 10 messages) | ~1,000–2,000 input | $0.00015–$0.00030 |
+| Generated answer | ~500–1,500 output | $0.00030–$0.00090 |
+| **Total per query** | | **$0.0009–$0.002** |
+
+**Monthly cost by scale:**
+
+| Scale | Queries/mo | Input Tokens | Output Tokens | Monthly Cost |
+|-------|:----------:|:------------:|:------------:|:------------:|
+| Small (100 users) | 50K | 200M | 50M | **$60** |
+| Medium (500 users) | 300K | 1.2B | 300M | **$360** |
+| Large (2,000 users) | 2M | 8B | 2B | **$2,400** |
+
+**Key insight**: Gemini Flash is significantly cheaper than GPT-4o (~10×) but still becomes a meaningful cost at scale. At Large scale, LLM API is a top-5 cost driver.
+
+**Alternatives & fallbacks:**
+- **Ollama (local)**: $0 API cost, already supported in codebase (`LLM_PROVIDER=ollama`). Requires GPU instance (~$200-400/mo) but handles unlimited queries
+- **Claude Sonnet**: higher quality answers, ~$3/$15 per 1M tokens (5-10× more expensive than Gemini Flash)
+- **Gemini Pro**: better quality than Flash, ~2× the cost
+
+**Previous approach**: Before Gemini, IPCodex used **Ollama with Qwen 2.5 Coder 7B** (local, $0 API cost). The switch to Gemini improved answer quality significantly but introduced an external API dependency and per-query cost.
+
+### 2.7 ClamAV (Antivirus)
 
 | Component | Cost |
 |-----------|:----:|
@@ -146,7 +187,7 @@ Pricing: **$0.02 per 1M tokens** (text-embedding-3-small, as of March 2026)
 
 ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware takes ~10-30 seconds. No additional cost beyond compute already provisioned.
 
-### 2.7 Stripe
+### 2.8 Stripe
 
 | Fee Type | Rate |
 |----------|:----:|
@@ -159,7 +200,7 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | Medium ($40K/mo) | $40,000 | $1,190 |
 | Large ($110K/mo) | $110,000 | $3,220 |
 
-### 2.8 Email (SendGrid / SES)
+### 2.9 Email (SendGrid / SES)
 
 | Volume | Service | Monthly Cost |
 |--------|---------|:------------:|
@@ -167,7 +208,7 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | 100-1K emails/day | SendGrid Essentials | $20 |
 | 1K+ emails/day | AWS SES | $1 per 10K emails |
 
-### 2.9 Monitoring & Observability
+### 2.10 Monitoring & Observability
 
 | Option | Monthly Cost |
 |--------|:------------:|
@@ -189,14 +230,15 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | S3 storage (50 GB) | $2 |
 | S3 egress | $30 |
 | OpenAI Embeddings | $3 |
+| Gemini API (LLM) | $60 |
 | Stripe fees | $100 |
 | Monitoring | $50 |
 | Email | $0 |
 | Domain + SSL | $15 |
-| **Total** | **$930/mo** |
+| **Total** | **$990/mo** |
 
 **Revenue (Year 1)**: ~$3,500/mo (see MARKET_RESEARCH.md)
-**Gross margin**: 73%
+**Gross margin**: 72%
 
 ### Scenario B: Growth (Year 2) — 300 developers, 100 vendors
 
@@ -208,15 +250,16 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | S3 storage (500 GB) | $12 |
 | S3 egress | $120 |
 | OpenAI Embeddings | $10 |
+| Gemini API (LLM) | $360 |
 | CDN (CloudFront) | $50 |
 | Stripe fees | $1,200 |
 | Monitoring | $150 |
 | Email | $20 |
 | Domain + SSL | $15 |
-| **Total** | **$3,560/mo** |
+| **Total** | **$3,920/mo** |
 
 **Revenue (Year 2)**: ~$40K/mo
-**Gross margin**: 91%
+**Gross margin**: 90%
 
 ### Scenario C: Scale (Year 3) — 1,000 developers, 300 vendors, 20 Platinum
 
@@ -228,15 +271,16 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | S3 storage (5 TB) | $115 |
 | S3 egress + CDN | $600 |
 | OpenAI Embeddings (or self-hosted) | $60 |
+| Gemini API (LLM) | $2,400 |
 | CDN (CloudFront) | $150 |
 | Stripe fees | $3,200 |
 | Monitoring (Datadog) | $400 |
 | Email (SES) | $30 |
 | Domain + SSL + WAF | $50 |
-| **Total** | **$9,855/mo** |
+| **Total** | **$12,255/mo** |
 
 **Revenue (Year 3)**: ~$110K/mo (conservative) + Platinum revenue ~$100K/mo (20 × $5K)
-**Gross margin**: 95%+
+**Gross margin**: 94%
 
 ---
 
@@ -244,7 +288,7 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 
 | Operation | Infrastructure Cost | Price Charged | Margin |
 |-----------|:-------------------:|:-------------:|:------:|
-| 1 search query | ~$0.0003 | $0.005 (overage) | 94% |
+| 1 chat query (search + LLM) | ~$0.0015 | $0.005 (overage) | 70% |
 | 1 document ingest (MD) | ~$0.002 | $0.15 (overage) | 99% |
 | 1 document ingest (PDF OCR) | ~$0.02 | $0.75 (5 units × $0.15) | 97% |
 | 1 document download | ~$0.001 | $0.10 (overage) | 99% |
@@ -258,21 +302,22 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 ## 5. Where the Money Goes (Top 5 Cost Drivers)
 
 ```
-Year 3 breakdown ($9,855/mo):
+Year 3 breakdown ($12,255/mo):
 
-  Stripe transaction fees .......... $3,200  (32%)  ← #1 (unavoidable, scales with revenue)
-  PostgreSQL managed HA ............ $2,500  (25%)  ← #2 (pgvector + HASH partitioning)
-  Compute (servers + workers) ...... $2,500  (25%)  ← #3
-  S3 egress + CDN .................. $750   (8%)   ← #4 (firmware downloads)
-  Monitoring ....................... $400   (4%)   ← #5
-  Everything else .................. $505   (5%)
+  Stripe transaction fees .......... $3,200  (26%)  ← #1 (unavoidable, scales with revenue)
+  PostgreSQL managed HA ............ $2,500  (20%)  ← #2 (pgvector + HASH partitioning)
+  Compute (servers + workers) ...... $2,500  (20%)  ← #3
+  Gemini API (LLM) ................. $2,400  (20%)  ← #4 (scales with query volume)
+  S3 egress + CDN .................. $750   (6%)   ← #5 (firmware downloads)
+  Monitoring ....................... $400   (3%)
+  Everything else .................. $505   (4%)
 ```
 
 **Optimization opportunities:**
-1. **PostgreSQL**: move to self-managed on dedicated instances → save 40-60%
-2. **S3 egress**: CDN caching for popular firmware → save 50-70%
-3. **Compute**: spot/preemptible instances for Celery workers → save 30-50%
-4. **Embeddings**: switch to self-hosted model → $0 API cost (already tiny)
+1. **Gemini API**: switch to Ollama (local LLM) for $0 API cost — already supported in codebase, requires GPU instance (~$200-400/mo for unlimited queries vs $2,400/mo at scale)
+2. **PostgreSQL**: move to self-managed on dedicated instances → save 40-60%
+3. **S3 egress**: CDN caching for popular firmware → save 50-70%
+4. **Compute**: spot/preemptible instances for Celery workers → save 30-50%
 5. **Stripe**: negotiate volume discount at $1M+ ARR → reduce from 2.9% to 2.2%
 
 ---
@@ -281,9 +326,9 @@ Year 3 breakdown ($9,855/mo):
 
 | Scenario | Monthly Cost | Revenue Needed | Customers Needed |
 |----------|:------------:|:--------------:|:----------------:|
-| Launch | $930 | $930 | ~10 Pro ($99) customers |
-| Growth | $3,560 | $3,560 | ~36 Pro or ~9 Team customers |
-| Scale | $9,855 | $9,855 | ~100 Pro or ~25 Team customers |
+| Launch | $990 | $990 | ~10 Pro ($99) customers |
+| Growth | $3,920 | $3,920 | ~40 Pro or ~10 Team customers |
+| Scale | $12,255 | $12,255 | ~124 Pro or ~31 Team customers |
 
 **Break-even is reached very early** — even 10 paying Pro customers cover all infrastructure costs at launch. The pricing model has comfortable margins at every scale.
 
@@ -307,6 +352,8 @@ Year 3 breakdown ($9,855/mo):
 | Viral firmware download (one popular file, millions of downloads) | S3 egress bill spike | CDN caching + rate limiting on downloads |
 | pgvector index doesn't fit in RAM | Search latency spikes, need bigger instance | HASH partitioning by tenant_id (Stage 2), increase shared_buffers |
 | OpenAI price increase | Embedding costs increase | Switch to self-hosted model (already supported) |
+| Gemini API price increase or quota limits | LLM cost spike or service degradation | Fallback to Ollama (local LLM, already supported: `LLM_PROVIDER=ollama`), or switch to another OpenAI-compatible provider |
+| Google AI Studio free tier rate limits (15 RPM) | Users can't get answers during peak load | Upgrade to paid tier (Vertex AI) or hybrid: Ollama for overflow |
 | Massive OCR ingestion spike | GPU compute costs | Queue-based throttling, OCR worker autoscaling |
 | DDoS on public endpoints | Compute overload | WAF + rate limiting + CloudFlare |
 | ClamAV false positive quarantines good firmware | Vendor frustration | Manual review process, vendor appeal mechanism |
@@ -329,10 +376,11 @@ REVENUE:
   ────────────────────────────
   Total revenue:       $1,750/mo
 
-INFRASTRUCTURE:              $930/mo
+INFRASTRUCTURE:              $990/mo
+  (incl. Gemini API: $60/mo)
 
-MARGIN:                      $820/mo (47%)
-BREAK-EVEN:                  10 Pro customers ($990 > $930)
+MARGIN:                      $760/mo (43%)
+BREAK-EVEN:                  10 Pro customers ($990 = $990)
 ```
 
 **Status**: Tight margins, typical for Year 1. Cash-flow positive from ~10 paying customers.
@@ -352,10 +400,11 @@ REVENUE:
   ────────────────────────────────────
   Total revenue:              $42,125/mo
 
-INFRASTRUCTURE:               $3,560/mo
+INFRASTRUCTURE:               $3,920/mo
+  (incl. Gemini API: $360/mo)
 
-MARGIN:                      $38,565/mo (91%)
-REVENUE-TO-INFRA RATIO:      11.8×
+MARGIN:                      $38,205/mo (90%)
+REVENUE-TO-INFRA RATIO:      10.7×
 ```
 
 **Status**: Healthy SaaS economics. Revenue covers infrastructure 12x over.
@@ -375,23 +424,24 @@ REVENUE:
   Total revenue:              $217,760/mo
   (+ Platinum vendors: $5K × N extra)
 
-INFRASTRUCTURE:                $9,855/mo
+INFRASTRUCTURE:                $12,255/mo
+  (incl. Gemini API: $2,400/mo)
 
-MARGIN:                       $207,905/mo (95%)
-REVENUE-TO-INFRA RATIO:       22×
+MARGIN:                       $205,505/mo (94%)
+REVENUE-TO-INFRA RATIO:       17.8×
 ```
 
 **Status**: Outstanding. Infrastructure is < 5% of revenue.
 
 ### Summary Table
 
-| Year | Revenue/mo | Infra/mo | Margin | R/I Ratio | Verdict |
-|:----:|:----------:|:--------:|:------:|:---------:|---------|
-| 1 | $1,750 | $930 | 47% | 1.9× | Break-even at ~10 Pro customers |
-| 2 | $42,125 | $3,560 | 91% | 11.8× | Healthy, reinvest in growth |
-| 3 | $217,760 | $9,855 | 95% | 22× | Excellent SaaS economics |
+| Year | Revenue/mo | Infra/mo | Gemini API | Margin | R/I Ratio | Verdict |
+|:----:|:----------:|:--------:|:----------:|:------:|:---------:|---------|
+| 1 | $1,750 | $990 | $60 | 43% | 1.8× | Break-even at ~10 Pro customers |
+| 2 | $42,125 | $3,920 | $360 | 90% | 10.7× | Healthy, reinvest in growth |
+| 3 | $217,760 | $12,255 | $2,400 | 94% | 17.8× | Excellent SaaS economics |
 
-**Conclusion**: Current pricing model is validated. No price adjustments needed. Infrastructure costs are well below revenue at every scale. The main expense will be people (engineers, support, sales), not servers.
+**Conclusion**: Current pricing model is validated. The addition of Gemini API (LLM) increases infrastructure costs by $60-$2,400/mo depending on scale, but margins remain strong (90%+ from Year 2). Fallback to local Ollama LLM is available if API costs become a concern. The main expense will be people (engineers, support, sales), not servers.
 
 ---
 
@@ -400,6 +450,7 @@ REVENUE-TO-INFRA RATIO:       22×
 - AWS S3 pricing: https://aws.amazon.com/s3/pricing/ (March 2026)
 - AWS EC2 pricing: https://aws.amazon.com/ec2/pricing/ (March 2026)
 - OpenAI Embeddings pricing: https://openai.com/pricing (March 2026)
+- Google AI Studio / Gemini API pricing: https://ai.google.dev/pricing (March 2026)
 - Stripe pricing: https://stripe.com/pricing (March 2026)
 - AWS CloudFront pricing: https://aws.amazon.com/cloudfront/pricing/ (March 2026)
 - ClamAV: https://www.clamav.net/ (open-source, free)
