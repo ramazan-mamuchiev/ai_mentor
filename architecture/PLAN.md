@@ -17,7 +17,8 @@
 | [FLOWS.md](FLOWS.md) | Ingestion pipeline, supported formats, E2E flows (developer, vendor docs, firmware) | ~190 |
 | [MARKET_RESEARCH.md](MARKET_RESEARCH.md) | Market sizing, competitive analysis, pricing rationale, revenue projections | ~270 |
 | [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md) | Per-component cost breakdown, unit economics, break-even, revenue vs infra cross-check | ~460 |
-| [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) | Go-to-market strategy: vendor partnerships, co-marketing playbook, target vendors, KPIs | ~330 |
+| [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) | Go-to-market strategy: vendor partnerships, co-marketing playbook, target vendors, KPIs | ~430 |
+| [GTM_STRATEGY.md](GTM_STRATEGY.md) | AI-first positioning, messaging framework, 12-month execution roadmap, channel priorities, budget | ~400 |
 
 ---
 
