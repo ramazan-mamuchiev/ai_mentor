@@ -1,8 +1,8 @@
 """Smoke test: real embedding model + real pgvector = quality search results.
 
-This test uses the actual all-MiniLM-L6-v2 model (no mocks).
-First run downloads the model (~90MB) and takes ~30 seconds.
-Subsequent runs use the cached model and take ~5 seconds.
+This test uses the actual multilingual-e5-large model (no mocks).
+First run downloads the model (~1.1GB) and takes ~60 seconds.
+Subsequent runs use the cached model and take ~10 seconds.
 """
 
 import pytest

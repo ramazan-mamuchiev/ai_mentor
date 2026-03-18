@@ -11,16 +11,36 @@ from app.ingestion.embedder import embed_query
 logger = logging.getLogger(__name__)
 
 
+def _deduplicate_chunks(results: list[dict], limit: int) -> list[dict]:
+    """Remove near-duplicate chunks (same content from different document uploads)."""
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict] = []
+    for r in results:
+        key = (r["heading_path"], r["content"][:200])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(r)
+        if len(unique) >= limit:
+            break
+    return unique
+
+
 async def search_documents(
     session: AsyncSession,
     query: str,
     device: str | None = None,
     version: str | None = None,
+    doc_context: str | None = None,
     limit: int = 5,
 ) -> list[dict]:
     """Semantic search across all indexed documentation.
 
     Returns list of dicts with content, heading_path, similarity, device info.
+    Fetches extra candidates and deduplicates to handle multiple uploads of the same doc.
+
+    Args:
+        doc_context: If set, restricts search to documents whose title matches this value.
     """
     t0 = time.perf_counter()
 
@@ -30,8 +50,10 @@ async def search_documents(
 
     embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
 
+    fetch_limit = limit * 3
+
     where_clauses = ["d.status = 'ready'"]
-    params: dict = {"embedding": embedding_str, "limit": limit}
+    params: dict = {"embedding": embedding_str, "limit": fetch_limit}
 
     if device:
         where_clauses.append("dev.name ILIKE '%' || :device || '%'")
@@ -39,6 +61,9 @@ async def search_documents(
     if version:
         where_clauses.append("fw.version = :version")
         params["version"] = version
+    if doc_context:
+        where_clauses.append("d.title = :doc_context")
+        params["doc_context"] = doc_context
 
     where_sql = " AND ".join(where_clauses)
 
@@ -72,7 +97,7 @@ async def search_documents(
     db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
     rows = result.mappings().all()
-    results = [
+    raw_results = [
         {
             "content": row["content"],
             "heading_path": row["heading_path"],
@@ -87,14 +112,18 @@ async def search_documents(
         for row in rows
     ]
 
+    results = _deduplicate_chunks(raw_results, limit)
+
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     result_count = len(results)
+    dedup_removed = len(raw_results) - result_count
     top_similarity = results[0]["similarity"] if results else 0.0
 
     log_extra = {
         "query": query, "device": device, "version": version,
         "result_count": result_count, "top_similarity": top_similarity,
         "duration_ms": duration_ms, "embed_ms": embed_ms, "db_ms": db_ms,
+        "raw_candidates": len(raw_results), "dedup_removed": dedup_removed,
     }
 
     if result_count == 0:

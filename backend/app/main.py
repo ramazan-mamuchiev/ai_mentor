@@ -79,6 +79,96 @@ async def _system_monitor():
             sys_logger.exception("Failed to collect system stats")
 
 
+async def _apply_schema():
+    """Apply schema.sql to ensure all tables exist (idempotent via IF NOT EXISTS)."""
+    from app.database import engine
+    import pathlib
+
+    schema_path = pathlib.Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+    if not schema_path.exists():
+        logger.warning("schema.sql not found, skipping startup migration", extra={"path": str(schema_path)})
+        return
+
+    sql = schema_path.read_text(encoding="utf-8")
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        await raw.driver_connection.execute(sql)
+    logger.info("Startup schema migration applied successfully")
+
+    await _migrate_embedding_dims()
+    await _migrate_doc_context()
+    await _migrate_source_hash_index()
+
+
+async def _migrate_doc_context():
+    """Add doc_context column to chat_sessions if it doesn't exist."""
+    from app.database import engine
+
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        row = await raw.driver_connection.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'chat_sessions' AND column_name = 'doc_context'"
+        )
+        if row:
+            return
+        await raw.driver_connection.execute(
+            "ALTER TABLE chat_sessions ADD COLUMN doc_context TEXT"
+        )
+        logger.info("Added doc_context column to chat_sessions")
+
+
+async def _migrate_source_hash_index():
+    """Create idx_documents_source_hash if it doesn't exist."""
+    from app.database import engine
+
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        await raw.driver_connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_documents_source_hash "
+            "ON documents(source_hash) WHERE source_hash != ''"
+        )
+    logger.info("Ensured idx_documents_source_hash index exists")
+
+
+async def _migrate_embedding_dims():
+    """Resize the embedding column if it doesn't match the configured dimensions."""
+    from app.database import engine
+
+    target_dims = settings.embedding_dims
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        row = await raw.driver_connection.fetchrow(
+            "SELECT atttypmod FROM pg_attribute "
+            "WHERE attrelid = 'chunks'::regclass AND attname = 'embedding'"
+        )
+        if row is None:
+            return
+
+        current_dims = row["atttypmod"]
+        if current_dims == target_dims:
+            logger.info("Embedding dims already match", extra={"dims": target_dims})
+            return
+
+        logger.warning(
+            "Embedding dimension mismatch — migrating",
+            extra={"current_dims": current_dims, "target_dims": target_dims},
+        )
+        await raw.driver_connection.execute("UPDATE chunks SET embedding = NULL")
+        await raw.driver_connection.execute("DROP INDEX IF EXISTS idx_chunks_embedding")
+        await raw.driver_connection.execute(
+            f"ALTER TABLE chunks ALTER COLUMN embedding TYPE vector({target_dims})"
+        )
+        await raw.driver_connection.execute(
+            f"CREATE INDEX idx_chunks_embedding ON chunks "
+            f"USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 128)"
+        )
+        logger.info(
+            "Embedding column migrated (old embeddings cleared — reindex required)",
+            extra={"old_dims": current_dims, "new_dims": target_dims},
+        )
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global _start_time
@@ -87,6 +177,12 @@ async def lifespan(app: FastAPI):
         "IPCodex MCP server starting",
         extra={"env": settings.app_env, "version": "0.1.0"},
     )
+
+    try:
+        await _apply_schema()
+    except Exception:
+        logger.warning("Startup schema migration failed", exc_info=True)
+
     from app.s3 import ensure_bucket
     try:
         ensure_bucket()
@@ -145,8 +241,15 @@ async def ready():
 
     try:
         from app.llm.client import check_health as llm_health
-        ollama_status = "ok" if await llm_health() else "model_not_ready"
+        llm_status = "ok" if await llm_health() else "model_not_ready"
     except Exception as e:
-        ollama_status = f"error: {e}"
+        llm_status = f"error: {e}"
 
-    return {"db": db_status, "redis": redis_status, "s3": s3_status, "ollama": ollama_status}
+    from app.config import settings as _cfg
+    return {
+        "db": db_status,
+        "redis": redis_status,
+        "s3": s3_status,
+        "llm": llm_status,
+        "llm_provider": _cfg.llm_provider,
+    }

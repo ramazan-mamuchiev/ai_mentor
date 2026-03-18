@@ -79,7 +79,7 @@ class Chunk(Base):
     heading_level: Mapped[int] = mapped_column(Integer, default=1)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, default=0)
-    embedding = mapped_column(Vector(1536))
+    embedding = mapped_column(Vector(1024))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -99,6 +99,7 @@ class ChatSession(Base):
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     device_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
     version_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    doc_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

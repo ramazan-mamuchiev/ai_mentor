@@ -16,6 +16,7 @@ class SessionResponse(BaseModel):
     title: str | None
     device_filter: str | None
     version_filter: str | None
+    doc_context: str | None = None
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
@@ -26,6 +27,7 @@ class SessionListItem(BaseModel):
     title: str | None
     device_filter: str | None
     version_filter: str | None
+    doc_context: str | None = None
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
@@ -60,6 +62,7 @@ class SessionDetailResponse(BaseModel):
     title: str | None
     device_filter: str | None
     version_filter: str | None
+    doc_context: str | None = None
     created_at: datetime
     updated_at: datetime
     messages: list[ChatMessageResponse]

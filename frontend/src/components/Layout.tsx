@@ -1,7 +1,24 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { SquarePen } from 'lucide-react'
 import type { ChatSession } from '../types'
 import { SessionList } from './SessionList'
 import { ThemeToggle } from './ThemeToggle'
+
+const STORAGE_KEY = 'ipcodex-sidebar-width'
+const DEFAULT_WIDTH = 280
+const MIN_WIDTH = 180
+const MAX_WIDTH = 600
+
+function loadWidth(): number {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      const n = parseInt(stored, 10)
+      if (!isNaN(n) && n >= MIN_WIDTH && n <= MAX_WIDTH) return n
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_WIDTH
+}
 
 interface Props {
   sessions: ChatSession[]
@@ -24,11 +41,55 @@ export function Layout({
   onToggleTheme,
   children,
 }: Props) {
+  const [sidebarWidth, setSidebarWidth] = useState(loadWidth)
+  const dragging = useRef(false)
+  const startX = useRef(0)
+  const startWidth = useRef(0)
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    dragging.current = true
+    startX.current = e.clientX
+    startWidth.current = sidebarWidth
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    const target = e.target as HTMLElement
+    target.setPointerCapture?.(e.pointerId)
+  }, [sidebarWidth])
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return
+    const delta = e.clientX - startX.current
+    const next = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, startWidth.current + delta))
+    setSidebarWidth(next)
+  }, [])
+
+  const onPointerUp = useCallback(() => {
+    if (!dragging.current) return
+    dragging.current = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, String(sidebarWidth)) } catch { /* ignore */ }
+  }, [sidebarWidth])
+
   return (
     <div className="app-layout">
-      <aside className="sidebar">
+      <aside className="sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
         <div className="sidebar-header">
-          <span className="sidebar-title">IPCodex</span>
+          <div className="sidebar-header-left">
+            <img src="/ipcodex-icon.svg" alt="IPCodex" className="sidebar-icon" />
+            <span className="sidebar-title">IPCodex</span>
+          </div>
+          <button
+            className="new-chat-btn"
+            onClick={onNewSession}
+            aria-label="New chat"
+          >
+            <SquarePen size={18} />
+          </button>
         </div>
         <SessionList
           sessions={sessions}
@@ -41,6 +102,13 @@ export function Layout({
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </aside>
+      <div
+        className="splitter"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      />
       {children}
     </div>
   )

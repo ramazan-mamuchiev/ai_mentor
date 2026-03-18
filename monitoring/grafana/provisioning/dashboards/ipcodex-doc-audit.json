@@ -1,0 +1,318 @@
+{
+  "uid": "ipcodex-doc-audit",
+  "title": "IPCodex Document Audit & Performance",
+  "tags": ["ipcodex", "audit", "documents", "performance"],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "panels": [
+    {
+      "type": "row", "title": "📤 Document Uploads", "id": 1,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 10, "type": "stat", "title": "Total Uploads",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "count_over_time({job=\"ipcodex-api\"} | json | event = `Document upload received` [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "blue", "value": null}] } } }
+    },
+    {
+      "id": 11, "type": "stat", "title": "Total Upload Size",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "sum_over_time({job=\"ipcodex-api\"} | json | event = `Document upload received` | unwrap file_size_bytes [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "decbytes", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}] } } }
+    },
+    {
+      "id": 12, "type": "stat", "title": "Avg Upload Size",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "avg_over_time({job=\"ipcodex-api\"} | json | event = `Document upload received` | unwrap file_size_bytes [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "decbytes", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "purple", "value": null}] } } }
+    },
+    {
+      "id": 13, "type": "stat", "title": "Failed Ingestions",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "count_over_time({job=\"ipcodex-api\"} | json | event =~ `Ingestion failed|URL ingestion failed` [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] } } }
+    },
+    {
+      "id": 14, "type": "stat", "title": "Success Rate",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "expr": "count_over_time({job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` [$__range])", "refId": "A" },
+        { "expr": "count_over_time({job=\"ipcodex-api\"} | json | event =~ `Ingestion failed|URL ingestion failed` [$__range])", "refId": "B" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "red", "value": null}, {"color": "green", "value": 0.9}] } } }
+    },
+    {
+      "id": 15, "type": "stat", "title": "Total Chunks Created",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "sum_over_time({job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap chunks [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "orange", "value": null}] } } }
+    },
+    {
+      "id": 16, "type": "table", "title": "Upload Log (Recent)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event = `Document upload received` | line_format `{{.timestamp}} | {{.client_ip}} | {{.original_filename}} | {{.device_name}} | {{.format}} | {{.file_size_bytes}}`",
+        "refId": "A"
+      }],
+      "options": { "showHeader": true },
+      "fieldConfig": { "defaults": {} }
+    },
+
+    {
+      "type": "row", "title": "⏱️ Ingestion Pipeline Timing", "id": 2,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Total Ingestion Duration",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap duration_sec",
+        "legendFormat": "{{file}}{{url}}",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "bars", "fillOpacity": 30, "pointSize": 5 } } }
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Pipeline Stage Breakdown",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "expr": "{job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap convert_ms", "legendFormat": "Convert", "refId": "A" },
+        { "expr": "{job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap parse_ms", "legendFormat": "Parse", "refId": "B" },
+        { "expr": "{job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap embed_ms", "legendFormat": "Embed", "refId": "C" },
+        { "expr": "{job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap db_ms", "legendFormat": "DB Write", "refId": "D" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "bars", "stacking": { "mode": "normal" }, "fillOpacity": 60 } } }
+    },
+    {
+      "id": 22, "type": "stat", "title": "Avg Ingestion Time",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 22 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "avg_over_time({job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap duration_sec [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 30}, {"color": "red", "value": 120}] } } }
+    },
+    {
+      "id": 23, "type": "stat", "title": "Avg Embed Time",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 22 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "avg_over_time({job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap embed_ms [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "ms", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5000}, {"color": "red", "value": 30000}] } } }
+    },
+    {
+      "id": 24, "type": "stat", "title": "Avg Convert Time",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 22 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "avg_over_time({job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap convert_ms [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "ms", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5000}, {"color": "red", "value": 20000}] } } }
+    },
+    {
+      "id": 25, "type": "stat", "title": "Avg DB Write Time",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 22 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "avg_over_time({job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap db_ms [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "ms", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1000}, {"color": "red", "value": 5000}] } } }
+    },
+
+    {
+      "type": "row", "title": "🔍 Indexing & Embedding", "id": 3,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 30, "type": "timeseries", "title": "Embedding Speed (texts/batch)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event = `Embedding completed` | unwrap texts_count",
+        "legendFormat": "{{provider}} ({{dims}}d)",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 40 } } }
+    },
+    {
+      "id": 31, "type": "timeseries", "title": "Slow Embedding Batches (>5s)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event = `Embedding batch slow` | unwrap duration_ms",
+        "legendFormat": "Batch {{batch_index}}/{{total_batches}}",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "points", "pointSize": 8 }, "color": { "mode": "fixed", "fixedColor": "red" } } }
+    },
+    {
+      "id": 32, "type": "timeseries", "title": "Chunks per Ingestion",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed` | unwrap chunks",
+        "legendFormat": "{{file}}{{url}} ({{format}})",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 50 } } }
+    },
+    {
+      "id": 33, "type": "timeseries", "title": "Upload File Sizes Over Time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event = `Document upload received` | unwrap file_size_bytes",
+        "legendFormat": "{{original_filename}}",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "unit": "decbytes", "custom": { "drawStyle": "bars", "fillOpacity": 40 } } }
+    },
+
+    {
+      "type": "row", "title": "📋 Ingestion Detail Log", "id": 4,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 40, "type": "table", "title": "Completed Ingestions (Detail)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 44 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event =~ `Ingestion completed|URL ingestion completed|Worker ingestion completed` | line_format `{{.timestamp}} | {{.file}}{{.url}} | {{.device}} | {{.format}} | chunks={{.chunks}} | total={{.duration_sec}}s | convert={{.convert_ms}}ms | parse={{.parse_ms}}ms | embed={{.embed_ms}}ms | db={{.db_ms}}ms | size={{.file_size_bytes}}`",
+        "refId": "A"
+      }],
+      "options": { "showHeader": true }
+    },
+    {
+      "id": 41, "type": "table", "title": "Failed Ingestions",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 54 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event =~ `Ingestion failed|URL ingestion failed|Celery ingest_document_task failed` | line_format `{{.timestamp}} | {{.file_path}}{{.url}} | {{.error_type}} | doc_id={{.document_id}}`",
+        "refId": "A"
+      }],
+      "options": { "showHeader": true },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } }
+    },
+
+    {
+      "type": "row", "title": "🔎 Search Performance", "id": 5,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 50, "type": "timeseries", "title": "Search Latency",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "expr": "{job=\"ipcodex-api\"} | json | event = `Search completed` | unwrap duration_ms", "legendFormat": "Total", "refId": "A" },
+        { "expr": "{job=\"ipcodex-api\"} | json | event = `Search completed` | unwrap embed_ms", "legendFormat": "Embed", "refId": "B" },
+        { "expr": "{job=\"ipcodex-api\"} | json | event = `Search completed` | unwrap db_ms", "legendFormat": "DB Query", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "fillOpacity": 10, "pointSize": 4, "showPoints": "always" } } }
+    },
+    {
+      "id": 51, "type": "timeseries", "title": "Search Similarity Scores",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "{job=\"ipcodex-api\"} | json | event = `Search completed` | unwrap top_similarity",
+        "legendFormat": "Top Similarity",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 20, "pointSize": 5, "showPoints": "always" }, "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.7}, {"color": "green", "value": 0.85}] }, "color": { "mode": "thresholds" } } }
+    },
+    {
+      "id": 52, "type": "stat", "title": "Zero-Result Searches",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 69 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "count_over_time({job=\"ipcodex-api\"} | json | event = `Search returned 0 results` [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] } } }
+    },
+    {
+      "id": 53, "type": "stat", "title": "Avg Search Latency",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 69 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "avg_over_time({job=\"ipcodex-api\"} | json | event = `Search completed` | unwrap duration_ms [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "ms", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 500}, {"color": "red", "value": 2000}] } } }
+    },
+    {
+      "id": 54, "type": "stat", "title": "Avg Dedup Removed",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 69 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "avg_over_time({job=\"ipcodex-api\"} | json | event = `Search completed` | unwrap dedup_removed [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 10}] } } }
+    },
+    {
+      "id": 55, "type": "stat", "title": "Avg Top Similarity",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 69 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{
+        "expr": "avg_over_time({job=\"ipcodex-api\"} | json | event = `Search completed` | unwrap top_similarity [$__range])",
+        "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.7}, {"color": "green", "value": 0.85}] } } }
+    }
+  ]
+}

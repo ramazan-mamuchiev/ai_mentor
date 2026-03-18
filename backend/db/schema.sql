@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     heading_level INT NOT NULL DEFAULT 1,
     content TEXT NOT NULL,
     token_count INT NOT NULL DEFAULT 0,
-    embedding vector(1536),
+    embedding vector(1024),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 );
@@ -81,3 +81,6 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
+
+-- Deduplication index on document content hash
+CREATE INDEX IF NOT EXISTS idx_documents_source_hash ON documents(source_hash) WHERE source_hash != '';

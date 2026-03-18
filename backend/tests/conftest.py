@@ -4,11 +4,11 @@ import hashlib
 import math
 
 
-EMBEDDING_DIMS = 1536
+EMBEDDING_DIMS = 1024
 
 
 def fake_embed_single(text: str) -> list[float]:
-    """Generate a deterministic 1536-dim vector from text hash.
+    """Generate a deterministic 1024-dim vector from text hash.
 
     Similar texts won't produce similar vectors (unlike real embeddings),
     but identical texts always produce identical vectors. This is sufficient
@@ -24,13 +24,13 @@ def fake_embed_single(text: str) -> list[float]:
     return vec
 
 
-def fake_embed_texts(texts: list[str]) -> list[list[float]]:
-    """Batch fake embedding — returns list of 1536-dim vectors."""
+def fake_embed_texts(texts: list[str], **kwargs) -> list[list[float]]:
+    """Batch fake embedding — returns list of 1024-dim vectors."""
     if not texts:
         return []
     return [fake_embed_single(t) for t in texts]
 
 
 def fake_embed_query(text: str) -> list[float]:
-    """Single fake embedding — returns 1536-dim vector."""
+    """Single fake embedding — returns 1024-dim vector."""
     return fake_embed_single(text)

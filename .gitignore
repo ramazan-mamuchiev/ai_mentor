@@ -30,4 +30,13 @@ frontend/dist/
 pgdata/
 
 # Runtime logs
-logs/*.log
+logs/
+
+# Cursor IDE project settings
+.cursor/
+
+# Temporary / generated files
+pdf_parts/
+
+# Playwright test artifacts
+frontend/test-results/

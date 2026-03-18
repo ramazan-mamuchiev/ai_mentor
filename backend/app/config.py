@@ -9,9 +9,9 @@ class Settings(BaseSettings):
     api_key: str = "ipx_dev_key_12345"
 
     embedding_provider: str = "local"  # "local" or "openai"
-    embedding_model_local: str = "all-MiniLM-L6-v2"
+    embedding_model_local: str = "intfloat/multilingual-e5-large"
     embedding_model_openai: str = "text-embedding-3-small"
-    embedding_dims: int = 1536
+    embedding_dims: int = 1024
     openai_api_key: str = ""
 
     redis_url: str = "redis://localhost:6379/0"
@@ -25,12 +25,18 @@ class Settings(BaseSettings):
 
     max_upload_size_mb: int = 50
 
+    llm_provider: str = "ollama"  # "ollama" or "openai" (OpenAI-compatible: Gemini, GPT, etc.)
     ollama_url: str = "http://ollama:11434"
-    llm_model: str = "mistral"
-    llm_max_tokens: int = 2048
-    llm_temperature: float = 0.3
-    llm_timeout: int = 120
-    rag_top_k: int = 5
+    llm_model: str = "qwen2.5-coder:7b"
+    llm_max_tokens: int = 4096
+    llm_temperature: float = 0.2
+    llm_timeout: int = 600
+
+    openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    openai_llm_api_key: str = ""
+    openai_llm_model: str = "gemini-2.5-flash"
+
+    rag_top_k: int = 8
     rag_history_messages: int = 10
 
     ocr_enabled: bool = False

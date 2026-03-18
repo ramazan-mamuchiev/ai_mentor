@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+
 @router.post("/sessions", response_model=SessionResponse, status_code=201)
 async def create_session(req: CreateSessionRequest):
     """Create a new chat session."""
@@ -54,6 +55,7 @@ async def create_session(req: CreateSessionRequest):
             title=chat_session.title,
             device_filter=chat_session.device_filter,
             version_filter=chat_session.version_filter,
+            doc_context=chat_session.doc_context,
             created_at=chat_session.created_at,
             updated_at=chat_session.updated_at,
             message_count=0,
@@ -82,6 +84,7 @@ async def list_sessions():
                 ChatSession.title,
                 ChatSession.device_filter,
                 ChatSession.version_filter,
+                ChatSession.doc_context,
                 ChatSession.created_at,
                 ChatSession.updated_at,
                 func.coalesce(subq.c.message_count, 0).label("message_count"),
@@ -99,6 +102,7 @@ async def list_sessions():
                 title=row.title,
                 device_filter=row.device_filter,
                 version_filter=row.version_filter,
+                doc_context=row.doc_context,
                 created_at=row.created_at,
                 updated_at=row.updated_at,
                 message_count=row.message_count,
@@ -128,6 +132,7 @@ async def get_session(session_id: int):
             title=chat_session.title,
             device_filter=chat_session.device_filter,
             version_filter=chat_session.version_filter,
+            doc_context=chat_session.doc_context,
             created_at=chat_session.created_at,
             updated_at=chat_session.updated_at,
             messages=[
@@ -204,14 +209,32 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 history = msgs_result.scalars().all()
 
                 t_rag = time.perf_counter()
-                messages, sources = await build_rag_prompt(
+                messages, sources, rag_debug = await build_rag_prompt(
                     db=db,
                     query=req.content,
                     history=list(history),
                     device_filter=chat_session.device_filter,
                     version_filter=chat_session.version_filter,
+                    doc_context=chat_session.doc_context,
                 )
                 rag_ms = round((time.perf_counter() - t_rag) * 1000, 1)
+
+                if not chat_session.device_filter:
+                    auto_dev = rag_debug.get("auto_device")
+                    if auto_dev:
+                        chat_session.device_filter = auto_dev
+                if not chat_session.doc_context:
+                    detected = rag_debug.get("detected_doc_context")
+                    if detected:
+                        chat_session.doc_context = detected
+                        logger.info(
+                            "Session context locked",
+                            extra={
+                                "session_id": session_id,
+                                "doc_context": detected,
+                                "device_filter": chat_session.device_filter,
+                            },
+                        )
 
                 yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
@@ -242,9 +265,25 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 await db.commit()
                 await db.refresh(assistant_msg)
 
-                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms})}\n\n"
-
                 tokens_per_sec = round(token_count / (llm_ms / 1000), 1) if llm_ms > 0 else 0
+
+                from app.config import settings as _cfg
+                from app.llm.client import _effective_model
+                debug_info = {
+                    "session_id": session_id,
+                    "message_id": assistant_msg.id,
+                    "user_message_id": user_msg.id,
+                    "model": _effective_model(),
+                    "rag_ms": rag_ms,
+                    "llm_ms": llm_ms,
+                    "total_ms": duration_ms,
+                    "token_count": token_count,
+                    "tokens_per_sec": tokens_per_sec,
+                    "response_length": len(assistant_content),
+                    **rag_debug,
+                }
+
+                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'debug': debug_info})}\n\n"
 
                 logger.info(
                     "Chat message completed",

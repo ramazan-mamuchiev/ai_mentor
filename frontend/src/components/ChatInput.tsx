@@ -1,16 +1,32 @@
-import { useCallback, useRef, useState } from 'react'
-import { SendHorizontal, Square } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowUp, Plus, Square } from 'lucide-react'
 import type { StreamStatus } from '../types'
 
 interface Props {
   onSend: (content: string) => void
   onCancel: () => void
   status: StreamStatus
+  editValue?: string
 }
 
-export function ChatInput({ onSend, onCancel, status }: Props) {
+export function ChatInput({ onSend, onCancel, status, editValue }: Props) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (editValue) {
+      setValue(editValue)
+      requestAnimationFrame(() => {
+        const el = textareaRef.current
+        if (el) {
+          el.style.height = 'auto'
+          el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+          el.focus()
+          el.setSelectionRange(el.value.length, el.value.length)
+        }
+      })
+    }
+  }, [editValue])
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim()
@@ -36,9 +52,15 @@ export function ChatInput({ onSend, onCancel, status }: Props) {
     el.style.height = Math.min(el.scrollHeight, 200) + 'px'
   }
 
+  const hasText = value.trim().length > 0
+  const isStreaming = status === 'streaming'
+
   return (
     <div className="chat-input-container">
       <div className="chat-input-wrapper">
+        <button className="chat-attach-btn" title="Attach file">
+          <Plus size={18} />
+        </button>
         <textarea
           ref={textareaRef}
           className="chat-input"
@@ -47,20 +69,19 @@ export function ChatInput({ onSend, onCancel, status }: Props) {
           onKeyDown={handleKeyDown}
           placeholder="Ask about device integration..."
           rows={1}
-          disabled={status === 'streaming'}
         />
-        {status === 'streaming' ? (
-          <button className="chat-send-btn" onClick={onCancel} title="Stop generating">
-            <Square size={18} />
+        {isStreaming ? (
+          <button className="chat-send-btn active" onClick={onCancel} title="Stop generating">
+            <Square size={16} />
           </button>
         ) : (
           <button
-            className="chat-send-btn"
+            className={`chat-send-btn${hasText ? ' active' : ''}`}
             onClick={handleSubmit}
-            disabled={!value.trim()}
+            disabled={!hasText}
             title="Send message"
           >
-            <SendHorizontal size={18} />
+            <ArrowUp size={18} />
           </button>
         )}
       </div>

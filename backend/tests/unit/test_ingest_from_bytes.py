@@ -29,7 +29,7 @@ def _write_temp_file(content: str, suffix: str = ".md") -> str:
 class TestIngestFromBytesAutoDetect:
     """Test format auto-detection in ingest_from_bytes."""
 
-    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1536])
+    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1024])
     @patch("app.ingestion.pipeline.chunk_sections")
     @patch("app.ingestion.pipeline.parse_markdown")
     def test_auto_detects_markdown(self, mock_parse, mock_chunk, mock_embed):
@@ -77,7 +77,7 @@ class TestIngestFromBytesMarkdown:
             ChunkData("API", 1, "Endpoint docs", 10),
             ChunkData("API > Auth", 2, "Token auth", 8),
         ]
-        mock_embed.return_value = [[0.1] * 1536, [0.2] * 1536]
+        mock_embed.return_value = [[0.1] * 1024, [0.2] * 1024]
 
         doc = _make_mock_document(format="markdown")
         path = _write_temp_file("# API\n\nEndpoint docs\n\n## Auth\n\nToken auth")
@@ -102,7 +102,7 @@ class TestIngestFromBytesMarkdown:
 class TestIngestFromBytesPdf:
     """Test PDF ingestion path."""
 
-    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1536])
+    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1024])
     @patch("app.ingestion.pipeline.chunk_sections")
     @patch("app.ingestion.pipeline._parse_content")
     @patch("app.ingestion.pipeline.convert_pdf")
@@ -158,7 +158,7 @@ class TestIngestFromBytesPdf:
 class TestIngestFromBytesSwagger:
     """Test Swagger/OpenAPI ingestion path."""
 
-    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1536])
+    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1024])
     @patch("app.ingestion.pipeline.chunk_sections")
     @patch("app.ingestion.pipeline._parse_content")
     @patch("app.ingestion.pipeline.convert_swagger_file")
@@ -289,7 +289,7 @@ class TestIngestFromBytesEmbeddingFailure:
 class TestIngestFromBytesExistingChunks:
     """Test that existing chunks are deleted before re-ingestion."""
 
-    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1536])
+    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1024])
     @patch("app.ingestion.pipeline.chunk_sections")
     @patch("app.ingestion.pipeline.parse_markdown")
     def test_deletes_old_chunks(self, mock_parse, mock_chunk, mock_embed):

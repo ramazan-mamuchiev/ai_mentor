@@ -67,7 +67,7 @@ class TestIngestFile:
         chunks = (await db_session.execute(select(Chunk))).scalars().all()
         for chunk in chunks:
             assert chunk.embedding is not None
-            assert len(chunk.embedding) == 1536
+            assert len(chunk.embedding) == 1024
 
     async def test_duplicate_ingest_skipped(self, db_session, sample_md_file):
         r1 = await ingest_file(

@@ -72,8 +72,16 @@ services:
       S3_BUCKET: ${S3_BUCKET:-ipcodex-storage}
       API_KEY: ${API_KEY:-ipx_dev_key_12345}
       EMBEDDING_PROVIDER: local
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OLLAMA_URL: http://ollama:11434
-      LLM_MODEL: ${LLM_MODEL:-mistral}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.2}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-600}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      OPENAI_LLM_API_KEY: ${OPENAI_LLM_API_KEY:-}
+      OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
+      RAG_TOP_K: ${RAG_TOP_K:-8}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs
@@ -132,17 +140,17 @@ services:
     ports:
       - "11434:11434"
     environment:
-      LLM_MODEL: ${LLM_MODEL:-mistral}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
     volumes:
       - ollama_data:/root/.ollama
       - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
     entrypoint: ["bash", "/entrypoint.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "ollama list | grep -q ${LLM_MODEL:-mistral} || exit 1"]
+      test: ["CMD-SHELL", "ollama list | grep -q qwen2.5-coder || exit 1"]
       interval: 15s
       timeout: 10s
-      retries: 20
-      start_period: 120s
+      retries: 40
+      start_period: 300s
 
   loki:
     image: grafana/loki:3.4.2

@@ -10,7 +10,7 @@ export default function App() {
   const { theme, toggle: toggleTheme } = useTheme()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
-  const { messages, setMessages, streamingContent, streamingSources, status, sendMessage, cancel } = useChat()
+  const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset } = useChat()
 
   const activeSession = sessions.find(s => s.id === activeSessionId) ?? null
 
@@ -28,38 +28,39 @@ export default function App() {
   }, [refreshSessions])
 
   const handleNewSession = useCallback(async () => {
+    reset()
     try {
       const session = await createSession()
       setSessions(prev => [session, ...prev])
       setActiveSessionId(session.id)
-      setMessages([])
     } catch {
       // ignore
     }
-  }, [setMessages])
+  }, [reset])
 
   const handleSelectSession = useCallback(async (id: number) => {
+    reset()
     setActiveSessionId(id)
     try {
       const detail = await getSession(id)
       setMessages(detail.messages)
     } catch {
-      setMessages([])
+      // messages already cleared by reset()
     }
-  }, [setMessages])
+  }, [reset, setMessages])
 
   const handleDeleteSession = useCallback(async (id: number) => {
     try {
       await deleteSession(id)
       setSessions(prev => prev.filter(s => s.id !== id))
       if (activeSessionId === id) {
+        reset()
         setActiveSessionId(null)
-        setMessages([])
       }
     } catch {
       // ignore
     }
-  }, [activeSessionId, setMessages])
+  }, [activeSessionId, reset])
 
   const handleSend = useCallback(async (content: string) => {
     let sessionId = activeSessionId
@@ -95,6 +96,7 @@ export default function App() {
         sessionTitle={activeSession?.title ?? null}
         onSend={handleSend}
         onCancel={cancel}
+        editValue={lastUserPrompt}
       />
     </Layout>
   )

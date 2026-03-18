@@ -1,10 +1,11 @@
 """REST API router for document ingestion and management."""
 
+import hashlib
 import logging
 import os
 import time
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy import select
 
 from app.database import async_session
@@ -27,18 +28,24 @@ ALLOWED_EXTENSIONS = {".md", ".json", ".yaml", ".yml", ".pdf"}
 MAX_UPLOAD_BYTES = settings.max_upload_size_mb * 1024 * 1024
 
 
-@router.post("/ingest", response_model=IngestResponse, status_code=202)
+@router.post("/ingest", response_model=IngestResponse)
 async def ingest_document(
+    request: Request,
     file: UploadFile = File(...),
     device_name: str = Form(...),
     firmware_version: str = Form(default="1.0"),
     manufacturer: str = Form(default=""),
     format: str = Form(default="auto"),
+    force: bool = Form(default=False),
 ):
     """Upload a documentation file and trigger background ingestion.
 
     Supported formats: Markdown (.md), Swagger/OpenAPI (.yaml, .json), PDF (.pdf).
     Returns immediately with document_id and task_id for status polling.
+
+    If a document with identical content already exists, returns 200 with
+    status "skipped" and information about the existing document.
+    Use force=True to bypass deduplication and re-upload anyway.
     """
     original_filename = file.filename or "unknown"
     ext = os.path.splitext(original_filename)[1].lower()
@@ -61,6 +68,10 @@ async def ingest_document(
     if file_size == 0:
         raise HTTPException(status_code=400, detail="Empty file")
 
+    source_hash = hashlib.sha256(file_data).hexdigest()
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+
     logger.info(
         "Document upload received",
         extra={
@@ -68,10 +79,38 @@ async def ingest_document(
             "file_size_bytes": file_size,
             "device_name": device_name,
             "format": format,
+            "source_hash": source_hash,
+            "force": force,
+            "client_ip": client_ip,
         },
     )
 
     async with async_session() as session:
+        if not force:
+            existing = await _find_by_hash(session, source_hash)
+            if existing is not None:
+                logger.info(
+                    "Duplicate document skipped",
+                    extra={
+                        "source_hash": source_hash,
+                        "existing_document_id": existing.id,
+                        "existing_title": existing.title,
+                        "uploaded_filename": original_filename,
+                    },
+                )
+                return IngestResponse(
+                    document_id=existing.id,
+                    status="skipped",
+                    message=(
+                        f"Документ с таким содержимым уже загружен: "
+                        f"«{existing.title}» (id={existing.id}, "
+                        f"файл: {existing.original_filename}). "
+                        f"Повторная загрузка пропущена."
+                    ),
+                    existing_document_id=existing.id,
+                    existing_document_title=existing.title,
+                )
+
         device = await _get_or_create_device(session, device_name, manufacturer)
         fw = await _get_or_create_firmware(session, device.id, firmware_version)
 
@@ -83,6 +122,7 @@ async def ingest_document(
             file_size_bytes=file_size,
             title=os.path.splitext(original_filename)[0],
             status="pending",
+            source_hash=source_hash,
         )
         session.add(doc)
         await session.flush()
@@ -92,8 +132,6 @@ async def ingest_document(
         upload_file(s3_key, file_data, content_type)
 
         doc.s3_key = s3_key
-        import hashlib
-        doc.source_hash = hashlib.sha256(file_data).hexdigest()
         await session.commit()
 
         from app.celery_app import ingest_document_task
@@ -106,6 +144,7 @@ async def ingest_document(
                 "task_id": task.id,
                 "s3_key": s3_key,
                 "file_size_bytes": file_size,
+                "client_ip": client_ip,
             },
         )
 
@@ -216,6 +255,72 @@ async def delete_document(document_id: int):
             deleted=True,
             message="Document and all chunks deleted",
         )
+
+
+@router.post("/reindex", status_code=202)
+async def reindex_all_documents():
+    """Re-embed all chunks using the current embedding model.
+
+    Use after switching embedding models to regenerate all vectors.
+    Runs synchronously — may take several minutes for large document sets.
+    """
+    from app.ingestion.embedder import embed_texts
+
+    t0 = time.time()
+    total_chunks = 0
+    total_docs = 0
+
+    async with async_session() as session:
+        docs_result = await session.execute(
+            select(Document).where(Document.status == "ready")
+        )
+        docs = docs_result.scalars().all()
+
+        for doc in docs:
+            chunks_result = await session.execute(
+                select(Chunk)
+                .where(Chunk.document_id == doc.id)
+                .order_by(Chunk.chunk_index)
+            )
+            chunks = chunks_result.scalars().all()
+            if not chunks:
+                continue
+
+            contents = [c.content for c in chunks]
+            embeddings = embed_texts(contents)
+
+            for chunk, emb in zip(chunks, embeddings):
+                chunk.embedding = emb
+
+            total_chunks += len(chunks)
+            total_docs += 1
+
+            logger.info(
+                "Document reindexed",
+                extra={"document_id": doc.id, "title": doc.title, "chunks": len(chunks)},
+            )
+
+        await session.commit()
+
+    duration = round(time.time() - t0, 1)
+    logger.info(
+        "Reindex completed",
+        extra={"total_docs": total_docs, "total_chunks": total_chunks, "duration_sec": duration},
+    )
+    return {
+        "status": "completed",
+        "documents_reindexed": total_docs,
+        "chunks_reindexed": total_chunks,
+        "duration_sec": duration,
+    }
+
+
+async def _find_by_hash(session, source_hash: str) -> Document | None:
+    """Find an existing document with the same content hash."""
+    result = await session.execute(
+        select(Document).where(Document.source_hash == source_hash).limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 async def _get_or_create_device(session, name: str, manufacturer: str):

@@ -1,7 +1,9 @@
-"""Embedding abstraction: local (all-MiniLM-L6-v2) or OpenAI.
+"""Embedding abstraction: local (multilingual-e5-large) or OpenAI.
 
-Local model produces 384-dim vectors, zero-padded to 1536 for pgvector
-compatibility with future OpenAI embeddings.
+E5 models require prefix instructions:
+  - "query: " for search queries
+  - "passage: " for document passages being indexed
+The model produces 1024-dim vectors natively.
 """
 
 import logging
@@ -19,9 +21,14 @@ logger = logging.getLogger(__name__)
 
 _local_model: "SentenceTransformer | None" = None
 
-EMBEDDING_DIMS = settings.embedding_dims  # 1536
-LOCAL_DIMS = 384
+EMBEDDING_DIMS = settings.embedding_dims
 BATCH_SIZE = 256
+
+E5_MODEL_PREFIXES = {"intfloat/multilingual-e5-large", "intfloat/multilingual-e5-base", "intfloat/multilingual-e5-small"}
+
+
+def _is_e5_model() -> bool:
+    return settings.embedding_model_local in E5_MODEL_PREFIXES
 
 
 def _get_local_model() -> "SentenceTransformer":
@@ -35,34 +42,55 @@ def _get_local_model() -> "SentenceTransformer":
             extra={"model": settings.embedding_model_local},
         )
         _local_model = SentenceTransformer(settings.embedding_model_local)
+        native_dims = _local_model.get_sentence_embedding_dimension()
         duration_sec = round(time.perf_counter() - t0, 2)
         logger.info(
             "Local embedding model loaded",
-            extra={"model": settings.embedding_model_local, "dims": LOCAL_DIMS, "duration_sec": duration_sec},
+            extra={
+                "model": settings.embedding_model_local,
+                "native_dims": native_dims,
+                "target_dims": EMBEDDING_DIMS,
+                "is_e5": _is_e5_model(),
+                "duration_sec": duration_sec,
+            },
         )
     return _local_model
 
 
-def _zero_pad(vectors: np.ndarray, target_dims: int) -> np.ndarray:
-    """Pad vectors with zeros to target dimensionality."""
-    if vectors.shape[1] >= target_dims:
+def _adjust_dims(vectors: np.ndarray, target_dims: int) -> np.ndarray:
+    """Pad or truncate vectors to target dimensionality."""
+    if vectors.shape[1] == target_dims:
+        return vectors
+    if vectors.shape[1] > target_dims:
         return vectors[:, :target_dims]
     padding = np.zeros((vectors.shape[0], target_dims - vectors.shape[1]), dtype=vectors.dtype)
     return np.hstack([vectors, padding])
 
 
-def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embed a list of texts. Returns list of 1536-dim vectors."""
+def embed_texts(texts: list[str], *, is_query: bool = False) -> list[list[float]]:
+    """Embed a list of texts. Returns list of EMBEDDING_DIMS-dim vectors.
+
+    Args:
+        texts: Raw text strings to embed.
+        is_query: If True, adds "query: " prefix (for search).
+                  If False, adds "passage: " prefix (for indexing).
+                  Prefixes only applied for E5 models.
+    """
     if not texts:
         return []
 
     if settings.embedding_provider == "openai":
         return _embed_openai(texts)
-    return _embed_local(texts)
+    return _embed_local(texts, is_query=is_query)
 
 
-def _embed_local(texts: list[str]) -> list[list[float]]:
+def _embed_local(texts: list[str], *, is_query: bool = False) -> list[list[float]]:
     model = _get_local_model()
+
+    if _is_e5_model():
+        prefix = "query: " if is_query else "passage: "
+        texts = [prefix + t for t in texts]
+
     all_embeddings: list[np.ndarray] = []
     total_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
 
@@ -83,13 +111,19 @@ def _embed_local(texts: list[str]) -> list[list[float]]:
             logger.debug("Embedding batch completed", extra=log_extra)
 
     combined = np.vstack(all_embeddings) if len(all_embeddings) > 1 else all_embeddings[0]
-    padded = _zero_pad(combined, EMBEDDING_DIMS)
+    adjusted = _adjust_dims(combined, EMBEDDING_DIMS)
 
     logger.info(
         "Embedding completed",
-        extra={"texts_count": len(texts), "provider": "local", "dims": EMBEDDING_DIMS},
+        extra={
+            "texts_count": len(texts),
+            "provider": "local",
+            "dims": EMBEDDING_DIMS,
+            "is_query": is_query,
+            "is_e5": _is_e5_model(),
+        },
     )
-    return padded.tolist()
+    return adjusted.tolist()
 
 
 def _embed_openai(texts: list[str]) -> list[list[float]]:
@@ -119,6 +153,6 @@ def _embed_openai(texts: list[str]) -> list[list[float]]:
 
 
 def embed_query(text: str) -> list[float]:
-    """Embed a single query string. Returns 1536-dim vector."""
-    results = embed_texts([text])
+    """Embed a single query string for search. Returns EMBEDDING_DIMS-dim vector."""
+    results = embed_texts([text], is_query=True)
     return results[0]

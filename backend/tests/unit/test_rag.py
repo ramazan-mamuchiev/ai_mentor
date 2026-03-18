@@ -98,13 +98,47 @@ class TestBuildRagPrompt:
 
         assert len(messages) >= 3
         assert messages[0]["role"] == "system"
-        assert "IPCodex AI Assistant" in messages[0]["content"]
+        assert "IPCodex AI" in messages[0]["content"]
         assert messages[-1]["role"] == "user"
         assert messages[-1]["content"] == "How to authenticate?"
 
         assert len(sources) == 1
         assert sources[0]["doc_title"] == "HikCentral API"
         assert sources[0]["similarity"] == 0.92
+
+    @pytest.mark.asyncio
+    @patch("app.chat.rag.search_documents")
+    async def test_system_prompt_instructs_code_generation(self, mock_search):
+        mock_search.return_value = []
+        db = AsyncMock()
+        messages, _ = await build_rag_prompt(db=db, query="test")
+
+        system_content = messages[0]["content"]
+        assert "code examples" in system_content.lower()
+        assert "API endpoints" in system_content
+        assert "same language as the user" in system_content
+
+    @pytest.mark.asyncio
+    @patch("app.chat.rag.search_documents")
+    async def test_content_preview_length_500(self, mock_search):
+        long_content = "A" * 1000
+        mock_search.return_value = [
+            {
+                "content": long_content,
+                "heading_path": "Section",
+                "heading_level": 2,
+                "token_count": 200,
+                "doc_title": "Doc",
+                "device_name": "",
+                "manufacturer": "",
+                "firmware_version": "",
+                "similarity": 0.8,
+            }
+        ]
+        db = AsyncMock()
+        _, sources = await build_rag_prompt(db=db, query="test")
+
+        assert len(sources[0]["content_preview"]) == 500
 
     @pytest.mark.asyncio
     @patch("app.chat.rag.search_documents")

@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
 
 from app.documents.schemas import (
     DeleteResponse,
@@ -30,6 +29,24 @@ class TestIngestResponseSchema:
     def test_no_task_id(self):
         r = IngestResponse(document_id=1, status="pending", message="queued")
         assert r.task_id is None
+
+    def test_skipped_with_existing_info(self):
+        r = IngestResponse(
+            document_id=10,
+            status="skipped",
+            message="Duplicate",
+            existing_document_id=10,
+            existing_document_title="Old Doc",
+        )
+        assert r.status == "skipped"
+        assert r.existing_document_id == 10
+        assert r.existing_document_title == "Old Doc"
+        assert r.task_id is None
+
+    def test_existing_fields_default_none(self):
+        r = IngestResponse(document_id=1, status="pending", message="ok")
+        assert r.existing_document_id is None
+        assert r.existing_document_title is None
 
 
 class TestDocumentStatusSchema:
@@ -121,6 +138,7 @@ class TestIngestEndpointValidation:
         upload = _make_upload_file("virus.exe", b"MZ...")
         with pytest.raises(Exception) as exc_info:
             await ingest_document(
+                request=_mock_request(),
                 file=upload, device_name="Dev", firmware_version="1.0",
             )
         assert "Unsupported file extension" in str(exc_info.value.detail)
@@ -131,6 +149,7 @@ class TestIngestEndpointValidation:
         upload = _make_upload_file("empty.md", b"")
         with pytest.raises(Exception) as exc_info:
             await ingest_document(
+                request=_mock_request(),
                 file=upload, device_name="Dev", firmware_version="1.0",
             )
         assert "Empty file" in str(exc_info.value.detail)
@@ -142,6 +161,7 @@ class TestIngestEndpointValidation:
         upload = _make_upload_file("big.md", big_data)
         with pytest.raises(Exception) as exc_info:
             await ingest_document(
+                request=_mock_request(),
                 file=upload, device_name="Dev", firmware_version="1.0",
             )
         assert "File too large" in str(exc_info.value.detail)
@@ -152,11 +172,10 @@ class TestIngestEndpointValidation:
         from app.documents.router import ALLOWED_EXTENSIONS
         for ext in ALLOWED_EXTENSIONS:
             upload = _make_upload_file(f"doc{ext}", b"content")
-            # Should not raise extension error -- will fail on DB mock,
-            # but that's fine: we're testing the extension check only.
             try:
                 from app.documents.router import ingest_document
                 await ingest_document(
+                    request=_mock_request(),
                     file=upload, device_name="Dev", firmware_version="1.0",
                 )
             except Exception as e:
@@ -183,34 +202,33 @@ class TestIngestEndpointSuccess:
         mock_session.commit = AsyncMock()
         mock_session.add = MagicMock()
 
-        mock_ctx = AsyncMock()
-        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_ctx = _mock_session_ctx(mock_session)
         mock_session_factory.return_value = mock_ctx
 
         mock_task = MagicMock(id="task-uuid-123")
 
-        with patch("app.documents.router._get_or_create_device", new_callable=AsyncMock, return_value=mock_device), \
-             patch("app.documents.router._get_or_create_firmware", new_callable=AsyncMock, return_value=mock_fw), \
-             patch("app.celery_app.ingest_document_task") as mock_celery_task:
-
+        with (
+            patch("app.documents.router._find_by_hash", new_callable=AsyncMock, return_value=None),
+            patch("app.documents.router._get_or_create_device", new_callable=AsyncMock, return_value=mock_device),
+            patch("app.documents.router._get_or_create_firmware", new_callable=AsyncMock, return_value=mock_fw),
+            patch("app.celery_app.ingest_document_task") as mock_celery_task,
+            patch("app.documents.router.Document") as MockDocument,
+        ):
             mock_celery_task.delay = MagicMock(return_value=mock_task)
+            MockDocument.return_value = mock_doc
 
-            # Patch Document constructor to return our mock
-            with patch("app.documents.router.Document") as MockDocument:
-                MockDocument.return_value = mock_doc
+            from app.documents.router import ingest_document
+            upload = _make_upload_file("readme.md", b"# Hello World\n\nSome content here.")
 
-                from app.documents.router import ingest_document
-                upload = _make_upload_file("readme.md", b"# Hello World\n\nSome content here.")
+            result = await ingest_document(
+                request=_mock_request(),
+                file=upload, device_name="TestDev", firmware_version="2.0",
+            )
 
-                result = await ingest_document(
-                    file=upload, device_name="TestDev", firmware_version="2.0",
-                )
-
-                assert result.status == "pending"
-                assert result.task_id == "task-uuid-123"
-                mock_upload.assert_called_once()
-                mock_celery_task.delay.assert_called_once()
+            assert result.status == "pending"
+            assert result.task_id == "task-uuid-123"
+            mock_upload.assert_called_once()
+            mock_celery_task.delay.assert_called_once()
 
 
 class TestGetDocumentEndpoint:
@@ -363,3 +381,258 @@ class TestDeleteEndpoint:
 
         assert result.deleted is True
         mock_session.delete.assert_called_once_with(doc)
+
+
+# ---------------------------------------------------------------------------
+# Deduplication tests
+# ---------------------------------------------------------------------------
+
+def _mock_session_ctx(mock_session):
+    """Helper: wrap a mock session into an async context manager."""
+    mock_ctx = AsyncMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_ctx.__aexit__ = AsyncMock(return_value=False)
+    return mock_ctx
+
+
+def _mock_request():
+    """Helper: create a mock Request object."""
+    req = MagicMock()
+    req.headers = {}
+    req.client = MagicMock()
+    req.client.host = "127.0.0.1"
+    return req
+
+
+class TestFindByHash:
+    """Unit tests for _find_by_hash helper."""
+
+    @pytest.mark.asyncio
+    async def test_returns_document_when_hash_matches(self):
+        from app.documents.router import _find_by_hash
+
+        existing_doc = _make_mock_document(doc_id=10, source_hash="abc123")
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none = MagicMock(return_value=existing_doc)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await _find_by_hash(mock_session, "abc123")
+        assert result is existing_doc
+        assert result.id == 10
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_match(self):
+        from app.documents.router import _find_by_hash
+
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none = MagicMock(return_value=None)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await _find_by_hash(mock_session, "nonexistent_hash")
+        assert result is None
+
+
+class TestDeduplication:
+    """Test POST /documents/ingest deduplication logic."""
+
+    @pytest.mark.asyncio
+    async def test_duplicate_returns_skipped(self):
+        """When content hash matches an existing doc, return status=skipped."""
+        existing_doc = _make_mock_document(
+            doc_id=42,
+            title="Original Manual",
+            original_filename="manual_v1.md",
+            source_hash=hashlib.sha256(b"# Hello World").hexdigest(),
+        )
+
+        mock_session = AsyncMock()
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_ctx = _mock_session_ctx(mock_session)
+
+        mock_find = AsyncMock(return_value=existing_doc)
+
+        with (
+            patch("app.documents.router.async_session", return_value=mock_ctx),
+            patch("app.documents.router._find_by_hash", mock_find),
+        ):
+            from app.documents.router import ingest_document
+
+            upload = _make_upload_file("manual_v2.md", b"# Hello World")
+            result = await ingest_document(
+                request=_mock_request(),
+                file=upload,
+                device_name="TestDev",
+                firmware_version="1.0",
+                manufacturer="",
+                format="auto",
+                force=False,
+            )
+
+            assert result.status == "skipped"
+            assert result.document_id == 42
+            assert result.existing_document_id == 42
+            assert result.existing_document_title == "Original Manual"
+            assert result.task_id is None
+            assert "уже загружен" in result.message
+            mock_find.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("app.documents.router.async_session")
+    @patch("app.documents.router.upload_file")
+    @patch("app.documents.router.s3_key_for_document", return_value="documents/99/source.md")
+    async def test_force_bypasses_deduplication(
+        self, mock_s3_key, mock_upload, mock_session_factory
+    ):
+        """When force=True, upload even if hash matches."""
+        mock_device = MagicMock(id=1)
+        mock_fw = MagicMock(id=1)
+        mock_doc = MagicMock(id=99)
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+        )
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_ctx = _mock_session_ctx(mock_session)
+        mock_session_factory.return_value = mock_ctx
+
+        mock_task = MagicMock(id="task-force-123")
+
+        with (
+            patch(
+                "app.documents.router._get_or_create_device",
+                new_callable=AsyncMock,
+                return_value=mock_device,
+            ),
+            patch(
+                "app.documents.router._get_or_create_firmware",
+                new_callable=AsyncMock,
+                return_value=mock_fw,
+            ),
+            patch("app.celery_app.ingest_document_task") as mock_celery_task,
+            patch("app.documents.router.Document") as MockDocument,
+            patch("app.documents.router._find_by_hash", new_callable=AsyncMock) as mock_find,
+        ):
+            mock_celery_task.delay = MagicMock(return_value=mock_task)
+            MockDocument.return_value = mock_doc
+
+            from app.documents.router import ingest_document
+
+            upload = _make_upload_file("readme.md", b"# Hello World")
+            result = await ingest_document(
+                request=_mock_request(),
+                file=upload,
+                device_name="TestDev",
+                firmware_version="1.0",
+                force=True,
+            )
+
+            assert result.status == "pending"
+            assert result.task_id == "task-force-123"
+            mock_find.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("app.documents.router.async_session")
+    @patch("app.documents.router.upload_file")
+    @patch("app.documents.router.s3_key_for_document", return_value="documents/50/source.md")
+    async def test_no_duplicate_proceeds_normally(
+        self, mock_s3_key, mock_upload, mock_session_factory
+    ):
+        """When no hash match exists, proceed with normal ingestion."""
+        mock_device = MagicMock(id=1)
+        mock_fw = MagicMock(id=1)
+        mock_doc = MagicMock(id=50)
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+        )
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_ctx = _mock_session_ctx(mock_session)
+        mock_session_factory.return_value = mock_ctx
+
+        mock_task = MagicMock(id="task-new-456")
+
+        with (
+            patch(
+                "app.documents.router._find_by_hash",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.documents.router._get_or_create_device",
+                new_callable=AsyncMock,
+                return_value=mock_device,
+            ),
+            patch(
+                "app.documents.router._get_or_create_firmware",
+                new_callable=AsyncMock,
+                return_value=mock_fw,
+            ),
+            patch("app.celery_app.ingest_document_task") as mock_celery_task,
+            patch("app.documents.router.Document") as MockDocument,
+        ):
+            mock_celery_task.delay = MagicMock(return_value=mock_task)
+            MockDocument.return_value = mock_doc
+
+            from app.documents.router import ingest_document
+
+            upload = _make_upload_file("new_doc.md", b"# Brand new content")
+            result = await ingest_document(
+                request=_mock_request(),
+                file=upload,
+                device_name="TestDev",
+                firmware_version="1.0",
+            )
+
+            assert result.status == "pending"
+            assert result.task_id == "task-new-456"
+            assert result.existing_document_id is None
+
+    @pytest.mark.asyncio
+    async def test_duplicate_preserves_existing_document_info(self):
+        """Skipped response must include correct existing doc metadata."""
+        content = b"Exact same content bytes"
+        content_hash = hashlib.sha256(content).hexdigest()
+
+        existing_doc = _make_mock_document(
+            doc_id=77,
+            title="Protocol Guide v3",
+            original_filename="protocol_guide_v3.md",
+            source_hash=content_hash,
+        )
+
+        mock_session = AsyncMock()
+        mock_ctx = _mock_session_ctx(mock_session)
+
+        mock_find = AsyncMock(return_value=existing_doc)
+
+        with (
+            patch("app.documents.router.async_session", return_value=mock_ctx),
+            patch("app.documents.router._find_by_hash", mock_find),
+        ):
+            from app.documents.router import ingest_document
+
+            upload = _make_upload_file("renamed_protocol.md", content)
+            result = await ingest_document(
+                request=_mock_request(),
+                file=upload,
+                device_name="AnyDevice",
+                firmware_version="1.0",
+                manufacturer="",
+                format="auto",
+                force=False,
+            )
+
+            assert result.status == "skipped"
+            assert result.existing_document_id == 77
+            assert result.existing_document_title == "Protocol Guide v3"
+            assert "protocol_guide_v3.md" in result.message
+            mock_find.assert_called_once()

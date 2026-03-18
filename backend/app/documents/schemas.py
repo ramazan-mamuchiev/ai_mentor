@@ -10,6 +10,8 @@ class IngestResponse(BaseModel):
     status: str
     message: str
     task_id: str | None = None
+    existing_document_id: int | None = None
+    existing_document_title: str | None = None
 
     model_config = {"from_attributes": True}
 
