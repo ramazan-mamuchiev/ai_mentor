@@ -17,7 +17,7 @@ const assistantMsg: ChatMessage = {
   role: 'assistant',
   content: 'Use **HMAC-SHA256** for authentication.',
   sources: [
-    { doc_title: 'API Guide', heading_path: 'Auth', similarity: 0.9, content_preview: 'HMAC details...', device_name: 'Cam', firmware_version: '1.0' },
+    { doc_title: 'API Guide', heading_path: 'Auth', similarity: 0.9, content_preview: 'HMAC details...', product_name: 'Cam', firmware_version: '1.0' },
   ],
   duration_ms: 2500,
   created_at: '2026-01-01T00:00:01Z',

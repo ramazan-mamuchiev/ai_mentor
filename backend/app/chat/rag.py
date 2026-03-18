@@ -39,20 +39,20 @@ Your primary goal is to provide ACTIONABLE, CODE-READY answers based on the docu
 13. Use rich markdown: `##` headers, code blocks with language tags, tables, **bold** for key terms."""
 
 
-async def _detect_device_from_query(db: AsyncSession, query: str) -> str | None:
-    """Match device/manufacturer names mentioned in the user query against the devices table.
+async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None:
+    """Match product/manufacturer names mentioned in the user query against the products table.
 
-    Returns the device name if found, or None.
+    Returns the product name if found, or None.
     """
     result = await db.execute(
-        text("SELECT name, manufacturer FROM devices WHERE name != 'TestDevice'")
+        text("SELECT name, manufacturer FROM products WHERE name != 'TestDevice'")
     )
-    devices = result.mappings().all()
+    products = result.mappings().all()
 
     query_lower = query.lower()
-    for dev in devices:
-        name = dev["name"] or ""
-        manufacturer = dev["manufacturer"] or ""
+    for prod in products:
+        name = prod["name"] or ""
+        manufacturer = prod["manufacturer"] or ""
         for keyword in [name, manufacturer]:
             if keyword and keyword.lower() in query_lower:
                 return name
@@ -70,8 +70,8 @@ def _format_context(chunks: list[dict]) -> str:
     parts = []
     for i, chunk in enumerate(chunks, 1):
         source = f"[{chunk['doc_title']}] {chunk['heading_path']}"
-        if chunk.get("device_name"):
-            source += f" (Device: {chunk['device_name']}"
+        if chunk.get("product_name"):
+            source += f" (Product: {chunk['product_name']}"
             if chunk.get("firmware_version"):
                 source += f", FW: {chunk['firmware_version']}"
             source += ")"
@@ -111,7 +111,7 @@ async def build_rag_prompt(
     db: AsyncSession,
     query: str,
     history: list[ChatMessage] | None = None,
-    device_filter: str | None = None,
+    product_filter: str | None = None,
     version_filter: str | None = None,
     doc_context: str | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
@@ -122,12 +122,12 @@ async def build_rag_prompt(
     """
     t0 = time.perf_counter()
 
-    auto_device = None
-    if not device_filter and not doc_context:
-        auto_device = await _detect_device_from_query(db, query)
-        if auto_device:
-            device_filter = auto_device
-            logger.info("Auto-detected device from query", extra={"device": auto_device, "query": query[:100]})
+    auto_product = None
+    if not product_filter and not doc_context:
+        auto_product = await _detect_product_from_query(db, query)
+        if auto_product:
+            product_filter = auto_product
+            logger.info("Auto-detected product from query", extra={"product": auto_product, "query": query[:100]})
 
     search_query = _enrich_query(query, history) if history else query
 
@@ -135,14 +135,14 @@ async def build_rag_prompt(
     chunks = await search_documents(
         session=db,
         query=search_query,
-        device=device_filter,
+        product=product_filter,
         version=version_filter,
         doc_context=doc_context,
         limit=settings.rag_top_k,
     )
     search_ms = round((time.perf_counter() - t_search) * 1000, 1)
 
-    detected_device = auto_device or device_filter
+    detected_product = auto_product or product_filter
     detected_doc = doc_context
     if not doc_context and chunks:
         titles = set(c["doc_title"] for c in chunks)
@@ -153,8 +153,8 @@ async def build_rag_prompt(
     context_tokens = sum(c.get("token_count", 0) for c in chunks)
 
     context_header = "## Documentation context\n\n"
-    if detected_device:
-        context_header += f"Device: **{detected_device}**\n\n"
+    if detected_product:
+        context_header += f"Product: **{detected_product}**\n\n"
     combined_system = f"{SYSTEM_PROMPT}\n\n---\n\n{context_header}{context}"
     messages: list[dict] = [
         {"role": "system", "content": combined_system},
@@ -171,7 +171,7 @@ async def build_rag_prompt(
             "heading_path": c["heading_path"],
             "similarity": c["similarity"],
             "content_preview": c["content"][:500],
-            "device_name": c.get("device_name", ""),
+            "product_name": c.get("product_name", ""),
             "firmware_version": c.get("firmware_version", ""),
         }
         for c in chunks
@@ -192,7 +192,7 @@ async def build_rag_prompt(
         "prompt_messages": len(messages),
         "embedding_model": settings.embedding_model_local if settings.embedding_provider == "local" else settings.embedding_model_openai,
         "doc_context": doc_context,
-        "auto_device": auto_device,
+        "auto_product": auto_product,
         "detected_doc_context": detected_doc,
     }
 
@@ -201,7 +201,7 @@ async def build_rag_prompt(
         extra={
             "query": query[:100],
             "search_query": search_query[:200] if search_query != query else None,
-            "device_filter": device_filter,
+            "product_filter": product_filter,
             **rag_debug,
         },
     )

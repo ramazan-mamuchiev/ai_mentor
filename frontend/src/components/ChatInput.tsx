@@ -67,7 +67,7 @@ export function ChatInput({ onSend, onCancel, status, editValue }: Props) {
           value={value}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder="Ask about device integration..."
+          placeholder="Ask about product integration..."
           rows={1}
         />
         {isStreaming ? (

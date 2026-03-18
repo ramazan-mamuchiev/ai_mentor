@@ -6,7 +6,7 @@ from unittest.mock import patch
 from app.ingestion.pipeline import ingest_file
 
 
-class TestToolListDevices:
+class TestToolListProducts:
     async def test_empty_db(self, db_session):
         with patch("app.mcp.server.async_session") as mock_session_factory:
             mock_session_factory.return_value.__aenter__ = lambda s: db_session
@@ -19,15 +19,15 @@ class TestToolListDevices:
             mock_cm.__aexit__.return_value = None
             mock_session_factory.return_value = mock_cm
 
-            from app.mcp.server import tool_list_devices
-            result = await tool_list_devices()
-            assert "No devices" in result or "no devices" in result.lower()
+            from app.mcp.server import tool_list_products
+            result = await tool_list_products()
+            assert "No products" in result or "no products" in result.lower()
 
     async def test_after_ingest(self, db_session, sample_md_file):
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="ZKTeco InBio",
+            product_name="ZKTeco InBio",
             firmware_version="1.0",
             manufacturer="ZKTeco",
         )
@@ -38,8 +38,8 @@ class TestToolListDevices:
         mock_cm.__aexit__.return_value = None
 
         with patch("app.mcp.server.async_session", return_value=mock_cm):
-            from app.mcp.server import tool_list_devices
-            result = await tool_list_devices()
+            from app.mcp.server import tool_list_products
+            result = await tool_list_products()
 
         assert "ZKTeco InBio" in result
         assert "ZKTeco" in result
@@ -63,7 +63,7 @@ class TestToolSearchDocumentation:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="TestDevice",
+            product_name="TestDevice",
             firmware_version="1.0",
         )
 
@@ -92,7 +92,7 @@ class TestToolIngestDocument:
             from app.mcp.server import tool_ingest_document
             result = await tool_ingest_document(
                 file_path=sample_md_file,
-                device_name="TestDevice",
+                product_name="TestDevice",
                 firmware_version="1.0",
             )
 
@@ -109,7 +109,7 @@ class TestToolIngestDocument:
             from app.mcp.server import tool_ingest_document
             result = await tool_ingest_document(
                 file_path="/nonexistent/file.md",
-                device_name="TestDevice",
+                product_name="TestDevice",
             )
 
         assert "failed" in result.lower() or "error" in result.lower()
@@ -120,7 +120,7 @@ class TestToolGetApiEndpoint:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="TestDevice",
+            product_name="TestDevice",
             firmware_version="1.0",
         )
 

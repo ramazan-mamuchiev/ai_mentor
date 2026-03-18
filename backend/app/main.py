@@ -20,7 +20,7 @@ from app.mcp.server import (
     tool_get_api_endpoint,
     tool_ingest_document,
     tool_ingest_url,
-    tool_list_devices,
+    tool_list_products,
     tool_search_documentation,
 )
 
@@ -36,7 +36,7 @@ mcp = FastMCP(
 
 mcp.tool(name="search_documentation")(tool_search_documentation)
 mcp.tool(name="get_api_endpoint")(tool_get_api_endpoint)
-mcp.tool(name="list_devices")(tool_list_devices)
+mcp.tool(name="list_products")(tool_list_products)
 mcp.tool(name="ingest_document")(tool_ingest_document)
 mcp.tool(name="ingest_url")(tool_ingest_url)
 
@@ -95,9 +95,140 @@ async def _apply_schema():
         await raw.driver_connection.execute(sql)
     logger.info("Startup schema migration applied successfully")
 
+    await _migrate_devices_to_products()
     await _migrate_embedding_dims()
     await _migrate_doc_context()
     await _migrate_source_hash_index()
+
+
+async def _migrate_devices_to_products():
+    """Migrate legacy 'devices' table to 'products', handling all possible states."""
+    from app.database import engine
+
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        drv = raw.driver_connection
+
+        has_devices = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = current_schema() AND table_name = 'devices'"
+        )
+        has_products = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = current_schema() AND table_name = 'products'"
+        )
+
+        if has_devices and has_products:
+            devices_count = await drv.fetchval("SELECT count(*) FROM devices")
+            products_count = await drv.fetchval("SELECT count(*) FROM products")
+            logger.info(
+                "Both tables exist: devices=%d, products=%d",
+                devices_count, products_count,
+            )
+            if devices_count > 0 and products_count == 0:
+                logger.info("Transferring data from devices -> products")
+                await drv.execute(
+                    "INSERT INTO products (id, name, manufacturer, model, category, created_at) "
+                    "SELECT id, name, manufacturer, model, category, created_at FROM devices"
+                )
+                seq_val = await drv.fetchval(
+                    "SELECT max(id) FROM products"
+                )
+                if seq_val:
+                    await drv.execute(
+                        f"SELECT setval(pg_get_serial_sequence('products','id'), {seq_val})"
+                    )
+            await _migrate_fk_columns(drv, "products")
+            if devices_count > 0 and products_count == 0:
+                await drv.execute("DROP TABLE devices CASCADE")
+                logger.info("Dropped legacy 'devices' table after data transfer")
+            elif devices_count == 0:
+                await drv.execute("DROP TABLE devices CASCADE")
+                logger.info("Dropped empty legacy 'devices' table")
+            else:
+                logger.warning(
+                    "Both devices and products contain data — manual review needed"
+                )
+
+        elif has_devices and not has_products:
+            logger.info("Renaming devices -> products")
+            await drv.execute("ALTER TABLE devices RENAME TO products")
+            await _migrate_fk_columns(drv, "products")
+
+        elif has_products and not has_devices:
+            await _migrate_fk_columns(drv, "products")
+
+        else:
+            logger.info("Neither devices nor products table found")
+            return
+
+        logger.info("Migration devices -> products completed")
+
+
+async def _migrate_fk_columns(drv, target_table: str):
+    """Rename legacy device_id / device_filter columns and re-point FK constraints."""
+    has_device_id_fw = await drv.fetchrow(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = 'firmware_versions' AND column_name = 'device_id'"
+    )
+    if has_device_id_fw:
+        await drv.execute(
+            "ALTER TABLE firmware_versions "
+            "DROP CONSTRAINT IF EXISTS firmware_versions_device_id_fkey"
+        )
+        await drv.execute(
+            "ALTER TABLE firmware_versions RENAME COLUMN device_id TO product_id"
+        )
+        await drv.execute(
+            "ALTER TABLE firmware_versions "
+            f"ADD CONSTRAINT firmware_versions_product_id_fkey "
+            f"FOREIGN KEY (product_id) REFERENCES {target_table}(id) ON DELETE CASCADE"
+        )
+        await drv.execute(
+            "ALTER TABLE firmware_versions "
+            "DROP CONSTRAINT IF EXISTS firmware_versions_device_id_version_key"
+        )
+        has_new_unique = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.table_constraints "
+            "WHERE table_name = 'firmware_versions' "
+            "AND constraint_name = 'firmware_versions_product_id_version_key'"
+        )
+        if not has_new_unique:
+            await drv.execute(
+                "ALTER TABLE firmware_versions "
+                "ADD CONSTRAINT firmware_versions_product_id_version_key "
+                "UNIQUE (product_id, version)"
+            )
+        logger.info("Renamed firmware_versions.device_id -> product_id")
+
+    has_device_id_doc = await drv.fetchrow(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = 'documents' AND column_name = 'device_id'"
+    )
+    if has_device_id_doc:
+        await drv.execute(
+            "ALTER TABLE documents "
+            "DROP CONSTRAINT IF EXISTS documents_device_id_fkey"
+        )
+        await drv.execute(
+            "ALTER TABLE documents RENAME COLUMN device_id TO product_id"
+        )
+        await drv.execute(
+            "ALTER TABLE documents "
+            f"ADD CONSTRAINT documents_product_id_fkey "
+            f"FOREIGN KEY (product_id) REFERENCES {target_table}(id) ON DELETE CASCADE"
+        )
+        logger.info("Renamed documents.device_id -> product_id")
+
+    has_device_filter = await drv.fetchrow(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = 'chat_sessions' AND column_name = 'device_filter'"
+    )
+    if has_device_filter:
+        await drv.execute(
+            "ALTER TABLE chat_sessions RENAME COLUMN device_filter TO product_filter"
+        )
+        logger.info("Renamed chat_sessions.device_filter -> product_filter")
 
 
 async def _migrate_doc_context():

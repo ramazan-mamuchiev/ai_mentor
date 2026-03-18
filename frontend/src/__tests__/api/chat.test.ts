@@ -14,11 +14,11 @@ describe('createSession', () => {
       json: () => Promise.resolve(session),
     }))
 
-    const result = await createSession({ title: 'Test', device_filter: 'Cam' })
+    const result = await createSession({ title: 'Test', product_filter: 'Cam' })
     expect(result).toEqual(session)
     expect(fetch).toHaveBeenCalledWith('/api/v1/chat/sessions', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ title: 'Test', device_filter: 'Cam' }),
+      body: JSON.stringify({ title: 'Test', product_filter: 'Cam' }),
     }))
   })
 })

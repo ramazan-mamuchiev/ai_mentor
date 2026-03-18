@@ -5,9 +5,9 @@ import { SessionList } from '../../components/SessionList'
 import type { ChatSession } from '../../types'
 
 const sessions: ChatSession[] = [
-  { id: 1, title: 'Auth Chat', device_filter: null, version_filter: null, created_at: '', updated_at: '', message_count: 3, last_message_preview: null },
-  { id: 2, title: null, device_filter: null, version_filter: null, created_at: '', updated_at: '', message_count: 1, last_message_preview: 'How to open door?' },
-  { id: 3, title: null, device_filter: null, version_filter: null, created_at: '', updated_at: '', message_count: 0, last_message_preview: null },
+  { id: 1, title: 'Auth Chat', product_filter: null, version_filter: null, created_at: '', updated_at: '', message_count: 3, last_message_preview: null },
+  { id: 2, title: null, product_filter: null, version_filter: null, created_at: '', updated_at: '', message_count: 1, last_message_preview: 'How to open door?' },
+  { id: 3, title: null, product_filter: null, version_filter: null, created_at: '', updated_at: '', message_count: 0, last_message_preview: null },
 ]
 
 describe('SessionList', () => {

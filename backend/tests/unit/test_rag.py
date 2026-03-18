@@ -16,7 +16,7 @@ class TestFormatContext:
         chunks = [{
             "doc_title": "API Guide",
             "heading_path": "Auth > Login",
-            "device_name": "Camera X",
+            "product_name": "Camera X",
             "firmware_version": "2.0",
             "similarity": 0.85,
             "content": "Use POST /api/login to authenticate.",
@@ -31,24 +31,24 @@ class TestFormatContext:
 
     def test_multiple_chunks_numbered(self):
         chunks = [
-            {"doc_title": "Doc1", "heading_path": "H1", "device_name": "", "firmware_version": "", "similarity": 0.9, "content": "Content 1"},
-            {"doc_title": "Doc2", "heading_path": "H2", "device_name": "", "firmware_version": "", "similarity": 0.8, "content": "Content 2"},
+            {"doc_title": "Doc1", "heading_path": "H1", "product_name": "", "firmware_version": "", "similarity": 0.9, "content": "Content 1"},
+            {"doc_title": "Doc2", "heading_path": "H2", "product_name": "", "firmware_version": "", "similarity": 0.8, "content": "Content 2"},
         ]
         result = _format_context(chunks)
         assert "Source 1:" in result
         assert "Source 2:" in result
 
-    def test_chunk_without_device(self):
+    def test_chunk_without_product(self):
         chunks = [{
             "doc_title": "Manual",
             "heading_path": "Setup",
-            "device_name": "",
+            "product_name": "",
             "firmware_version": "",
             "similarity": 0.7,
             "content": "Setup instructions.",
         }]
         result = _format_context(chunks)
-        assert "Device:" not in result
+        assert "Product:" not in result
 
 
 class TestBuildHistoryMessages:
@@ -73,8 +73,9 @@ class TestBuildHistoryMessages:
 
 class TestBuildRagPrompt:
     @pytest.mark.asyncio
+    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_builds_prompt_with_context(self, mock_search):
+    async def test_builds_prompt_with_context(self, mock_search, _mock_detect):
         mock_search.return_value = [
             {
                 "content": "Use HMAC-SHA256 for auth.",
@@ -82,7 +83,7 @@ class TestBuildRagPrompt:
                 "heading_level": 2,
                 "token_count": 10,
                 "doc_title": "HikCentral API",
-                "device_name": "HikCentral",
+                "product_name": "HikCentral",
                 "manufacturer": "Hikvision",
                 "firmware_version": "2.6",
                 "similarity": 0.92,
@@ -90,13 +91,13 @@ class TestBuildRagPrompt:
         ]
 
         db = AsyncMock()
-        messages, sources = await build_rag_prompt(
+        messages, sources, _debug = await build_rag_prompt(
             db=db,
             query="How to authenticate?",
-            device_filter="HikCentral",
+            product_filter="HikCentral",
         )
 
-        assert len(messages) >= 3
+        assert len(messages) >= 2
         assert messages[0]["role"] == "system"
         assert "IPCodex AI" in messages[0]["content"]
         assert messages[-1]["role"] == "user"
@@ -107,11 +108,12 @@ class TestBuildRagPrompt:
         assert sources[0]["similarity"] == 0.92
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_system_prompt_instructs_code_generation(self, mock_search):
+    async def test_system_prompt_instructs_code_generation(self, mock_search, _mock_detect):
         mock_search.return_value = []
         db = AsyncMock()
-        messages, _ = await build_rag_prompt(db=db, query="test")
+        messages, _, _debug = await build_rag_prompt(db=db, query="test")
 
         system_content = messages[0]["content"]
         assert "code examples" in system_content.lower()
@@ -119,8 +121,9 @@ class TestBuildRagPrompt:
         assert "same language as the user" in system_content
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_content_preview_length_500(self, mock_search):
+    async def test_content_preview_length_500(self, mock_search, _mock_detect):
         long_content = "A" * 1000
         mock_search.return_value = [
             {
@@ -129,20 +132,21 @@ class TestBuildRagPrompt:
                 "heading_level": 2,
                 "token_count": 200,
                 "doc_title": "Doc",
-                "device_name": "",
+                "product_name": "",
                 "manufacturer": "",
                 "firmware_version": "",
                 "similarity": 0.8,
             }
         ]
         db = AsyncMock()
-        _, sources = await build_rag_prompt(db=db, query="test")
+        _, sources, _debug = await build_rag_prompt(db=db, query="test")
 
         assert len(sources[0]["content_preview"]) == 500
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_includes_history(self, mock_search):
+    async def test_includes_history(self, mock_search, _mock_detect):
         mock_search.return_value = []
 
         history = [
@@ -151,7 +155,7 @@ class TestBuildRagPrompt:
         ]
 
         db = AsyncMock()
-        messages, sources = await build_rag_prompt(
+        messages, sources, _debug = await build_rag_prompt(
             db=db,
             query="What is the API key?",
             history=history,
@@ -163,13 +167,14 @@ class TestBuildRagPrompt:
         assert messages[-1]["content"] == "What is the API key?"
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_empty_search_results(self, mock_search):
+    async def test_empty_search_results(self, mock_search, _mock_detect):
         mock_search.return_value = []
 
         db = AsyncMock()
-        messages, sources = await build_rag_prompt(db=db, query="Unknown topic")
+        messages, sources, _debug = await build_rag_prompt(db=db, query="Unknown topic")
 
         assert len(sources) == 0
-        context_msg = messages[1]["content"]
-        assert "No relevant documentation found" in context_msg
+        system_content = messages[0]["content"]
+        assert "No relevant documentation found" in system_content

@@ -79,7 +79,7 @@ class TestRealEmbeddingSearch:
         await ingest_file(
             session=db_session_smoke,
             file_path=smoke_md_file,
-            device_name="SmartController",
+            product_name="SmartController",
             firmware_version="1.0",
         )
 
@@ -102,7 +102,7 @@ class TestRealEmbeddingSearch:
         await ingest_file(
             session=db_session_smoke,
             file_path=smoke_md_file,
-            device_name="SmartController",
+            product_name="SmartController",
             firmware_version="1.0",
         )
 

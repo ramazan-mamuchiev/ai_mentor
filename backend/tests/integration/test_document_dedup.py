@@ -9,7 +9,7 @@ import hashlib
 import pytest
 from sqlalchemy import select, text
 
-from app.models import Device, Document, FirmwareVersion
+from app.models import Product, Document, FirmwareVersion
 
 
 # ---------------------------------------------------------------------------
@@ -17,21 +17,21 @@ from app.models import Device, Document, FirmwareVersion
 # ---------------------------------------------------------------------------
 
 async def _insert_document(db_session, *, content: bytes, title: str = "Existing Doc",
-                           filename: str = "existing.md", device_name: str = "TestDev",
+                           filename: str = "existing.md", product_name: str = "TestDev",
                            manufacturer: str | None = None):
-    """Insert a device + firmware + document directly into the DB."""
-    mfg = manufacturer or f"Mfg-{device_name}"
-    device = Device(name=device_name, manufacturer=mfg, model=device_name)
-    db_session.add(device)
+    """Insert a product + firmware + document directly into the DB."""
+    mfg = manufacturer or f"Mfg-{product_name}"
+    product = Product(name=product_name, manufacturer=mfg, model=product_name)
+    db_session.add(product)
     await db_session.flush()
 
-    fw = FirmwareVersion(device_id=device.id, version="1.0")
+    fw = FirmwareVersion(product_id=product.id, version="1.0")
     db_session.add(fw)
     await db_session.flush()
 
     source_hash = hashlib.sha256(content).hexdigest()
     doc = Document(
-        device_id=device.id,
+        product_id=product.id,
         firmware_version_id=fw.id,
         format="markdown",
         original_filename=filename,
@@ -83,9 +83,9 @@ class TestFindByHashIntegration:
         content_b = b"Content B different bytes"
 
         doc_a = await _insert_document(db_session, content=content_a, title="Doc A",
-                                       filename="a.md", device_name="DevA")
+                                       filename="a.md", product_name="DevA")
         doc_b = await _insert_document(db_session, content=content_b, title="Doc B",
-                                       filename="b.md", device_name="DevB")
+                                       filename="b.md", product_name="DevB")
 
         found_a = await _find_by_hash_sql(db_session, hashlib.sha256(content_a).hexdigest())
         assert found_a is not None
@@ -150,9 +150,9 @@ class TestDeduplicationFlow:
         content = b"# Shared content between uploads"
 
         doc1 = await _insert_document(db_session, content=content, title="Upload 1",
-                                      filename="file_v1.md", device_name="Dev1")
+                                      filename="file_v1.md", product_name="Dev1")
         doc2 = await _insert_document(db_session, content=content, title="Upload 2",
-                                      filename="file_v2.md", device_name="Dev2")
+                                      filename="file_v2.md", product_name="Dev2")
 
         assert doc1.source_hash == doc2.source_hash
 
@@ -163,23 +163,23 @@ class TestDeduplicationFlow:
     async def test_different_content_not_duplicate(self, db_session):
         """Documents with different content should not be detected as duplicates."""
         await _insert_document(db_session, content=b"Content A",
-                               title="Doc A", device_name="DevA")
+                               title="Doc A", product_name="DevA")
 
         found = await _find_by_hash_sql(db_session, hashlib.sha256(b"Content B").hexdigest())
         assert found is None
 
     async def test_empty_hash_not_matched_by_real_content(self, db_session):
         """A document with empty source_hash should not match a real content hash."""
-        device = Device(name="EmptyHashDev", manufacturer="Test")
-        db_session.add(device)
+        product = Product(name="EmptyHashDev", manufacturer="Test")
+        db_session.add(product)
         await db_session.flush()
 
-        fw = FirmwareVersion(device_id=device.id, version="1.0")
+        fw = FirmwareVersion(product_id=product.id, version="1.0")
         db_session.add(fw)
         await db_session.flush()
 
         doc = Document(
-            device_id=device.id,
+            product_id=product.id,
             firmware_version_id=fw.id,
             format="markdown",
             original_filename="old.md",

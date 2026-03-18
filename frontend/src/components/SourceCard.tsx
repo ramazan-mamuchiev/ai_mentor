@@ -16,7 +16,7 @@ export function SourceCard({ source }: Props) {
           <div className="source-card-title">{source.doc_title}</div>
           <div className="source-card-path">{source.heading_path}</div>
           <div className="source-card-score">
-            {source.device_name && `${source.device_name} · `}
+            {source.product_name && `${source.product_name} · `}
             {(source.similarity * 100).toFixed(1)}% match
           </div>
         </div>

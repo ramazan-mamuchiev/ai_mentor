@@ -12,8 +12,8 @@ class Base(DeclarativeBase):
     pass
 
 
-class Device(Base):
-    __tablename__ = "devices"
+class Product(Base):
+    __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -25,7 +25,7 @@ class Device(Base):
     )
 
     firmware_versions: Mapped[list["FirmwareVersion"]] = relationship(
-        back_populates="device", cascade="all, delete-orphan"
+        back_populates="product", cascade="all, delete-orphan"
     )
 
     __table_args__ = (UniqueConstraint("manufacturer", "model"),)
@@ -35,22 +35,22 @@ class FirmwareVersion(Base):
     __tablename__ = "firmware_versions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     version: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    device: Mapped["Device"] = relationship(back_populates="firmware_versions")
+    product: Mapped["Product"] = relationship(back_populates="firmware_versions")
 
-    __table_args__ = (UniqueConstraint("device_id", "version"),)
+    __table_args__ = (UniqueConstraint("product_id", "version"),)
 
 
 class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     firmware_version_id: Mapped[int] = mapped_column(ForeignKey("firmware_versions.id"), nullable=False)
     format: Mapped[str] = mapped_column(Text, default="markdown")
     source_path: Mapped[str] = mapped_column(Text, default="")
@@ -97,7 +97,7 @@ class ChatSession(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
-    device_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
     version_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
     doc_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

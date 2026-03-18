@@ -36,7 +36,7 @@ def _get_sync_engine():
 @celery.task(name="ingest_document", bind=True, max_retries=2, default_retry_delay=30)
 def ingest_document_task(self, document_id: int):
     """Background task: download file from S3, run ingestion pipeline, update DB."""
-    from app.models import Base, Chunk, Device, Document, FirmwareVersion
+    from app.models import Base, Chunk, Product, Document, FirmwareVersion
     from app.s3 import download_file
     from app.ingestion.pipeline import ingest_from_bytes
 

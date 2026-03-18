@@ -35,7 +35,7 @@ async def create_session(req: CreateSessionRequest):
     async with async_session() as session:
         chat_session = ChatSession(
             title=req.title,
-            device_filter=req.device_filter,
+            product_filter=req.product_filter,
             version_filter=req.version_filter,
         )
         session.add(chat_session)
@@ -46,14 +46,14 @@ async def create_session(req: CreateSessionRequest):
             "Chat session created",
             extra={
                 "session_id": chat_session.id,
-                "device_filter": req.device_filter,
+                "product_filter": req.product_filter,
             },
         )
 
         return SessionResponse(
             id=chat_session.id,
             title=chat_session.title,
-            device_filter=chat_session.device_filter,
+            product_filter=chat_session.product_filter,
             version_filter=chat_session.version_filter,
             doc_context=chat_session.doc_context,
             created_at=chat_session.created_at,
@@ -82,7 +82,7 @@ async def list_sessions():
             select(
                 ChatSession.id,
                 ChatSession.title,
-                ChatSession.device_filter,
+                ChatSession.product_filter,
                 ChatSession.version_filter,
                 ChatSession.doc_context,
                 ChatSession.created_at,
@@ -100,7 +100,7 @@ async def list_sessions():
             SessionListItem(
                 id=row.id,
                 title=row.title,
-                device_filter=row.device_filter,
+                product_filter=row.product_filter,
                 version_filter=row.version_filter,
                 doc_context=row.doc_context,
                 created_at=row.created_at,
@@ -130,7 +130,7 @@ async def get_session(session_id: int):
         return SessionDetailResponse(
             id=chat_session.id,
             title=chat_session.title,
-            device_filter=chat_session.device_filter,
+            product_filter=chat_session.product_filter,
             version_filter=chat_session.version_filter,
             doc_context=chat_session.doc_context,
             created_at=chat_session.created_at,
@@ -197,7 +197,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     extra={
                         "session_id": session_id,
                         "query_length": len(req.content),
-                        "device_filter": chat_session.device_filter,
+                        "product_filter": chat_session.product_filter,
                     },
                 )
 
@@ -213,16 +213,16 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     db=db,
                     query=req.content,
                     history=list(history),
-                    device_filter=chat_session.device_filter,
+                    product_filter=chat_session.product_filter,
                     version_filter=chat_session.version_filter,
                     doc_context=chat_session.doc_context,
                 )
                 rag_ms = round((time.perf_counter() - t_rag) * 1000, 1)
 
-                if not chat_session.device_filter:
-                    auto_dev = rag_debug.get("auto_device")
-                    if auto_dev:
-                        chat_session.device_filter = auto_dev
+                if not chat_session.product_filter:
+                    auto_prod = rag_debug.get("auto_product")
+                    if auto_prod:
+                        chat_session.product_filter = auto_prod
                 if not chat_session.doc_context:
                     detected = rag_debug.get("detected_doc_context")
                     if detected:
@@ -232,7 +232,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                             extra={
                                 "session_id": session_id,
                                 "doc_context": detected,
-                                "device_filter": chat_session.device_filter,
+                                "product_filter": chat_session.product_filter,
                             },
                         )
 
@@ -297,7 +297,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         "tokens_per_sec": tokens_per_sec,
                         "response_length": len(assistant_content),
                         "sources_count": len(sources),
-                        "device_filter": chat_session.device_filter,
+                        "product_filter": chat_session.product_filter,
                     },
                 )
 

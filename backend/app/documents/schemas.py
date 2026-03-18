@@ -38,7 +38,7 @@ class DocumentListItem(BaseModel):
     original_filename: str
     file_size_bytes: int
     total_chunks: int
-    device_name: str = ""
+    product_name: str = ""
     firmware_version: str = ""
     ingested_at: datetime
 
@@ -56,3 +56,20 @@ class DeleteResponse(BaseModel):
     document_id: int
     deleted: bool
     message: str
+
+
+class ArchiveFileResult(BaseModel):
+    filename: str
+    status: str
+    document_id: int | None = None
+    task_id: str | None = None
+    message: str = ""
+
+
+class ArchiveIngestResponse(BaseModel):
+    product_name: str
+    total_files: int
+    accepted: int
+    skipped: int
+    errors: int
+    files: list[ArchiveFileResult]

@@ -1,4 +1,4 @@
-"""MCP tools for IPCodex: search, get_endpoint, list_devices, ingest."""
+"""MCP tools for IPCodex: search, get_endpoint, list_products, ingest."""
 
 import logging
 import time
@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.database import async_session
 from app.ingestion.pipeline import ingest_file, ingest_url
-from app.models import Chunk, Device, Document, FirmwareVersion
+from app.models import Chunk, Product, Document, FirmwareVersion
 from app.search.service import search_documents, search_endpoint
 
 logger = logging.getLogger(__name__)
@@ -15,30 +15,30 @@ logger = logging.getLogger(__name__)
 
 async def tool_search_documentation(
     query: str,
-    device: str | None = None,
+    product: str | None = None,
     version: str | None = None,
     limit: int = 5,
 ) -> str:
-    """Search device API documentation by semantic similarity.
+    """Search product API documentation by semantic similarity.
 
     Returns the most relevant chunks for your query.
     Use this to find API endpoints, parameters, data formats, and examples.
 
     Args:
         query: Natural language search query (e.g. "how to open a door via API")
-        device: Optional device name filter (e.g. "HikCentral")
+        product: Optional product name filter (e.g. "HikCentral")
         version: Optional firmware version filter (e.g. "V2.6.1")
         limit: Number of results to return (1-20, default 5)
     """
     limit = max(1, min(limit, 20))
     logger.debug(
         "MCP search_documentation called",
-        extra={"query": query, "device": device, "version": version, "limit": limit},
+        extra={"query": query, "product": product, "version": version, "limit": limit},
     )
 
     t0 = time.perf_counter()
     async with async_session() as session:
-        results = await search_documents(session, query, device=device, version=version, limit=limit)
+        results = await search_documents(session, query, product=product, version=version, limit=limit)
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     result_count = len(results)
@@ -61,7 +61,7 @@ async def tool_search_documentation(
     parts: list[str] = []
     for i, r in enumerate(results, 1):
         header = f"## Result {i} (similarity: {r['similarity']})"
-        meta = f"**Device:** {r['device_name']} | **Version:** {r['firmware_version']} | **Doc:** {r['doc_title']}"
+        meta = f"**Product:** {r['product_name']} | **Version:** {r['firmware_version']} | **Doc:** {r['doc_title']}"
         path = f"**Section:** {r['heading_path']}"
         parts.append(f"{header}\n{meta}\n{path}\n\n{r['content']}")
 
@@ -70,7 +70,7 @@ async def tool_search_documentation(
 
 async def tool_get_api_endpoint(
     endpoint: str,
-    device: str | None = None,
+    product: str | None = None,
 ) -> str:
     """Get detailed documentation for a specific API endpoint path.
 
@@ -78,17 +78,17 @@ async def tool_get_api_endpoint(
 
     Args:
         endpoint: API endpoint path (e.g. "/acs/v1/door/doControl")
-        device: Optional device name filter
+        product: Optional product name filter
     """
     logger.debug(
         "MCP get_api_endpoint called",
-        extra={"endpoint": endpoint, "device": device},
+        extra={"endpoint": endpoint, "product": product},
     )
 
     t0 = time.perf_counter()
     try:
         async with async_session() as session:
-            results = await search_endpoint(session, endpoint, device=device)
+            results = await search_endpoint(session, endpoint, product=product)
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     except Exception as e:
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -115,7 +115,7 @@ async def tool_get_api_endpoint(
 
     parts: list[str] = []
     for r in results:
-        meta = f"**Device:** {r['device_name']} | **Version:** {r['firmware_version']} | **Doc:** {r['doc_title']}"
+        meta = f"**Product:** {r['product_name']} | **Version:** {r['firmware_version']} | **Doc:** {r['doc_title']}"
         path = f"**Section:** {r['heading_path']}"
         match = f"**Match type:** {r.get('match_type', 'vector')}"
         parts.append(f"{meta}\n{path}\n{match}\n\n{r['content']}")
@@ -123,46 +123,46 @@ async def tool_get_api_endpoint(
     return "\n\n---\n\n".join(parts)
 
 
-async def tool_list_devices() -> str:
-    """List all indexed devices with their firmware versions and document counts.
+async def tool_list_products() -> str:
+    """List all indexed products with their firmware versions and document counts.
 
     Use this to see what documentation is available before searching.
     """
-    logger.debug("MCP list_devices called")
+    logger.debug("MCP list_products called")
 
     t0 = time.perf_counter()
     async with async_session() as session:
         result = await session.execute(
             select(
-                Device.id,
-                Device.name,
-                Device.manufacturer,
-                Device.model,
-                Device.category,
-            ).order_by(Device.name)
+                Product.id,
+                Product.name,
+                Product.manufacturer,
+                Product.model,
+                Product.category,
+            ).order_by(Product.name)
         )
-        devices = result.all()
+        products = result.all()
 
-        if not devices:
+        if not products:
             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
             logger.info(
-                "MCP list_devices completed",
-                extra={"tool": "list_devices", "result_count": 0, "duration_ms": duration_ms},
+                "MCP list_products completed",
+                extra={"tool": "list_products", "result_count": 0, "duration_ms": duration_ms},
             )
-            return "No devices indexed yet. Use ingest_document to add documentation."
+            return "No products indexed yet. Use ingest_document to add documentation."
 
         parts: list[str] = []
-        for dev in devices:
+        for prod in products:
             fw_result = await session.execute(
                 select(FirmwareVersion.version).where(
-                    FirmwareVersion.device_id == dev.id
+                    FirmwareVersion.product_id == prod.id
                 ).order_by(FirmwareVersion.version)
             )
             versions = [r[0] for r in fw_result.all()]
 
             doc_count_result = await session.execute(
                 select(func.count(Document.id)).where(
-                    Document.device_id == dev.id,
+                    Document.product_id == prod.id,
                     Document.status == "ready",
                 )
             )
@@ -171,28 +171,28 @@ async def tool_list_devices() -> str:
             chunk_count_result = await session.execute(
                 select(func.count(Chunk.id))
                 .join(Document, Chunk.document_id == Document.id)
-                .where(Document.device_id == dev.id, Document.status == "ready")
+                .where(Document.product_id == prod.id, Document.status == "ready")
             )
             chunk_count = chunk_count_result.scalar() or 0
 
-            info = f"- **{dev.name}**"
-            if dev.manufacturer:
-                info += f" ({dev.manufacturer})"
+            info = f"- **{prod.name}**"
+            if prod.manufacturer:
+                info += f" ({prod.manufacturer})"
             info += f"\n  Versions: {', '.join(versions) if versions else 'none'}"
             info += f"\n  Documents: {doc_count} | Chunks: {chunk_count}"
             parts.append(info)
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     logger.info(
-        "MCP list_devices completed",
-        extra={"tool": "list_devices", "result_count": len(devices), "duration_ms": duration_ms},
+        "MCP list_products completed",
+        extra={"tool": "list_products", "result_count": len(products), "duration_ms": duration_ms},
     )
-    return f"**Indexed devices ({len(devices)}):**\n\n" + "\n\n".join(parts)
+    return f"**Indexed products ({len(products)}):**\n\n" + "\n\n".join(parts)
 
 
 async def tool_ingest_document(
     file_path: str,
-    device_name: str,
+    product_name: str,
     firmware_version: str = "1.0",
     manufacturer: str = "",
     format: str = "auto",
@@ -206,9 +206,9 @@ async def tool_ingest_document(
 
     Args:
         file_path: Absolute path to the documentation file on the server
-        device_name: Name of the device (e.g. "HikCentral Professional")
+        product_name: Name of the product (e.g. "HikCentral Professional")
         firmware_version: Firmware/API version (e.g. "V2.6.1")
-        manufacturer: Device manufacturer (e.g. "Hikvision")
+        manufacturer: Product manufacturer (e.g. "Hikvision")
         format: File format — "auto", "markdown", "swagger", or "pdf"
         ocr_mode: OCR mode for PDFs — "auto" (OCR pages with images), "always", or "off"
         ocr_languages: Comma-separated OCR language codes (e.g. "en", "en,ru")
@@ -224,7 +224,7 @@ async def tool_ingest_document(
     logger.debug(
         "MCP ingest_document called",
         extra={
-            "file_path": file_path, "device_name": device_name,
+            "file_path": file_path, "product_name": product_name,
             "firmware_version": firmware_version, "format": format,
             "file_size_bytes": file_size, "ocr_mode": ocr_mode,
         },
@@ -236,7 +236,7 @@ async def tool_ingest_document(
             result = await ingest_file(
                 session=session,
                 file_path=file_path,
-                device_name=device_name,
+                product_name=product_name,
                 firmware_version=firmware_version,
                 manufacturer=manufacturer,
                 fmt=format,
@@ -273,7 +273,7 @@ async def tool_ingest_document(
     if result["status"] == "ok":
         lines = [
             "Ingested successfully.",
-            f"Device: {result['device']} (fw: {result['firmware_version']})",
+            f"Product: {result['product']} (fw: {result['firmware_version']})",
             f"Format: {result['format']}",
             f"Chunks: {result['chunks']}",
             f"Duration: {result['duration_sec']}s",
@@ -292,7 +292,7 @@ async def tool_ingest_document(
 
 async def tool_ingest_url(
     url: str,
-    device_name: str,
+    product_name: str,
     firmware_version: str = "1.0",
     manufacturer: str = "",
 ) -> str:
@@ -305,13 +305,13 @@ async def tool_ingest_url(
 
     Args:
         url: HTTP(S) URL pointing to API docs, Swagger UI, or a raw OpenAPI spec
-        device_name: Name of the device (e.g. "HikCentral Professional")
+        product_name: Name of the product (e.g. "HikCentral Professional")
         firmware_version: Firmware/API version (e.g. "V2.6.1")
-        manufacturer: Device manufacturer (e.g. "Hikvision")
+        manufacturer: Product manufacturer (e.g. "Hikvision")
     """
     logger.debug(
         "MCP ingest_url called",
-        extra={"url": url, "device_name": device_name, "firmware_version": firmware_version},
+        extra={"url": url, "product_name": product_name, "firmware_version": firmware_version},
     )
 
     t0 = time.perf_counter()
@@ -320,7 +320,7 @@ async def tool_ingest_url(
             result = await ingest_url(
                 session=session,
                 url=url,
-                device_name=device_name,
+                product_name=product_name,
                 firmware_version=firmware_version,
                 manufacturer=manufacturer,
             )
@@ -361,7 +361,7 @@ async def tool_ingest_url(
 
         lines = [
             "Ingested successfully from URL.",
-            f"Device: {result['device']} (fw: {result['firmware_version']})",
+            f"Product: {result['product']} (fw: {result['firmware_version']})",
             f"Detection: {method_label}",
             f"Chunks: {result['chunks']}",
             f"Duration: {result['duration_sec']}s",

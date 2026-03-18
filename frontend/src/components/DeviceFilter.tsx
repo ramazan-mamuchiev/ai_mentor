@@ -1,18 +1,18 @@
 import { Filter } from 'lucide-react'
 
 interface Props {
-  device: string
-  onChange: (device: string) => void
-  devices: string[]
+  product: string
+  onChange: (product: string) => void
+  products: string[]
 }
 
-export function DeviceFilter({ device, onChange, devices }: Props) {
+export function DeviceFilter({ product, onChange, products }: Props) {
   return (
     <div className="device-filter">
       <Filter size={14} />
-      <select value={device} onChange={e => onChange(e.target.value)}>
-        <option value="">All devices</option>
-        {devices.map(d => (
+      <select value={product} onChange={e => onChange(e.target.value)}>
+        <option value="">All products</option>
+        {products.map(d => (
           <option key={d} value={d}>{d}</option>
         ))}
       </select>

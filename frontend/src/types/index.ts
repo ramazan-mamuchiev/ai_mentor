@@ -3,7 +3,7 @@ export interface SourceInfo {
   heading_path: string
   similarity: number
   content_preview: string
-  device_name: string
+  product_name: string
   firmware_version: string
 }
 
@@ -43,7 +43,7 @@ export interface ChatMessage {
 export interface ChatSession {
   id: number
   title: string | null
-  device_filter: string | null
+  product_filter: string | null
   version_filter: string | null
   created_at: string
   updated_at: string
@@ -54,7 +54,7 @@ export interface ChatSession {
 export interface SessionDetail {
   id: number
   title: string | null
-  device_filter: string | null
+  product_filter: string | null
   version_filter: string | null
   created_at: string
   updated_at: string

@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Devices (equipment catalog)
-CREATE TABLE IF NOT EXISTS devices (
+-- Products (integration product catalog, formerly "devices")
+CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     manufacturer TEXT NOT NULL DEFAULT '',
@@ -11,19 +11,19 @@ CREATE TABLE IF NOT EXISTS devices (
     UNIQUE(manufacturer, model)
 );
 
--- Firmware versions per device
+-- Firmware / API versions per product
 CREATE TABLE IF NOT EXISTS firmware_versions (
     id SERIAL PRIMARY KEY,
-    device_id INT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     version TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(device_id, version)
+    UNIQUE(product_id, version)
 );
 
 -- Documents (uploaded files metadata)
 CREATE TABLE IF NOT EXISTS documents (
     id SERIAL PRIMARY KEY,
-    device_id INT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     firmware_version_id INT NOT NULL REFERENCES firmware_versions(id),
     format TEXT NOT NULL DEFAULT 'markdown',
     source_path TEXT NOT NULL DEFAULT '',
@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id SERIAL PRIMARY KEY,
     title TEXT,
-    device_filter TEXT,
+    product_filter TEXT,
     version_filter TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

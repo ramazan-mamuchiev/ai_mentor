@@ -29,8 +29,9 @@ def _make_mock_chat_session(session_id=1, **overrides):
     s = MagicMock()
     s.id = session_id
     s.title = overrides.get("title")
-    s.device_filter = overrides.get("device_filter")
+    s.product_filter = overrides.get("product_filter")
     s.version_filter = overrides.get("version_filter")
+    s.doc_context = overrides.get("doc_context")
     s.created_at = overrides.get("created_at", datetime.now(timezone.utc))
     s.updated_at = overrides.get("updated_at", datetime.now(timezone.utc))
     return s
@@ -44,22 +45,22 @@ class TestChatSchemas:
     def test_create_session_request_defaults(self):
         req = CreateSessionRequest()
         assert req.title is None
-        assert req.device_filter is None
+        assert req.product_filter is None
 
     def test_create_session_request_with_values(self):
-        req = CreateSessionRequest(title="Test", device_filter="Camera", version_filter="1.0")
+        req = CreateSessionRequest(title="Test", product_filter="Camera", version_filter="1.0")
         assert req.title == "Test"
-        assert req.device_filter == "Camera"
+        assert req.product_filter == "Camera"
 
     def test_session_response(self):
         now = datetime.now(timezone.utc)
-        r = SessionResponse(id=1, title="Chat", device_filter=None, version_filter=None, created_at=now, updated_at=now)
+        r = SessionResponse(id=1, title="Chat", product_filter=None, version_filter=None, created_at=now, updated_at=now)
         assert r.message_count == 0
 
     def test_session_list_item(self):
         now = datetime.now(timezone.utc)
         item = SessionListItem(
-            id=1, title="Test", device_filter=None, version_filter=None,
+            id=1, title="Test", product_filter=None, version_filter=None,
             created_at=now, updated_at=now, message_count=5, last_message_preview="Hello",
         )
         assert item.message_count == 5
@@ -76,7 +77,7 @@ class TestChatSchemas:
     def test_source_info(self):
         s = SourceInfo(
             doc_title="API Guide", heading_path="Auth", similarity=0.95,
-            content_preview="Use HMAC...", device_name="Camera", firmware_version="2.0",
+            content_preview="Use HMAC...", product_name="Camera", firmware_version="2.0",
         )
         assert s.similarity == 0.95
 
@@ -92,7 +93,7 @@ class TestChatSchemas:
     def test_session_detail_response(self):
         now = datetime.now(timezone.utc)
         d = SessionDetailResponse(
-            id=1, title="Test", device_filter=None, version_filter=None,
+            id=1, title="Test", product_filter=None, version_filter=None,
             created_at=now, updated_at=now,
             messages=[
                 ChatMessageResponse(id=1, session_id=1, role="user", content="Hi", created_at=now),
@@ -116,8 +117,9 @@ class TestCreateSession:
         mock_chat_session = MagicMock()
         mock_chat_session.id = 42
         mock_chat_session.title = "Test"
-        mock_chat_session.device_filter = "Camera"
+        mock_chat_session.product_filter = "Camera"
         mock_chat_session.version_filter = None
+        mock_chat_session.doc_context = None
         mock_chat_session.created_at = now
         mock_chat_session.updated_at = now
 
@@ -129,11 +131,11 @@ class TestCreateSession:
             mock_session.add = MagicMock()
 
             from app.chat.router import create_session
-            result = await create_session(CreateSessionRequest(title="Test", device_filter="Camera"))
+            result = await create_session(CreateSessionRequest(title="Test", product_filter="Camera"))
 
             assert result.id == 42
             assert result.title == "Test"
-            assert result.device_filter == "Camera"
+            assert result.product_filter == "Camera"
 
 
 class TestGetSession:
@@ -192,8 +194,9 @@ class TestListSessions:
         row = MagicMock()
         row.id = 1
         row.title = "Test Chat"
-        row.device_filter = None
+        row.product_filter = None
         row.version_filter = None
+        row.doc_context = None
         row.created_at = now
         row.updated_at = now
         row.message_count = 3
@@ -237,8 +240,9 @@ class TestListSessions:
         row = MagicMock()
         row.id = 2
         row.title = None
-        row.device_filter = None
+        row.product_filter = None
         row.version_filter = None
+        row.doc_context = None
         row.created_at = now
         row.updated_at = now
         row.message_count = 1
@@ -277,7 +281,7 @@ class TestSendMessage:
 
         now = datetime.now(timezone.utc)
         chat_session = _make_mock_chat_session(session_id=1, title="Test")
-        chat_session.device_filter = None
+        chat_session.product_filter = None
         chat_session.version_filter = None
         mock_session.get = AsyncMock(return_value=chat_session)
         mock_session.add = MagicMock()
@@ -294,7 +298,7 @@ class TestSendMessage:
 
         mock_rag.return_value = (
             [{"role": "user", "content": "hi"}],
-            [{"doc_title": "Doc", "heading_path": "H", "similarity": 0.9, "content_preview": "...", "device_name": "", "firmware_version": ""}],
+            [{"doc_title": "Doc", "heading_path": "H", "similarity": 0.9, "content_preview": "...", "product_name": "", "firmware_version": ""}],
         )
 
         from app.chat.router import send_message

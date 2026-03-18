@@ -3,7 +3,7 @@ import type { ChatSession, SessionDetail, SSEEvent } from '../types'
 
 export async function createSession(params?: {
   title?: string
-  device_filter?: string
+  product_filter?: string
   version_filter?: string
 }): Promise<ChatSession> {
   return apiFetch<ChatSession>('/chat/sessions', {

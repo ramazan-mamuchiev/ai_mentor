@@ -9,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import ChatMessage, ChatSession, Chunk, Device, Document, FirmwareVersion
+from app.models import ChatMessage, ChatSession, Chunk, Product, Document, FirmwareVersion
 
 
 async def _async_iter(items):
@@ -58,7 +58,7 @@ async def chat_client(db_engine):
         await cleanup_session.execute(delete(Chunk))
         await cleanup_session.execute(delete(Document))
         await cleanup_session.execute(delete(FirmwareVersion))
-        await cleanup_session.execute(delete(Device))
+        await cleanup_session.execute(delete(Product))
         await cleanup_session.commit()
 
 
@@ -68,12 +68,12 @@ class TestChatSessionsAPI:
     async def test_create_session(self, chat_client):
         resp = await chat_client.post(
             "/api/v1/chat/sessions",
-            json={"title": "Test Session", "device_filter": "HikCentral"},
+            json={"title": "Test Session", "product_filter": "HikCentral"},
         )
         assert resp.status_code == 201
         data = resp.json()
         assert data["title"] == "Test Session"
-        assert data["device_filter"] == "HikCentral"
+        assert data["product_filter"] == "HikCentral"
         assert data["message_count"] == 0
         assert "id" in data
         assert "created_at" in data
@@ -83,7 +83,7 @@ class TestChatSessionsAPI:
         assert resp.status_code == 201
         data = resp.json()
         assert data["title"] is None
-        assert data["device_filter"] is None
+        assert data["product_filter"] is None
 
     async def test_list_sessions_empty(self, chat_client):
         resp = await chat_client.get("/api/v1/chat/sessions")
@@ -314,21 +314,21 @@ class TestChatWithRAG:
 
     async def _seed_documents(self, db_engine):
         """Insert test documents directly into DB for RAG to find."""
-        from app.models import Chunk, Device, Document, FirmwareVersion
+        from app.models import Chunk, Product, Document, FirmwareVersion
         from tests.conftest import fake_embed_single
 
         session_maker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
         async with session_maker() as session:
-            device = Device(name="TestCam", manufacturer="TestMfg")
-            session.add(device)
+            product = Product(name="TestCam", manufacturer="TestMfg")
+            session.add(product)
             await session.flush()
 
-            fw = FirmwareVersion(device_id=device.id, version="1.0")
+            fw = FirmwareVersion(product_id=product.id, version="1.0")
             session.add(fw)
             await session.flush()
 
             doc = Document(
-                device_id=device.id,
+                product_id=product.id,
                 firmware_version_id=fw.id,
                 format="markdown",
                 title="TestCam API Guide",
@@ -355,7 +355,7 @@ class TestChatWithRAG:
 
         create_resp = await chat_client.post(
             "/api/v1/chat/sessions",
-            json={"title": "RAG Test", "device_filter": "TestCam"},
+            json={"title": "RAG Test", "product_filter": "TestCam"},
         )
         session_id = create_resp.json()["id"]
 

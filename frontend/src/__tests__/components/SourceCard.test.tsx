@@ -9,7 +9,7 @@ const source: SourceInfo = {
   heading_path: 'Authentication > HMAC',
   similarity: 0.923,
   content_preview: 'Use HMAC-SHA256 to sign your API requests with a secret key.',
-  device_name: 'HikCentral',
+  product_name: 'HikCentral',
   firmware_version: '2.6',
 }
 
@@ -25,15 +25,15 @@ describe('SourceCard', () => {
     expect(screen.getByText(/92\.3% match/)).toBeInTheDocument()
   })
 
-  it('shows device name in score section', () => {
+  it('shows product name in score section', () => {
     render(<SourceCard source={source} />)
     const scoreEl = document.querySelector('.source-card-score')
     expect(scoreEl?.textContent).toContain('HikCentral')
   })
 
-  it('omits device name when empty', () => {
-    const noDevice = { ...source, device_name: '' }
-    render(<SourceCard source={noDevice} />)
+  it('omits product name when empty', () => {
+    const noProduct = { ...source, product_name: '' }
+    render(<SourceCard source={noProduct} />)
     const scoreEl = document.querySelector('.source-card-score')
     expect(scoreEl?.textContent).not.toContain('·')
   })

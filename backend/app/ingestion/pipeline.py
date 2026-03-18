@@ -10,12 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingestion.chunker import chunk_sections
 from app.ingestion.converters.pdf import convert_pdf
+from app.ingestion.converters.proto import convert_proto_file
 from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_file
 from app.ingestion.converters.web import convert_url
 from app.ingestion.embedder import embed_texts
 from app.ingestion.parsers.markdown import parse_markdown
 from app.ingestion.parsers.swagger import parse_swagger
-from app.models import Chunk, Device, Document, FirmwareVersion
+from app.models import Chunk, Product, Document, FirmwareVersion
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,8 @@ def detect_format(file_path: str) -> str:
         return "markdown"
     if ext == ".pdf":
         return "pdf"
+    if ext == ".proto":
+        return "proto"
     if ext in (".yaml", ".yml", ".json"):
         if is_swagger_file(file_path):
             return "swagger"
@@ -55,7 +58,7 @@ def _parse_content(text: str, fmt: str, file_path: str):
 async def ingest_file(
     session: AsyncSession,
     file_path: str,
-    device_name: str,
+    product_name: str,
     firmware_version: str = "1.0",
     manufacturer: str = "",
     fmt: str = "auto",
@@ -93,7 +96,7 @@ async def ingest_file(
         "Ingestion started",
         extra={
             "file_path": file_path, "format": fmt,
-            "device": device_name, "firmware_version": firmware_version,
+            "product": product_name, "firmware_version": firmware_version,
             "file_size_bytes": file_size, "ocr_mode": ocr_mode,
         },
     )
@@ -128,6 +131,18 @@ async def ingest_file(
             )
             return {"status": "error", "error": f"Swagger conversion failed: {e}"}
         fmt_effective = "markdown"
+    elif fmt == "proto":
+        try:
+            text, convert_metadata = convert_proto_file(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            logger.error(
+                "Proto conversion failed",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
+            return {"status": "error", "error": f"Proto conversion failed: {e}"}
+        fmt_effective = "markdown"
     else:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -145,12 +160,12 @@ async def ingest_file(
 
     source_hash = _file_hash(file_path)
 
-    device = await _get_or_create_device(session, device_name, manufacturer)
-    fw = await _get_or_create_firmware(session, device.id, firmware_version)
+    product = await _get_or_create_product(session, product_name, manufacturer)
+    fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
     existing = await session.execute(
         select(Document).where(
-            Document.device_id == device.id,
+            Document.product_id == product.id,
             Document.firmware_version_id == fw.id,
             Document.source_hash == source_hash,
         )
@@ -177,7 +192,7 @@ async def ingest_file(
 
     title = os.path.splitext(os.path.basename(file_path))[0]
     doc = Document(
-        device_id=device.id,
+        product_id=product.id,
         firmware_version_id=fw.id,
         format=fmt,
         source_path=file_path,
@@ -243,14 +258,14 @@ async def ingest_file(
                 "chunks": len(chunks), "duration_sec": round(duration, 2),
                 "read_ms": read_ms, "convert_ms": convert_ms,
                 "parse_ms": parse_ms, "embed_ms": embed_ms, "db_ms": db_ms,
-                "device": device_name, "format": fmt,
+                "product": product_name, "format": fmt,
                 "file_size_bytes": file_size,
             },
         )
         result = {
             "status": "ok",
             "document_id": doc.id,
-            "device": device_name,
+            "product": product_name,
             "firmware_version": firmware_version,
             "format": fmt,
             "chunks": len(chunks),
@@ -282,7 +297,7 @@ def _text_hash(text: str) -> str:
 async def ingest_url(
     session: AsyncSession,
     url: str,
-    device_name: str,
+    product_name: str,
     firmware_version: str = "1.0",
     manufacturer: str = "",
 ) -> dict:
@@ -296,7 +311,7 @@ async def ingest_url(
 
     logger.info(
         "URL ingestion started",
-        extra={"url": url, "device": device_name, "firmware_version": firmware_version},
+        extra={"url": url, "product": product_name, "firmware_version": firmware_version},
     )
 
     try:
@@ -314,12 +329,12 @@ async def ingest_url(
 
     source_hash = _text_hash(text)
 
-    device = await _get_or_create_device(session, device_name, manufacturer)
-    fw = await _get_or_create_firmware(session, device.id, firmware_version)
+    product = await _get_or_create_product(session, product_name, manufacturer)
+    fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
     existing = await session.execute(
         select(Document).where(
-            Document.device_id == device.id,
+            Document.product_id == product.id,
             Document.firmware_version_id == fw.id,
             Document.source_hash == source_hash,
         )
@@ -346,7 +361,7 @@ async def ingest_url(
 
     title = convert_metadata.get("page_title") or convert_metadata.get("api_title") or url
     doc = Document(
-        device_id=device.id,
+        product_id=product.id,
         firmware_version_id=fw.id,
         format="url",
         source_path=url,
@@ -404,13 +419,13 @@ async def ingest_url(
                 "duration_sec": round(duration, 2),
                 "convert_ms": convert_ms, "parse_ms": parse_ms,
                 "embed_ms": embed_ms, "db_ms": db_ms,
-                "detection": detection, "device": device_name,
+                "detection": detection, "product": product_name,
             },
         )
         result = {
             "status": "ok",
             "document_id": doc.id,
-            "device": device_name,
+            "product": product_name,
             "firmware_version": firmware_version,
             "format": "url",
             "detection_method": detection,
@@ -483,6 +498,16 @@ def ingest_from_bytes(
         except Exception as e:
             document.status = "error"
             document.error_message = f"Swagger conversion failed: {e}"
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
+    elif fmt == "proto":
+        try:
+            text, convert_metadata = convert_proto_file(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"Proto conversion failed: {e}"
             session.commit()
             return {"status": "error", "error": str(e)}
         fmt_effective = "markdown"
@@ -577,24 +602,24 @@ def ingest_from_bytes(
         return {"status": "error", "error": str(e), "document_id": document.id}
 
 
-async def _get_or_create_device(session: AsyncSession, name: str, manufacturer: str) -> Device:
+async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str) -> Product:
     result = await session.execute(
-        select(Device).where(Device.name == name)
+        select(Product).where(Product.name == name)
     )
-    device = result.scalar_one_or_none()
-    if device:
-        return device
+    product = result.scalar_one_or_none()
+    if product:
+        return product
 
-    device = Device(name=name, manufacturer=manufacturer)
-    session.add(device)
+    product = Product(name=name, manufacturer=manufacturer)
+    session.add(product)
     await session.flush()
-    return device
+    return product
 
 
-async def _get_or_create_firmware(session: AsyncSession, device_id: int, version: str) -> FirmwareVersion:
+async def _get_or_create_firmware(session: AsyncSession, product_id: int, version: str) -> FirmwareVersion:
     result = await session.execute(
         select(FirmwareVersion).where(
-            FirmwareVersion.device_id == device_id,
+            FirmwareVersion.product_id == product_id,
             FirmwareVersion.version == version,
         )
     )
@@ -602,7 +627,7 @@ async def _get_or_create_firmware(session: AsyncSession, device_id: int, version
     if fw:
         return fw
 
-    fw = FirmwareVersion(device_id=device_id, version=version)
+    fw = FirmwareVersion(product_id=product_id, version=version)
     session.add(fw)
     await session.flush()
     return fw

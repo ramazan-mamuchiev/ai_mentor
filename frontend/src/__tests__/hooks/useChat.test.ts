@@ -30,7 +30,7 @@ describe('useChat', () => {
 
   it('sendMessage adds user message and processes stream', async () => {
     mockStreamMessage.mockReturnValue(fakeStream([
-      { type: 'sources', sources: [{ doc_title: 'Doc', heading_path: 'Auth', similarity: 0.9, content_preview: '...', device_name: '', firmware_version: '' }] },
+      { type: 'sources', sources: [{ doc_title: 'Doc', heading_path: 'Auth', similarity: 0.9, content_preview: '...', product_name: '', firmware_version: '' }] },
       { type: 'token', content: 'Hello' },
       { type: 'token', content: ' world' },
       { type: 'done', message_id: 42, duration_ms: 1500 },
@@ -108,7 +108,7 @@ describe('useChat', () => {
 
   it('reset clears all state including messages and streaming content', async () => {
     mockStreamMessage.mockReturnValue(fakeStream([
-      { type: 'sources', sources: [{ doc_title: 'Doc', heading_path: 'h', similarity: 0.9, content_preview: '...', device_name: '', firmware_version: '' }] },
+      { type: 'sources', sources: [{ doc_title: 'Doc', heading_path: 'h', similarity: 0.9, content_preview: '...', product_name: '', firmware_version: '' }] },
       { type: 'token', content: 'Hello' },
       { type: 'done', message_id: 10, duration_ms: 100 },
     ]) as any)

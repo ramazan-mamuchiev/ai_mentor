@@ -10,7 +10,7 @@ def _make_chunk(heading: str, content: str, similarity: float = 0.9, doc_title: 
         "heading_level": 2,
         "token_count": len(content.split()),
         "doc_title": doc_title,
-        "device_name": "Device",
+        "product_name": "Product",
         "manufacturer": "Mfg",
         "firmware_version": "1.0",
         "similarity": similarity,

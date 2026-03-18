@@ -700,7 +700,7 @@
   background: var(--surface-hover);
 }
 
-/* ── Device filter ── */
+/* ── Product filter ── */
 .device-filter {
   display: flex;
   align-items: center;

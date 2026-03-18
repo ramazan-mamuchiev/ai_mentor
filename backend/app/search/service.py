@@ -29,14 +29,14 @@ def _deduplicate_chunks(results: list[dict], limit: int) -> list[dict]:
 async def search_documents(
     session: AsyncSession,
     query: str,
-    device: str | None = None,
+    product: str | None = None,
     version: str | None = None,
     doc_context: str | None = None,
     limit: int = 5,
 ) -> list[dict]:
     """Semantic search across all indexed documentation.
 
-    Returns list of dicts with content, heading_path, similarity, device info.
+    Returns list of dicts with content, heading_path, similarity, product info.
     Fetches extra candidates and deduplicates to handle multiple uploads of the same doc.
 
     Args:
@@ -55,9 +55,9 @@ async def search_documents(
     where_clauses = ["d.status = 'ready'"]
     params: dict = {"embedding": embedding_str, "limit": fetch_limit}
 
-    if device:
-        where_clauses.append("dev.name ILIKE '%' || :device || '%'")
-        params["device"] = device
+    if product:
+        where_clauses.append("p.name ILIKE '%' || :product || '%'")
+        params["product"] = product
     if version:
         where_clauses.append("fw.version = :version")
         params["version"] = version
@@ -74,13 +74,13 @@ async def search_documents(
             c.heading_level,
             c.token_count,
             d.title AS doc_title,
-            dev.name AS device_name,
-            dev.manufacturer,
+            p.name AS product_name,
+            p.manufacturer,
             fw.version AS firmware_version,
             1 - (c.embedding <=> CAST(:embedding AS vector)) AS similarity
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
-        JOIN devices dev ON d.device_id = dev.id
+        JOIN products p ON d.product_id = p.id
         JOIN firmware_versions fw ON d.firmware_version_id = fw.id
         WHERE {where_sql}
         ORDER BY c.embedding <=> CAST(:embedding AS vector)
@@ -89,7 +89,7 @@ async def search_documents(
 
     logger.debug(
         "Search query executing",
-        extra={"query": query, "device": device, "version": version, "embed_ms": embed_ms},
+        extra={"query": query, "product": product, "version": version, "embed_ms": embed_ms},
     )
 
     t_db = time.perf_counter()
@@ -104,7 +104,7 @@ async def search_documents(
             "heading_level": row["heading_level"],
             "token_count": row["token_count"],
             "doc_title": row["doc_title"],
-            "device_name": row["device_name"],
+            "product_name": row["product_name"],
             "manufacturer": row["manufacturer"],
             "firmware_version": row["firmware_version"],
             "similarity": round(float(row["similarity"]), 4),
@@ -120,7 +120,7 @@ async def search_documents(
     top_similarity = results[0]["similarity"] if results else 0.0
 
     log_extra = {
-        "query": query, "device": device, "version": version,
+        "query": query, "product": product, "version": version,
         "result_count": result_count, "top_similarity": top_similarity,
         "duration_ms": duration_ms, "embed_ms": embed_ms, "db_ms": db_ms,
         "raw_candidates": len(raw_results), "dedup_removed": dedup_removed,
@@ -137,7 +137,7 @@ async def search_documents(
 async def search_endpoint(
     session: AsyncSession,
     endpoint: str,
-    device: str | None = None,
+    product: str | None = None,
 ) -> list[dict]:
     """Find documentation for a specific API endpoint path.
 
@@ -151,9 +151,9 @@ async def search_endpoint(
     ]
     params: dict = {"endpoint": endpoint}
 
-    if device:
-        where_clauses.append("dev.name ILIKE '%' || :device || '%'")
-        params["device"] = device
+    if product:
+        where_clauses.append("p.name ILIKE '%' || :product || '%'")
+        params["product"] = product
 
     where_sql = " AND ".join(where_clauses)
 
@@ -163,11 +163,11 @@ async def search_endpoint(
             c.heading_path,
             c.heading_level,
             d.title AS doc_title,
-            dev.name AS device_name,
+            p.name AS product_name,
             fw.version AS firmware_version
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
-        JOIN devices dev ON d.device_id = dev.id
+        JOIN products p ON d.product_id = p.id
         JOIN firmware_versions fw ON d.firmware_version_id = fw.id
         WHERE {where_sql}
         ORDER BY c.heading_level, c.chunk_index
@@ -182,7 +182,7 @@ async def search_endpoint(
         logger.info(
             "Endpoint search: exact match",
             extra={
-                "endpoint": endpoint, "device": device,
+                "endpoint": endpoint, "product": product,
                 "result_count": len(rows), "match_type": "exact",
                 "duration_ms": duration_ms,
             },
@@ -192,7 +192,7 @@ async def search_endpoint(
                 "content": row["content"],
                 "heading_path": row["heading_path"],
                 "doc_title": row["doc_title"],
-                "device_name": row["device_name"],
+                "product_name": row["product_name"],
                 "firmware_version": row["firmware_version"],
                 "match_type": "exact",
             }
@@ -201,6 +201,6 @@ async def search_endpoint(
 
     logger.warning(
         "Endpoint search: no exact match, falling back to vector search",
-        extra={"endpoint": endpoint, "device": device},
+        extra={"endpoint": endpoint, "product": product},
     )
-    return await search_documents(session, f"API endpoint {endpoint}", device=device, limit=5)
+    return await search_documents(session, f"API endpoint {endpoint}", product=product, limit=5)

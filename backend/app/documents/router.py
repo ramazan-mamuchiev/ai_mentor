@@ -10,13 +10,15 @@ from sqlalchemy import select
 
 from app.database import async_session
 from app.documents.schemas import (
+    ArchiveFileResult,
+    ArchiveIngestResponse,
     DeleteResponse,
     DocumentDownload,
     DocumentListItem,
     DocumentStatus,
     IngestResponse,
 )
-from app.models import Chunk, Device, Document, FirmwareVersion
+from app.models import Chunk, Product, Document, FirmwareVersion
 from app.s3 import delete_file, generate_presigned_url, s3_key_for_document, upload_file
 from app.config import settings
 
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-ALLOWED_EXTENSIONS = {".md", ".json", ".yaml", ".yml", ".pdf"}
+ALLOWED_EXTENSIONS = {".md", ".json", ".yaml", ".yml", ".pdf", ".proto"}
 MAX_UPLOAD_BYTES = settings.max_upload_size_mb * 1024 * 1024
 
 
@@ -32,7 +34,7 @@ MAX_UPLOAD_BYTES = settings.max_upload_size_mb * 1024 * 1024
 async def ingest_document(
     request: Request,
     file: UploadFile = File(...),
-    device_name: str = Form(...),
+    product_name: str = Form(...),
     firmware_version: str = Form(default="1.0"),
     manufacturer: str = Form(default=""),
     format: str = Form(default="auto"),
@@ -77,7 +79,7 @@ async def ingest_document(
         extra={
             "original_filename": original_filename,
             "file_size_bytes": file_size,
-            "device_name": device_name,
+            "product_name": product_name,
             "format": format,
             "source_hash": source_hash,
             "force": force,
@@ -111,11 +113,11 @@ async def ingest_document(
                     existing_document_title=existing.title,
                 )
 
-        device = await _get_or_create_device(session, device_name, manufacturer)
-        fw = await _get_or_create_firmware(session, device.id, firmware_version)
+        product = await _get_or_create_product(session, product_name, manufacturer)
+        fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
         doc = Document(
-            device_id=device.id,
+            product_id=product.id,
             firmware_version_id=fw.id,
             format=format,
             original_filename=original_filename,
@@ -156,6 +158,162 @@ async def ingest_document(
         )
 
 
+from app.documents.archive import (
+    ARCHIVE_ALLOWED_EXTENSIONS,
+    SUPPORTED_ARCHIVE_EXTENSIONS,
+    _archive_ext,
+    extract_archive,
+)
+
+MAX_ARCHIVE_BYTES = settings.max_upload_size_mb * 1024 * 1024 * 5
+
+
+@router.post("/ingest-archive", response_model=ArchiveIngestResponse)
+async def ingest_archive(
+    request: Request,
+    file: UploadFile = File(...),
+    product_name: str = Form(...),
+    firmware_version: str = Form(default="1.0"),
+    manufacturer: str = Form(default=""),
+    force: bool = Form(default=False),
+):
+    """Upload an archive containing multiple documentation files for a single product.
+
+    Each file inside the archive is ingested separately and linked to the same product.
+    Supported archive formats: .zip, .7z, .tar, .tar.gz, .tgz, .tar.bz2, .tar.xz, .rar
+    Supported inner file types: .md, .json, .yaml, .yml, .pdf, .proto, .txt, .wsdl, .xml
+    """
+    original_filename = file.filename or "archive.zip"
+    archive_ext = _archive_ext(original_filename)
+
+    if archive_ext not in SUPPORTED_ARCHIVE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported archive format '{archive_ext}'. Supported: {', '.join(sorted(SUPPORTED_ARCHIVE_EXTENSIONS))}",
+        )
+
+    file_data = await file.read()
+    file_size = len(file_data)
+
+    if file_size > MAX_ARCHIVE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Archive too large ({file_size} bytes). Maximum: {MAX_ARCHIVE_BYTES} bytes",
+        )
+
+    if file_size == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+    logger.info(
+        "Archive upload received",
+        extra={
+            "original_filename": original_filename,
+            "file_size_bytes": file_size,
+            "product_name": product_name,
+            "archive_format": archive_ext,
+            "client_ip": client_ip,
+        },
+    )
+
+    entries = extract_archive(file_data, original_filename)
+
+    if not entries:
+        raise HTTPException(status_code=400, detail="No supported files found in archive")
+
+    results: list[ArchiveFileResult] = []
+    accepted = 0
+    skipped = 0
+    errors = 0
+
+    async with async_session() as session:
+        product = await _get_or_create_product(session, product_name, manufacturer)
+        fw = await _get_or_create_firmware(session, product.id, firmware_version)
+
+        for arc_path, entry_data in entries:
+            entry_filename = os.path.basename(arc_path)
+
+            try:
+                entry_hash = hashlib.sha256(entry_data).hexdigest()
+
+                if not force:
+                    existing = await _find_by_hash(session, entry_hash)
+                    if existing is not None:
+                        skipped += 1
+                        results.append(ArchiveFileResult(
+                            filename=arc_path,
+                            status="skipped",
+                            document_id=existing.id,
+                            message=f"Duplicate of «{existing.title}» (id={existing.id})",
+                        ))
+                        continue
+
+                doc = Document(
+                    product_id=product.id,
+                    firmware_version_id=fw.id,
+                    format="auto",
+                    original_filename=entry_filename,
+                    file_size_bytes=len(entry_data),
+                    title=os.path.splitext(entry_filename)[0],
+                    status="pending",
+                    source_hash=entry_hash,
+                )
+                session.add(doc)
+                await session.flush()
+
+                s3_key = s3_key_for_document(doc.id, entry_filename)
+                content_type = "application/octet-stream"
+                upload_file(s3_key, entry_data, content_type)
+                doc.s3_key = s3_key
+
+                await session.commit()
+
+                from app.celery_app import ingest_document_task
+                task = ingest_document_task.delay(doc.id)
+
+                accepted += 1
+                results.append(ArchiveFileResult(
+                    filename=arc_path,
+                    status="pending",
+                    document_id=doc.id,
+                    task_id=task.id,
+                    message="Queued for processing",
+                ))
+
+            except Exception as e:
+                errors += 1
+                results.append(ArchiveFileResult(
+                    filename=arc_path,
+                    status="error",
+                    message=str(e)[:500],
+                ))
+                logger.error(
+                    "Archive entry ingestion failed",
+                    extra={"entry": arc_path, "error_type": type(e).__name__},
+                    exc_info=True,
+                )
+
+    logger.info(
+        "Archive ingestion completed",
+        extra={
+            "product_name": product_name,
+            "total_files": len(entries),
+            "accepted": accepted,
+            "skipped": skipped,
+            "errors": errors,
+        },
+    )
+
+    return ArchiveIngestResponse(
+        product_name=product_name,
+        total_files=len(entries),
+        accepted=accepted,
+        skipped=skipped,
+        errors=errors,
+        files=results,
+    )
+
+
 @router.get("", response_model=list[DocumentListItem])
 async def list_documents():
     """List all documents with their status."""
@@ -169,11 +327,11 @@ async def list_documents():
                 Document.original_filename,
                 Document.file_size_bytes,
                 Document.total_chunks,
-                Device.name.label("device_name"),
+                Product.name.label("product_name"),
                 FirmwareVersion.version.label("firmware_version"),
                 Document.ingested_at,
             )
-            .join(Device, Document.device_id == Device.id)
+            .join(Product, Document.product_id == Product.id)
             .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
             .order_by(Document.ingested_at.desc())
         )
@@ -323,28 +481,28 @@ async def _find_by_hash(session, source_hash: str) -> Document | None:
     return result.scalar_one_or_none()
 
 
-async def _get_or_create_device(session, name: str, manufacturer: str):
-    result = await session.execute(select(Device).where(Device.name == name))
-    device = result.scalar_one_or_none()
-    if device:
-        return device
-    device = Device(name=name, manufacturer=manufacturer)
-    session.add(device)
+async def _get_or_create_product(session, name: str, manufacturer: str):
+    result = await session.execute(select(Product).where(Product.name == name))
+    product = result.scalar_one_or_none()
+    if product:
+        return product
+    product = Product(name=name, manufacturer=manufacturer)
+    session.add(product)
     await session.flush()
-    return device
+    return product
 
 
-async def _get_or_create_firmware(session, device_id: int, version: str):
+async def _get_or_create_firmware(session, product_id: int, version: str):
     result = await session.execute(
         select(FirmwareVersion).where(
-            FirmwareVersion.device_id == device_id,
+            FirmwareVersion.product_id == product_id,
             FirmwareVersion.version == version,
         )
     )
     fw = result.scalar_one_or_none()
     if fw:
         return fw
-    fw = FirmwareVersion(device_id=device_id, version=version)
+    fw = FirmwareVersion(product_id=product_id, version=version)
     session.add(fw)
     await session.flush()
     return fw

@@ -16,7 +16,7 @@ class TestSearchDocuments:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="ZKTeco InBio",
+            product_name="ZKTeco InBio",
             firmware_version="1.0",
             manufacturer="ZKTeco",
         )
@@ -24,18 +24,18 @@ class TestSearchDocuments:
         results = await search_documents(db_session, "open door command")
         assert len(results) > 0
         assert all("similarity" in r for r in results)
-        assert all(r["device_name"] == "ZKTeco InBio" for r in results)
+        assert all(r["product_name"] == "ZKTeco InBio" for r in results)
 
     async def test_filter_by_device(self, db_session, sample_md_file):
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="DeviceA",
+            product_name="DeviceA",
             firmware_version="1.0",
         )
 
-        results_match = await search_documents(db_session, "door", device="DeviceA")
-        results_no_match = await search_documents(db_session, "door", device="NonExistent")
+        results_match = await search_documents(db_session, "door", product="DeviceA")
+        results_no_match = await search_documents(db_session, "door", product="NonExistent")
 
         assert len(results_match) > 0
         assert len(results_no_match) == 0
@@ -44,7 +44,7 @@ class TestSearchDocuments:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="TestDevice",
+            product_name="TestDevice",
             firmware_version="1.0",
         )
 
@@ -58,7 +58,7 @@ class TestSearchDocuments:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="TestDevice",
+            product_name="TestDevice",
             firmware_version="1.0",
             manufacturer="TestMfg",
         )
@@ -71,7 +71,7 @@ class TestSearchDocuments:
         assert "heading_level" in r
         assert "token_count" in r
         assert "doc_title" in r
-        assert "device_name" in r
+        assert "product_name" in r
         assert "manufacturer" in r
         assert "firmware_version" in r
         assert "similarity" in r
@@ -81,7 +81,7 @@ class TestSearchDocuments:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="TestDevice",
+            product_name="TestDevice",
             firmware_version="1.0",
         )
 
@@ -94,7 +94,7 @@ class TestSearchEndpoint:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="TestDevice",
+            product_name="TestDevice",
             firmware_version="1.0",
         )
 
@@ -106,7 +106,7 @@ class TestSearchEndpoint:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="TestDevice",
+            product_name="TestDevice",
             firmware_version="1.0",
         )
 
@@ -118,12 +118,12 @@ class TestSearchEndpoint:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="DeviceX",
+            product_name="DeviceX",
             firmware_version="1.0",
         )
 
-        results = await search_endpoint(db_session, "Door", device="DeviceX")
+        results = await search_endpoint(db_session, "Door", product="DeviceX")
         assert len(results) > 0
 
-        results_no = await search_endpoint(db_session, "Door", device="OtherDevice")
+        results_no = await search_endpoint(db_session, "Door", product="OtherDevice")
         assert len(results_no) == 0

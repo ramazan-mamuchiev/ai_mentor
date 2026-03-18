@@ -76,9 +76,9 @@ class TestDocumentListItemSchema:
         item = DocumentListItem(
             id=1, title="Test", format="markdown", status="ready",
             original_filename="test.md", file_size_bytes=512, total_chunks=5,
-            device_name="Camera", firmware_version="1.0", ingested_at=now,
+            product_name="Camera", firmware_version="1.0", ingested_at=now,
         )
-        assert item.device_name == "Camera"
+        assert item.product_name == "Camera"
 
 
 class TestDocumentDownloadSchema:
@@ -124,7 +124,7 @@ def _make_mock_document(doc_id=1, **overrides):
     doc.s3_key = overrides.get("s3_key", "documents/1/source.md")
     doc.ingested_at = overrides.get("ingested_at", datetime.now(timezone.utc))
     doc.source_hash = overrides.get("source_hash", "abc123")
-    doc.device_id = overrides.get("device_id", 1)
+    doc.product_id = overrides.get("product_id", 1)
     doc.firmware_version_id = overrides.get("firmware_version_id", 1)
     return doc
 
@@ -139,7 +139,7 @@ class TestIngestEndpointValidation:
         with pytest.raises(Exception) as exc_info:
             await ingest_document(
                 request=_mock_request(),
-                file=upload, device_name="Dev", firmware_version="1.0",
+                file=upload, product_name="Dev", firmware_version="1.0",
             )
         assert "Unsupported file extension" in str(exc_info.value.detail)
 
@@ -150,7 +150,7 @@ class TestIngestEndpointValidation:
         with pytest.raises(Exception) as exc_info:
             await ingest_document(
                 request=_mock_request(),
-                file=upload, device_name="Dev", firmware_version="1.0",
+                file=upload, product_name="Dev", firmware_version="1.0",
             )
         assert "Empty file" in str(exc_info.value.detail)
 
@@ -162,7 +162,7 @@ class TestIngestEndpointValidation:
         with pytest.raises(Exception) as exc_info:
             await ingest_document(
                 request=_mock_request(),
-                file=upload, device_name="Dev", firmware_version="1.0",
+                file=upload, product_name="Dev", firmware_version="1.0",
             )
         assert "File too large" in str(exc_info.value.detail)
 
@@ -176,7 +176,7 @@ class TestIngestEndpointValidation:
                 from app.documents.router import ingest_document
                 await ingest_document(
                     request=_mock_request(),
-                    file=upload, device_name="Dev", firmware_version="1.0",
+                    file=upload, product_name="Dev", firmware_version="1.0",
                 )
             except Exception as e:
                 assert "Unsupported file extension" not in str(e)
@@ -192,7 +192,7 @@ class TestIngestEndpointSuccess:
     async def test_upload_creates_document_and_queues_task(
         self, mock_s3_key, mock_upload, mock_session_factory
     ):
-        mock_device = MagicMock(id=1)
+        mock_product = MagicMock(id=1)
         mock_fw = MagicMock(id=1)
         mock_doc = MagicMock(id=42)
 
@@ -209,7 +209,7 @@ class TestIngestEndpointSuccess:
 
         with (
             patch("app.documents.router._find_by_hash", new_callable=AsyncMock, return_value=None),
-            patch("app.documents.router._get_or_create_device", new_callable=AsyncMock, return_value=mock_device),
+            patch("app.documents.router._get_or_create_product", new_callable=AsyncMock, return_value=mock_product),
             patch("app.documents.router._get_or_create_firmware", new_callable=AsyncMock, return_value=mock_fw),
             patch("app.celery_app.ingest_document_task") as mock_celery_task,
             patch("app.documents.router.Document") as MockDocument,
@@ -222,7 +222,7 @@ class TestIngestEndpointSuccess:
 
             result = await ingest_document(
                 request=_mock_request(),
-                file=upload, device_name="TestDev", firmware_version="2.0",
+                file=upload, product_name="TestDev", firmware_version="2.0",
             )
 
             assert result.status == "pending"
@@ -464,7 +464,7 @@ class TestDeduplication:
             result = await ingest_document(
                 request=_mock_request(),
                 file=upload,
-                device_name="TestDev",
+                product_name="TestDev",
                 firmware_version="1.0",
                 manufacturer="",
                 format="auto",
@@ -487,7 +487,7 @@ class TestDeduplication:
         self, mock_s3_key, mock_upload, mock_session_factory
     ):
         """When force=True, upload even if hash matches."""
-        mock_device = MagicMock(id=1)
+        mock_product = MagicMock(id=1)
         mock_fw = MagicMock(id=1)
         mock_doc = MagicMock(id=99)
 
@@ -505,9 +505,9 @@ class TestDeduplication:
 
         with (
             patch(
-                "app.documents.router._get_or_create_device",
+                "app.documents.router._get_or_create_product",
                 new_callable=AsyncMock,
-                return_value=mock_device,
+                return_value=mock_product,
             ),
             patch(
                 "app.documents.router._get_or_create_firmware",
@@ -527,7 +527,7 @@ class TestDeduplication:
             result = await ingest_document(
                 request=_mock_request(),
                 file=upload,
-                device_name="TestDev",
+                product_name="TestDev",
                 firmware_version="1.0",
                 force=True,
             )
@@ -544,7 +544,7 @@ class TestDeduplication:
         self, mock_s3_key, mock_upload, mock_session_factory
     ):
         """When no hash match exists, proceed with normal ingestion."""
-        mock_device = MagicMock(id=1)
+        mock_product = MagicMock(id=1)
         mock_fw = MagicMock(id=1)
         mock_doc = MagicMock(id=50)
 
@@ -567,9 +567,9 @@ class TestDeduplication:
                 return_value=None,
             ),
             patch(
-                "app.documents.router._get_or_create_device",
+                "app.documents.router._get_or_create_product",
                 new_callable=AsyncMock,
-                return_value=mock_device,
+                return_value=mock_product,
             ),
             patch(
                 "app.documents.router._get_or_create_firmware",
@@ -588,7 +588,7 @@ class TestDeduplication:
             result = await ingest_document(
                 request=_mock_request(),
                 file=upload,
-                device_name="TestDev",
+                product_name="TestDev",
                 firmware_version="1.0",
             )
 
@@ -624,7 +624,7 @@ class TestDeduplication:
             result = await ingest_document(
                 request=_mock_request(),
                 file=upload,
-                device_name="AnyDevice",
+                product_name="AnyProduct",
                 firmware_version="1.0",
                 manufacturer="",
                 format="auto",

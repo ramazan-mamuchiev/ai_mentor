@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select, text
 
-from app.models import ChatMessage, ChatSession, Device, Document, FirmwareVersion, Chunk
+from app.models import ChatMessage, ChatSession, Product, Document, FirmwareVersion, Chunk
 from app.chat.rag import build_rag_prompt
 
 
@@ -15,13 +15,13 @@ class TestChatSessionsCRUD:
     """Test chat session CRUD operations against real PostgreSQL."""
 
     async def test_create_session(self, db_session):
-        session = ChatSession(title="Test Chat", device_filter="Camera")
+        session = ChatSession(title="Test Chat", product_filter="Camera")
         db_session.add(session)
         await db_session.flush()
 
         assert session.id is not None
         assert session.title == "Test Chat"
-        assert session.device_filter == "Camera"
+        assert session.product_filter == "Camera"
         assert session.created_at is not None
 
     async def test_create_session_without_filters(self, db_session):
@@ -31,7 +31,7 @@ class TestChatSessionsCRUD:
 
         assert session.id is not None
         assert session.title is None
-        assert session.device_filter is None
+        assert session.product_filter is None
         assert session.version_filter is None
 
     async def test_delete_session_cascades_messages(self, db_session):
@@ -147,17 +147,17 @@ class TestRAGIntegration:
     """Test RAG pipeline with real data in PostgreSQL."""
 
     async def _ingest_test_data(self, db_session):
-        """Insert a device, document, and chunks for RAG testing."""
-        device = Device(name="HikCentral", manufacturer="Hikvision")
-        db_session.add(device)
+        """Insert a product, document, and chunks for RAG testing."""
+        product = Product(name="HikCentral", manufacturer="Hikvision")
+        db_session.add(product)
         await db_session.flush()
 
-        fw = FirmwareVersion(device_id=device.id, version="2.6")
+        fw = FirmwareVersion(product_id=product.id, version="2.6")
         db_session.add(fw)
         await db_session.flush()
 
         doc = Document(
-            device_id=device.id,
+            product_id=product.id,
             firmware_version_id=fw.id,
             format="pdf",
             title="HikCentral API Guide",
@@ -190,7 +190,7 @@ class TestRAGIntegration:
         db_session.add_all([chunk1, chunk2])
         await db_session.flush()
 
-        return device, doc
+        return product, doc
 
     async def test_rag_finds_relevant_chunks(self, db_session):
         await self._ingest_test_data(db_session)
@@ -207,19 +207,19 @@ class TestRAGIntegration:
         assert messages[-1]["content"] == "How to authenticate with HMAC?"
         assert len(sources) > 0
 
-    async def test_rag_with_device_filter(self, db_session):
+    async def test_rag_with_product_filter(self, db_session):
         await self._ingest_test_data(db_session)
 
         _, sources_match = await build_rag_prompt(
             db=db_session,
             query="authentication",
-            device_filter="HikCentral",
+            product_filter="HikCentral",
         )
 
         _, sources_no_match = await build_rag_prompt(
             db=db_session,
             query="authentication",
-            device_filter="NonExistentDevice",
+            product_filter="NonExistentDevice",
         )
 
         assert len(sources_match) > 0

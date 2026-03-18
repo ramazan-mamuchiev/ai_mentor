@@ -21,7 +21,7 @@ def _create_test_app(db_engine):
     from app.mcp.server import (
         tool_get_api_endpoint,
         tool_ingest_document,
-        tool_list_devices,
+        tool_list_products,
         tool_search_documentation,
     )
 
@@ -34,7 +34,7 @@ def _create_test_app(db_engine):
     )
     mcp.tool(name="search_documentation")(tool_search_documentation)
     mcp.tool(name="get_api_endpoint")(tool_get_api_endpoint)
-    mcp.tool(name="list_devices")(tool_list_devices)
+    mcp.tool(name="list_products")(tool_list_products)
     mcp.tool(name="ingest_document")(tool_ingest_document)
 
     @contextlib.asynccontextmanager
@@ -137,7 +137,7 @@ class TestMCPProtocol:
         tool_names = [t["name"] for t in tools]
         assert "search_documentation" in tool_names
         assert "get_api_endpoint" in tool_names
-        assert "list_devices" in tool_names
+        assert "list_products" in tool_names
         assert "ingest_document" in tool_names
 
     async def test_invalid_jsonrpc(self, client):
@@ -163,13 +163,13 @@ class TestMCPProtocol:
         await ingest_file(
             session=db_session,
             file_path=sample_md_file,
-            device_name="LifecycleDevice",
+            product_name="LifecycleDevice",
             firmware_version="1.0",
             manufacturer="TestMfg",
         )
 
         list_resp = await self._mcp_call(client, "tools/call", {
-            "name": "list_devices",
+            "name": "list_products",
             "arguments": {},
         }, req_id=3)
         assert list_resp.status_code == 200
