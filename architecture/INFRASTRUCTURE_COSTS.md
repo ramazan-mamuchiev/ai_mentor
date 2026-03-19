@@ -1,6 +1,6 @@
 # IPCodex — Infrastructure Cost Analysis
 
-> **Status**: v1.1 — March 18, 2026 (added Gemini API LLM costs)
+> **Status**: v1.4 — March 19, 2026 (actual Gemini/Opus prices, tiered LLM billing, per-model input+output pricing)
 > **Author**: Oleg Voitekhovich
 > **Purpose**: Detailed infrastructure cost breakdown by component, scenario-based projections, and cost-to-revenue analysis to validate pricing model
 
@@ -26,8 +26,9 @@
             │                   │              │
  ┌──────────▼───────────────────▼──────────────▼───────────────┐
  │                   EXTERNAL SERVICES                         │
- │  OpenAI API     │  Gemini API │  Stripe     │  SendGrid    │
- │  (embeddings)   │  (LLM)     │  (billing)  │  (email)     │
+ │  OpenAI API     │  LLM API    │  Stripe     │  SendGrid    │
+ │  (embeddings)   │  (Gemini /  │  (billing)  │  (email)     │
+ │                 │  Opus 4.6)  │             │              │
  │                 │             │             │              │
  │                 │  ClamAV     │             │              │
  │                 │  (antivirus)│             │              │
@@ -138,41 +139,102 @@ Pricing: **$0.02 per 1M tokens** (text-embedding-3-small, as of March 2026)
 
 **Alternative**: self-hosted `all-MiniLM-L6-v2` eliminates API cost entirely (GPU instance ~$100-200/mo, but also handles other tasks).
 
-### 2.6 Gemini API (LLM for RAG Answers)
+### 2.6 LLM API (for RAG Chat)
 
-Every user chat query triggers an LLM call to generate the answer from retrieved documentation chunks. Since March 2026, IPCodex uses **Google Gemini 2.5 Flash** via the OpenAI-compatible API (Google AI Studio).
+Every chat query triggers an LLM call to generate the answer from retrieved documentation chunks. **Billing is per-model, input + output separately** — this protects margins regardless of which model the user selects. See [MONETIZATION.md](MONETIZATION.md#ai-model-tiers) for tier-to-model mapping.
 
-**Pricing** (Google AI Studio, as of March 2026):
+#### 2.6.1 Gemini 2.5 Flash (default for Free & Pro)
+
+**Pricing** (Google AI Studio, actual March 2026):
 
 | Parameter | Value |
 |-----------|:-----:|
-| Input tokens | **$0.15 per 1M tokens** |
-| Output tokens | **$0.60 per 1M tokens** |
+| Input tokens | **$0.30 per 1M tokens** |
+| Output tokens | **$2.50 per 1M tokens** |
 | Free tier | 15 RPM, limited daily quota |
 
-**Per-query cost estimate:**
+**Per-query cost (Gemini Flash):**
 
 | Component | Tokens | Cost |
 |-----------|:------:|:----:|
-| System prompt + RAG context (8 chunks) | ~3,000–5,000 input | $0.00045–$0.00075 |
-| Chat history (up to 10 messages) | ~1,000–2,000 input | $0.00015–$0.00030 |
-| Generated answer | ~500–1,500 output | $0.00030–$0.00090 |
-| **Total per query** | | **$0.0009–$0.002** |
+| System prompt + RAG context (8 chunks) | ~3,000–5,000 input | $0.0009–$0.0015 |
+| Chat history (up to 10 messages) | ~1,000–2,000 input | $0.0003–$0.0006 |
+| Generated answer | ~500–1,500 output | $0.00125–$0.00375 |
+| **Total per query** | | **$0.0025–$0.006** |
 
-**Monthly cost by scale:**
+**Monthly cost by scale (Gemini Flash only):**
 
 | Scale | Queries/mo | Input Tokens | Output Tokens | Monthly Cost |
 |-------|:----------:|:------------:|:------------:|:------------:|
-| Small (100 users) | 50K | 200M | 50M | **$60** |
-| Medium (500 users) | 300K | 1.2B | 300M | **$360** |
-| Large (2,000 users) | 2M | 8B | 2B | **$2,400** |
+| Small (100 users) | 50K | 200M | 50M | **$185** |
+| Medium (500 users) | 300K | 1.2B | 300M | **$1,110** |
+| Large (2,000 users) | 2M | 8B | 2B | **$7,400** |
 
-**Key insight**: Gemini Flash is significantly cheaper than GPT-4o (~10×) but still becomes a meaningful cost at scale. At Large scale, LLM API is a top-5 cost driver.
+#### 2.6.2 Claude Opus 4.6 (default for Team & Enterprise)
 
-**Alternatives & fallbacks:**
-- **Ollama (local)**: $0 API cost, already supported in codebase (`LLM_PROVIDER=ollama`). Requires GPU instance (~$200-400/mo) but handles unlimited queries
-- **Claude Sonnet**: higher quality answers, ~$3/$15 per 1M tokens (5-10× more expensive than Gemini Flash)
-- **Gemini Pro**: better quality than Flash, ~2× the cost
+**Pricing** (Anthropic API, actual March 2026):
+
+| Parameter | Value |
+|-----------|:-----:|
+| Input tokens | **$5.00 per 1M tokens** |
+| Output tokens | **$25.00 per 1M tokens** |
+| Prompt caching (cache reads) | **$0.50 per 1M tokens** (90% savings on cached input) |
+| Batch processing | 50% savings |
+
+**Per-query cost (Opus 4.6):**
+
+| Component | Tokens | Cost |
+|-----------|:------:|:----:|
+| System prompt + RAG context (8 chunks) | ~3,000–5,000 input | $0.015–$0.025 |
+| Chat history (up to 10 messages) | ~1,000–2,000 input | $0.005–$0.010 |
+| Generated answer | ~500–1,500 output | $0.0125–$0.0375 |
+| **Total per query** | | **$0.03–$0.07** |
+
+With prompt caching (system prompt cached across session):
+
+| Component | Tokens | Cost |
+|-----------|:------:|:----:|
+| System prompt (cached) | ~2,000 | $0.001 |
+| RAG context + history (fresh) | ~2,000–5,000 | $0.010–$0.025 |
+| Generated answer | ~500–1,500 output | $0.0125–$0.0375 |
+| **Total per query (cached)** | | **$0.02–$0.06** |
+
+#### 2.6.3 Blended cost (tiered model strategy)
+
+Most queries (Free + Pro) use Gemini Flash. Premium queries (Team + Enterprise + Pro Opus option) use Opus 4.6. The ratio shifts as the customer base matures.
+
+**Query distribution by tier (Medium scale, 500 users):**
+
+| Tier | Model | % of queries | Queries/mo |
+|------|-------|:------------:|:----------:|
+| Free | Gemini Flash | 30% | 90K |
+| Pro | Gemini Flash | 45% | 135K |
+| Pro (Opus option) | Opus 4.6 | 3% | 9K |
+| Team | Opus 4.6 | 15% | 45K |
+| Enterprise | Opus 4.6 | 7% | 21K |
+
+**Blended monthly LLM cost (Medium, 500 users):**
+
+| Model | Queries | Cost |
+|-------|:-------:|:----:|
+| Gemini Flash (Free + Pro) | 225K | **$830** |
+| Opus 4.6 (Pro option + Team + Ent) | 75K | **$3,750** (~$2,600 with caching) |
+| **Total blended** | 300K | **$3,430–$4,580** |
+
+Compare: all-Gemini at this scale = $1,110. The premium tier adds ~$2,300–3,500/mo in LLM cost, but generates significantly more revenue from Team ($399/mo) and Enterprise ($1,999/mo) subscriptions. See section 9 for revenue cross-check.
+
+#### 2.6.4 Model comparison
+
+| Model | Input / Output (per 1M tokens) | Cost per query | Ratio vs Flash | Quality | Tier |
+|-------|:------------------------------:|:--------------:|:--------------:|:-------:|------|
+| Gemini 2.5 Flash | $0.30 / $2.50 | $0.003–0.006 | 1x | Good | Free, Pro (default) |
+| Claude Opus 4.6 | $5.00 / $25.00 | $0.03–0.07 | ~13x | Excellent | Team, Enterprise, Pro (option) |
+| Opus 4.6 (cached) | $0.50 / $25.00 | $0.02–0.06 | ~10x | Excellent | Same, optimized |
+| Ollama (qwen2.5) | $0 (GPU ~$300/mo) | ~$0 | — | Acceptable | Development / fallback |
+
+**Key insight**: The price gap between Flash and Opus is ~13x. With per-model billing (input + output charged separately), every query is margin-positive regardless of model. Opus 4.6 serves as a premium "anchor product" — its superior quality creates desire to upgrade tiers, while Flash handles the bulk of volume cost-efficiently.
+
+**Future marketing lever**: temporarily waive output charges on Gemini Flash queries ("Free AI answers!") to drive user acquisition. Input charges still cover vector search cost. When users experience the quality difference with Opus, they upgrade. See [MONETIZATION.md](MONETIZATION.md#future-promotional-lever).
 
 **Previous approach**: Before Gemini, IPCodex used **Ollama with Qwen 2.5 Coder 7B** (local, $0 API cost). The switch to Gemini improved answer quality significantly but introduced an external API dependency and per-query cost.
 
@@ -230,15 +292,15 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | S3 storage (50 GB) | $2 |
 | S3 egress | $30 |
 | OpenAI Embeddings | $3 |
-| Gemini API (LLM) | $60 |
+| LLM API (Gemini Flash) | $185 |
 | Stripe fees | $100 |
 | Monitoring | $50 |
 | Email | $0 |
 | Domain + SSL | $15 |
-| **Total** | **$990/mo** |
+| **Total** | **$1,115/mo** |
 
 **Revenue (Year 1)**: ~$3,500/mo (see MARKET_RESEARCH.md)
-**Gross margin**: 72%
+**Gross margin**: 68%
 
 ### Scenario B: Growth (Year 2) — 300 developers, 100 vendors
 
@@ -250,16 +312,17 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | S3 storage (500 GB) | $12 |
 | S3 egress | $120 |
 | OpenAI Embeddings | $10 |
-| Gemini API (LLM) | $360 |
+| LLM API — Gemini Flash (225K queries) | $830 |
+| LLM API — Opus 4.6 (75K queries) | $2,600 |
 | CDN (CloudFront) | $50 |
 | Stripe fees | $1,200 |
 | Monitoring | $150 |
 | Email | $20 |
 | Domain + SSL | $15 |
-| **Total** | **$3,920/mo** |
+| **Total** | **$6,190/mo** |
 
-**Revenue (Year 2)**: ~$40K/mo
-**Gross margin**: 90%
+**Revenue (Year 2)**: ~$42K/mo
+**Gross margin**: 85%
 
 ### Scenario C: Scale (Year 3) — 1,000 developers, 300 vendors, 20 Platinum
 
@@ -271,54 +334,64 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | S3 storage (5 TB) | $115 |
 | S3 egress + CDN | $600 |
 | OpenAI Embeddings (or self-hosted) | $60 |
-| Gemini API (LLM) | $2,400 |
+| LLM API — Gemini Flash (1.5M queries) | $5,550 |
+| LLM API — Opus 4.6 (500K queries) | $17,500 |
 | CDN (CloudFront) | $150 |
 | Stripe fees | $3,200 |
 | Monitoring (Datadog) | $400 |
 | Email (SES) | $30 |
 | Domain + SSL + WAF | $50 |
-| **Total** | **$12,255/mo** |
+| **Total** | **$32,695/mo** |
 
-**Revenue (Year 3)**: ~$110K/mo (conservative) + Platinum revenue ~$100K/mo (20 × $5K)
-**Gross margin**: 94%
+**Revenue (Year 3)**: ~$218K/mo + Platinum revenue ~$100K/mo (20 x $5K)
+**Gross margin**: 90%
 
 ---
 
 ## 4. Cost per Operation (Unit Economics)
 
+Chat queries are billed per model (input + output separately). See [MONETIZATION.md](MONETIZATION.md#ai-model-tiers) for user-facing prices.
+
 | Operation | Infrastructure Cost | Price Charged | Margin |
 |-----------|:-------------------:|:-------------:|:------:|
-| 1 chat query (search + LLM) | ~$0.0015 | $0.005 (overage) | 70% |
+| 1 chat query — Gemini Flash | ~$0.004 | input + output per model (see MONETIZATION) | ~50-70% |
+| 1 chat query — Opus 4.6 | ~$0.05 | input + output per model (see MONETIZATION) | ~50-70% |
+| 1 chat query — Opus 4.6 (cached) | ~$0.04 | input + output per model (see MONETIZATION) | ~55-75% |
+| 1 search query (no LLM) | ~$0.0003 | 1 billable unit | 99% |
 | 1 document ingest (MD) | ~$0.002 | $0.15 (overage) | 99% |
-| 1 document ingest (PDF OCR) | ~$0.02 | $0.75 (5 units × $0.15) | 97% |
+| 1 document ingest (PDF OCR) | ~$0.02 | $0.75 (5 units x $0.15) | 97% |
 | 1 document download | ~$0.001 | $0.10 (overage) | 99% |
 | 1 firmware download (200 MB) | ~$0.018 (egress) | Free (included in subscription) | — |
 | 1 GB storage (monthly) | $0.023 | $3/GB (Pro overage) | 99% |
 
-**Key insight**: per-unit margins are 94-99%. The business is extremely infrastructure-efficient. Main cost is people (development, support, sales), not servers.
+**Key insight**: per-model billing ensures every query is margin-positive regardless of which LLM the user selects. Non-LLM operations maintain 94-99% margins. The business is extremely infrastructure-efficient.
 
 ---
 
 ## 5. Where the Money Goes (Top 5 Cost Drivers)
 
 ```
-Year 3 breakdown ($12,255/mo):
+Year 3 breakdown ($32,695/mo):
 
-  Stripe transaction fees .......... $3,200  (26%)  ← #1 (unavoidable, scales with revenue)
-  PostgreSQL managed HA ............ $2,500  (20%)  ← #2 (pgvector + HASH partitioning)
-  Compute (servers + workers) ...... $2,500  (20%)  ← #3
-  Gemini API (LLM) ................. $2,400  (20%)  ← #4 (scales with query volume)
-  S3 egress + CDN .................. $750   (6%)   ← #5 (firmware downloads)
-  Monitoring ....................... $400   (3%)
-  Everything else .................. $505   (4%)
+  LLM API — Opus 4.6 .............. $17,500 (54%)  ← #1 (premium tier queries)
+  LLM API — Gemini Flash .......... $5,550  (17%)  ← #2 (Free + Pro queries)
+  Stripe transaction fees .......... $3,200  (10%)  ← #3 (unavoidable, scales with revenue)
+  PostgreSQL managed HA ............ $2,500  (8%)   ← #4 (pgvector + HASH partitioning)
+  Compute (servers + workers) ...... $2,500  (8%)   ← #5
+  S3 egress + CDN .................. $750   (2%)
+  Monitoring ....................... $400   (1%)
+  Everything else .................. $295   (<1%)
 ```
 
+**LLM is now the #1 cost driver** at scale (71% of infrastructure). This is by design — premium LLM cost is offset by premium tier revenue ($399-$1,999/mo subscriptions).
+
 **Optimization opportunities:**
-1. **Gemini API**: switch to Ollama (local LLM) for $0 API cost — already supported in codebase, requires GPU instance (~$200-400/mo for unlimited queries vs $2,400/mo at scale)
-2. **PostgreSQL**: move to self-managed on dedicated instances → save 40-60%
-3. **S3 egress**: CDN caching for popular firmware → save 50-70%
-4. **Compute**: spot/preemptible instances for Celery workers → save 30-50%
-5. **Stripe**: negotiate volume discount at $1M+ ARR → reduce from 2.9% to 2.2%
+1. **Opus prompt caching**: cache system prompt across sessions → save ~25% on Opus input cost
+2. **Opus batch processing**: non-realtime queries (MCP tool calls) → 50% savings
+3. **Flash output promo**: temporarily waive Flash output charges to drive acquisition (see MONETIZATION.md)
+4. **PostgreSQL**: move to self-managed on dedicated instances → save 40-60%
+5. **S3 egress**: CDN caching for popular firmware → save 50-70%
+6. **Stripe**: negotiate volume discount at $1M+ ARR → reduce from 2.9% to 2.2%
 
 ---
 
@@ -326,11 +399,11 @@ Year 3 breakdown ($12,255/mo):
 
 | Scenario | Monthly Cost | Revenue Needed | Customers Needed |
 |----------|:------------:|:--------------:|:----------------:|
-| Launch | $990 | $990 | ~10 Pro ($99) customers |
-| Growth | $3,920 | $3,920 | ~40 Pro or ~10 Team customers |
-| Scale | $12,255 | $12,255 | ~124 Pro or ~31 Team customers |
+| Launch | $1,115 | $1,115 | ~12 Pro ($99) customers |
+| Growth | $6,190 | $6,190 | ~16 Team ($399) customers |
+| Scale | $32,695 | $32,695 | ~17 Enterprise ($1,999) or ~82 Team customers |
 
-**Break-even is reached very early** — even 10 paying Pro customers cover all infrastructure costs at launch. The pricing model has comfortable margins at every scale.
+**Break-even is reached early** — 12 paying Pro customers cover all infrastructure costs at launch. At scale, LLM costs are higher but premium tier revenue ($399-$1,999/mo) covers them with strong margins.
 
 ---
 
@@ -354,6 +427,7 @@ Year 3 breakdown ($12,255/mo):
 | OpenAI price increase | Embedding costs increase | Switch to self-hosted model (already supported) |
 | Gemini API price increase or quota limits | LLM cost spike or service degradation | Fallback to Ollama (local LLM, already supported: `LLM_PROVIDER=ollama`), or switch to another OpenAI-compatible provider |
 | Google AI Studio free tier rate limits (15 RPM) | Users can't get answers during peak load | Upgrade to paid tier (Vertex AI) or hybrid: Ollama for overflow |
+| Opus 4.6 query volume exceeds projections | LLM cost spike if many Pro users opt into Opus | Per-model billing absorbs cost; adjust Pro Opus quota (100 queries/mo) or overage price |
 | Massive OCR ingestion spike | GPU compute costs | Queue-based throttling, OCR worker autoscaling |
 | DDoS on public endpoints | Compute overload | WAF + rate limiting + CloudFlare |
 | ClamAV false positive quarantines good firmware | Vendor frustration | Manual review process, vendor appeal mechanism |
@@ -376,14 +450,14 @@ REVENUE:
   ────────────────────────────
   Total revenue:       $1,750/mo
 
-INFRASTRUCTURE:              $990/mo
-  (incl. Gemini API: $60/mo)
+INFRASTRUCTURE:              $1,115/mo
+  (incl. LLM API: $185/mo — Flash only at launch)
 
-MARGIN:                      $760/mo (43%)
-BREAK-EVEN:                  10 Pro customers ($990 = $990)
+MARGIN:                      $635/mo (36%)
+BREAK-EVEN:                  12 Pro customers
 ```
 
-**Status**: Tight margins, typical for Year 1. Cash-flow positive from ~10 paying customers.
+**Status**: Tight margins, typical for Year 1. Cash-flow positive from ~12 paying customers.
 Year 1 primary risk: customer acquisition, not infrastructure cost.
 
 ### Year 2 — Growth (300 developers, 30 vendors)
@@ -400,14 +474,14 @@ REVENUE:
   ────────────────────────────────────
   Total revenue:              $42,125/mo
 
-INFRASTRUCTURE:               $3,920/mo
-  (incl. Gemini API: $360/mo)
+INFRASTRUCTURE:               $6,190/mo
+  (incl. LLM API: $3,430/mo — Flash $830 + Opus $2,600)
 
-MARGIN:                      $38,205/mo (90%)
-REVENUE-TO-INFRA RATIO:      10.7×
+MARGIN:                      $35,935/mo (85%)
+REVENUE-TO-INFRA RATIO:      6.8×
 ```
 
-**Status**: Healthy SaaS economics. Revenue covers infrastructure 12x over.
+**Status**: Healthy SaaS economics. LLM cost is higher due to Opus premium tier, but revenue covers infrastructure 7x over. Per-model billing ensures margin protection.
 
 ### Year 3 — Scale (1,000 developers, 60 vendors)
 
@@ -424,24 +498,34 @@ REVENUE:
   Total revenue:              $217,760/mo
   (+ Platinum vendors: $5K × N extra)
 
-INFRASTRUCTURE:                $12,255/mo
-  (incl. Gemini API: $2,400/mo)
+INFRASTRUCTURE:                $32,695/mo
+  (incl. LLM API: $23,050/mo — Flash $5,550 + Opus $17,500)
 
-MARGIN:                       $205,505/mo (94%)
-REVENUE-TO-INFRA RATIO:       17.8×
+MARGIN:                       $185,065/mo (85%)
+REVENUE-TO-INFRA RATIO:       6.7×
 ```
 
-**Status**: Outstanding. Infrastructure is < 5% of revenue.
+**Status**: Strong. LLM is the dominant cost (71%), but premium tier revenue ($399-$1,999/mo) absorbs it. Per-model billing ensures every query is margin-positive.
 
 ### Summary Table
 
-| Year | Revenue/mo | Infra/mo | Gemini API | Margin | R/I Ratio | Verdict |
-|:----:|:----------:|:--------:|:----------:|:------:|:---------:|---------|
-| 1 | $1,750 | $990 | $60 | 43% | 1.8× | Break-even at ~10 Pro customers |
-| 2 | $42,125 | $3,920 | $360 | 90% | 10.7× | Healthy, reinvest in growth |
-| 3 | $217,760 | $12,255 | $2,400 | 94% | 17.8× | Excellent SaaS economics |
+| Year | Revenue/mo | Infra/mo | LLM cost (blended) | Margin | R/I Ratio | Verdict |
+|:----:|:----------:|:--------:|:------------------:|:------:|:---------:|---------|
+| 1 | $1,750 | $1,115 | $185 (Flash only) | 36% | 1.6x | Break-even at ~12 Pro customers |
+| 2 | $42,125 | $6,190 | $3,430 (Flash+Opus) | 85% | 6.8x | Healthy, LLM is top cost |
+| 3 | $217,760 | $32,695 | $23,050 (Flash+Opus) | 85% | 6.7x | Strong, per-model billing protects margin |
 
-**Conclusion**: Current pricing model is validated. The addition of Gemini API (LLM) increases infrastructure costs by $60-$2,400/mo depending on scale, but margins remain strong (90%+ from Year 2). Fallback to local Ollama LLM is available if API costs become a concern. The main expense will be people (engineers, support, sales), not servers.
+**Tiered model strategy impact:**
+
+| Year | All-Flash cost | Blended (Flash+Opus) | Opus premium cost | Covered by premium tier revenue |
+|:----:|:--------------:|:--------------------:|:------------------:|:-------------------------------:|
+| 1 | $185 | $185 | $0 (no Opus users yet) | — |
+| 2 | $1,110 | $3,430 | +$2,320 | Team+Ent revenue: $17,571/mo |
+| 3 | $7,400 | $23,050 | +$15,650 | Team+Ent revenue: $139,850/mo |
+
+> The incremental Opus cost ($2,300-$15,600/mo) is a fraction of the premium tier revenue it generates ($17K-$140K/mo). Per-model input+output billing ensures every query is margin-positive regardless of model.
+
+**Conclusion**: The tiered LLM model with per-model billing is validated. Gemini Flash handles bulk volume cost-efficiently (Free + Pro). Opus 4.6 serves as a premium anchor product — its superior quality drives tier upgrades while per-model pricing protects margins. Future promotional lever: temporarily waive Flash output charges to drive user acquisition. Fallback to local Ollama LLM is available if API costs become a concern.
 
 ---
 
@@ -451,6 +535,7 @@ REVENUE-TO-INFRA RATIO:       17.8×
 - AWS EC2 pricing: https://aws.amazon.com/ec2/pricing/ (March 2026)
 - OpenAI Embeddings pricing: https://openai.com/pricing (March 2026)
 - Google AI Studio / Gemini API pricing: https://ai.google.dev/pricing (March 2026)
+- Anthropic Claude pricing: https://www.anthropic.com/pricing (March 2026)
 - Stripe pricing: https://stripe.com/pricing (March 2026)
 - AWS CloudFront pricing: https://aws.amazon.com/cloudfront/pricing/ (March 2026)
 - ClamAV: https://www.clamav.net/ (open-source, free)

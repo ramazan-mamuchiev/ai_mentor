@@ -30,13 +30,18 @@ IPCodex is a two-sided marketplace with a network effect (flywheel):
 
 ## Billing Unit
 
-**Charge per incoming request** (not per response). Ingestion cost varies by format complexity:
+**Charge per incoming request.** Ingestion cost varies by format complexity. **AI Chat queries are billed per model (input + output)** — see [AI Model Tiers](#ai-model-tiers) below.
 
 | Operation | Billable Units | Internal Cost | Reason |
 |-----------|:-:|-----|--------|
-| **Search** | | | |
+| **Search (vector only, no LLM)** | | | |
 | `search_documentation(query)` | 1 | ~$0.0003 | Core product value |
 | `get_api_endpoint(path)` | 1 | ~$0.0003 | Vector search |
+| **AI Chat (LLM-powered, per-model billing)** | | | |
+| Chat query — Gemini Flash (input) | per model | ~$0.002 | RAG context + history |
+| Chat query — Gemini Flash (output) | per model | ~$0.002 | Generated answer |
+| Chat query — Opus 4.6 (input) | per model | ~$0.020 | RAG context + history |
+| Chat query — Opus 4.6 (output) | per model | ~$0.025 | Generated answer |
 | **Ingestion (format-dependent)** | | | |
 | `ingest: markdown (.md)` | **1** | ~$0.001 | Direct chunking, cheapest |
 | `ingest: swagger/openapi (.json/.yaml)` | **1** | ~$0.001 | Structural parsing |
@@ -47,12 +52,83 @@ IPCodex is a two-sided marketplace with a network effect (flywheel):
 | **Downloads** | | | |
 | `download_document` | 1 | ~$0.001 | S3 presigned URL, tier-gated |
 | **Free operations** | | | |
-| `list_devices()` | 0 | — | Simple SELECT, improves UX |
+| `list_products()` | 0 | — | Simple SELECT, improves UX |
 | Returned chunks (response) | 0 | — | Our delivery — maximize value |
 | **Storage** | | | |
 | S3 + pgvector storage | MB/mo | — | Ongoing infrastructure cost |
 
-**Why format-based pricing**: OCR of a scanned 200-page PDF costs ~$0.02 in compute (GPU time + API calls), while parsing a Swagger JSON costs ~$0.001. Charging a flat rate would subsidize expensive formats at the expense of cheap ones. Format-aware billable units keep pricing fair.
+**Why per-model billing for AI Chat**: Opus 4.6 output tokens cost 10x more than Gemini Flash ($25 vs $2.50 per 1M). A flat rate would either overprice Flash users or subsidize Opus users at a loss. Per-model input+output billing keeps every query margin-positive.
+
+**Why format-based pricing for ingestion**: OCR of a scanned 200-page PDF costs ~$0.02 in compute (GPU time + API calls), while parsing a Swagger JSON costs ~$0.001. Charging a flat rate would subsidize expensive formats at the expense of cheap ones.
+
+---
+
+## AI Model Tiers
+
+IPCodex offers two LLM models for AI Chat. The model determines answer quality and cost. Different developer tiers get different default models.
+
+### Model Pricing (user-facing)
+
+| Model | Input (per query) | Output (per query) | Avg total per query | Quality |
+|-------|:-----------------:|:------------------:|:-------------------:|:-------:|
+| **Gemini 2.5 Flash** | ~$0.002 | ~$0.002 | **~$0.004** | Good |
+| **Claude Opus 4.6** | ~$0.020 | ~$0.025 | **~$0.045** | Excellent |
+
+Actual billing is based on token count: input tokens (prompt + RAG context + history) and output tokens (generated answer) are metered separately and charged at the model's rate. See [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md#26-llm-api-for-rag-chat) for detailed per-token costs.
+
+### Tier-to-Model Mapping
+
+| Tier | Default Model | Opus 4.6 Access | Included AI Chat queries | Opus Overage |
+|------|---------------|:---------------:|:------------------------:|:------------:|
+| **Free** | Gemini Flash | No | 200/mo (Flash only) | blocked |
+| **Pro** | Gemini Flash | Yes (option) | 10,000 Flash + 100 Opus/mo | $0.05/query |
+| **Team** | **Opus 4.6** | Default | 100,000 (Opus) | $0.04/query |
+| **Enterprise** | **Opus 4.6** | Default | unlimited | custom |
+
+**How it works for Pro users**: Pro users get Gemini Flash by default. They can switch to Opus 4.6 for individual queries or sessions. 100 Opus queries/mo are included; beyond that, overage of $0.05/query applies. This lets them experience the quality difference and creates natural upsell to Team.
+
+**How it works for Team/Enterprise**: Opus 4.6 is the default model. Gemini Flash is also available if the user prefers speed over quality. All queries within the included quota use whichever model the user selects.
+
+### Opus 4.6 as Anchor Product
+
+Opus 4.6 serves as a **premium anchor** — a high-quality product that makes the standard offering (Gemini Flash) look like a great deal, while creating aspiration to upgrade:
+
+```
+Developer psychology:
+
+  Free tier:  "This AI search is pretty good for free"
+              → sees "Upgrade to Pro for Opus 4.6 AI" badge
+              → upgrades to Pro ($99/mo)
+
+  Pro tier:   Uses 100 Opus queries, notices better code generation
+              → runs out of Opus quota, falls back to Flash
+              → "I want Opus all the time" → upgrades to Team ($399/mo)
+
+  Team tier:  Opus by default, unlimited
+              → shares with team, everyone productive
+              → "We need this for the whole org" → Enterprise ($1,999/mo)
+```
+
+The anchor effect: even if most queries run on Flash, the *existence* of Opus as a premium option increases perceived value of all tiers and drives upgrades.
+
+### Future Promotional Lever
+
+**Planned promotion**: temporarily waive output charges on Gemini Flash queries.
+
+```
+Campaign: "Free AI Answers — pay only for questions!"
+
+  Normal Flash query:  $0.002 (input) + $0.002 (output) = $0.004
+  Promo Flash query:   $0.002 (input) + $0.000 (output) = $0.002  ← 50% off
+
+  Effect:
+    - Drives user acquisition (half-price AI chat)
+    - Input charge still covers vector search cost
+    - Users experience Flash quality, see Opus upgrade path
+    - When promo ends, users are hooked → either stay on Flash or upgrade to Opus
+```
+
+This lever can be activated/deactivated via configuration without code changes — the billing system already tracks input and output separately.
 
 ---
 
@@ -61,18 +137,20 @@ IPCodex is a two-sided marketplace with a network effect (flywheel):
 Hybrid model: subscription + overage.
 See [Market Research](MARKET_RESEARCH.md) for pricing rationale and competitive analysis.
 
-| Tier | Price | Searches/mo | Documents | Devices | Downloads/mo | Storage | MCP Connections | Overage |
-|------|-------|-------------|-----------|---------|:------------:|---------|-----------------|---------|
-| Free | $0 | 200 | 5 | 5 | **0 (blocked)** | 50 MB | 1 | blocked |
-| Pro | $99/mo | 10,000 | 100 | 50 | **50** | 2 GB | 5 | see below |
-| Team | $399/mo | 100,000 | 1,000 | unlimited | **unlimited** | 20 GB | 30 | see below |
-| Enterprise | from $1,999/mo | unlimited | unlimited | unlimited | **unlimited** | 200 GB+ | unlimited | custom |
+| Tier | Price | AI Model | AI Chat/mo | Searches/mo | Documents | Products | Downloads/mo | Storage | MCP | Overage |
+|------|-------|----------|:----------:|-------------|-----------|----------|:------------:|---------|:---:|---------|
+| Free | $0 | Flash | 200 | 200 | 5 | 5 | **0** | 50 MB | 1 | blocked |
+| Pro | $99/mo | Flash + 100 Opus | 10,000 | 10,000 | 100 | 50 | **50** | 2 GB | 5 | see below |
+| Team | $399/mo | **Opus default** | 100,000 | 100,000 | 1,000 | unlimited | **unlimited** | 20 GB | 30 | see below |
+| Enterprise | from $1,999/mo | **Opus default** | unlimited | unlimited | unlimited | unlimited | **unlimited** | 200 GB+ | unlimited | custom |
 
 **Overage rates (Pro/Team only — Free is hard-blocked):**
 
 | Resource | Pro Overage | Team Overage |
 |----------|------------|--------------|
-| Search query | +$0.005/query | +$0.003/query |
+| AI Chat — Flash (input+output) | per-model token rate | per-model token rate |
+| AI Chat — Opus 4.6 | +$0.05/query | +$0.04/query |
+| Search query (vector, no LLM) | +$0.005/query | +$0.003/query |
 | Document ingest (1 billable unit) | +$0.15/unit | +$0.10/unit |
 | Download | +$0.10/file | +$0.05/file |
 | Storage | +$3/GB/mo | +$2/GB/mo |
@@ -89,8 +167,11 @@ See [Market Research](MARKET_RESEARCH.md) for pricing rationale and competitive 
 ```
 March 2026, client "Acme Integrations":
 
-  Searches:  12,400 performed (10,000 included)
-             2,400 overage × $0.005 = $12.00
+  AI Chat (Flash):  9,200 queries (10,000 included) → $0
+  AI Chat (Opus):   130 queries (100 included)
+                    30 overage × $0.05 = $1.50
+
+  Searches:  2,400 vector searches (10,000 included) → $0
 
   Documents: 85 ingested, breakdown by format:
              70 × markdown (1 unit each)  = 70 units
@@ -104,7 +185,11 @@ March 2026, client "Acme Integrations":
 
   Storage:   1.5 GB (2 GB included) → $0
 
-  Total: $99.00 + $12.00 + $1.20 = $112.20
+  Total: $99.00 + $1.50 + $1.20 = $101.70
+
+  Note: the 30 Opus overage queries cost us ~$1.50 in LLM API
+  and we charge $1.50 — break-even on overage, but the $99 base
+  subscription covers all included queries with strong margin.
 ```
 
 ---

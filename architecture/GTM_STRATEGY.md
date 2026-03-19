@@ -159,7 +159,8 @@ Developer asks question in Cursor IDE
     │  1. Embed query│    Convert question to vector (multilingual-e5-large)
     │  2. Search     │    pgvector cosine similarity across all device docs
     │  3. Rank       │    Top-K most relevant documentation chunks
-    │  4. Generate   │    Gemini 2.5 Flash synthesizes answer with code
+    │  4. Generate   │    LLM synthesizes answer with code
+    │                │    Free/Pro: Gemini Flash | Team/Ent: Claude Opus 4.6
     └───────┬───────┘
             │
             ▼
@@ -173,6 +174,8 @@ Key AI capabilities:
   — Anti-hallucination: answers grounded in actual documentation, with source citations
   — Multi-format ingestion: PDF, Swagger/OpenAPI, Markdown, Postman, web pages
   — Auto-reindex: new firmware docs available to AI within hours
+  — Tiered AI models: Gemini Flash (fast, affordable) → Opus 4.6 (premium, best quality)
+  — Opus as anchor: premium AI quality drives tier upgrades (Pro → Team → Enterprise)
 ```
 
 ---
@@ -387,7 +390,54 @@ BECOME A PARTNER: ipcodex.com/vendors
 | ROI at Pro tier ($99/mo) | 5-20x | Value saved / subscription cost |
 | New developer onboarding | Day 1 productive (vs 1-2 weeks) | Compared to manual doc reading |
 | Supported document formats | 6 (MD, PDF, Swagger, Postman, Web, OCR) | Product capability |
-| AI model | Gemini 2.5 Flash + multilingual-e5-large embeddings | Technical spec |
+| AI models | Gemini 2.5 Flash (Free/Pro) + Claude Opus 4.6 (Team/Enterprise) | Tiered model strategy |
+| AI billing | Per-model input+output token billing | Margin protection |
+| Opus anchor effect | Premium AI quality drives tier upgrades | Growth lever |
+
+### 4.5 AI Model as Growth Lever
+
+**Opus 4.6 as anchor product**: Claude Opus 4.6 is not just a better model — it's a marketing tool. Its presence in the product creates a psychological anchor that drives tier upgrades.
+
+```
+Upgrade funnel powered by AI model tiers:
+
+  FREE (Gemini Flash, 200 queries)
+    |  Developer tries IPCodex, gets good answers
+    |  Sees "Upgrade to Pro for 100 Premium AI queries (Opus 4.6)"
+    v
+  PRO ($99/mo, Flash default + 100 Opus)
+    |  Uses 100 Opus queries, notices significantly better code generation
+    |  Runs out of Opus quota, falls back to Flash
+    |  "I want Opus all the time"
+    v
+  TEAM ($399/mo, Opus default, unlimited)
+    |  Entire team uses Opus, productivity jumps
+    |  "We need this for the whole org"
+    v
+  ENTERPRISE ($1,999/mo, Opus + SLA + custom)
+```
+
+**Key messaging for each transition:**
+
+| Transition | Trigger | Message |
+|------------|---------|---------|
+| Free -> Pro | Hit 200 query limit | "Unlock 10,000 AI queries + 100 Premium Opus queries" |
+| Pro -> Team | Used all 100 Opus queries | "Get unlimited Opus 4.6 — the best AI for code integration" |
+| Team -> Enterprise | Need for org-wide deployment | "Enterprise SLA + unlimited everything + dedicated support" |
+
+**Future promotional lever** (planned):
+
+```
+Campaign: "Free AI Answers on Gemini Flash!"
+
+  Temporarily waive output charges on Flash queries.
+  Normal: $0.004/query -> Promo: $0.002/query (input only)
+
+  Goal: drive user acquisition. Users try Flash for free,
+  see Opus quality difference, upgrade to Pro/Team.
+
+  Can be activated/deactivated via config — no code changes needed.
+```
 
 ---
 

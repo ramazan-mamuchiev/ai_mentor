@@ -4,9 +4,152 @@
 
 ---
 
-## Database Schema (Multi-Tenant)
+## Current Schema (Implemented)
 
-### Core Tables
+The tables below are currently implemented in `backend/db/schema.sql` and `backend/app/models.py`. This is the MVP schema without multi-tenancy.
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Products (integration product catalog — hardware devices + software platforms)
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    manufacturer TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '',       -- camera | vms | access_control | intercom | nvr | sdk
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(manufacturer, model)
+);
+
+-- Firmware / API versions per product
+CREATE TABLE firmware_versions (
+    id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    version TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(product_id, version)
+);
+
+-- Documents (uploaded files metadata)
+CREATE TABLE documents (
+    id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    firmware_version_id INT NOT NULL REFERENCES firmware_versions(id),
+    format TEXT NOT NULL DEFAULT 'markdown',  -- markdown | swagger | pdf | web | proto
+    source_path TEXT NOT NULL DEFAULT '',
+    s3_key TEXT NOT NULL DEFAULT '',
+    original_filename TEXT NOT NULL DEFAULT '',
+    file_size_bytes BIGINT NOT NULL DEFAULT 0,
+    source_hash TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    total_chunks INT NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending | processing | ready | error
+    error_message TEXT,
+    ingested_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Chunks (semantic search units with vector embeddings)
+CREATE TABLE chunks (
+    id BIGSERIAL PRIMARY KEY,
+    document_id INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    chunk_index INT NOT NULL,
+    heading_path TEXT NOT NULL,               -- "Chapter 4 > Access Control > Door Control"
+    heading_level INT NOT NULL DEFAULT 1,
+    content TEXT NOT NULL,
+    token_count INT NOT NULL DEFAULT 0,
+    embedding vector(1024),                   -- E5 local: 1024 dims
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(document_id, chunk_index)
+);
+
+-- Chat sessions
+CREATE TABLE chat_sessions (
+    id SERIAL PRIMARY KEY,
+    title TEXT,
+    product_filter TEXT,                      -- optional: scope chat to a product
+    version_filter TEXT,                      -- optional: scope to firmware version
+    doc_context TEXT,                         -- optional: additional context for RAG
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Chat messages (user + assistant turns)
+CREATE TABLE chat_messages (
+    id SERIAL PRIMARY KEY,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,                       -- user | assistant
+    content TEXT NOT NULL,
+    sources JSONB,                            -- RAG source chunks (assistant messages only)
+    duration_ms FLOAT,                        -- LLM response time (assistant messages only)
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Reindex jobs (background reindexing operations)
+CREATE TABLE reindex_jobs (
+    id SERIAL PRIMARY KEY,
+    mode TEXT NOT NULL,                       -- reingest | reembed
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending | running | completed | failed | cancelled | stale
+    product_filter TEXT,
+    format_filter TEXT,
+    total_documents INT NOT NULL DEFAULT 0,
+    processed_documents INT NOT NULL DEFAULT 0,
+    failed_documents INT NOT NULL DEFAULT 0,
+    skipped_documents INT NOT NULL DEFAULT 0,
+    total_chunks INT NOT NULL DEFAULT 0,
+    celery_task_id TEXT,
+    error_message TEXT,
+    errors_json TEXT NOT NULL DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    heartbeat_at TIMESTAMPTZ
+);
+
+-- Upload sessions (TUS resumable upload protocol)
+CREATE TABLE upload_sessions (
+    id TEXT PRIMARY KEY,                      -- UUID string
+    filename TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    "offset" BIGINT NOT NULL DEFAULT 0,       -- bytes uploaded so far
+    content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    product_name TEXT NOT NULL,
+    firmware_version TEXT NOT NULL DEFAULT '1.0',
+    manufacturer TEXT NOT NULL DEFAULT '',
+    is_archive BOOLEAN NOT NULL DEFAULT FALSE,
+    force BOOLEAN NOT NULL DEFAULT FALSE,
+    s3_upload_id TEXT NOT NULL DEFAULT '',     -- S3 multipart upload ID
+    s3_key TEXT NOT NULL DEFAULT '',
+    parts_json TEXT NOT NULL DEFAULT '[]',     -- completed S3 parts
+    sha256_state TEXT NOT NULL DEFAULT '',     -- serialized incremental SHA-256
+    status TEXT NOT NULL DEFAULT 'uploading',  -- uploading | completed | expired | cancelled
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+```
+
+### Current Indexes
+
+```sql
+CREATE INDEX idx_chunks_embedding ON chunks
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 128);
+
+CREATE INDEX idx_chunks_document ON chunks(document_id);
+CREATE INDEX idx_chat_messages_session ON chat_messages(session_id);
+CREATE INDEX idx_reindex_jobs_status ON reindex_jobs(status);
+CREATE INDEX idx_documents_source_hash ON documents(source_hash) WHERE source_hash != '';
+CREATE INDEX idx_upload_sessions_status ON upload_sessions(status);
+CREATE INDEX idx_upload_sessions_expires ON upload_sessions(expires_at);
+```
+
+---
+
+## Planned Schema (Multi-Tenant)
+
+The tables below describe the target multi-tenant architecture. They extend the current schema with tenant isolation, vendor marketplace, billing, and artifact distribution.
+
+### Core Tables (Planned)
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;

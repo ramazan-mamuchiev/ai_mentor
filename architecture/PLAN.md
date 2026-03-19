@@ -19,13 +19,14 @@
 | [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md) | Per-component cost breakdown, unit economics, break-even, revenue vs infra cross-check | ~460 |
 | [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) | Go-to-market strategy: vendor partnerships, co-marketing playbook, target vendors, KPIs | ~430 |
 | [GTM_STRATEGY.md](GTM_STRATEGY.md) | AI-first positioning, messaging framework, 12-month execution roadmap, channel priorities, budget | ~400 |
+| [MONITORING.md](MONITORING.md) | Monitoring stack (Grafana + Loki + Promtail), dashboards, alert rules, structured logging | ~200 |
 | [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 IPCodex slogan candidates (EN/RU), next steps for partner review | ~130 |
 
 ---
 
 ## Product Summary
 
-**IPCodex** is a commercial SaaS platform that transforms chaotic device documentation (PDF, Swagger, web pages) into a structured knowledge base with semantic search, and serves as a distribution hub for firmware, SDKs, and tools — enabling AI coding assistants (Cursor, Windsurf, GitHub Copilot) to write accurate device integration code via RAG + MCP.
+**IPCodex** is a commercial SaaS platform that transforms chaotic product documentation — for both hardware devices (IP cameras, access controllers, intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs) — into a structured knowledge base with semantic search, and serves as a distribution hub for firmware, SDKs, and tools — enabling AI coding assistants (Cursor, Windsurf, GitHub Copilot) to write accurate integration code via RAG + MCP.
 
 **Target scale**: 1000+ developer tenants + 100+ device vendors. Two-sided marketplace with hybrid monetization (subscription + overage for developers, tiered plans for vendors).
 
@@ -38,47 +39,47 @@
 │                              CLIENTS                                    │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌────────────┐ │
 │  │ Cursor / IDE  │  │   Web UI     │  │  REST API    │  │ Vendor     │ │
-│  │ MCP over SSE  │  │  React SPA   │  │  (3rd-party) │  │ Portal API │ │
+│  │ MCP over HTTP │  │  React SPA   │  │  (3rd-party) │  │ Portal API │ │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └─────┬──────┘ │
 └─────────┼─────────────────┼─────────────────┼────────────────┼─────────┘
-          │ API Key + SSE   │ JWT             │ API Key        │ Vendor Key
+          │ API Key         │ JWT (future)    │ API Key        │ Vendor Key
           ▼                 ▼                 ▼                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        API GATEWAY (FastAPI)                             │
-│  Auth Middleware (Tenant Key | Vendor Key | JWT)                        │
-│  → Usage Metering → Rate Limiter (Redis) → Router                      │
-└───────┬──────────────────┬──────────────────┬───────────────────────────┘
-        │                  │                  │
-  ┌─────▼──────┐    ┌──────▼───────┐   ┌─────▼──────────┐
-  │ MCP Server │    │ REST Routers │   │ Vendor Routers │
-  │ HTTP/SSE   │    │ /api/v1/...  │   │ /vendor/v1/... │
-  └─────┬──────┘    └──────┬───────┘   └────────┬───────┘
-        │                  │                     │
-        └────────┬─────────┘                     │
-                 ▼                               ▼
+│  Request Logging Middleware (request_id, access log)                    │
+│  → Auth → Rate Limiter (Redis) → Router                                │
+└──┬──────────┬──────────────┬──────────────┬─────────────────────────────┘
+   │          │              │              │
+┌──▼───┐ ┌───▼────┐  ┌──────▼───────┐ ┌───▼──────────┐
+│ MCP  │ │  RAG   │  │ REST Routers │ │Vendor Routers│
+│Server│ │  Chat  │  │ /api/v1/...  │ │/vendor/v1/.. │
+│ /mcp │ │  SSE   │  │ docs, upload │ │  (future)    │
+└──┬───┘ └───┬────┘  └──────┬───────┘ └──────────────┘
+   │         │              │
+   └────┬────┘──────────────┘
+        ▼
 ┌────────────────────────┐          ┌──────────────────────┐
 │    PostgreSQL 16       │          │       Redis          │
-│  + pgvector            │          │  rate limits         │
-│  tenants, vendors,     │          │  job queue           │
-│  devices, chunks,      │          │  usage counters      │
-│  usage_log,            │          └──────────┬───────────┘
-│  vendor_analytics      │                     │
-└────────────────────────┘                     ▼
-                                ┌──────────────────────────┐
-                                │     Celery Workers       │
-                                │  ingest: chunk → embed   │
-                                │  analytics: daily aggr.  │
-                                │  billing: monthly calc.  │
-                                └──────────────┬───────────┘
-                                               │
-                          ┌────────────────────┼────────────────────┐
-                          ▼                    ▼                    ▼
-                ┌──────────────────┐ ┌──────────────────┐ ┌────────────────┐
-                │  MinIO / S3      │ │  Celery Beat     │ │  Stripe API    │
-                │  original MD     │ │  periodic tasks  │ │  subscriptions │
-                │  vendor logos    │ │  (analytics,     │ │  usage records │
-                └──────────────────┘ │   billing)       │ │  invoices      │
-                                     └──────────────────┘ └────────────────┘
+│  + pgvector (HNSW)     │          │  Celery broker       │
+│  products, chunks,     │          │  TUS upload state    │
+│  chat_sessions,        │          │  rate limits         │
+│  upload_sessions       │          └──────────┬───────────┘
+└────────────────────────┘                     │
+        │                                      ▼
+        │                       ┌──────────────────────────┐
+        │                       │  Celery Worker + Beat    │
+        │                       │  ingest: chunk → embed   │
+        │                       │  cleanup: expired uploads│
+        │                       │  monitoring: health      │
+        │                       └──────────────┬───────────┘
+        │                                      │
+        │                 ┌────────────────────┼────────────────┐
+        │                 ▼                    ▼                ▼
+        │       ┌──────────────────┐ ┌──────────────┐ ┌────────────────┐
+        │       │  MinIO / S3      │ │  Ollama      │ │  Loki +        │
+        │       │  documents       │ │  LLM for RAG │ │  Grafana       │
+        └──────▶│  uploads         │ │  qwen2.5     │ │  (monitoring)  │
+                └──────────────────┘ └──────────────┘ └────────────────┘
 ```
 
 ---
@@ -131,12 +132,68 @@
 - Stripe integration: Subscriptions for base tier, metered billing for overage
 - Full pricing model: [MONETIZATION.md](MONETIZATION.md)
 
+### RAG Chat (LLM-Powered Conversational Interface)
+- AI chat with retrieval-augmented generation — answers grounded in indexed documentation
+- SSE streaming: tokens streamed to client as they are generated
+- Anti-hallucination: system prompt instructs LLM to cite only found sources, refuse if no relevant docs
+- Source attribution: each response includes source chunks with similarity scores
+- Auto-detection of product from user query (no explicit filter required)
+- Query enrichment: short follow-up messages expanded using conversation history
+- History-aware: last N messages included in LLM context for multi-turn conversations
+- Implementation: `chat/router.py`, `chat/rag.py`, `llm/client.py`
+
+### LLM Provider
+- **Tiered model strategy**: different developer tiers use different LLM models
+- **Ollama** (local): `qwen2.5-coder:7b` — default for development, zero API cost
+- **OpenAI-compatible API**: any endpoint that implements the OpenAI chat completions API
+- Provider selected via `LLM_PROVIDER` env variable (`ollama` | `openai`)
+- Model routing by tier: Free/Pro → Gemini Flash, Team/Enterprise → Opus 4.6
+- Streaming support for both providers (Ollama JSON lines, OpenAI SSE)
+- **Per-model billing**: input + output charged separately at model-specific rates
+- Configurable: model, temperature, max_tokens, timeout
+
+**Production models:**
+
+| Model | Provider | Input / Output (per 1M tokens) | Cost per query | Tier |
+|-------|----------|:------------------------------:|:--------------:|------|
+| Gemini 2.5 Flash | Google AI Studio | $0.30 / $2.50 | ~$0.004 | Free, Pro (default) |
+| Claude Opus 4.6 | Anthropic | $5.00 / $25.00 | ~$0.045 | Team, Enterprise, Pro (option: 100/mo) |
+| Ollama (qwen2.5-coder:7b) | Local | $0 (GPU ~$200-400/mo) | ~$0 | Development / fallback |
+
+Opus 4.6 serves as a premium **anchor product** — its superior quality drives tier upgrades while per-model billing protects margins. See [MONETIZATION.md](MONETIZATION.md#ai-model-tiers) for tier mapping and [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md#26-llm-api-for-rag-chat) for detailed cost analysis.
+
+### TUS Resumable Upload
+- TUS v1.0.0 protocol for large file uploads (up to 5 GB)
+- Chunked upload directly to S3 via multipart upload
+- Pause/resume support — upload state persisted in `upload_sessions` table
+- Incremental SHA-256 hash computed during upload (state serialized between chunks)
+- Auto-expiration of incomplete uploads (`tus_upload_ttl_hours`, default 24h)
+- Celery Beat task cleans up expired sessions and aborts S3 multipart uploads
+- Quota enforcement: per-file, per-product, and global storage limits
+- Implementation: `uploads/router.py`, `uploads/quota.py`
+
+### Archive Ingestion
+- Upload a single archive containing multiple documentation files
+- Supported archive formats: ZIP, 7z, tar, tar.gz, tar.bz2, tar.xz, RAR
+- Each file inside the archive is detected and ingested independently
+- Supported file types inside archives: `.md`, `.json`, `.yaml`, `.yml`, `.pdf`, `.proto`, `.txt`, `.wsdl`, `.xml`
+- Archive size limit: `MAX_ARCHIVE_SIZE_MB` (default 350 MB)
+- Implementation: `documents/archive.py`, `documents/router.py`
+
+### Monitoring & Observability
+- **Grafana + Loki + Promtail** — log-based monitoring (no Prometheus)
+- 9 Grafana dashboards: overview, system, ingestion, doc audit, queue, AI chat, search, MCP tools, alerts/SLA
+- 8 alert rules: error rate, latency, DB pool, service down, ingestion failures, chat errors, Ollama health
+- Structured JSON logging via `structlog` with `request_id` correlation
+- Request logging middleware: timing, status codes, active request count
+- Full details: [MONITORING.md](MONITORING.md)
+
 ### Embedding Strategy
 - **OpenAI `text-embedding-3-small`** (1536 dims) for cloud — best quality
-- **`all-MiniLM-L6-v2`** (384 dims) for on-premise / offline — zero-padded to 1536
-- Provider selected via `EMBEDDING_PROVIDER` env variable
-- Fixed `vector(1536)` column in pgvector — no schema changes when switching providers
-- Zero-padded vectors preserve cosine similarity correctness in the 384-dim subspace
+- **`intfloat/multilingual-e5-small`** (1024 dims) for local / offline — default for development
+- Provider selected via `EMBEDDING_PROVIDER` env variable (`local` | `openai`)
+- Fixed `vector(1024)` column in pgvector for local; `vector(1536)` for OpenAI
+- E5 models use instruction-prefixed queries (`query:` / `passage:`) for better retrieval
 
 ### Supported Document Formats
 
@@ -150,6 +207,7 @@ All formats are normalized to **chunks** in pgvector. The original file is prese
 | PDF (text-based) | `.pdf` | PyMuPDF text extract → chunking | **2** | ~$0.005 |
 | PDF (scanned / OCR) | `.pdf` | EasyOCR → text → chunking | **5** | ~$0.02 |
 | Web page | URL | httpx + BeautifulSoup → cleaning → chunking | **2** | ~$0.003 |
+| Protobuf | `.proto` | Service/method/message extraction → Markdown | **1** | ~$0.001 |
 
 Full details: [FLOWS.md — Supported Document Formats](FLOWS.md#supported-document-formats)
 
@@ -191,180 +249,179 @@ Full partitioning DDL and details: [DATABASE.md — Vector Search Scaling](DATAB
 ipcodex/
   backend/
     app/
-      main.py                # FastAPI app entry point + lifespan
+      main.py                # FastAPI app + FastMCP registration + lifespan
       config.py              # Settings via pydantic-settings (env vars)
       models.py              # SQLAlchemy ORM models (all tables)
       database.py            # Async engine, session factory, connection pool
-      deps.py                # FastAPI dependencies (auth, db session, rate limit)
+      celery_app.py          # Celery configuration (Redis broker) + beat_schedule
+      s3.py                  # S3/MinIO client (upload, download, presigned URLs)
+      logging_config.py      # structlog setup, JSON + file handlers, rotation
 
-      auth/
-        api_key.py           # API Key validation → tenant resolution
-        jwt.py               # JWT for Web UI (future)
-        middleware.py         # Auth middleware for all routes
+      chat/                  # ✅ RAG Chat with LLM
+        router.py            # REST API: sessions CRUD, send message (SSE streaming)
+        rag.py               # RAG service: query enrichment, context building, anti-hallucination
+        schemas.py           # Pydantic: CreateSessionRequest, SessionResponse, SourceInfo, etc.
 
-      tenants/
-        router.py            # CRUD: create/update/delete tenants
-        schemas.py           # Pydantic request/response schemas
-        service.py           # Business logic, subscription management
-
-      devices/
-        router.py            # Device + firmware CRUD
-        schemas.py
-        service.py
+      llm/                   # ✅ LLM provider abstraction
+        client.py            # stream_chat_completion (Ollama / OpenAI-compatible), health check
 
       documents/
-        router.py            # Upload markdown, trigger ingestion
-        schemas.py
-        service.py
+        router.py            # Upload file/URL/archive, list, status, download, delete, reindex
+        archive.py           # ✅ Archive extraction: ZIP, 7z, tar, tar.gz, tar.bz2, tar.xz, RAR
+        schemas.py           # Pydantic: IngestResponse, DocumentStatus, DocumentListItem
+
+      uploads/               # ✅ TUS resumable upload
+        router.py            # TUS v1.0.0: POST/HEAD/PATCH/DELETE, multipart S3 upload
+        quota.py             # Storage quota enforcement (per-file, per-product, global)
 
       search/
-        router.py            # REST search endpoint
-        service.py           # Vector search with tenant isolation
-        reranker.py          # Optional cross-encoder reranking
+        service.py           # Vector search (pgvector cosine similarity, heading_path match)
 
       mcp/
-        server.py            # MCP tools: search_docs, get_endpoint, list_devices
-        transport.py         # HTTP/SSE MCP transport adapter
+        server.py            # MCP tools: search_documentation, get_api_endpoint, list_products
 
       ingestion/
-        chunker.py           # Base chunking logic (split/merge/overlap)
-        embedder.py          # OpenAI + local embedding abstraction
-        tasks.py             # Celery async tasks (ingest_document)
-        pipeline.py          # Orchestration: detect format → parse → embed → store
+        chunker.py           # Chunking logic (split/merge/overlap by token count)
+        embedder.py          # Embedding abstraction (E5 local + OpenAI)
+        pipeline.py          # Orchestration: detect format → convert → parse → chunk → embed → store
+        converters/
+          pdf.py             # PDF → Markdown (pymupdf4llm + optional EasyOCR)
+          swagger.py         # Swagger/OpenAPI → Markdown (structured endpoints)
+          web.py             # URL → Markdown (Swagger UI detection, Crawl4AI fallback)
+          proto.py           # ✅ Protobuf → Markdown (services, methods, messages)
         parsers/
-          __init__.py        # Format router: detect_format(file) → parser class
-          markdown.py        # MD → chunks by H1/H2/H3 headers
-          swagger.py         # OpenAPI 2.0/3.x → 1 chunk per endpoint
-          postman.py         # Postman Collection v2.1 → endpoint docs
-          pdf.py             # PyMuPDF text extraction → chunks
-          ocr.py             # EasyOCR (scanned PDFs) → text → chunks
-          web.py             # httpx + BeautifulSoup → clean HTML → chunks
+          markdown.py        # Markdown → sections by H1/H2/H3 headers
+          swagger.py         # OpenAPI → 1 section per endpoint
 
-      billing/
-        usage.py             # Write usage_log entries, query monthly totals
-        limits.py            # Tier-based limits enforcement + quota checks
-        stripe.py            # Stripe subscriptions, usage records, customer sync
-        webhooks.py          # Stripe webhook handler (payment events)
-        alerts.py            # Spending alerts at 80%/100% (email via SendGrid/SES)
-        tasks.py             # Celery periodic tasks: daily analytics, monthly billing
-        schemas.py
+      middleware/            # ✅ Request logging
+        request_logging.py   # RequestLoggingMiddleware: request_id, access log, timing
 
-      vendor/
-        router.py            # Vendor portal: publish docs, view analytics
-        schemas.py           # Pydantic request/response schemas for vendor API
-        service.py           # Vendor business logic, document publishing
-        analytics.py         # Daily aggregation of search stats per vendor/device
-
-      artifacts/
-        router.py            # Vendor artifact upload + developer download endpoints
-        schemas.py           # Pydantic schemas for artifacts
-        service.py           # Upload, scan orchestration, presigned URL generation
-        scanner.py           # Antivirus scanning (ClamAV integration)
-        tasks.py             # Celery tasks: virus scan, notification, changelog diff
-
-      importers/             # Custom vendor importers (Platinum tier)
-        __init__.py          # Importer registry + base class
-        base.py              # BaseImporter abstract class (crawl, parse, sync)
-        hikvision_isapi.py   # Example: Hikvision ISAPI portal scraper
-        dahua_http.py        # Example: Dahua HTTP API portal scraper
-        tasks.py             # Celery tasks: scheduled auto-sync per vendor
+      # --- Planned (not yet implemented) ---
+      auth/                  # API Key + JWT auth (Phase 2)
+      tenants/               # Tenant CRUD (Phase 2)
+      billing/               # Usage metering, Stripe, alerts (Phase 5)
+      vendor/                # Vendor portal + analytics (Phase 4)
+      artifacts/             # Firmware/SDK distribution (Phase 4b)
+      importers/             # Custom vendor importers (Phase 6)
 
     db/
-      schema.sql             # Full DDL (tables, indexes, RLS)
-      migrations/            # Alembic migrations
-      alembic.ini
+      schema.sql             # Full DDL (tables, indexes)
 
-    celery_app.py            # Celery configuration (Redis broker) + beat_schedule
+    scripts/
+      upload_document.py     # CLI: upload document or archive to API
+      convert_to_md.py       # CLI: offline document → Markdown conversion
 
     tests/
-      conftest.py            # Shared fixtures: test DB, Redis, S3, async client
-      unit/
-        test_chunker.py
-        test_embedder.py
-        test_auth.py
-        test_billing.py
-        test_schemas.py
-      integration/
-        test_db.py
-        test_search.py
-        test_ingestion.py
-        test_s3.py
-        test_rate_limiting.py
-      e2e/
-        test_developer_flow.py
-        test_vendor_flow.py
+      conftest.py            # Shared fixtures: Testcontainers PostgreSQL, mock embedder
+      unit/                  # ~25 test files: chunker, embedder, parsers, converters,
+                             #   chat, LLM, TUS, quota, S3, RAG, reindex, archives
+        converters/          # PDF, Swagger, web converter tests
+      integration/           # ~13 test files: pipeline, search, MCP tools, chat,
+                             #   TUS upload, archives (7z, tar, RAR), reindex, dedup
+      smoke/                 # Real embedding + pgvector smoke test
 
-    Dockerfile               # Python app container
+    Dockerfile
     requirements.txt
     pyproject.toml
 
-  docker-compose.yml         # Dev: PostgreSQL + Redis + API + Worker + MinIO
-  docker-compose.prod.yml    # Production overrides (replicas, resources, etc.)
+  frontend/
+    src/
+      components/            # ChatWindow, FileUpload, SessionList, MarkdownRenderer, etc.
+      hooks/                 # useChat (SSE streaming), useTheme
+      api/                   # HTTP client, chat API
+      locales/               # en.json, ru.json (i18n)
+      styles/                # globals.css, chat.css (light/dark theme)
+    package.json
+    vite.config.ts
+
+  monitoring/                # ✅ Grafana + Loki + Promtail
+    loki-config.yml
+    promtail-config.yml
+    grafana/provisioning/    # 9 dashboards, 8 alert rules, Loki datasource
+
+  architecture/              # Architecture documentation (this directory)
+  promo/                     # Landing pages and marketing materials
+  scripts/                   # Utility scripts (Ollama entrypoint)
+
+  docker-compose.yml         # Full stack: API, Worker, PostgreSQL, Redis, MinIO,
+                             #   Ollama, Frontend, Loki, Promtail, Grafana
+  docker-compose.dev.yml     # Lightweight: PostgreSQL only (for local development)
   .env.example               # Configuration template
-  .github/
-    workflows/
-      ci.yml                 # Lint + test + build
-      deploy.yml             # Deploy to staging / production
-  README.md
+  README.md                  # Project overview + quick start
 ```
 
 ---
 
 ## Technology Stack
 
-| Layer | Technology |
-|-------|-----------|
-| API Gateway | FastAPI + uvicorn |
-| MCP Server | FastMCP (Python MCP SDK), HTTP/SSE transport |
-| Database | PostgreSQL 16 + pgvector (HNSW index, HASH partitioning at scale) |
-| Cache / Rate Limit | Redis 7 |
-| Object Storage | MinIO / AWS S3 |
-| Background Jobs | Celery + Redis broker + Celery Beat (periodic) |
-| Embedding (cloud) | OpenAI text-embedding-3-small (1536 dims) |
-| Embedding (local) | sentence-transformers/all-MiniLM-L6-v2 (384 dims, zero-padded) |
-| ORM | SQLAlchemy 2.0 (async) |
-| Migrations | Alembic |
-| Auth | API Key (SHA-256 hashed) + JWT (future) |
-| Billing | Stripe (subscriptions + metered usage records) |
-| Email Alerts | SendGrid or AWS SES (spending alerts, vendor reports) |
-| Deployment | Docker Compose (dev) / Kubernetes (prod) |
-| Internationalization | i18next + react-i18next + i18next-browser-languagedetector (default: en) |
-| Token Counting | tiktoken |
-| Antivirus | ClamAV (clamd TCP socket, clamav/clamav Docker image) |
-| File Integrity | hashlib SHA-256 (auto-generated checksums) |
+| Layer | Technology | Status |
+|-------|-----------|:------:|
+| API Gateway | FastAPI + uvicorn | ✅ |
+| MCP Server | FastMCP (Python MCP SDK), Streamable HTTP | ✅ |
+| LLM (local) | Ollama — qwen2.5-coder:7b (default) | ✅ |
+| LLM (cloud) | Gemini 2.5 Flash (Free/Pro) + Claude Opus 4.6 (Team/Enterprise) | ✅ |
+| Database | PostgreSQL 16 + pgvector (HNSW index) | ✅ |
+| Cache / Queue | Redis 7 (Celery broker, TUS state) | ✅ |
+| Object Storage | MinIO / AWS S3 | ✅ |
+| Background Jobs | Celery + Redis broker + Celery Beat (periodic) | ✅ |
+| Embedding (local) | intfloat/multilingual-e5-small (1024 dims) | ✅ |
+| Embedding (cloud) | OpenAI text-embedding-3-small (1536 dims) | ✅ |
+| ORM | SQLAlchemy 2.0 (async) | ✅ |
+| Upload Protocol | TUS v1.0.0 (resumable, chunked to S3 multipart) | ✅ |
+| Archive Support | py7zr, rarfile, zipfile, tarfile | ✅ |
+| Monitoring | Grafana 11.6 + Loki 3.4 + Promtail 3.4 | ✅ |
+| Logging | structlog (JSON) + request_id middleware | ✅ |
+| Frontend | React + TypeScript + Vite | ✅ |
+| Internationalization | i18next + react-i18next (en, ru) | ✅ |
+| Theme | Light/dark theme (CSS variables + data-theme) | ✅ |
+| File Integrity | hashlib SHA-256 (incremental during TUS upload) | ✅ |
+| Migrations | Alembic | Planned |
+| Auth | API Key (SHA-256 hashed) + JWT (future) | Planned |
+| Billing | Stripe (subscriptions + metered usage records) | Planned |
+| Antivirus | ClamAV (clamd TCP socket) | Planned |
 
 ---
 
 ## Implementation Phases
 
-### Phase 1 — Core (Working Search)
+### Phase 1 — Core (Working Search) ✅
 
-| # | Task | Key Files |
-|---|------|-----------|
-| 1 | Infrastructure: Docker Compose + PostgreSQL schema (incl. vendor tables) | `docker-compose.yml`, `db/schema.sql` |
-| 2 | Configuration + database layer + SQLAlchemy models (all tables) | `config.py`, `database.py`, `models.py` |
-| 3 | Markdown chunker with tests | `ingestion/chunker.py`, `tests/test_chunker.py` |
-| 4 | Embedding abstraction (OpenAI + local) with tests | `ingestion/embedder.py`, `tests/test_embedder.py` |
-| 5 | Ingestion pipeline + Celery task | `ingestion/pipeline.py`, `ingestion/tasks.py` |
-| 6 | Vector search service with tenant isolation | `search/service.py`, `tests/test_search.py` |
+| # | Task | Status | Key Files |
+|---|------|:------:|-----------|
+| 1 | Infrastructure: Docker Compose + PostgreSQL schema | ✅ | `docker-compose.yml`, `db/schema.sql` |
+| 2 | Configuration + database layer + SQLAlchemy models | ✅ | `config.py`, `database.py`, `models.py` |
+| 3 | Markdown chunker with tests | ✅ | `ingestion/chunker.py`, `tests/test_chunker.py` |
+| 4 | Embedding abstraction (local E5 + OpenAI) with tests | ✅ | `ingestion/embedder.py`, `tests/test_embedder.py` |
+| 5 | Ingestion pipeline + Celery task + multi-format converters | ✅ | `ingestion/pipeline.py`, `ingestion/converters/` |
+| 6 | Vector search service | ✅ | `search/service.py`, `tests/test_search.py` |
+| 6a | PDF converter (pymupdf4llm + optional OCR) | ✅ | `ingestion/converters/pdf.py` |
+| 6b | Swagger/OpenAPI converter | ✅ | `ingestion/converters/swagger.py` |
+| 6c | Web page converter (Swagger UI + Crawl4AI) | ✅ | `ingestion/converters/web.py` |
+| 6d | Protobuf converter | ✅ | `ingestion/converters/proto.py` |
+| 6e | Archive ingestion (ZIP, 7z, tar, RAR) | ✅ | `documents/archive.py` |
 
-### Phase 2 — API + Auth + Metering
+### Phase 1b — RAG Chat + Upload ✅
 
-| # | Task | Key Files |
-|---|------|-----------|
-| 7 | FastAPI application with routers | `main.py`, routers, `deps.py` |
-| 8 | Dual API Key auth: tenant keys (`ipx_`) + vendor keys (`ipv_`) | `auth/api_key.py`, `auth/middleware.py` |
-| 9 | Rate limiting middleware (Redis sliding window) | `deps.py`, `billing/limits.py` |
-| 10 | Usage metering: log every billable call, real-time quota check | `billing/usage.py`, `billing/limits.py` |
-| 11 | REST endpoints: devices, documents, search, ingest | all tenant routers |
+| # | Task | Status | Key Files |
+|---|------|:------:|-----------|
+| 6f | RAG Chat: LLM + retrieval + SSE streaming | ✅ | `chat/router.py`, `chat/rag.py`, `llm/client.py` |
+| 6g | TUS resumable upload (up to 5 GB) | ✅ | `uploads/router.py`, `uploads/quota.py` |
+| 6h | Monitoring: Grafana + Loki + Promtail (9 dashboards, 8 alerts) | ✅ | `monitoring/` |
+| 6i | Request logging middleware | ✅ | `middleware/request_logging.py` |
+| 6j | Frontend: React SPA (chat, upload, i18n, dark/light theme) | ✅ | `frontend/src/` |
 
-### Phase 3 — MCP + IDE Integration
+### Phase 2 — API + MCP + IDE Integration (partially done)
 
-| # | Task | Key Files |
-|---|------|-----------|
-| 12 | MCP server with HTTP/SSE transport | `mcp/server.py`, `mcp/transport.py` |
-| 13 | MCP tools with billing integration (check_and_meter on each call) | `mcp/server.py`, `deps.py` |
-| 14 | Cursor IDE integration testing | manual testing |
+| # | Task | Status | Key Files |
+|---|------|:------:|-----------|
+| 7 | FastAPI application with routers | ✅ | `main.py`, routers |
+| 8 | Dual API Key auth: tenant keys (`ipx_`) + vendor keys (`ipv_`) | Planned | `auth/` |
+| 9 | Rate limiting middleware (Redis sliding window) | Planned | `billing/limits.py` |
+| 10 | Usage metering: log every billable call, quota check | Planned | `billing/usage.py` |
+| 11 | REST endpoints: documents, search, ingest, chat, upload | ✅ | all routers |
+| 12 | MCP server with Streamable HTTP transport | ✅ | `mcp/server.py` |
+| 13 | MCP tools (3): search_documentation, get_api_endpoint, list_products | ✅ | `mcp/server.py` |
+| 14 | Cursor IDE integration testing | ✅ | `.cursor/mcp.json` |
 
 ### Phase 4 — Vendor Portal + Marketplace
 
@@ -427,11 +484,11 @@ Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scali
 - [ ] Reranking strategy: cross-encoder model selection for top-N reranking
 - [x] ~~Web UI technology: React + TypeScript SPA vs Next.js~~ → React + TypeScript SPA + Vite
 - [ ] On-premise deployment: Helm chart for Kubernetes
-- [ ] Monitoring: Prometheus + Grafana vs cloud-native (Datadog, etc.)
+- [x] ~~Monitoring: Prometheus + Grafana vs cloud-native~~ → Grafana + Loki + Promtail (log-based, see [MONITORING.md](MONITORING.md))
 - [ ] CDN for static assets and S3 presigned URLs
 - [ ] Backup strategy: pg_dump schedule, S3 versioning
-- [ ] AI Chat interface (Phase 2 from CONTEXT.md): LLM + RAG conversational UI
-- [ ] Self-hosted embedding model selection: nomic-embed-text-v1.5 vs BGE-M3 vs all-MiniLM-L6-v2
+- [x] ~~AI Chat interface~~ → Implemented: RAG Chat with Ollama/OpenAI, SSE streaming, source attribution
+- [x] ~~Self-hosted embedding model selection~~ → `intfloat/multilingual-e5-small` (1024 dims, multilingual)
 
 ### Billing & Payments
 - [ ] Stripe integration: Subscriptions for base tiers + Usage Records for overage

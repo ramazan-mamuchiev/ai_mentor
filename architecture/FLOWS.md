@@ -24,14 +24,14 @@ Celery Worker: ingest_document(document_id)
   1. Download original from S3
   2. Route to format-specific parser:
      ┌─────────────────────────────────────────────────────────────────┐
-     │ FORMAT         │ PARSER                │ CHUNKING STRATEGY      │
-     │────────────────┼───────────────────────┼────────────────────────│
-     │ markdown       │ parsers/markdown.py   │ H1/H2/H3 headers      │
-     │ swagger/openapi│ parsers/swagger.py    │ 1 chunk per endpoint   │
-     │ postman        │ parsers/postman.py    │ 1 chunk per request    │
-     │ pdf (text)     │ parsers/pdf.py        │ Page extract → headers │
-     │ pdf (OCR)      │ parsers/ocr.py        │ EasyOCR → text → H1/2 │
-     │ web (URL)      │ parsers/web.py        │ Scrape → clean → H1/2 │
+     │ FORMAT         │ CONVERTER / PARSER          │ CHUNKING STRATEGY      │
+     │────────────────┼─────────────────────────────┼────────────────────────│
+     │ markdown       │ parsers/markdown.py         │ H1/H2/H3 headers      │
+     │ swagger/openapi│ converters/swagger.py       │ 1 chunk per endpoint   │
+     │ pdf (text)     │ converters/pdf.py           │ pymupdf4llm → headers  │
+     │ pdf (OCR)      │ converters/pdf.py + EasyOCR │ OCR → text → headers   │
+     │ web (URL)      │ converters/web.py           │ Scrape → clean → H1/2  │
+     │ protobuf       │ converters/proto.py         │ service/method/message  │
      └─────────────────────────────────────────────────────────────────┘
   3. Common post-processing:
      - Split large sections (>1500 tokens) with 100-token overlap
@@ -70,8 +70,9 @@ All formats are normalized to **chunks** in pgvector. The original file is prese
 | PDF (text-based) | `.pdf` | PyMuPDF text extract → chunking | **2** | ~$0.005 | 2x cost — text extraction overhead |
 | PDF (scanned / OCR) | `.pdf` | EasyOCR → text → chunking | **5** | ~$0.02 | 5x cost — GPU-intensive OCR, lowest quality |
 | Web page | URL | httpx + BeautifulSoup → cleaning → chunking | **2** | ~$0.003 | 2x cost — scraping + HTML cleanup |
+| Protobuf | `.proto` | proto-schema-parser → Markdown → chunking | **1** | ~$0.001 | Extracts services, methods, messages, enums |
 
-**Format auto-detection**: by file extension first, then by content inspection (JSON with `"openapi"` or `"swagger"` key → OpenAPI; JSON with `"info"."schema"` → Postman; PDF magic bytes; etc.). Client can override with explicit `format` parameter.
+**Format auto-detection**: by file extension first, then by content inspection (JSON with `"openapi"` or `"swagger"` key → OpenAPI; `.proto` extension → Protobuf; PDF magic bytes; etc.). Client can override with explicit `format` parameter.
 
 ---
 
@@ -204,3 +205,90 @@ Vendor uploads new firmware + SDK for a device:
         download_url: "https://...", sdk: "HikSDK_V5.7.21.zip",
         release_notes: "Added night vision API..." }
 ```
+
+---
+
+## Archive Ingestion Flow
+
+```
+Client: POST /api/v1/documents/ingest-archive
+  { file: <archive>, product_name, firmware_version, manufacturer }
+        │
+        ▼
+FastAPI: validate file size (≤ MAX_ARCHIVE_SIZE_MB, default 350 MB)
+         → detect archive type by extension
+        │
+        ▼
+Extract archive in memory:
+  ┌───────────────────────────────────────────────────┐
+  │ EXTENSION          │ EXTRACTOR                     │
+  │────────────────────┼───────────────────────────────│
+  │ .zip               │ zipfile (stdlib)              │
+  │ .7z                │ py7zr                         │
+  │ .tar / .tar.gz     │ tarfile (stdlib)              │
+  │ .tar.bz2 / .tar.xz│ tarfile (stdlib)              │
+  │ .rar               │ rarfile                       │
+  └───────────────────────────────────────────────────┘
+        │
+        ▼
+For each file in archive:
+  1. Check extension against allowed list:
+     .md, .json, .yaml, .yml, .pdf, .proto, .txt, .wsdl, .xml
+  2. Skip hidden files (._*, .DS_Store, __MACOSX/)
+  3. Detect format → convert → parse → chunk → embed → store
+  4. Each file becomes a separate Document record
+        │
+        ▼
+Return: { total_files, ingested, skipped, errors[] }
+```
+
+---
+
+## RAG Chat Flow
+
+```
+User sends message via Web UI:
+  POST /api/v1/chat/sessions/{id}/messages
+  { content: "How do I configure PTZ on Hikvision DS-2CD2347G2-LU?" }
+        │
+        ▼
+Server: load session (product_filter, version_filter, history)
+        │
+        ▼
+RAG Pipeline (chat/rag.py):
+  1. Auto-detect product from query (if no explicit filter)
+     → scan products table for name match in query text
+  2. Enrich query (if short follow-up like "and how about auth?")
+     → prepend context from last assistant message
+  3. Embed enriched query → vector [0.023, -0.118, ...]
+  4. Vector search: ORDER BY embedding <=> $q LIMIT rag_top_k (default 8)
+     → optional product/version filter
+  5. Format context: each chunk as numbered source with metadata
+  6. Build LLM messages:
+     - System prompt: "You are IPCodex assistant. Answer ONLY based on
+       provided documentation. Cite sources by number. If no relevant
+       docs found, say so."
+     - History: last N messages (configurable, default 10)
+     - User message with documentation context
+        │
+        ▼
+LLM Streaming (llm/client.py):
+  Provider: Ollama (local) or OpenAI-compatible API
+  → Stream tokens via SSE to client
+        │
+        ▼
+SSE Events to client:
+  1. event: token    → { "token": "The PTZ..." }     (each generated token)
+  2. event: sources  → { "sources": [...] }           (retrieved chunks with similarity)
+  3. event: done     → { "duration_ms": 2340 }        (completion signal)
+  4. event: error    → { "error": "..." }             (if LLM fails)
+        │
+        ▼
+Server: save assistant message + sources to chat_messages table
+```
+
+**Anti-hallucination strategy:**
+- System prompt explicitly instructs LLM to answer only from provided documentation
+- If no relevant chunks found (empty search results), LLM is told to say "I don't have documentation for this"
+- Source attribution: each answer references numbered sources that the user can verify
+- RAG debug info (search similarity scores, query enrichment) available in response metadata

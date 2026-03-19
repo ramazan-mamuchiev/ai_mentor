@@ -1,10 +1,12 @@
 # IPCodex — Deployment, Security & Operations
 
-> Part of [IPCodex Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md)
+> Part of [IPCodex Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
 
 ---
 
-## Docker Compose (Development)
+## Docker Compose (Current — Full Stack)
+
+The actual `docker-compose.yml` in the repository. Runs all services including monitoring.
 
 ```yaml
 services:
@@ -28,53 +30,113 @@ services:
     ports: ["9000:9000", "9001:9001"]
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ipcodex
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-ipcodex_dev}
-    volumes:
-      - minio_data:/data
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-ipcodex}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-ipcodex_dev}
 
   api:
     build: ./backend
     ports: ["8000:8000"]
-    depends_on: [postgres, redis, minio]
+    depends_on: [postgres, redis, minio, ollama]
     environment:
-      - DATABASE_URL=postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
-      - REDIS_URL=redis://redis:6379/0
-      - S3_ENDPOINT=http://minio:9000
-      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-openai}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+      DATABASE_URL: postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
+      DATABASE_URL_SYNC: postgresql://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      EMBEDDING_PROVIDER: local
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      OLLAMA_URL: http://ollama:11434
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      OPENAI_LLM_API_KEY: ${OPENAI_LLM_API_KEY:-}
+      OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
+      RAG_TOP_K: ${RAG_TOP_K:-8}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-50}
+      MAX_ARCHIVE_SIZE_MB: ${MAX_ARCHIVE_SIZE_MB:-350}
+      HF_HOME: /root/.cache/huggingface
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
 
   worker:
     build: ./backend
     depends_on: [postgres, redis, minio]
     environment:
-      - DATABASE_URL=postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
-      - REDIS_URL=redis://redis:6379/0
-      - S3_ENDPOINT=http://minio:9000
-      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-openai}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-    command: celery -A celery_app worker --loglevel=info --concurrency=4
+      # same as api (DATABASE_URL, REDIS_URL, S3_*, EMBEDDING_PROVIDER, HF_HOME)
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=3 -Q celery,monitoring -B
 
-  beat:
-    build: ./backend
-    depends_on: [postgres, redis]
+  web:
+    build: ./frontend
+    ports: ["80:80"]
+    depends_on: [api]
+
+  ollama:
+    image: ollama/ollama
+    ports: ["11434:11434"]
     environment:
-      - DATABASE_URL=postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
-      - REDIS_URL=redis://redis:6379/0
-      - STRIPE_API_KEY=${STRIPE_API_KEY:-}
-    command: celery -A celery_app beat --loglevel=info
-
-  clamav:
-    image: clamav/clamav:1.2
-    ports: ["3310:3310"]
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
     volumes:
-      - clamav_data:/var/lib/clamav    # virus definition database
+      - ollama_data:/root/.ollama
+      - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["bash", "/entrypoint.sh"]
+
+  loki:
+    image: grafana/loki:3.4.2
+    ports: ["3100:3100"]
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    ports: ["3000:3000"]
+    depends_on: [loki]
 
 volumes:
   pgdata:
+  redisdata:
   minio_data:
-  clamav_data:
+  hfcache:
+  ollama_data:
+  lokidata:
+  grafanadata:
+```
+
+### Docker Compose (Dev — Lightweight)
+
+`docker-compose.dev.yml` — PostgreSQL only, for local backend development:
+
+```yaml
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_DB: ipcodex
+      POSTGRES_USER: ipcodex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ipcodex_dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+```
+
+### Service URLs
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Web UI | http://localhost | React SPA (nginx) |
+| API | http://localhost:8000 | FastAPI backend |
+| API docs | http://localhost:8000/docs | Swagger UI (auto-generated) |
+| MCP | http://localhost:8000/mcp | MCP endpoint for Cursor/IDE |
+| Grafana | http://localhost:3000 | Dashboards + alerts |
+| MinIO | http://localhost:9001 | Object storage console |
+| Ollama | http://localhost:11434 | LLM API |
+
+### Planned Docker Compose (Production)
+
+```yaml
+# docker-compose.prod.yml — not yet implemented
+# Will add: replicas, resource limits, ClamAV, Stripe webhooks, production logging
 ```
 
 ---
@@ -122,11 +184,12 @@ File naming convention: `source.{ext}` where `ext` matches the original format (
 
 ## Configuration Reference (.env)
 
+### Currently Implemented
+
 ```bash
 # === Database ===
 DATABASE_URL=postgresql+asyncpg://ipcodex:password@postgres:5432/ipcodex
-DATABASE_POOL_SIZE=20
-DATABASE_MAX_OVERFLOW=10
+DATABASE_URL_SYNC=postgresql://ipcodex:password@postgres:5432/ipcodex
 
 # === Redis ===
 REDIS_URL=redis://redis:6379/0
@@ -136,55 +199,83 @@ S3_ENDPOINT=http://minio:9000
 S3_ACCESS_KEY=ipcodex
 S3_SECRET_KEY=ipcodex_dev
 S3_BUCKET=ipcodex-storage
-S3_REGION=us-east-1
-
-# === Embedding ===
-EMBEDDING_PROVIDER=openai                    # openai | local
-OPENAI_API_KEY=sk-...
-EMBEDDING_MODEL=text-embedding-3-small       # for openai provider
-LOCAL_MODEL_NAME=all-MiniLM-L6-v2            # for local provider
-EMBEDDING_DIMS=1536                          # fixed, do not change
-EMBEDDING_BATCH_SIZE=512                     # texts per API call
 
 # === Auth ===
+API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-tenancy yet)
+
+# === Embedding ===
+EMBEDDING_PROVIDER=local                     # local | openai
+# Local: intfloat/multilingual-e5-small (1024 dims), auto-downloaded on first run
+# OpenAI: text-embedding-3-small (1536 dims)
+OPENAI_API_KEY=sk-...                        # only if EMBEDDING_PROVIDER=openai
+
+# === LLM (RAG Chat) — Tiered Model Strategy ===
+# Default provider for development (local, $0 cost):
+LLM_PROVIDER=ollama                          # ollama | openai
+OLLAMA_URL=http://ollama:11434
+LLM_MODEL=qwen2.5-coder:7b                  # Ollama model name
+LLM_MAX_TOKENS=4096
+LLM_TEMPERATURE=0.2
+LLM_TIMEOUT=600                              # seconds
+
+# Gemini Flash — default for Free & Pro tiers ($0.30/$2.50 per 1M tokens)
+OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+OPENAI_LLM_API_KEY=...
+OPENAI_LLM_MODEL=gemini-2.5-flash
+
+# Claude Opus 4.6 — default for Team & Enterprise tiers ($5/$25 per 1M tokens)
+OPUS_BASE_URL=https://api.anthropic.com/v1
+OPUS_API_KEY=...
+OPUS_MODEL=claude-opus-4-6-20260319
+
+# Per-model billing: input+output tokens metered separately per model.
+# Model routing by tier: Free/Pro → OPENAI_LLM_MODEL, Team/Ent → OPUS_MODEL.
+# Pro users get 100 Opus queries/mo included (PRO_OPUS_QUOTA).
+PRO_OPUS_QUOTA=100                           # Opus queries included in Pro tier
+OPUS_OVERAGE_PRO=0.05                        # $/query overage for Pro
+OPUS_OVERAGE_TEAM=0.04                       # $/query overage for Team
+
+# === RAG ===
+RAG_TOP_K=8                                  # number of chunks to retrieve for context
+
+# === Upload Limits ===
+MAX_UPLOAD_SIZE_MB=50                        # single file upload limit
+MAX_ARCHIVE_SIZE_MB=350                      # archive upload limit
+TUS_MAX_FILE_SIZE_GB=5                       # TUS resumable upload limit
+TUS_UPLOAD_TTL_HOURS=24                      # auto-expire incomplete uploads
+
+# === Logging ===
+APP_ENV=development                          # development | staging | production
+APP_LOG_LEVEL=INFO
+LOG_DIR=/app/logs
+LOG_MAX_SIZE_MB=50                           # log file rotation size
+LOG_RETENTION_DAYS=30
+```
+
+### Planned (Not Yet Implemented)
+
+```bash
+# === Auth (multi-tenancy) ===
 API_KEY_PREFIX_TENANT=ipx_
 API_KEY_PREFIX_VENDOR=ipv_
-JWT_SECRET_KEY=...                           # for Web UI (future)
+JWT_SECRET_KEY=...
 JWT_ALGORITHM=HS256
-JWT_EXPIRE_MINUTES=1440                      # 24 hours
 
 # === Stripe ===
 STRIPE_API_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_ID_PRO=price_...
-STRIPE_PRICE_ID_TEAM=price_...
-STRIPE_PRICE_ID_VENDOR_PRO=price_...
-STRIPE_PRICE_ID_VENDOR_ENTERPRISE=price_...
-
-# === Email ===
-EMAIL_PROVIDER=sendgrid                      # sendgrid | ses
-SENDGRID_API_KEY=SG....
-EMAIL_FROM=noreply@ipcodex.dev
 
 # === Rate Limiting ===
-RATE_LIMIT_WINDOW_SECONDS=60
 RATE_LIMIT_FREE_RPM=10
 RATE_LIMIT_PRO_RPM=60
-RATE_LIMIT_TEAM_RPM=300
-RATE_LIMIT_ENTERPRISE_RPM=1000
 
 # === Antivirus (ClamAV) ===
 CLAMAV_HOST=clamav
 CLAMAV_PORT=3310
-CLAMAV_TIMEOUT=120                       # seconds (large files)
-ARTIFACT_MAX_SIZE_MB=2048                # 2 GB max upload
-ARTIFACT_SCAN_ENABLED=true
 
-# === Application ===
-APP_ENV=development                          # development | staging | production
-APP_DEBUG=true
-APP_LOG_LEVEL=INFO
-CORS_ORIGINS=http://localhost:3000           # comma-separated
+# === Email ===
+EMAIL_PROVIDER=sendgrid
+SENDGRID_API_KEY=SG....
 ```
 
 ---
@@ -244,51 +335,30 @@ CORS_ORIGINS=http://localhost:3000           # comma-separated
 
 ## Celery Beat Schedule
 
+### Currently Implemented
+
+The worker runs with `-B` flag (Beat embedded), processing queues `celery` and `monitoring`:
+
 ```python
-# celery_app.py
+# celery_app.py — current beat_schedule
 
 beat_schedule = {
-    # Spending alerts: check tenants approaching quota limits
-    "spending-alerts": {
-        "task": "billing.tasks.check_spending_alerts",
-        "schedule": crontab(minute=0),   # every hour, on the hour
+    "cleanup-expired-uploads": {
+        "task": "app.celery_app.cleanup_expired_uploads",
+        "schedule": crontab(minute=0),   # every hour
     },
+}
+```
 
-    # Vendor analytics: aggregate daily search stats per vendor/device
-    "vendor-analytics-daily": {
-        "task": "vendor.tasks.aggregate_daily_analytics",
-        "schedule": crontab(hour=2, minute=0),   # daily at 02:00 UTC
-    },
+### Planned (Not Yet Implemented)
 
-    # Monthly billing: calculate overage, report to Stripe
-    "monthly-billing": {
-        "task": "billing.tasks.process_monthly_billing",
-        "schedule": crontab(day_of_month=1, hour=6, minute=0),  # 1st of month, 06:00 UTC
-    },
-
-    # Storage snapshot: calculate per-tenant storage usage
-    "storage-snapshot": {
-        "task": "billing.tasks.snapshot_storage_usage",
-        "schedule": crontab(hour=3, minute=0),   # daily at 03:00 UTC
-    },
-
-    # Cleanup: purge old usage_log entries (> 2 years)
-    "usage-log-cleanup": {
-        "task": "billing.tasks.cleanup_old_usage_logs",
-        "schedule": crontab(day_of_month=15, hour=4, minute=0),  # 15th of month
-    },
-
-    # Artifact virus scan retry (re-scan pending/errored artifacts)
-    "artifact-scan-retry": {
-        "task": "artifacts.tasks.retry_pending_scans",
-        "schedule": crontab(minute=30),   # every hour at :30
-    },
-
-    # Custom importers auto-sync (Platinum vendors)
-    "importers-auto-sync": {
-        "task": "importers.tasks.run_scheduled_imports",
-        "schedule": crontab(hour=5, minute=0),   # daily at 05:00 UTC
-    },
+```python
+beat_schedule = {
+    "spending-alerts": { ... },           # hourly: check quota limits
+    "vendor-analytics-daily": { ... },    # daily: aggregate search stats
+    "monthly-billing": { ... },           # monthly: Stripe overage
+    "artifact-scan-retry": { ... },       # hourly: ClamAV retry
+    "importers-auto-sync": { ... },       # daily: vendor auto-sync
 }
 ```
 
@@ -296,64 +366,61 @@ beat_schedule = {
 
 ## Testing Strategy
 
-### Test Pyramid
+### Test Inventory (42 test files)
 
 ```
          ╱╲
-        ╱ E2E ╲          ~10 tests: full API flows (register → ingest → search)
+        ╱Smoke╲           1 file: real embedding + pgvector
        ╱────────╲
-      ╱Integration╲      ~30 tests: DB queries, S3 ops, Redis, Celery tasks
+      ╱Integration╲      13 files: PostgreSQL + pgvector via Testcontainers
      ╱──────────────╲
-    ╱   Unit Tests    ╲   ~100 tests: chunker, embedder, auth, billing logic
+    ╱   Unit Tests    ╲   28 files: mocked dependencies, fast execution
    ╱────────────────────╲
 ```
 
-### Unit Tests
-- **Chunker**: split by headers, merge small, split large, overlap, heading_path
-- **Embedder**: mock OpenAI, mock local model, zero-padding, batch size
-- **Auth**: key generation, hashing, prefix extraction, scope validation
-- **Billing**: quota check, overage calculation, tier limits
-- **Schemas**: Pydantic validation, edge cases
+### Unit Tests (~28 files)
 
-### Integration Tests
-- **DB**: CRUD operations, RLS enforcement, vector search accuracy
-- **S3**: upload/download, key structure
-- **Redis**: rate limiting window, counter expiration
-- **Celery**: task queuing, result tracking, error handling
+| Area | Test Files | What's Tested |
+|------|-----------|---------------|
+| Ingestion | `test_chunker`, `test_embedder`, `test_pipeline_utils`, `test_ingest_from_bytes` | Chunking, embedding, format detection, full ingestion from bytes |
+| Converters | `test_pdf`, `test_swagger`, `test_web`, `test_proto_converter` | PDF/OCR, Swagger/OpenAPI, URL, Protobuf → Markdown conversion |
+| Parsers | `test_markdown_parser`, `test_swagger_parser` | Markdown H1/H2/H3 splitting, OpenAPI endpoint extraction |
+| Archives | `test_archive_7z`, `test_archive_tar`, `test_archive_rar`, `test_archive_schemas` | ZIP/7z/tar/RAR extraction, format parity, edge cases |
+| Chat & LLM | `test_chat_router`, `test_llm_client`, `test_rag` | Chat API, LLM streaming, RAG context building |
+| Upload | `test_tus_router`, `test_quota` | TUS protocol, metadata parsing, storage quotas |
+| Celery | `test_celery_task`, `test_cleanup_task` | Ingestion task lifecycle, expired upload cleanup |
+| Documents | `test_documents_router`, `test_search_dedup` | REST API, deduplication |
+| Reindex | `test_reindex_router`, `test_reindex_service` | Reindex job API, stale detection |
+| S3 | `test_s3`, `test_s3_multipart` | Upload/download, multipart, key generation |
 
-### E2E Tests
-- Register tenant → create API key → ingest document → wait for ready → search → verify results
-- Register vendor → publish docs → verify in public catalog → tenant adds device → searches vendor docs
-- Rate limiting: exceed limit → 429 → wait → succeed
-- Quota: Free tier → 200 searches → 201st blocked
+### Integration Tests (~13 files)
+
+All integration tests use **Testcontainers** (PostgreSQL + pgvector) — Docker must be running.
+
+| Area | Test Files | What's Tested |
+|------|-----------|---------------|
+| Pipeline | `test_pipeline`, `test_proto_pipeline` | Full ingestion pipeline with real DB |
+| Search | `test_search` | Vector search accuracy, endpoint matching |
+| MCP | `test_mcp_tools`, `test_api` | All 3 MCP tools, HTTP protocol, tool listing |
+| Chat | `test_chat`, `test_chat_api` | Session CRUD, message persistence, RAG with real DB |
+| Upload | `test_tus_upload` | TUS model, status transitions, SHA-256, concurrent sessions |
+| Archives | `test_archive_7z_pipeline`, `test_archive_tar_pipeline`, `test_archive_rar_pipeline` | Full archive → ingest pipeline |
+| Documents | `test_document_dedup` | Hash-based deduplication with real DB |
+| Reindex | `test_reindex_api` | Reindex API with real DB + mocked Celery |
 
 ### Tools
 - `pytest` + `pytest-asyncio` for async tests
 - `httpx.AsyncClient` for FastAPI testing (no server needed)
-- `testcontainers` for PostgreSQL + Redis in CI
-- `moto` or `localstack` for S3 mocking
-- `fakeredis` for unit-level Redis tests
+- `testcontainers` for PostgreSQL + pgvector in CI
+- Mock embedder (returns deterministic vectors) for fast tests
 
-### Test Location
+### Running Tests
 
-```
-backend/
-  tests/
-    unit/
-      test_chunker.py
-      test_embedder.py
-      test_auth.py
-      test_billing.py
-    integration/
-      test_db.py
-      test_search.py
-      test_ingestion.py
-      test_s3.py
-    e2e/
-      test_developer_flow.py
-      test_vendor_flow.py
-      test_rate_limiting.py
-    conftest.py              # shared fixtures, test DB setup
+```bash
+cd backend
+pytest tests/ -v                    # all tests
+pytest tests/unit/ -v               # unit only (fast, no Docker)
+pytest tests/integration/ -v        # integration (requires Docker)
 ```
 
 ---
@@ -390,56 +457,37 @@ backend/
 
 ## Logging & Observability
 
+Monitoring is fully implemented using **Grafana + Loki + Promtail** (log-based, not metrics-based).
+
+Full details: [MONITORING.md](MONITORING.md) — dashboards, alert rules, structured logging, Promtail config.
+
 ### Structured Logging
 
-All logs in JSON format (for ELK/Datadog/CloudWatch ingestion):
+All logs in JSON format, consumed by Promtail → Loki:
 
 ```json
 {
-  "timestamp": "2026-03-15T14:30:00Z",
-  "level": "INFO",
-  "service": "api",
-  "tenant_id": "550e8400-...",
-  "action": "search",
+  "timestamp": "2026-03-15T14:30:00.123Z",
+  "level": "info",
+  "logger": "mcp",
+  "event": "MCP search_documentation completed",
+  "request_id": "a1b2c3d4",
   "duration_ms": 45,
-  "chunks_returned": 5,
-  "similarity_top": 0.89,
-  "request_id": "req_abc123"
+  "result_count": 5
 }
 ```
 
 - Library: `structlog` (structured logging for Python)
-- `request_id` generated per request (UUID), passed through all layers
-- Sensitive data (API keys, passwords) **never** logged
+- `request_id` generated per request (UUID via `RequestLoggingMiddleware`), passed through all layers
+- Log files: `app.log` (INFO+), `error.log` (ERROR+), `access.log` (HTTP requests)
+- File rotation: by size (50 MB default) and daily, 30-day retention
 
-### Health Endpoints
+### Health Endpoint
 
 | Endpoint | Checks | Response |
 |----------|--------|----------|
-| `GET /health` | Process is running | `200 {"status": "ok"}` |
-| `GET /ready` | DB connection + Redis ping + S3 bucket exists | `200 {"db": "ok", "redis": "ok", "s3": "ok"}` or `503` |
+| `GET /health` | Process is running, DB connected | `200 {"status": "ok", "db_pool_size": N, ...}` |
 
-### Metrics (for Prometheus / Datadog)
+### Dashboards & Alerts
 
-Key metrics to expose:
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `ipcodex_search_requests_total` | Counter | Total search requests (by tenant_tier, status) |
-| `ipcodex_search_duration_seconds` | Histogram | Search latency distribution |
-| `ipcodex_ingest_requests_total` | Counter | Total ingestion requests |
-| `ipcodex_ingest_duration_seconds` | Histogram | Ingestion latency |
-| `ipcodex_active_sse_connections` | Gauge | Current MCP SSE connections |
-| `ipcodex_chunks_total` | Gauge | Total chunks in pgvector |
-| `ipcodex_rate_limit_hits_total` | Counter | Rate limit 429 responses |
-| `ipcodex_quota_exceeded_total` | Counter | Quota block events (Free tier) |
-
-### Alerting Rules
-
-| Alert | Condition | Severity |
-|-------|-----------|----------|
-| API error rate > 5% | 5xx / total > 0.05 for 5 min | Critical |
-| Search latency p99 > 2s | p99 > 2000ms for 10 min | Warning |
-| DB connection pool exhausted | pool_size = active connections | Critical |
-| Celery queue backlog > 100 | pending tasks > 100 for 15 min | Warning |
-| Disk usage > 80% | pgvector storage > 80% capacity | Warning |
+9 Grafana dashboards and 8 alert rules are provisioned automatically. See [MONITORING.md](MONITORING.md) for the full list.

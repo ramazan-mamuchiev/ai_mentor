@@ -61,40 +61,65 @@
 | PUT | `/api/v1/devices/{id}` | Update device metadata | API Key (admin scope) |
 | DELETE | `/api/v1/devices/{id}` | Delete device + cascade documents | API Key (admin scope) |
 
-**Documents & Ingestion:**
+**Documents & Ingestion:** ✅
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/api/v1/documents/ingest` | Upload file (any format) + trigger indexing | API Key (ingest scope) |
-| GET | `/api/v1/documents` | List documents with status | API Key (list scope) |
-| GET | `/api/v1/documents/{id}` | Document details + chunk count | API Key (list scope) |
-| GET | `/api/v1/documents/{id}/status` | Ingestion job status | API Key (list scope) |
-| DELETE | `/api/v1/documents/{id}` | Delete document + chunks | API Key (admin scope) |
-| GET | `/api/v1/documents/{id}/download` | Presigned S3 URL (15 min TTL) | API Key (search scope) |
+| POST | `/api/v1/documents/ingest` | Upload file (any format) + trigger indexing | API Key |
+| POST | `/api/v1/documents/ingest-archive` | Upload archive (ZIP/7z/tar/RAR) + ingest all files | API Key |
+| GET | `/api/v1/documents` | List documents with status | API Key |
+| GET | `/api/v1/documents/{id}` | Document details + chunk count | API Key |
+| GET | `/api/v1/documents/{id}/status` | Ingestion job status | API Key |
+| GET | `/api/v1/documents/{id}/download` | Presigned S3 URL (15 min TTL) | API Key |
+| DELETE | `/api/v1/documents/{id}` | Delete document + chunks | API Key |
+| GET | `/api/v1/documents/queue-stats` | Celery queue statistics | API Key |
+| POST | `/api/v1/documents/requeue-pending` | Re-enqueue stuck documents | API Key |
+| POST | `/api/v1/documents/reindex` | Reindex all documents | API Key |
+| POST | `/api/v1/documents/reingest` | Re-ingest documents (optional product/format filter) | API Key |
+
+**Chat (RAG):** ✅
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/api/v1/chat/sessions` | Create chat session (optional product/version filter) | API Key |
+| GET | `/api/v1/chat/sessions` | List chat sessions (newest first) | API Key |
+| GET | `/api/v1/chat/sessions/{id}` | Session details with message history | API Key |
+| DELETE | `/api/v1/chat/sessions/{id}` | Delete session and messages | API Key |
+| POST | `/api/v1/chat/sessions/{id}/messages` | Send message → SSE stream (RAG + LLM) | API Key |
+
+**Uploads (TUS):** ✅
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| OPTIONS | `/api/v1/uploads` | TUS capabilities (version, extensions, max size) | None |
+| POST | `/api/v1/uploads` | Create TUS upload session | API Key |
+| HEAD | `/api/v1/uploads/{id}` | Get upload offset (resume point) | API Key |
+| PATCH | `/api/v1/uploads/{id}` | Upload chunk (append bytes) | API Key |
+| DELETE | `/api/v1/uploads/{id}` | Cancel upload + cleanup S3 | API Key |
 
 **Search:**
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/api/v1/search` | Semantic search (same as MCP tool) | API Key (search scope) |
-| POST | `/api/v1/search/endpoint` | Find specific API endpoint | API Key (search scope) |
+| POST | `/api/v1/search` | Semantic search (same as MCP tool) | API Key |
+| POST | `/api/v1/search/endpoint` | Find specific API endpoint | API Key |
 
-**Billing & Usage:**
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| GET | `/api/v1/usage` | Current month usage summary | API Key (any scope) |
-| GET | `/api/v1/usage/history` | Usage history by month | API Key (admin scope) |
-| GET | `/api/v1/billing/portal` | Redirect to Stripe billing portal | API Key (admin scope) |
-
-**Public Catalog:**
+**Billing & Usage (planned):**
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| GET | `/api/v1/catalog/devices` | Browse public device catalog (vendor-published) | API Key (any scope) |
-| POST | `/api/v1/catalog/devices/{id}/add` | Add public device to tenant's catalog | API Key (admin scope) |
-| GET | `/api/v1/catalog/devices/{id}/artifacts` | List firmware/SDK/tools for a device | API Key (any scope) |
-| GET | `/api/v1/artifacts/{id}/download` | Download firmware/SDK (presigned S3 URL) | API Key (search scope) |
+| GET | `/api/v1/usage` | Current month usage summary | API Key |
+| GET | `/api/v1/usage/history` | Usage history by month | API Key |
+| GET | `/api/v1/billing/portal` | Redirect to Stripe billing portal | API Key |
+
+**Public Catalog (planned):**
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| GET | `/api/v1/catalog/products` | Browse public product catalog (vendor-published) | API Key |
+| POST | `/api/v1/catalog/products/{id}/add` | Add public product to tenant's catalog | API Key |
+| GET | `/api/v1/catalog/products/{id}/artifacts` | List firmware/SDK/tools for a product | API Key |
+| GET | `/api/v1/artifacts/{id}/download` | Download firmware/SDK (presigned S3 URL) | API Key |
 
 ### Vendor Endpoints (`/vendor/v1/...`) — require `ipv_` API Key
 
@@ -115,12 +140,11 @@
 | GET | `/vendor/v1/artifacts/{id}/scan-status` | Check antivirus scan result | Vendor Key (any scope) |
 | DELETE | `/vendor/v1/artifacts/{id}` | Remove artifact from distribution | Vendor Key (publish scope) |
 
-### MCP Endpoints
+### MCP Endpoint ✅
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| GET | `/mcp/sse` | SSE stream for MCP protocol | API Key in header |
-| POST | `/mcp/message` | JSON-RPC MCP messages | API Key in header |
+| GET/POST | `/mcp` | Streamable HTTP MCP endpoint (FastMCP) | API Key (future) |
 
 ### System Endpoints
 
@@ -132,73 +156,84 @@
 
 ---
 
-## MCP Tools (Tenant-Scoped, Metered)
+## MCP Tools ✅
 
-Every MCP tool call goes through `check_and_meter` dependency:
-1. Authenticate API Key → resolve `tenant_id`
-2. Check monthly quota (`usage_log` count vs tier limit)
-3. If Free tier and over limit → return error "Monthly limit reached"
-4. If Pro/Team and over limit → allow but flag as overage
-5. Execute tool logic
-6. Write to `usage_log` (action, billable_units, tokens, duration)
+IPCodex exposes **3 tools** via the Model Context Protocol. The MCP server is focused on its core purpose: helping AI coding assistants find documentation for writing integration code.
+
+Ingestion tools (`ingest_document`, `ingest_url`) were intentionally excluded from MCP — they are administrative operations available via REST API only.
 
 ```python
-@mcp.tool()
-async def search_documentation(
+@mcp.tool(name="search_documentation")
+async def tool_search_documentation(
     query: str,
-    device: str | None = None,
+    product: str | None = None,
     version: str | None = None,
     limit: int = 5,
 ) -> str:
-    """Search device API documentation by semantic similarity.
-    Returns the most relevant chunks for your query.
-    Use this to find API endpoints, parameters, data formats, and examples."""
+    """Search IPCodex knowledge base for product integration documentation.
 
-@mcp.tool()
-async def get_api_endpoint(
+    IPCodex indexes API documentation for hardware devices (IP cameras, access controllers,
+    intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs).
+
+    Use this tool when you need to write integration code and need to find:
+    - REST/HTTP/gRPC/SOAP API endpoints and their parameters
+    - Authentication methods (API keys, OAuth, digest, ONVIF)
+    - Request/response formats, data models, and protocol details
+    - Code examples and integration patterns
+
+    Args:
+        query: Describe what you need in natural language.
+            Good: "how to open a door via HikCentral HTTP API"
+            Bad: "door" (too vague)
+        product: Filter by product name. Use list_products first.
+        version: Filter by firmware or API version.
+        limit: Number of results (1-20, default 5).
+    """
+
+@mcp.tool(name="get_api_endpoint")
+async def tool_get_api_endpoint(
     endpoint: str,
-    device: str | None = None,
+    product: str | None = None,
 ) -> str:
-    """Get detailed documentation for a specific API endpoint path.
-    Example: get_api_endpoint('/acs/v1/door/doControl')"""
+    """Look up documentation for a specific API endpoint path.
 
-@mcp.tool()
-async def list_devices() -> str:
-    """List all indexed devices with their firmware versions
-    and document counts in your account."""
+    Performs exact path match first, then falls back to semantic search.
 
-@mcp.tool()
-async def ingest_document(
-    file_path: str,
-    device_name: str,
-    firmware_version: str,
-    manufacturer: str = "",
-    format: str = "auto",   # auto | markdown | swagger | postman | pdf | web
+    Args:
+        endpoint: The API endpoint path.
+            Examples: "/acs/v1/door/doControl", "/ISAPI/AccessControl/Door/param"
+        product: Filter by product name.
+    """
+
+@mcp.tool(name="list_products")
+async def tool_list_products(
+    category: str | None = None,
+    query: str | None = None,
 ) -> str:
-    """Upload and index a documentation file (Markdown, Swagger/OpenAPI, Postman, PDF, or web URL).
-    Format is auto-detected or can be specified explicitly.
-    Processing happens in background — returns job_id for status polling.
-    Billable units depend on format: 1 (md/swagger/postman), 2 (pdf/web), 5 (scanned PDF/OCR)."""
+    """List products with indexed documentation available in IPCodex.
 
-@mcp.tool()
-async def download_document(
-    device: str,
-    version: str | None = None,
-    document_id: int | None = None,
-) -> str:
-    """Get a download link for the full original documentation file.
-    Returns a presigned S3 URL valid for 15 minutes.
-    Requires Pro tier or above. Respects vendor download policy."""
+    Call this FIRST to discover what products are available before using search_documentation.
 
-@mcp.tool()
-async def get_firmware(
-    device: str,
-    version: str | None = None,
-    artifact_type: str = "firmware",  # firmware | sdk | tool | driver
-) -> str:
-    """List available firmware, SDKs, and tools for a device.
-    Returns artifact metadata: filename, version, size, SHA-256 hash, download URL.
-    Only artifacts that passed antivirus scan (status='clean') are listed."""
+    Args:
+        category: Filter by product category.
+            Examples: "camera", "vms", "access_control", "intercom", "nvr", "sdk"
+        query: Search products by name or manufacturer.
+            Examples: "Hikvision", "Axxon", "DS-2CD"
+    """
+```
+
+**Output format**: compact single-line metadata + content (optimized for AI context windows):
+
+```
+[1] HikCentral | V2.6.1 | Door Control API > POST /acs/v1/door/doControl (similarity: 0.89)
+
+<chunk content>
+
+---
+
+[2] HikCentral | V2.6.1 | Door Control API > Authentication (similarity: 0.85)
+
+<chunk content>
 ```
 
 ---
