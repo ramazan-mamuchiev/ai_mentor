@@ -1,13 +1,11 @@
-"""MCP tools for IPCodex: search, get_endpoint, list_products, ingest."""
+"""MCP tools for IPCodex: semantic search over product documentation for writing integration code."""
 
 import logging
 import time
 
-from sqlalchemy import func, select
+from sqlalchemy import text
 
 from app.database import async_session
-from app.ingestion.pipeline import ingest_file, ingest_url
-from app.models import Chunk, Product, Document, FirmwareVersion
 from app.search.service import search_documents, search_endpoint
 
 logger = logging.getLogger(__name__)
@@ -19,16 +17,29 @@ async def tool_search_documentation(
     version: str | None = None,
     limit: int = 5,
 ) -> str:
-    """Search product API documentation by semantic similarity.
+    """Search IPCodex knowledge base for product integration documentation.
 
-    Returns the most relevant chunks for your query.
-    Use this to find API endpoints, parameters, data formats, and examples.
+    IPCodex indexes API documentation for hardware devices (IP cameras, access controllers,
+    intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs).
+
+    Use this tool when you need to write integration code and need to find:
+    - REST/HTTP/gRPC/SOAP API endpoints and their parameters
+    - Authentication methods (API keys, OAuth, digest, ONVIF)
+    - Request/response formats, data models, and protocol details
+    - Code examples and integration patterns
+    - Configuration parameters and supported values
 
     Args:
-        query: Natural language search query (e.g. "how to open a door via API")
-        product: Optional product name filter (e.g. "HikCentral")
-        version: Optional firmware version filter (e.g. "V2.6.1")
-        limit: Number of results to return (1-20, default 5)
+        query: Describe what you need in natural language.
+            Good: "how to open a door via HikCentral HTTP API"
+            Good: "Axxon One gRPC camera registration with analytics metadata"
+            Good: "ONVIF PTZ continuous move command"
+            Good: "RTSP stream URL format for Hikvision cameras"
+            Bad: "door" (too vague)
+        product: Filter by product name. Use list_products first to see available products.
+            Examples: "HikCentral", "Axxon One", "DS-2CD2347G2-LU"
+        version: Filter by firmware or API version. Examples: "V2.6.1", "5.0"
+        limit: Number of results (1-20, default 5). Use higher values for broad queries.
     """
     limit = max(1, min(limit, 20))
     logger.debug(
@@ -56,14 +67,12 @@ async def tool_search_documentation(
         logger.info("MCP search_documentation completed", extra=log_extra)
 
     if not results:
-        return "No results found. Try a different query or check that documents have been ingested."
+        return "No results found. Try a different query or check available products with list_products."
 
     parts: list[str] = []
     for i, r in enumerate(results, 1):
-        header = f"## Result {i} (similarity: {r['similarity']})"
-        meta = f"**Product:** {r['product_name']} | **Version:** {r['firmware_version']} | **Doc:** {r['doc_title']}"
-        path = f"**Section:** {r['heading_path']}"
-        parts.append(f"{header}\n{meta}\n{path}\n\n{r['content']}")
+        meta = f"[{i}] {r['product_name']} | {r['firmware_version']} | {r['doc_title']} > {r['heading_path']} (similarity: {r['similarity']})"
+        parts.append(f"{meta}\n\n{r['content']}")
 
     return "\n\n---\n\n".join(parts)
 
@@ -72,13 +81,18 @@ async def tool_get_api_endpoint(
     endpoint: str,
     product: str | None = None,
 ) -> str:
-    """Get detailed documentation for a specific API endpoint path.
+    """Look up documentation for a specific API endpoint path.
 
-    Use this when you know the exact endpoint path you need.
+    Use this when you already know the exact endpoint path and need its full documentation
+    (parameters, request body, response format, authentication, examples).
+
+    This performs an exact path match first, then falls back to semantic search.
 
     Args:
-        endpoint: API endpoint path (e.g. "/acs/v1/door/doControl")
-        product: Optional product name filter
+        endpoint: The API endpoint path to look up.
+            Examples: "/acs/v1/door/doControl", "/ISAPI/AccessControl/Door/param",
+            "/api/v2/cameras/{id}/streams", "POST /event/notification/alertStream"
+        product: Filter by product name. Examples: "HikCentral", "Axxon One"
     """
     logger.debug(
         "MCP get_api_endpoint called",
@@ -115,262 +129,89 @@ async def tool_get_api_endpoint(
 
     parts: list[str] = []
     for r in results:
-        meta = f"**Product:** {r['product_name']} | **Version:** {r['firmware_version']} | **Doc:** {r['doc_title']}"
-        path = f"**Section:** {r['heading_path']}"
-        match = f"**Match type:** {r.get('match_type', 'vector')}"
-        parts.append(f"{meta}\n{path}\n{match}\n\n{r['content']}")
+        match_type = r.get("match_type", "vector")
+        meta = f"{r['product_name']} | {r['firmware_version']} | {r['doc_title']} > {r['heading_path']} ({match_type} match)"
+        parts.append(f"{meta}\n\n{r['content']}")
 
     return "\n\n---\n\n".join(parts)
 
 
-async def tool_list_products() -> str:
-    """List all indexed products with their firmware versions and document counts.
+async def tool_list_products(
+    category: str | None = None,
+    query: str | None = None,
+) -> str:
+    """List products with indexed documentation available in IPCodex.
 
-    Use this to see what documentation is available before searching.
+    Call this FIRST to discover what products are available before using search_documentation.
+
+    Products include both hardware devices (IP cameras, access controllers, intercoms, NVRs)
+    and software platforms (VMS like Axxon One, PSIM, IoT platforms, SDKs).
+
+    Args:
+        category: Filter by product category.
+            Examples: "camera", "vms", "access_control", "intercom", "nvr", "sdk"
+        query: Search products by name or manufacturer.
+            Examples: "Hikvision", "Axxon", "DS-2CD"
     """
-    logger.debug("MCP list_products called")
+    logger.debug("MCP list_products called", extra={"category": category, "query": query})
 
     t0 = time.perf_counter()
     async with async_session() as session:
-        result = await session.execute(
-            select(
-                Product.id,
-                Product.name,
-                Product.manufacturer,
-                Product.model,
-                Product.category,
-            ).order_by(Product.name)
-        )
-        products = result.all()
+        where_clauses: list[str] = []
+        params: dict = {}
 
-        if not products:
-            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-            logger.info(
-                "MCP list_products completed",
-                extra={"tool": "list_products", "result_count": 0, "duration_ms": duration_ms},
+        if category:
+            where_clauses.append("p.category ILIKE :category")
+            params["category"] = f"%{category}%"
+        if query:
+            where_clauses.append(
+                "(p.name ILIKE :query OR p.manufacturer ILIKE :query)"
             )
-            return "No products indexed yet. Use ingest_document to add documentation."
+            params["query"] = f"%{query}%"
 
-        parts: list[str] = []
-        for prod in products:
-            fw_result = await session.execute(
-                select(FirmwareVersion.version).where(
-                    FirmwareVersion.product_id == prod.id
-                ).order_by(FirmwareVersion.version)
-            )
-            versions = [r[0] for r in fw_result.all()]
+        where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-            doc_count_result = await session.execute(
-                select(func.count(Document.id)).where(
-                    Document.product_id == prod.id,
-                    Document.status == "ready",
-                )
-            )
-            doc_count = doc_count_result.scalar() or 0
+        sql = text(f"""
+            SELECT
+                p.name,
+                p.manufacturer,
+                p.category,
+                COALESCE(STRING_AGG(DISTINCT fw.version, ', ' ORDER BY fw.version), '') AS versions,
+                COUNT(DISTINCT d.id) FILTER (WHERE d.status = 'ready') AS doc_count,
+                COUNT(c.id) FILTER (WHERE d.status = 'ready') AS chunk_count
+            FROM products p
+            LEFT JOIN firmware_versions fw ON fw.product_id = p.id
+            LEFT JOIN documents d ON d.product_id = p.id
+            LEFT JOIN chunks c ON c.document_id = d.id
+            {where_sql}
+            GROUP BY p.id, p.name, p.manufacturer, p.category
+            ORDER BY p.name
+        """)
 
-            chunk_count_result = await session.execute(
-                select(func.count(Chunk.id))
-                .join(Document, Chunk.document_id == Document.id)
-                .where(Document.product_id == prod.id, Document.status == "ready")
-            )
-            chunk_count = chunk_count_result.scalar() or 0
-
-            info = f"- **{prod.name}**"
-            if prod.manufacturer:
-                info += f" ({prod.manufacturer})"
-            info += f"\n  Versions: {', '.join(versions) if versions else 'none'}"
-            info += f"\n  Documents: {doc_count} | Chunks: {chunk_count}"
-            parts.append(info)
+        result = await session.execute(sql, params)
+        rows = result.mappings().all()
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     logger.info(
         "MCP list_products completed",
-        extra={"tool": "list_products", "result_count": len(products), "duration_ms": duration_ms},
-    )
-    return f"**Indexed products ({len(products)}):**\n\n" + "\n\n".join(parts)
-
-
-async def tool_ingest_document(
-    file_path: str,
-    product_name: str,
-    firmware_version: str = "1.0",
-    manufacturer: str = "",
-    format: str = "auto",
-    ocr_mode: str = "auto",
-    ocr_languages: str = "en",
-) -> str:
-    """Upload and index a documentation file for semantic search.
-
-    Supported formats: Markdown (.md), Swagger/OpenAPI (.yaml, .json), PDF (.pdf).
-    Format is auto-detected by default. PDF files support optional OCR for scanned pages.
-
-    Args:
-        file_path: Absolute path to the documentation file on the server
-        product_name: Name of the product (e.g. "HikCentral Professional")
-        firmware_version: Firmware/API version (e.g. "V2.6.1")
-        manufacturer: Product manufacturer (e.g. "Hikvision")
-        format: File format — "auto", "markdown", "swagger", or "pdf"
-        ocr_mode: OCR mode for PDFs — "auto" (OCR pages with images), "always", or "off"
-        ocr_languages: Comma-separated OCR language codes (e.g. "en", "en,ru")
-    """
-    import os
-
-    file_size = 0
-    try:
-        file_size = os.path.getsize(file_path)
-    except OSError:
-        pass
-
-    logger.debug(
-        "MCP ingest_document called",
-        extra={
-            "file_path": file_path, "product_name": product_name,
-            "firmware_version": firmware_version, "format": format,
-            "file_size_bytes": file_size, "ocr_mode": ocr_mode,
-        },
+        extra={"tool": "list_products", "result_count": len(rows), "duration_ms": duration_ms},
     )
 
-    t0 = time.perf_counter()
-    try:
-        async with async_session() as session:
-            result = await ingest_file(
-                session=session,
-                file_path=file_path,
-                product_name=product_name,
-                firmware_version=firmware_version,
-                manufacturer=manufacturer,
-                fmt=format,
-                ocr_mode=ocr_mode,
-                ocr_languages=ocr_languages,
-            )
-        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-    except Exception as e:
-        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-        logger.error(
-            "MCP ingest_document failed",
-            extra={
-                "tool": "ingest_document", "duration_ms": duration_ms,
-                "error_type": type(e).__name__, "file_size_bytes": file_size,
-            },
-            exc_info=True,
-        )
-        raise
+    if not rows:
+        if category or query:
+            return f"No products found matching your filter. Try list_products without filters to see all available products."
+        return "No products indexed yet."
 
-    log_extra = {
-        "tool": "ingest_document",
-        "status": result["status"],
-        "duration_ms": duration_ms,
-        "file_size_bytes": file_size,
-        "chunks": result.get("chunks", 0),
-    }
-    if result["status"] == "error":
-        logger.error("MCP ingest_document error", extra=log_extra)
-    elif duration_ms > 10000:
-        logger.warning("MCP ingest_document slow", extra=log_extra)
-    else:
-        logger.info("MCP ingest_document completed", extra=log_extra)
+    parts: list[str] = []
+    for row in rows:
+        line = f"- {row['name']}"
+        if row["manufacturer"]:
+            line += f" ({row['manufacturer']})"
+        if row["category"]:
+            line += f" [{row['category']}]"
+        if row["versions"]:
+            line += f" — versions: {row['versions']}"
+        line += f" — {row['doc_count']} docs, {row['chunk_count']} chunks"
+        parts.append(line)
 
-    if result["status"] == "ok":
-        lines = [
-            "Ingested successfully.",
-            f"Product: {result['product']} (fw: {result['firmware_version']})",
-            f"Format: {result['format']}",
-            f"Chunks: {result['chunks']}",
-            f"Duration: {result['duration_sec']}s",
-        ]
-        meta = result.get("convert_metadata", {})
-        if meta.get("ocr_applied"):
-            lines.append(f"OCR: applied ({meta.get('ocr_stats', {}).get('images_ocr_ok', 0)} images recognized)")
-        if meta.get("endpoints"):
-            lines.append(f"Endpoints: {meta['endpoints']} | Models: {meta.get('models', 0)}")
-        return "\n".join(lines)
-    elif result["status"] == "skipped":
-        return result.get("message", "Document already ingested (same hash).")
-    else:
-        return f"Ingestion failed: {result.get('error', 'unknown error')}"
-
-
-async def tool_ingest_url(
-    url: str,
-    product_name: str,
-    firmware_version: str = "1.0",
-    manufacturer: str = "",
-) -> str:
-    """Ingest documentation from a URL for semantic search.
-
-    Auto-detects content type:
-    - Direct Swagger/OpenAPI spec (JSON/YAML) — parsed into structured docs
-    - Swagger UI / ReDoc page — spec URL extracted from HTML, then parsed
-    - Generic web page — rendered via headless browser fallback
-
-    Args:
-        url: HTTP(S) URL pointing to API docs, Swagger UI, or a raw OpenAPI spec
-        product_name: Name of the product (e.g. "HikCentral Professional")
-        firmware_version: Firmware/API version (e.g. "V2.6.1")
-        manufacturer: Product manufacturer (e.g. "Hikvision")
-    """
-    logger.debug(
-        "MCP ingest_url called",
-        extra={"url": url, "product_name": product_name, "firmware_version": firmware_version},
-    )
-
-    t0 = time.perf_counter()
-    try:
-        async with async_session() as session:
-            result = await ingest_url(
-                session=session,
-                url=url,
-                product_name=product_name,
-                firmware_version=firmware_version,
-                manufacturer=manufacturer,
-            )
-        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-    except Exception as e:
-        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-        logger.error(
-            "MCP ingest_url failed",
-            extra={
-                "tool": "ingest_url", "duration_ms": duration_ms,
-                "error_type": type(e).__name__,
-            },
-            exc_info=True,
-        )
-        raise
-
-    log_extra = {
-        "tool": "ingest_url",
-        "status": result["status"],
-        "duration_ms": duration_ms,
-        "chunks": result.get("chunks", 0),
-    }
-    if result["status"] == "error":
-        logger.error("MCP ingest_url error", extra=log_extra)
-    elif duration_ms > 10000:
-        logger.warning("MCP ingest_url slow", extra=log_extra)
-    else:
-        logger.info("MCP ingest_url completed", extra=log_extra)
-
-    if result["status"] == "ok":
-        detection = result.get("detection_method", "unknown")
-        method_label = {
-            "direct_openapi_spec": "Direct OpenAPI spec",
-            "swagger_ui_extracted": "Extracted from Swagger UI",
-            "crawl4ai_fallback": "Web page (Crawl4AI)",
-            "raw_html_fallback": "Raw HTML",
-        }.get(detection, detection)
-
-        lines = [
-            "Ingested successfully from URL.",
-            f"Product: {result['product']} (fw: {result['firmware_version']})",
-            f"Detection: {method_label}",
-            f"Chunks: {result['chunks']}",
-            f"Duration: {result['duration_sec']}s",
-        ]
-        meta = result.get("convert_metadata", {})
-        if meta.get("endpoints"):
-            lines.append(f"Endpoints: {meta['endpoints']} | Models: {meta.get('models', 0)}")
-        return "\n".join(lines)
-    elif result["status"] == "skipped":
-        return result.get("message", "Content already ingested (same hash).")
-    else:
-        return f"URL ingestion failed: {result.get('error', 'unknown error')}"
+    return f"Available products ({len(rows)}):\n" + "\n".join(parts)

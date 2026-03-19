@@ -20,7 +20,6 @@ def _create_test_app(db_engine):
 
     from app.mcp.server import (
         tool_get_api_endpoint,
-        tool_ingest_document,
         tool_list_products,
         tool_search_documentation,
     )
@@ -35,7 +34,6 @@ def _create_test_app(db_engine):
     mcp.tool(name="search_documentation")(tool_search_documentation)
     mcp.tool(name="get_api_endpoint")(tool_get_api_endpoint)
     mcp.tool(name="list_products")(tool_list_products)
-    mcp.tool(name="ingest_document")(tool_ingest_document)
 
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -138,7 +136,6 @@ class TestMCPProtocol:
         assert "search_documentation" in tool_names
         assert "get_api_endpoint" in tool_names
         assert "list_products" in tool_names
-        assert "ingest_document" in tool_names
 
     async def test_invalid_jsonrpc(self, client):
         resp = await client.post(
@@ -151,7 +148,7 @@ class TestMCPProtocol:
         assert "error" in data
 
     async def test_full_lifecycle(self, client, db_session, sample_md_file):
-        """Full MCP lifecycle: initialize -> ingest -> list_devices -> search."""
+        """Full MCP lifecycle: initialize -> ingest -> list_products -> search."""
         init_resp = await self._mcp_call(client, "initialize", {
             "protocolVersion": "2025-03-26",
             "capabilities": {},
@@ -187,4 +184,72 @@ class TestMCPProtocol:
         assert "result" in search_data
         assert search_data["result"]["isError"] is False
         search_text = search_data["result"]["content"][0]["text"]
-        assert "Result 1" in search_text
+        assert "[1]" in search_text
+
+    async def test_tools_have_3_items(self, client):
+        """Verify exactly 3 tools are registered (no ingest tools)."""
+        await self._mcp_call(client, "initialize", {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1.0"},
+        })
+        resp = await self._mcp_call(client, "tools/list", {}, req_id=2)
+        tools = resp.json()["result"]["tools"]
+        assert len(tools) == 3
+        tool_names = sorted(t["name"] for t in tools)
+        assert tool_names == ["get_api_endpoint", "list_products", "search_documentation"]
+
+    async def test_list_products_with_query_filter(self, client, db_session, sample_md_file):
+        """Test list_products query parameter via MCP protocol."""
+        await self._mcp_call(client, "initialize", {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1.0"},
+        })
+
+        await ingest_file(
+            session=db_session,
+            file_path=sample_md_file,
+            product_name="FilterTestDevice",
+            firmware_version="1.0",
+        )
+
+        resp = await self._mcp_call(client, "tools/call", {
+            "name": "list_products",
+            "arguments": {"query": "FilterTest"},
+        }, req_id=3)
+        assert resp.status_code == 200
+        text = resp.json()["result"]["content"][0]["text"]
+        assert "FilterTestDevice" in text
+
+        resp_miss = await self._mcp_call(client, "tools/call", {
+            "name": "list_products",
+            "arguments": {"query": "Nonexistent"},
+        }, req_id=4)
+        text_miss = resp_miss.json()["result"]["content"][0]["text"]
+        assert "No products found" in text_miss
+
+    async def test_get_api_endpoint_via_protocol(self, client, db_session, sample_md_file):
+        """Test get_api_endpoint tool via MCP JSON-RPC."""
+        await self._mcp_call(client, "initialize", {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1.0"},
+        })
+
+        await ingest_file(
+            session=db_session,
+            file_path=sample_md_file,
+            product_name="EndpointTestDevice",
+            firmware_version="1.0",
+        )
+
+        resp = await self._mcp_call(client, "tools/call", {
+            "name": "get_api_endpoint",
+            "arguments": {"endpoint": "Open Door"},
+        }, req_id=3)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["result"]["isError"] is False
+        text = data["result"]["content"][0]["text"]
+        assert "EndpointTestDevice" in text
