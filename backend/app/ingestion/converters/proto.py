@@ -1,6 +1,7 @@
 """Convert .proto (Protocol Buffers / gRPC) files to structured Markdown.
 
-The converter parses proto3 syntax and produces Markdown that is optimised
+The converter uses ``proto-schema-parser`` (ANTLR-based, Buf grammar) to
+parse any valid proto2/proto3/editions file and produces Markdown optimised
 for semantic search: services become sections with method signatures,
 messages become tables of fields, and enums become bullet lists.
 """
@@ -9,8 +10,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import TextIO
 
+from proto_schema_parser import ast as proto_ast
+from proto_schema_parser.parser import Parser as _SchemaParser
+
+
+# ---------------------------------------------------------------------------
+# Internal domain model (stable API used by renderers and tests)
+# ---------------------------------------------------------------------------
 
 @dataclass
 class ProtoEnum:
@@ -72,292 +79,176 @@ class ProtoFile:
     enums: list[ProtoEnum] = field(default_factory=list)
 
 
-_RE_SYNTAX = re.compile(r'syntax\s*=\s*"([^"]+)"')
-_RE_PACKAGE = re.compile(r"package\s+([\w.]+)\s*;")
-_RE_IMPORT = re.compile(r'import\s+"([^"]+)"\s*;')
-_RE_OPTION = re.compile(r'option\s+([\w.]+)\s*=\s*"?([^";]+)"?\s*;')
-_RE_SERVICE = re.compile(r"service\s+(\w+)\s*\{")
-_RE_RPC = re.compile(
-    r"rpc\s+(\w+)\s*\(\s*(stream\s+)?(\S+)\s*\)\s*returns\s*\(\s*(stream\s+)?(\S+)\s*\)"
-)
-_RE_MESSAGE = re.compile(r"message\s+(\w+)\s*\{")
-_RE_ENUM = re.compile(r"enum\s+(\w+)\s*\{")
-_RE_ONEOF = re.compile(r"oneof\s+(\w+)\s*\{")
-_RE_MAP_FIELD = re.compile(
-    r"(map<[^>]+>)\s+(\w+)\s*=\s*(\d+)\s*;"
-)
-_RE_FIELD = re.compile(
-    r"(repeated\s+|optional\s+)?"
-    r"(\S+)\s+(\w+)\s*=\s*(\d+)\s*;"
-)
-_RE_ENUM_VALUE = re.compile(r"(\w+)\s*=\s*(-?\d+)\s*;")
-_RE_COMMENT_LINE = re.compile(r"^\s*//\s?(.*)")
-_RE_BLOCK_COMMENT_START = re.compile(r"/\*")
-_RE_BLOCK_COMMENT_END = re.compile(r"\*/")
+# ---------------------------------------------------------------------------
+# AST adapter: proto_schema_parser AST  ->  our domain model
+# ---------------------------------------------------------------------------
+
+_COMMENT_PREFIX = re.compile(r"^(?://\s?|/\*\s?|\s?\*/?\s?)")
 
 
-def _strip_inline_comment(line: str) -> tuple[str, str]:
-    """Return (code_part, inline_comment)."""
-    in_string = False
-    for i, ch in enumerate(line):
-        if ch == '"':
-            in_string = not in_string
-        if not in_string and line[i:i+2] == "//":
-            return line[:i].rstrip(), line[i+2:].strip()
-    return line, ""
+def _strip_comment_markers(text: str) -> str:
+    """Remove ``//``, ``/*``, ``*/`` prefixes from a comment string."""
+    lines: list[str] = []
+    for line in text.splitlines():
+        cleaned = _COMMENT_PREFIX.sub("", line).rstrip()
+        if cleaned:
+            lines.append(cleaned)
+    return "\n".join(lines)
 
 
-class _Parser:
-    """Simple state-machine parser for proto3 files."""
+def _collect_comment(elements: list, index: int) -> str:
+    """Walk backwards from *index* collecting adjacent Comment nodes."""
+    parts: list[str] = []
+    i = index - 1
+    while i >= 0 and isinstance(elements[i], proto_ast.Comment) and not elements[i].inline:
+        parts.append(_strip_comment_markers(elements[i].text))
+        i -= 1
+    parts.reverse()
+    return "\n".join(parts).strip()
 
-    def __init__(self, text: str):
-        self.lines = text.splitlines()
-        self.pos = 0
-        self.result = ProtoFile()
 
-    def parse(self) -> ProtoFile:
-        self._skip_whitespace()
-        while self.pos < len(self.lines):
-            line = self.lines[self.pos].strip()
+def _collect_inline_comment(elements: list, index: int) -> str:
+    """Look at the element right after *index* for an inline comment."""
+    nxt = index + 1
+    if nxt < len(elements) and isinstance(elements[nxt], proto_ast.Comment) and elements[nxt].inline:
+        return _strip_comment_markers(elements[nxt].text)
+    return ""
 
-            if not line or line.startswith("//"):
-                self.pos += 1
-                continue
 
-            if line.startswith("/*"):
-                self._skip_block_comment()
-                continue
+def _convert_field(f: proto_ast.Field, comment: str = "") -> ProtoField:
+    if f.cardinality is proto_ast.FieldCardinality.REPEATED:
+        label = "repeated"
+    elif f.cardinality is proto_ast.FieldCardinality.OPTIONAL:
+        label = "optional"
+    elif f.cardinality is proto_ast.FieldCardinality.REQUIRED:
+        label = "required"
+    else:
+        label = ""
+    return ProtoField(
+        label=label,
+        type=f.type,
+        name=f.name,
+        number=f.number,
+        comment=comment,
+    )
 
-            m = _RE_SYNTAX.search(line)
-            if m:
-                self.result.syntax = m.group(1)
-                self.pos += 1
-                continue
 
-            m = _RE_PACKAGE.search(line)
-            if m:
-                self.result.package = m.group(1)
-                self.pos += 1
-                continue
+def _convert_map_field(mf: proto_ast.MapField, comment: str = "") -> ProtoField:
+    map_type = f"map<{mf.key_type}, {mf.value_type}>"
+    return ProtoField(
+        label=map_type,
+        type=map_type,
+        name=mf.name,
+        number=mf.number,
+        comment=comment,
+    )
 
-            m = _RE_IMPORT.search(line)
-            if m:
-                self.result.imports.append(m.group(1))
-                self.pos += 1
-                continue
 
-            m = _RE_OPTION.search(line)
-            if m:
-                self.result.options[m.group(1)] = m.group(2)
-                self.pos += 1
-                continue
+def _convert_enum(node: proto_ast.Enum, comment: str = "") -> ProtoEnum:
+    values: list[tuple[str, int]] = []
+    for el in node.elements:
+        if isinstance(el, proto_ast.EnumValue):
+            values.append((el.name, el.number))
+    return ProtoEnum(name=node.name, values=values, comment=comment)
 
-            m = _RE_SERVICE.search(line)
-            if m:
-                comment = self._collect_preceding_comment()
-                svc = self._parse_service(m.group(1))
-                svc.comment = comment
-                self.result.services.append(svc)
-                continue
 
-            m = _RE_MESSAGE.search(line)
-            if m:
-                comment = self._collect_preceding_comment()
-                msg = self._parse_message(m.group(1))
-                msg.comment = comment
-                self.result.messages.append(msg)
-                continue
+def _convert_oneof(node: proto_ast.OneOf) -> ProtoOneOf:
+    oneof = ProtoOneOf(name=node.name)
+    elements = node.elements
+    for i, el in enumerate(elements):
+        if isinstance(el, proto_ast.Field):
+            cmt = _collect_inline_comment(elements, i) or _collect_comment(elements, i)
+            oneof.fields.append(_convert_field(el, cmt))
+    return oneof
 
-            m = _RE_ENUM.search(line)
-            if m:
-                comment = self._collect_preceding_comment()
-                en = self._parse_enum(m.group(1))
-                en.comment = comment
-                self.result.enums.append(en)
-                continue
 
-            self.pos += 1
+def _convert_message(node: proto_ast.Message, comment: str = "") -> ProtoMessage:
+    msg = ProtoMessage(name=node.name, comment=comment)
+    elements = node.elements
+    for i, el in enumerate(elements):
+        if isinstance(el, proto_ast.Field):
+            cmt = _collect_inline_comment(elements, i) or _collect_comment(elements, i)
+            msg.fields.append(_convert_field(el, cmt))
+        elif isinstance(el, proto_ast.MapField):
+            cmt = _collect_inline_comment(elements, i) or _collect_comment(elements, i)
+            msg.fields.append(_convert_map_field(el, cmt))
+        elif isinstance(el, proto_ast.OneOf):
+            msg.oneofs.append(_convert_oneof(el))
+        elif isinstance(el, proto_ast.Message):
+            nested_cmt = _collect_comment(elements, i)
+            msg.nested_messages.append(_convert_message(el, nested_cmt))
+        elif isinstance(el, proto_ast.Enum):
+            nested_cmt = _collect_comment(elements, i)
+            msg.nested_enums.append(_convert_enum(el, nested_cmt))
+    return msg
 
-        return self.result
 
-    def _skip_whitespace(self):
-        while self.pos < len(self.lines) and not self.lines[self.pos].strip():
-            self.pos += 1
+def _convert_method(node: proto_ast.Method, comment: str = "") -> ProtoMethod:
+    return ProtoMethod(
+        name=node.name,
+        input_type=node.input_type.type,
+        output_type=node.output_type.type,
+        client_streaming=node.input_type.stream,
+        server_streaming=node.output_type.stream,
+        comment=comment,
+    )
 
-    def _skip_block_comment(self):
-        while self.pos < len(self.lines):
-            if "*/" in self.lines[self.pos]:
-                self.pos += 1
-                return
-            self.pos += 1
 
-    def _collect_preceding_comment(self) -> str:
-        """Look backwards from current pos to collect // comment lines."""
-        comments: list[str] = []
-        i = self.pos - 1
-        while i >= 0:
-            m = _RE_COMMENT_LINE.match(self.lines[i])
-            if m:
-                comments.append(m.group(1))
-                i -= 1
-            else:
-                break
-        comments.reverse()
-        return "\n".join(comments).strip()
+def _convert_service(node: proto_ast.Service, comment: str = "") -> ProtoService:
+    svc = ProtoService(name=node.name, comment=comment)
+    elements = node.elements
+    for i, el in enumerate(elements):
+        if isinstance(el, proto_ast.Method):
+            method_cmt = _collect_comment(elements, i)
+            svc.methods.append(_convert_method(el, method_cmt))
+    return svc
 
-    def _parse_service(self, name: str) -> ProtoService:
-        svc = ProtoService(name=name)
-        self.pos += 1
-        brace_depth = 1
-        while self.pos < len(self.lines) and brace_depth > 0:
-            line = self.lines[self.pos].strip()
-            if not line or line.startswith("//"):
-                self.pos += 1
-                continue
-            if line.startswith("/*"):
-                self._skip_block_comment()
-                continue
 
-            brace_depth += line.count("{") - line.count("}")
+def _convert_ast(ast_file: proto_ast.File) -> ProtoFile:
+    """Convert a ``proto_schema_parser`` AST into our domain :class:`ProtoFile`."""
+    result = ProtoFile(
+        syntax=ast_file.syntax or ast_file.edition or "proto3",
+    )
 
-            m = _RE_RPC.search(line)
-            if m:
-                comment = self._collect_preceding_comment()
-                method = ProtoMethod(
-                    name=m.group(1),
-                    input_type=m.group(3),
-                    output_type=m.group(5),
-                    client_streaming=bool(m.group(2)),
-                    server_streaming=bool(m.group(4)),
-                    comment=comment,
-                )
-                svc.methods.append(method)
+    elements = ast_file.file_elements
+    for i, el in enumerate(elements):
+        if isinstance(el, proto_ast.Package):
+            result.package = el.name
+        elif isinstance(el, proto_ast.Import):
+            result.imports.append(el.name)
+        elif isinstance(el, proto_ast.Option):
+            result.options[el.name] = str(el.value)
+        elif isinstance(el, proto_ast.Service):
+            cmt = _collect_comment(elements, i)
+            result.services.append(_convert_service(el, cmt))
+        elif isinstance(el, proto_ast.Message):
+            cmt = _collect_comment(elements, i)
+            result.messages.append(_convert_message(el, cmt))
+        elif isinstance(el, proto_ast.Enum):
+            cmt = _collect_comment(elements, i)
+            result.enums.append(_convert_enum(el, cmt))
 
-            if brace_depth <= 0:
-                self.pos += 1
-                break
+    return result
 
-            self.pos += 1
-        return svc
 
-    def _parse_message(self, name: str) -> ProtoMessage:
-        msg = ProtoMessage(name=name)
-        self.pos += 1
-        brace_depth = 1
-        while self.pos < len(self.lines) and brace_depth > 0:
-            line = self.lines[self.pos].strip()
-            if not line or line.startswith("//"):
-                self.pos += 1
-                continue
-            if line.startswith("/*"):
-                self._skip_block_comment()
-                continue
-
-            code, inline_comment = _strip_inline_comment(line)
-
-            m = _RE_MESSAGE.search(code)
-            if m:
-                comment = self._collect_preceding_comment()
-                nested = self._parse_message(m.group(1))
-                nested.comment = comment
-                msg.nested_messages.append(nested)
-                continue
-
-            m = _RE_ENUM.search(code)
-            if m:
-                comment = self._collect_preceding_comment()
-                en = self._parse_enum(m.group(1))
-                en.comment = comment
-                msg.nested_enums.append(en)
-                continue
-
-            m = _RE_ONEOF.search(code)
-            if m:
-                oneof = self._parse_oneof(m.group(1))
-                msg.oneofs.append(oneof)
-                continue
-
-            brace_depth += code.count("{") - code.count("}")
-            if brace_depth <= 0:
-                self.pos += 1
-                break
-
-            m = _RE_MAP_FIELD.search(code)
-            if m:
-                comment = inline_comment or self._collect_preceding_comment()
-                fld = ProtoField(
-                    label=m.group(1),
-                    type=m.group(1),
-                    name=m.group(2),
-                    number=int(m.group(3)),
-                    comment=comment,
-                )
-                msg.fields.append(fld)
-                self.pos += 1
-                continue
-
-            m = _RE_FIELD.search(code)
-            if m:
-                comment = inline_comment or self._collect_preceding_comment()
-                label = (m.group(1) or "").strip()
-                fld = ProtoField(
-                    label=label,
-                    type=m.group(2),
-                    name=m.group(3),
-                    number=int(m.group(4)),
-                    comment=comment,
-                )
-                msg.fields.append(fld)
-
-            self.pos += 1
-        return msg
-
-    def _parse_oneof(self, name: str) -> ProtoOneOf:
-        oneof = ProtoOneOf(name=name)
-        self.pos += 1
-        brace_depth = 1
-        while self.pos < len(self.lines) and brace_depth > 0:
-            line = self.lines[self.pos].strip()
-            code, inline_comment = _strip_inline_comment(line)
-            brace_depth += code.count("{") - code.count("}")
-            if brace_depth <= 0:
-                self.pos += 1
-                break
-            m = _RE_FIELD.search(code)
-            if m:
-                fld = ProtoField(
-                    label=(m.group(1) or "").strip(),
-                    type=m.group(2),
-                    name=m.group(3),
-                    number=int(m.group(4)),
-                    comment=inline_comment,
-                )
-                oneof.fields.append(fld)
-            self.pos += 1
-        return oneof
-
-    def _parse_enum(self, name: str) -> ProtoEnum:
-        en = ProtoEnum(name=name, values=[])
-        self.pos += 1
-        brace_depth = 1
-        while self.pos < len(self.lines) and brace_depth > 0:
-            line = self.lines[self.pos].strip()
-            code, _ = _strip_inline_comment(line)
-            brace_depth += code.count("{") - code.count("}")
-            if brace_depth <= 0:
-                self.pos += 1
-                break
-            m = _RE_ENUM_VALUE.search(code)
-            if m:
-                en.values.append((m.group(1), int(m.group(2))))
-            self.pos += 1
-        return en
-
+# ---------------------------------------------------------------------------
+# Public parsing API
+# ---------------------------------------------------------------------------
 
 def parse_proto(text: str) -> ProtoFile:
-    """Parse proto3 source text into a structured ProtoFile."""
-    return _Parser(text).parse()
+    """Parse proto source text into a structured :class:`ProtoFile`.
 
+    Supports proto2, proto3, and protobuf editions.  Formatting style
+    (K&R, Allman, mixed, minified) does not matter — the ANTLR-based
+    parser works on tokens, not lines.
+    """
+    ast_file = _SchemaParser().parse(text)
+    return _convert_ast(ast_file)
+
+
+# ---------------------------------------------------------------------------
+# Markdown rendering  (unchanged — operates on our domain model)
+# ---------------------------------------------------------------------------
 
 def _render_enum_md(enum: ProtoEnum, heading_level: int = 3) -> str:
     hashes = "#" * heading_level
@@ -421,6 +312,10 @@ def _render_service_md(svc: ProtoService, heading_level: int = 2) -> str:
     lines.append("")
     return "\n".join(lines)
 
+
+# ---------------------------------------------------------------------------
+# Public conversion API
+# ---------------------------------------------------------------------------
 
 def convert_proto(text: str, filename: str = "") -> tuple[str, dict]:
     """Convert a .proto file to Markdown.

@@ -294,6 +294,175 @@ class TestIngestFromBytesProto:
             os.unlink(path)
 
 
+ALLMAN_PROTO_CONTENT = """\
+syntax = "proto3";
+package axxonsoft.bl.acfa;
+
+service AcfaService
+{
+    rpc ListUnitsEvents(ListUnitsEventsRequest) returns (stream ListUnitsEventsResponse);
+}
+
+message ListUnitsEventsRequest
+{
+    message Unit
+    {
+        string uid = 1;
+    }
+
+    repeated Unit items = 1;
+    int32 portion_size = 2;
+}
+
+message ListUnitsEventsResponse
+{
+    message UnitEvents
+    {
+        string uid = 1;
+        repeated string events = 2;
+    }
+
+    repeated UnitEvents items = 1;
+    bool more_data = 2;
+}
+
+enum EStatesMode
+{
+    SM_ALL = 0;
+    SM_CURRENT = 1;
+}
+"""
+
+
+class TestIngestFromBytesAllmanProto:
+    """Test that Allman-style proto files are correctly processed through ingest_from_bytes."""
+
+    @patch("app.ingestion.pipeline.embed_texts")
+    def test_allman_proto_produces_multiple_chunks(self, mock_embed):
+        """Real conversion (no mock on converter) — Allman proto should produce >1 chunk."""
+        from app.ingestion.pipeline import ingest_from_bytes
+
+        mock_embed.side_effect = lambda texts, **kw: [[0.1] * 1024 for _ in texts]
+
+        doc = _make_mock_document(format="proto")
+        path = _write_temp_file(ALLMAN_PROTO_CONTENT, suffix=".proto")
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.scalars.return_value.all.return_value = []
+
+        try:
+            result = ingest_from_bytes(
+                session=mock_session, document=doc,
+                file_path=path, original_filename="AcfaService.proto",
+            )
+            assert result["status"] == "ok"
+            assert result["chunks"] > 1, (
+                f"Allman-style proto should produce multiple chunks, got {result['chunks']}"
+            )
+            assert doc.status == "ready"
+        finally:
+            os.unlink(path)
+
+    @patch("app.ingestion.pipeline.embed_texts")
+    def test_allman_proto_heading_uses_original_filename(self, mock_embed):
+        """Chunks heading_path should reference original filename, not temp path."""
+        from app.ingestion.pipeline import ingest_from_bytes
+
+        mock_embed.side_effect = lambda texts, **kw: [[0.1] * 1024 for _ in texts]
+
+        doc = _make_mock_document(format="proto")
+        path = _write_temp_file(ALLMAN_PROTO_CONTENT, suffix=".proto")
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.scalars.return_value.all.return_value = []
+
+        added_chunks = []
+        original_add = mock_session.add
+
+        def capture_add(obj):
+            if hasattr(obj, "heading_path"):
+                added_chunks.append(obj)
+            return original_add(obj)
+
+        mock_session.add = capture_add
+
+        try:
+            result = ingest_from_bytes(
+                session=mock_session, document=doc,
+                file_path=path, original_filename="AcfaService.proto",
+            )
+            assert result["status"] == "ok"
+            assert len(added_chunks) > 0
+            all_headings = " ".join(c.heading_path for c in added_chunks)
+            assert "AcfaService.proto" in all_headings
+            assert "tmp" not in all_headings.lower()
+        finally:
+            os.unlink(path)
+
+    @patch("app.ingestion.pipeline.embed_texts")
+    def test_allman_proto_chunks_contain_key_content(self, mock_embed):
+        """Chunks should contain service/message/enum names from the Allman proto."""
+        from app.ingestion.pipeline import ingest_from_bytes
+
+        mock_embed.side_effect = lambda texts, **kw: [[0.1] * 1024 for _ in texts]
+
+        doc = _make_mock_document(format="proto")
+        path = _write_temp_file(ALLMAN_PROTO_CONTENT, suffix=".proto")
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.scalars.return_value.all.return_value = []
+
+        added_chunks = []
+        original_add = mock_session.add
+
+        def capture_add(obj):
+            if hasattr(obj, "content") and hasattr(obj, "heading_path"):
+                added_chunks.append(obj)
+            return original_add(obj)
+
+        mock_session.add = capture_add
+
+        try:
+            result = ingest_from_bytes(
+                session=mock_session, document=doc,
+                file_path=path, original_filename="AcfaService.proto",
+            )
+            assert result["status"] == "ok"
+            all_text = " ".join(
+                f"{c.heading_path} {c.content}" for c in added_chunks
+            )
+            assert "AcfaService" in all_text
+            assert "ListUnitsEventsResponse" in all_text
+            assert "ListUnitsEventsRequest" in all_text
+            assert "EStatesMode" in all_text
+        finally:
+            os.unlink(path)
+
+    @patch("app.ingestion.pipeline.embed_texts")
+    def test_allman_auto_detect_from_original_filename(self, mock_embed):
+        """format=auto + original_filename=X.proto should detect proto and parse Allman."""
+        from app.ingestion.pipeline import ingest_from_bytes
+
+        mock_embed.side_effect = lambda texts, **kw: [[0.1] * 1024 for _ in texts]
+
+        doc = _make_mock_document(format="auto")
+        path = _write_temp_file(ALLMAN_PROTO_CONTENT, suffix=".bin")
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.scalars.return_value.all.return_value = []
+
+        try:
+            result = ingest_from_bytes(
+                session=mock_session, document=doc,
+                file_path=path, original_filename="AcfaService.proto",
+            )
+            assert doc.format == "proto"
+            assert result["status"] == "ok"
+            assert result["chunks"] > 1
+        finally:
+            os.unlink(path)
+
+
 class TestIngestFromBytesNoContent:
     """Test behavior when no chunks are extracted."""
 
