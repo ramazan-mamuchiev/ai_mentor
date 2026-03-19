@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: Props) {
+  const { t } = useTranslation()
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -48,7 +50,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: P
             onClick={() => onSelect(s.id)}
           >
             <span className="session-item-title">
-              {s.title || s.last_message_preview || 'New Chat'}
+              {s.title || s.last_message_preview || t('session.newChat')}
             </span>
             <div className="session-item-actions" ref={isMenuOpen ? menuRef : undefined}>
               <button
@@ -57,7 +59,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: P
                   e.stopPropagation()
                   setMenuOpenId(isMenuOpen ? null : s.id)
                 }}
-                aria-label="Session options"
+                aria-label={t('session.options')}
               >
                 <MoreHorizontal size={16} />
               </button>
@@ -71,7 +73,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: P
                     }}
                   >
                     <Pencil size={14} />
-                    Rename
+                    {t('session.rename')}
                   </button>
                   <div className="session-context-menu-divider" />
                   <button
@@ -83,7 +85,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: P
                     }}
                   >
                     <Trash2 size={14} />
-                    Delete
+                    {t('session.delete')}
                   </button>
                 </div>
               )}

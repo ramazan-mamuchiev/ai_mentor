@@ -22,7 +22,6 @@ function renderChatWindow(overrides: Partial<Parameters<typeof ChatWindow>[0]> =
     streamingContent: '',
     streamingSources: [],
     status: 'idle' as const,
-    sessionTitle: null,
     onSend: vi.fn(),
     onCancel: vi.fn(),
   }
@@ -32,24 +31,20 @@ function renderChatWindow(overrides: Partial<Parameters<typeof ChatWindow>[0]> =
 describe('ChatWindow', () => {
   it('shows empty state when no messages', () => {
     renderChatWindow()
-    expect(screen.getByText('IPCodex AI')).toBeInTheDocument()
-    expect(screen.getByText(/Ask me anything/)).toBeInTheDocument()
+    expect(screen.getByText('IPCodex')).toBeInTheDocument()
+    expect(screen.getByText(/Protocols speak/)).toBeInTheDocument()
   })
 
   it('renders messages when present', () => {
-    renderChatWindow({ messages, sessionTitle: 'Test Chat' })
+    renderChatWindow({ messages })
     expect(screen.getByText('Hello')).toBeInTheDocument()
     expect(screen.getByText('Hi there!')).toBeInTheDocument()
   })
 
-  it('displays session title in header', () => {
-    renderChatWindow({ messages, sessionTitle: 'My Session' })
-    expect(screen.getByText('My Session')).toBeInTheDocument()
-  })
-
-  it('shows "New Chat" when no session title', () => {
+  it('shows branded empty state with badge and slogan', () => {
     renderChatWindow()
-    expect(screen.getByText('New Chat')).toBeInTheDocument()
+    expect(screen.getByText('AI Integration Platform')).toBeInTheDocument()
+    expect(screen.getByText('IPCodex')).toBeInTheDocument()
   })
 
   it('renders streaming message during streaming', () => {
@@ -57,7 +52,6 @@ describe('ChatWindow', () => {
       messages: [{ id: 1, session_id: 1, role: 'user', content: 'test', created_at: '' }],
       streamingContent: 'Streaming...',
       status: 'streaming',
-      sessionTitle: 'Chat',
     })
     expect(screen.getByText('Streaming...')).toBeInTheDocument()
   })
@@ -79,8 +73,7 @@ describe('ChatWindow smart auto-scroll', () => {
       messages: [{ id: 1, session_id: 1, role: 'user', content: 'q', created_at: '' }],
       streamingContent: 'tok1',
       status: 'streaming',
-      sessionTitle: 'Chat',
-    })
+      })
 
     scrollIntoViewMock.mockClear()
 
@@ -94,7 +87,6 @@ describe('ChatWindow smart auto-scroll', () => {
         streamingContent="tok1 tok2"
         streamingSources={[]}
         status="streaming"
-        sessionTitle="Chat"
         onSend={() => {}}
         onCancel={() => {}}
       />,
@@ -108,7 +100,6 @@ describe('ChatWindow smart auto-scroll', () => {
       messages: [{ id: 1, session_id: 1, role: 'user', content: 'q', created_at: '' }],
       streamingContent: 'tok1',
       status: 'streaming',
-      sessionTitle: 'Chat',
     })
 
     const container = getContainer()
@@ -123,7 +114,6 @@ describe('ChatWindow smart auto-scroll', () => {
         streamingContent="tok1 tok2"
         streamingSources={[]}
         status="streaming"
-        sessionTitle="Chat"
         onSend={() => {}}
         onCancel={() => {}}
       />,
@@ -137,7 +127,6 @@ describe('ChatWindow smart auto-scroll', () => {
       messages: [{ id: 1, session_id: 1, role: 'user', content: 'q', created_at: '' }],
       streamingContent: 'tok1',
       status: 'streaming',
-      sessionTitle: 'Chat',
     })
 
     const container = getContainer()
@@ -156,7 +145,6 @@ describe('ChatWindow smart auto-scroll', () => {
         streamingContent="tok1 tok2 tok3"
         streamingSources={[]}
         status="streaming"
-        sessionTitle="Chat"
         onSend={() => {}}
         onCancel={() => {}}
       />,
@@ -173,7 +161,6 @@ describe('ChatWindow smart auto-scroll', () => {
       messages: [{ id: 1, session_id: 1, role: 'user', content: 'q', created_at: '' }],
       streamingContent: 'tok1',
       status: 'streaming',
-      sessionTitle: 'Chat',
       onSend,
     })
 
@@ -192,13 +179,12 @@ describe('ChatWindow smart auto-scroll', () => {
         streamingContent=""
         streamingSources={[]}
         status="idle"
-        sessionTitle="Chat"
         onSend={onSend}
         onCancel={() => {}}
       />,
     )
 
-    const input = screen.getByPlaceholderText(/Ask/i)
+    const input = screen.getByPlaceholderText(/Ask about device/i)
     await user.type(input, 'follow up{Enter}')
 
     rerender(
@@ -211,7 +197,6 @@ describe('ChatWindow smart auto-scroll', () => {
         streamingContent="new response"
         streamingSources={[]}
         status="streaming"
-        sessionTitle="Chat"
         onSend={onSend}
         onCancel={() => {}}
       />,

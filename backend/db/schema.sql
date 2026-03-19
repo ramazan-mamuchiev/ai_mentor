@@ -84,3 +84,27 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id
 
 -- Deduplication index on document content hash
 CREATE INDEX IF NOT EXISTS idx_documents_source_hash ON documents(source_hash) WHERE source_hash != '';
+
+-- Upload sessions (TUS resumable upload protocol)
+CREATE TABLE IF NOT EXISTS upload_sessions (
+    id TEXT PRIMARY KEY,
+    filename TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    "offset" BIGINT NOT NULL DEFAULT 0,
+    content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    product_name TEXT NOT NULL,
+    firmware_version TEXT NOT NULL DEFAULT '1.0',
+    manufacturer TEXT NOT NULL DEFAULT '',
+    is_archive BOOLEAN NOT NULL DEFAULT FALSE,
+    force BOOLEAN NOT NULL DEFAULT FALSE,
+    s3_upload_id TEXT NOT NULL DEFAULT '',
+    s3_key TEXT NOT NULL DEFAULT '',
+    parts_json TEXT NOT NULL DEFAULT '[]',
+    sha256_state TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'uploading',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_upload_sessions_status ON upload_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_upload_sessions_expires ON upload_sessions(expires_at);

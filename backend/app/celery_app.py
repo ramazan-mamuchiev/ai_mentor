@@ -6,12 +6,30 @@ import tempfile
 import time
 
 from celery import Celery
-from sqlalchemy import create_engine
+from celery.signals import (
+    after_setup_logger,
+    before_task_publish,
+    task_prerun,
+    task_postrun,
+    task_failure,
+    task_retry,
+    worker_ready,
+)
+from sqlalchemy import create_engine, func, select as sa_select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.logging_config import setup_logging
 
+setup_logging()
 logger = logging.getLogger(__name__)
+_signals_logger = logging.getLogger("celery.signals")
+
+
+@after_setup_logger.connect
+def _on_after_setup_logger(logger=None, **kw):
+    """Re-apply our JSON logging after Celery replaces the root logger config."""
+    setup_logging()
 
 celery = Celery("ipcodex", broker=settings.redis_url, backend=settings.redis_url)
 celery.conf.update(
@@ -21,7 +39,143 @@ celery.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    worker_hijack_root_logger=False,
+    task_routes={
+        "queue_status_snapshot": {"queue": "monitoring"},
+        "cleanup_expired_uploads": {"queue": "monitoring"},
+    },
+    beat_schedule={
+        "cleanup-expired-uploads": {
+            "task": "cleanup_expired_uploads",
+            "schedule": 3600.0,
+        },
+        "queue-status-snapshot": {
+            "task": "queue_status_snapshot",
+            "schedule": 30.0,
+        },
+    },
 )
+
+_task_publish_times: dict[str, float] = {}
+
+
+def _extract_document_id(args, kwargs):
+    """Extract document_id from task args/kwargs."""
+    if args:
+        return args[0]
+    if kwargs:
+        return kwargs.get("document_id")
+    return None
+
+
+@before_task_publish.connect
+def _on_before_task_publish(sender=None, headers=None, body=None, **kwargs):
+    """Logged from the API container when a task is sent to the broker."""
+    task_id = headers.get("id") if headers else None
+    task_name = sender or "unknown"
+    args = body[0] if body and isinstance(body, (list, tuple)) and body else []
+    kw = body[1] if body and isinstance(body, (list, tuple)) and len(body) > 1 else {}
+    doc_id = _extract_document_id(args, kw)
+
+    if task_id:
+        _task_publish_times[task_id] = time.time()
+
+    extra = {"event": "Task queued", "task_name": task_name, "task_id": task_id}
+    if doc_id is not None:
+        extra["document_id"] = doc_id
+    _signals_logger.info("Task queued", extra=extra)
+
+
+@task_prerun.connect
+def _on_task_prerun(sender=None, task_id=None, task=None, args=None, kwargs=None, **kw):
+    """Logged from the worker container when a task starts executing."""
+    task_name = sender.name if sender else "unknown"
+    doc_id = _extract_document_id(args, kwargs)
+    hostname = getattr(task.request, "hostname", None) if task else None
+
+    queue_wait_ms = None
+    publish_time = _task_publish_times.pop(task_id, None)
+    if publish_time is not None:
+        queue_wait_ms = round((time.time() - publish_time) * 1000, 1)
+
+    extra = {
+        "event": "Task picked from queue",
+        "task_name": task_name,
+        "task_id": task_id,
+        "worker_hostname": hostname,
+    }
+    if doc_id is not None:
+        extra["document_id"] = doc_id
+    if queue_wait_ms is not None:
+        extra["queue_wait_ms"] = queue_wait_ms
+    _signals_logger.info("Task picked from queue", extra=extra)
+
+
+@task_postrun.connect
+def _on_task_postrun(sender=None, task_id=None, task=None, args=None, kwargs=None, state=None, retval=None, **kw):
+    """Logged from the worker container when a task finishes (success or failure)."""
+    task_name = sender.name if sender else "unknown"
+    doc_id = _extract_document_id(args, kwargs)
+
+    runtime_ms = None
+    if task and hasattr(task.request, "time_start") and task.request.time_start:
+        runtime_ms = round((time.monotonic() - task.request.time_start) * 1000, 1)
+
+    extra = {
+        "event": "Task completed",
+        "task_name": task_name,
+        "task_id": task_id,
+        "state": state or "UNKNOWN",
+    }
+    if doc_id is not None:
+        extra["document_id"] = doc_id
+    if runtime_ms is not None:
+        extra["runtime_ms"] = runtime_ms
+    _signals_logger.info("Task completed", extra=extra)
+
+
+@task_failure.connect
+def _on_task_failure(sender=None, task_id=None, args=None, kwargs=None, exception=None, **kw):
+    """Logged from the worker container when a task raises an unhandled exception."""
+    task_name = sender.name if sender else "unknown"
+    doc_id = _extract_document_id(args, kwargs)
+
+    extra = {
+        "event": "Task failed",
+        "task_name": task_name,
+        "task_id": task_id,
+        "exception_type": type(exception).__name__ if exception else "Unknown",
+    }
+    if doc_id is not None:
+        extra["document_id"] = doc_id
+    _signals_logger.error("Task failed", extra=extra)
+
+
+@task_retry.connect
+def _on_task_retry(sender=None, request=None, reason=None, **kw):
+    """Logged from the worker container when a task is retried."""
+    task_name = sender.name if sender else "unknown"
+    task_id = request.id if request else None
+    retries = request.retries if request else 0
+    args = request.args if request else None
+    kwargs_r = request.kwargs if request else None
+    doc_id = _extract_document_id(args, kwargs_r)
+
+    extra = {
+        "event": "Task retrying",
+        "task_name": task_name,
+        "task_id": task_id,
+        "retry_number": retries,
+        "reason": str(reason)[:500] if reason else None,
+    }
+    if doc_id is not None:
+        extra["document_id"] = doc_id
+    _signals_logger.warning("Task retrying", extra=extra)
+
+
+@worker_ready.connect
+def _on_worker_ready(sender=None, **kw):
+    _signals_logger.info("Worker ready", extra={"event": "Worker ready"})
 
 _sync_engine = None
 
@@ -108,3 +262,71 @@ def ingest_document_task(self, document_id: int):
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
+
+
+@celery.task(name="cleanup_expired_uploads", bind=True)
+def cleanup_expired_uploads_task(self):
+    """Periodic task: abort S3 multipart uploads and delete expired upload sessions."""
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from app.models import UploadSession
+    from app.s3 import abort_multipart_upload
+
+    engine = _get_sync_engine()
+    now = datetime.now(timezone.utc)
+    cleaned = 0
+
+    with Session(engine) as session:
+        rows = session.execute(
+            select(UploadSession).where(
+                UploadSession.status == "uploading",
+                UploadSession.expires_at < now,
+            )
+        ).scalars().all()
+
+        for us in rows:
+            try:
+                if us.s3_upload_id:
+                    abort_multipart_upload(us.s3_key, us.s3_upload_id)
+            except Exception:
+                logger.warning(
+                    "Failed to abort expired S3 multipart upload",
+                    extra={"upload_id": us.id, "s3_key": us.s3_key},
+                    exc_info=True,
+                )
+            us.status = "expired"
+            cleaned += 1
+
+        session.commit()
+
+    if cleaned:
+        logger.info("Cleaned up expired upload sessions", extra={"count": cleaned})
+    return {"cleaned": cleaned}
+
+
+@celery.task(name="queue_status_snapshot", bind=True)
+def queue_status_snapshot_task(self):
+    """Periodic task (every 30s): log current queue depth by document status."""
+    from app.models import Document
+
+    engine = _get_sync_engine()
+    with Session(engine) as session:
+        rows = session.execute(
+            sa_select(Document.status, func.count())
+            .where(Document.status.in_(["pending", "processing"]))
+            .group_by(Document.status)
+        ).all()
+
+    counts = {status: cnt for status, cnt in rows}
+    pending = counts.get("pending", 0)
+    processing = counts.get("processing", 0)
+
+    _signals_logger.info(
+        "Queue snapshot",
+        extra={
+            "event": "Queue snapshot",
+            "pending_count": pending,
+            "processing_count": processing,
+            "total_queued": pending + processing,
+        },
+    )

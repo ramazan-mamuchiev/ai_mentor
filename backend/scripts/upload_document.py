@@ -33,6 +33,7 @@ def _upload_single(args):
                 "firmware_version": args.version,
                 "manufacturer": args.manufacturer,
                 "format": args.format,
+                "force": "true" if args.force else "false",
             },
             timeout=120,
         )
@@ -107,6 +108,7 @@ def _upload_archive(args):
                 "product_name": args.product,
                 "firmware_version": args.version,
                 "manufacturer": args.manufacturer,
+                "force": "true" if args.force else "false",
             },
             timeout=300,
         )
@@ -128,7 +130,7 @@ def _upload_archive(args):
     print()
 
     for f_result in result.get("files", []):
-        status_icon = {"pending": "⏳", "skipped": "⏭️", "error": "❌"}.get(f_result["status"], "?")
+        status_icon = {"pending": "[...]", "skipped": "[skip]", "error": "[ERR]"}.get(f_result["status"], "?")
         doc_id = f_result.get("document_id", "—")
         print(f"  {status_icon} {f_result['filename']} → {f_result['status']} (doc_id={doc_id})")
         if f_result.get("message"):
@@ -196,6 +198,7 @@ def main():
     parser.add_argument("--format", default="auto", choices=["auto", "markdown", "swagger", "pdf", "proto"],
                         help="Document format (default: auto-detect)")
     parser.add_argument("--api-url", default="http://localhost:8000", help="API base URL")
+    parser.add_argument("--force", action="store_true", help="Force re-upload even if document already exists (bypass deduplication)")
     parser.add_argument("--no-wait", action="store_true", help="Don't wait for processing, return immediately")
     parser.add_argument("--timeout", type=int, default=600, help="Max wait time in seconds (default: 600)")
 

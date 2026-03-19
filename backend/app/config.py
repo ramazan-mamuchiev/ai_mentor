@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     database_url_sync: str = "postgresql://ipcodex:ipcodex_dev@localhost:5432/ipcodex"
 
     max_upload_size_mb: int = 50
+    max_archive_size_mb: int = 350
 
     llm_provider: str = "ollama"  # "ollama" or "openai" (OpenAI-compatible: Gemini, GPT, etc.)
     ollama_url: str = "http://ollama:11434"

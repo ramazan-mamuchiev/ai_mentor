@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from app.config import settings
 from app.chat.router import router as chat_router
 from app.documents.router import router as documents_router
+from app.uploads.router import router as uploads_router
 from app.logging_config import setup_logging, active_requests_count
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.mcp.server import (
@@ -99,6 +100,7 @@ async def _apply_schema():
     await _migrate_embedding_dims()
     await _migrate_doc_context()
     await _migrate_source_hash_index()
+    await _migrate_upload_sessions()
 
 
 async def _migrate_devices_to_products():
@@ -300,6 +302,50 @@ async def _migrate_embedding_dims():
         )
 
 
+async def _migrate_upload_sessions():
+    """Create upload_sessions table if it doesn't exist (handled by schema.sql, this is a safety net)."""
+    from app.database import engine
+
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        drv = raw.driver_connection
+        has_table = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = current_schema() AND table_name = 'upload_sessions'"
+        )
+        if has_table:
+            logger.info("Table 'upload_sessions' already exists")
+            return
+        await drv.execute("""
+            CREATE TABLE upload_sessions (
+                id TEXT PRIMARY KEY,
+                filename TEXT NOT NULL,
+                file_size BIGINT NOT NULL,
+                "offset" BIGINT NOT NULL DEFAULT 0,
+                content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+                product_name TEXT NOT NULL,
+                firmware_version TEXT NOT NULL DEFAULT '1.0',
+                manufacturer TEXT NOT NULL DEFAULT '',
+                is_archive BOOLEAN NOT NULL DEFAULT FALSE,
+                force BOOLEAN NOT NULL DEFAULT FALSE,
+                s3_upload_id TEXT NOT NULL DEFAULT '',
+                s3_key TEXT NOT NULL DEFAULT '',
+                parts_json TEXT NOT NULL DEFAULT '[]',
+                sha256_state TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'uploading',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                expires_at TIMESTAMPTZ NOT NULL
+            )
+        """)
+        await drv.execute(
+            "CREATE INDEX IF NOT EXISTS idx_upload_sessions_status ON upload_sessions(status)"
+        )
+        await drv.execute(
+            "CREATE INDEX IF NOT EXISTS idx_upload_sessions_expires ON upload_sessions(expires_at)"
+        )
+        logger.info("Created upload_sessions table")
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global _start_time
@@ -339,6 +385,7 @@ app = FastAPI(
 app.add_middleware(RequestLoggingMiddleware)
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
+app.include_router(uploads_router, prefix="/api/v1")
 app.router.routes.append(Mount("/mcp", app=mcp.streamable_http_app()))
 
 

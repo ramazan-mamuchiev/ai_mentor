@@ -71,6 +71,8 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:-ipcodex_dev}
       S3_BUCKET: ${S3_BUCKET:-ipcodex-storage}
       API_KEY: ${API_KEY:-ipx_dev_key_12345}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-50}
+      MAX_ARCHIVE_SIZE_MB: ${MAX_ARCHIVE_SIZE_MB:-350}
       EMBEDDING_PROVIDER: local
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OLLAMA_URL: http://ollama:11434
@@ -123,7 +125,7 @@ services:
     volumes:
       - hfcache:/root/.cache/huggingface
       - ${LOG_DIR:-./logs}:/app/logs
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=3 -Q celery,monitoring -B
 
   web:
     build: ./frontend

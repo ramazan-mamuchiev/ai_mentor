@@ -1,6 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { SquarePen } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
+import { LanguageToggle } from './LanguageToggle'
 import { SessionList } from './SessionList'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -75,18 +77,20 @@ export function Layout({
     try { localStorage.setItem(STORAGE_KEY, String(sidebarWidth)) } catch { /* ignore */ }
   }, [sidebarWidth])
 
+  const { t } = useTranslation()
+
   return (
     <div className="app-layout">
       <aside className="sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
         <div className="sidebar-header">
           <div className="sidebar-header-left">
-            <img src="/ipcodex-icon.svg" alt="IPCodex" className="sidebar-icon" />
-            <span className="sidebar-title">IPCodex</span>
+            <img src="/ipcodex-icon.svg" alt={t('sidebar.title')} className="sidebar-icon" />
+            <span className="sidebar-title">{t('sidebar.title')}</span>
           </div>
           <button
             className="new-chat-btn"
             onClick={onNewSession}
-            aria-label="New chat"
+            aria-label={t('sidebar.newChat')}
           >
             <SquarePen size={18} />
           </button>
@@ -99,6 +103,7 @@ export function Layout({
           onDelete={onDeleteSession}
         />
         <div className="sidebar-footer">
+          <LanguageToggle />
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </aside>

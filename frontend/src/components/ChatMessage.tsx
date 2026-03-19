@@ -1,40 +1,42 @@
 import { useState } from 'react'
 import { Bot, Bug, ChevronDown, ChevronUp, Loader2, User } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { SourceCard } from './SourceCard'
 
 function DebugPanel({ debug }: { debug: DebugInfo }) {
+  const { t } = useTranslation()
   return (
     <div className="debug-panel">
       <div className="debug-grid">
         <div className="debug-section">
-          <div className="debug-section-title">Identifiers</div>
-          <div className="debug-row"><span>Session</span><code>#{debug.session_id}</code></div>
-          <div className="debug-row"><span>Message</span><code>#{debug.message_id}</code></div>
-          <div className="debug-row"><span>User Msg</span><code>#{debug.user_message_id}</code></div>
+          <div className="debug-section-title">{t('debug.identifiers')}</div>
+          <div className="debug-row"><span>{t('debug.session')}</span><code>#{debug.session_id}</code></div>
+          <div className="debug-row"><span>{t('debug.message')}</span><code>#{debug.message_id}</code></div>
+          <div className="debug-row"><span>{t('debug.userMsg')}</span><code>#{debug.user_message_id}</code></div>
         </div>
         <div className="debug-section">
-          <div className="debug-section-title">LLM</div>
-          <div className="debug-row"><span>Model</span><code>{debug.model}</code></div>
-          <div className="debug-row"><span>Tokens</span><code>{debug.token_count}</code></div>
-          <div className="debug-row"><span>Speed</span><code>{debug.tokens_per_sec} tok/s</code></div>
-          <div className="debug-row"><span>Response</span><code>{debug.response_length} chars</code></div>
+          <div className="debug-section-title">{t('debug.llm')}</div>
+          <div className="debug-row"><span>{t('debug.model')}</span><code>{debug.model}</code></div>
+          <div className="debug-row"><span>{t('debug.tokens')}</span><code>{debug.token_count}</code></div>
+          <div className="debug-row"><span>{t('debug.speed')}</span><code>{debug.tokens_per_sec} tok/s</code></div>
+          <div className="debug-row"><span>{t('debug.response')}</span><code>{debug.response_length} chars</code></div>
         </div>
         <div className="debug-section">
-          <div className="debug-section-title">Timing</div>
-          <div className="debug-row"><span>Total</span><code>{(debug.total_ms / 1000).toFixed(1)}s</code></div>
-          <div className="debug-row"><span>RAG</span><code>{(debug.rag_ms / 1000).toFixed(1)}s</code></div>
-          <div className="debug-row"><span>LLM</span><code>{(debug.llm_ms / 1000).toFixed(1)}s</code></div>
-          <div className="debug-row"><span>Search</span><code>{(debug.search_ms / 1000).toFixed(1)}s</code></div>
+          <div className="debug-section-title">{t('debug.timing')}</div>
+          <div className="debug-row"><span>{t('debug.total')}</span><code>{(debug.total_ms / 1000).toFixed(1)}s</code></div>
+          <div className="debug-row"><span>{t('debug.rag')}</span><code>{(debug.rag_ms / 1000).toFixed(1)}s</code></div>
+          <div className="debug-row"><span>{t('debug.llmTime')}</span><code>{(debug.llm_ms / 1000).toFixed(1)}s</code></div>
+          <div className="debug-row"><span>{t('debug.search')}</span><code>{(debug.search_ms / 1000).toFixed(1)}s</code></div>
         </div>
         <div className="debug-section">
-          <div className="debug-section-title">RAG</div>
-          <div className="debug-row"><span>Chunks</span><code>{debug.chunks_found}</code></div>
-          <div className="debug-row"><span>Top sim</span><code>{(debug.top_similarity * 100).toFixed(1)}%</code></div>
-          <div className="debug-row"><span>Min sim</span><code>{(debug.min_similarity * 100).toFixed(1)}%</code></div>
-          <div className="debug-row"><span>Ctx tokens</span><code>{debug.context_tokens}</code></div>
-          <div className="debug-row"><span>Embed</span><code className="debug-embed">{debug.embedding_model}</code></div>
+          <div className="debug-section-title">{t('debug.ragSection')}</div>
+          <div className="debug-row"><span>{t('debug.chunks')}</span><code>{debug.chunks_found}</code></div>
+          <div className="debug-row"><span>{t('debug.topSim')}</span><code>{(debug.top_similarity * 100).toFixed(1)}%</code></div>
+          <div className="debug-row"><span>{t('debug.minSim')}</span><code>{(debug.min_similarity * 100).toFixed(1)}%</code></div>
+          <div className="debug-row"><span>{t('debug.ctxTokens')}</span><code>{debug.context_tokens}</code></div>
+          <div className="debug-row"><span>{t('debug.embed')}</span><code className="debug-embed">{debug.embedding_model}</code></div>
         </div>
       </div>
     </div>
@@ -49,6 +51,7 @@ interface Props {
 }
 
 export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources }: Props) {
+  const { t } = useTranslation()
   const content = isStreaming ? (streamingContent || '') : message.content
   const sources = isStreaming ? (streamingSources || []) : (message.sources || [])
   const isUser = message.role === 'user'
@@ -69,7 +72,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
           ) : isWaiting ? (
             <div className="typing-indicator">
               <Loader2 size={14} className="typing-spinner" />
-              <span>Searching documentation & generating response...</span>
+              <span>{t('chat.searching')}</span>
             </div>
           ) : (
             <MarkdownRenderer content={content} />
@@ -81,7 +84,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               className="sources-toggle"
               onClick={() => setSourcesExpanded(prev => !prev)}
             >
-              <span className="sources-label">Sources ({sources.length})</span>
+              <span className="sources-label">{t('chat.sources', { count: sources.length })}</span>
               {sourcesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </div>
             {sourcesExpanded && sources.map((s, i) => (
@@ -104,7 +107,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 <button
                   className="debug-toggle"
                   onClick={() => setDebugExpanded(prev => !prev)}
-                  title="Debug info"
+                  title={t('chat.debug')}
                 >
                   <Bug size={12} />
                 </button>

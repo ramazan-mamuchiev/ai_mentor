@@ -6,7 +6,7 @@ import os
 import time
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.database import async_session
 from app.documents.schemas import (
@@ -165,7 +165,7 @@ from app.documents.archive import (
     extract_archive,
 )
 
-MAX_ARCHIVE_BYTES = settings.max_upload_size_mb * 1024 * 1024 * 5
+MAX_ARCHIVE_BYTES = settings.max_archive_size_mb * 1024 * 1024
 
 
 @router.post("/ingest-archive", response_model=ArchiveIngestResponse)
@@ -413,6 +413,49 @@ async def delete_document(document_id: int):
             deleted=True,
             message="Document and all chunks deleted",
         )
+
+
+@router.get("/queue-stats")
+async def get_queue_stats():
+    """Current queue state from DB (pending/processing counts). For dashboards and monitoring."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Document.status, func.count())
+            .where(Document.status.in_(["pending", "processing", "ready"]))
+            .group_by(Document.status)
+        )
+        rows = result.all()
+
+    counts = {status: cnt for status, cnt in rows}
+    return {
+        "pending": counts.get("pending", 0),
+        "processing": counts.get("processing", 0),
+        "ready": counts.get("ready", 0),
+        "total_queued": counts.get("pending", 0) + counts.get("processing", 0),
+    }
+
+
+@router.post("/requeue-pending", status_code=202)
+async def requeue_pending_documents():
+    """Re-queue ingestion for all documents with status 'pending'.
+
+    Use when tasks were lost (e.g. worker crash) and pending documents never processed.
+    """
+    from app.celery_app import ingest_document_task
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Document).where(Document.status == "pending")
+        )
+        pending = result.scalars().all()
+
+    queued = 0
+    for doc in pending:
+        ingest_document_task.delay(doc.id)
+        queued += 1
+
+    logger.info("Requeued pending documents", extra={"count": queued, "document_ids": [d.id for d in pending[:10]]})
+    return {"status": "accepted", "documents_queued": queued}
 
 
 @router.post("/reindex", status_code=202)

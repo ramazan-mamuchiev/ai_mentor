@@ -153,6 +153,15 @@ All formats are normalized to **chunks** in pgvector. The original file is prese
 
 Full details: [FLOWS.md — Supported Document Formats](FLOWS.md#supported-document-formats)
 
+### Internationalization (i18n)
+- Frontend uses `react-i18next` with `i18next-browser-languagedetector`
+- Default language: **en** (English) — used as the reference locale and fallback
+- Translation files: flat JSON in `frontend/src/locales/{lang}.json` (one file per language)
+- Language detection order: `localStorage` → browser `navigator` preference
+- User's language choice persisted in `localStorage` under `ipcodex-lang` key
+- All UI strings extracted to translation keys — no hardcoded text in components
+- Adding a new language requires only a new `{lang}.json` file; tests auto-discover all locale files and validate structure, key completeness, and interpolation placeholder consistency against the reference locale
+
 ### Vector Search
 - pgvector HNSW index with cosine similarity
 - `ef_construction=128`, `m=16` for quality/speed balance
@@ -319,6 +328,7 @@ ipcodex/
 | Billing | Stripe (subscriptions + metered usage records) |
 | Email Alerts | SendGrid or AWS SES (spending alerts, vendor reports) |
 | Deployment | Docker Compose (dev) / Kubernetes (prod) |
+| Internationalization | i18next + react-i18next + i18next-browser-languagedetector (default: en) |
 | Token Counting | tiktoken |
 | Antivirus | ClamAV (clamd TCP socket, clamav/clamav Docker image) |
 | File Integrity | hashlib SHA-256 (auto-generated checksums) |
@@ -415,7 +425,7 @@ Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scali
 
 ### Technical
 - [ ] Reranking strategy: cross-encoder model selection for top-N reranking
-- [ ] Web UI technology: React + TypeScript SPA vs Next.js
+- [x] ~~Web UI technology: React + TypeScript SPA vs Next.js~~ → React + TypeScript SPA + Vite
 - [ ] On-premise deployment: Helm chart for Kubernetes
 - [ ] Monitoring: Prometheus + Grafana vs cloud-native (Datadog, etc.)
 - [ ] CDN for static assets and S3 presigned URLs

@@ -83,6 +83,76 @@ def s3_key_for_document(document_id: int, filename: str) -> str:
     return f"documents/{document_id}/source{ext}"
 
 
+def create_multipart_upload(key: str, content_type: str = "application/octet-stream") -> str:
+    """Initiate an S3 multipart upload. Returns the UploadId."""
+    client = _get_client()
+    resp = client.create_multipart_upload(
+        Bucket=settings.s3_bucket,
+        Key=key,
+        ContentType=content_type,
+    )
+    upload_id = resp["UploadId"]
+    logger.debug("S3 multipart upload created", extra={"key": key, "upload_id": upload_id})
+    return upload_id
+
+
+def upload_part(key: str, upload_id: str, part_number: int, data: bytes) -> str:
+    """Upload a single part of a multipart upload. Returns the ETag."""
+    client = _get_client()
+    resp = client.upload_part(
+        Bucket=settings.s3_bucket,
+        Key=key,
+        UploadId=upload_id,
+        PartNumber=part_number,
+        Body=data,
+    )
+    etag = resp["ETag"]
+    logger.debug(
+        "S3 part uploaded",
+        extra={"key": key, "part": part_number, "size": len(data), "etag": etag},
+    )
+    return etag
+
+
+def complete_multipart_upload(key: str, upload_id: str, parts: list[dict]) -> None:
+    """Complete a multipart upload. `parts` is a list of {"PartNumber": int, "ETag": str}."""
+    client = _get_client()
+    client.complete_multipart_upload(
+        Bucket=settings.s3_bucket,
+        Key=key,
+        UploadId=upload_id,
+        MultipartUpload={"Parts": parts},
+    )
+    logger.info(
+        "S3 multipart upload completed",
+        extra={"key": key, "upload_id": upload_id, "parts_count": len(parts)},
+    )
+
+
+def abort_multipart_upload(key: str, upload_id: str) -> None:
+    """Abort a multipart upload, cleaning up uploaded parts."""
+    client = _get_client()
+    try:
+        client.abort_multipart_upload(
+            Bucket=settings.s3_bucket,
+            Key=key,
+            UploadId=upload_id,
+        )
+        logger.info("S3 multipart upload aborted", extra={"key": key, "upload_id": upload_id})
+    except ClientError as e:
+        logger.warning(
+            "S3 abort_multipart_upload failed (may already be completed/aborted)",
+            extra={"key": key, "upload_id": upload_id, "error": str(e)},
+        )
+
+
+def s3_key_for_upload(upload_id: str, filename: str) -> str:
+    """Build the S3 key for a TUS upload session."""
+    import os
+    ext = os.path.splitext(filename)[1].lower() or ".bin"
+    return f"uploads/{upload_id}/source{ext}"
+
+
 def check_health() -> bool:
     """Check if S3 is reachable."""
     try:

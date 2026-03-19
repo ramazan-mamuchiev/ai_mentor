@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import type { SourceInfo, StreamStatus } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { ChatMessageComponent } from './ChatMessage'
@@ -11,10 +12,10 @@ interface Props {
   streamingContent: string
   streamingSources: SourceInfo[]
   status: StreamStatus
-  sessionTitle: string | null
   onSend: (content: string) => void
   onCancel: () => void
   editValue?: string
+  onUploadClick?: () => void
 }
 
 export function ChatWindow({
@@ -22,10 +23,10 @@ export function ChatWindow({
   streamingContent,
   streamingSources,
   status,
-  sessionTitle,
   onSend,
   onCancel,
   editValue,
+  onUploadClick,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -52,18 +53,25 @@ export function ChatWindow({
     [onSend],
   )
 
+  const { t } = useTranslation()
   const isEmpty = messages.length === 0 && !streamingContent
 
   return (
     <div className="main-area">
-      <div className="chat-header">
-        <span className="chat-header-title">{sessionTitle || 'IPCodex'}</span>
-      </div>
-
       <div className="messages-container" ref={containerRef} onScroll={handleScroll}>
         {isEmpty ? (
           <div className="messages-empty">
-            <div className="messages-empty-title">What can I help with?</div>
+            <img src="/ipcodex-icon.svg" alt="" className="empty-logo" />
+            <span className="empty-badge">{t('empty.badge')}</span>
+            <h1 className="empty-title">{t('empty.title')}</h1>
+            <p className="empty-slogan">{t('empty.slogan')}</p>
+            <div className="empty-divider">
+              <span /><span className="empty-dot">·</span><span />
+            </div>
+            <p className="empty-subslogan">
+              <Trans i18nKey="empty.subslogan">From docs to code.</Trans>{' '}
+              <em>{t('empty.instantly')}</em>
+            </p>
           </div>
         ) : (
           <>
@@ -89,7 +97,7 @@ export function ChatWindow({
         )}
       </div>
 
-      <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} />
+      <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} onUploadClick={onUploadClick} />
     </div>
   )
 }

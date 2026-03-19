@@ -6,14 +6,14 @@ import { ChatInput } from '../../components/ChatInput'
 describe('ChatInput', () => {
   it('renders textarea with placeholder', () => {
     render(<ChatInput onSend={() => {}} onCancel={() => {}} status="idle" />)
-    expect(screen.getByPlaceholderText(/Ask about product/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Ask about device/)).toBeInTheDocument()
   })
 
   it('calls onSend with trimmed content on button click', async () => {
     const onSend = vi.fn()
     render(<ChatInput onSend={onSend} onCancel={() => {}} status="idle" />)
 
-    const textarea = screen.getByPlaceholderText(/Ask about product/)
+    const textarea = screen.getByPlaceholderText(/Ask about device/)
     await userEvent.type(textarea, '  Hello world  ')
     await userEvent.click(screen.getByTitle('Send message'))
 
@@ -24,7 +24,7 @@ describe('ChatInput', () => {
     const onSend = vi.fn()
     render(<ChatInput onSend={onSend} onCancel={() => {}} status="idle" />)
 
-    const textarea = screen.getByPlaceholderText(/Ask about product/)
+    const textarea = screen.getByPlaceholderText(/Ask about device/)
     await userEvent.type(textarea, 'test{enter}')
 
     expect(onSend).toHaveBeenCalledWith('test')
@@ -38,9 +38,9 @@ describe('ChatInput', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
-  it('disables textarea during streaming', () => {
+  it('shows stop button during streaming', () => {
     render(<ChatInput onSend={() => {}} onCancel={() => {}} status="streaming" />)
-    expect(screen.getByPlaceholderText(/Ask about product/)).toBeDisabled()
+    expect(screen.getByTitle('Stop generating')).toBeInTheDocument()
   })
 
   it('shows cancel button during streaming', () => {

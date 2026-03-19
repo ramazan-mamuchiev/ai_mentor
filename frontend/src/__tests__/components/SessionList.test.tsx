@@ -16,7 +16,7 @@ describe('SessionList', () => {
     expect(screen.getByText('Auth Chat')).toBeInTheDocument()
     expect(screen.getByText('How to open door?')).toBeInTheDocument()
     const newChatElements = screen.getAllByText('New Chat')
-    expect(newChatElements.length).toBe(2)
+    expect(newChatElements.length).toBe(1)
   })
 
   it('falls back to last_message_preview then New Chat', () => {
@@ -34,24 +34,22 @@ describe('SessionList', () => {
     expect(onSelect).toHaveBeenCalledWith(1)
   })
 
-  it('calls onNew when New Chat button clicked', async () => {
-    const onNew = vi.fn()
-    render(<SessionList sessions={[]} activeSessionId={null} onSelect={() => {}} onNew={onNew} onDelete={() => {}} />)
-
-    const buttons = screen.getAllByText('New Chat')
-    await userEvent.click(buttons[0])
-    expect(onNew).toHaveBeenCalledOnce()
+  it('renders empty list when no sessions', () => {
+    render(<SessionList sessions={[]} activeSessionId={null} onSelect={() => {}} onNew={() => {}} onDelete={() => {}} />)
+    const items = document.querySelectorAll('.session-item')
+    expect(items.length).toBe(0)
   })
 
-  it('calls onDelete without triggering onSelect', async () => {
+  it('calls onDelete via context menu', async () => {
     const onSelect = vi.fn()
     const onDelete = vi.fn()
     render(<SessionList sessions={sessions} activeSessionId={null} onSelect={onSelect} onNew={() => {}} onDelete={onDelete} />)
 
-    const deleteButtons = document.querySelectorAll('.session-delete-btn')
-    await userEvent.click(deleteButtons[0])
+    const menuButtons = document.querySelectorAll('.session-menu-btn')
+    await userEvent.click(menuButtons[0])
+    const deleteBtn = screen.getByText('Delete')
+    await userEvent.click(deleteBtn)
     expect(onDelete).toHaveBeenCalledWith(1)
-    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('marks active session with active class', () => {

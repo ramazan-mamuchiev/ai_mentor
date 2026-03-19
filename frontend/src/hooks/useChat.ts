@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import i18n from '../i18n'
 import { streamMessage } from '../api/chat'
 import type { ChatMessage, DebugInfo, SourceInfo, StreamStatus } from '../types'
 
@@ -36,7 +37,7 @@ export function useChat(): UseChatReturn {
         id: Date.now() + 1,
         session_id: 0,
         role: 'assistant',
-        content: partial + '\n\n*⏹ Generation stopped*',
+        content: partial + '\n\n' + i18n.t('chat.stopped'),
         sources: partialSources.length > 0 ? partialSources : undefined,
         created_at: new Date().toISOString(),
       }
@@ -110,7 +111,7 @@ export function useChat(): UseChatReturn {
             break
           case 'error':
             setStatus('error')
-            fullContent += `\n\n⚠️ Error: ${event.content}`
+            fullContent += `\n\n⚠️ ${i18n.t('chat.error', { message: event.content })}`
             contentRef.current = fullContent
             setStreamingContent(fullContent)
             return

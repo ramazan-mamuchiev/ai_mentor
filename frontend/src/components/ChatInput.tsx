@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUp, Plus, Square } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { StreamStatus } from '../types'
 
 interface Props {
@@ -7,9 +8,11 @@ interface Props {
   onCancel: () => void
   status: StreamStatus
   editValue?: string
+  onUploadClick?: () => void
 }
 
-export function ChatInput({ onSend, onCancel, status, editValue }: Props) {
+export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }: Props) {
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -58,7 +61,7 @@ export function ChatInput({ onSend, onCancel, status, editValue }: Props) {
   return (
     <div className="chat-input-container">
       <div className="chat-input-wrapper">
-        <button className="chat-attach-btn" title="Attach file">
+        <button className="chat-attach-btn" title={t('input.upload')} onClick={onUploadClick}>
           <Plus size={18} />
         </button>
         <textarea
@@ -67,11 +70,11 @@ export function ChatInput({ onSend, onCancel, status, editValue }: Props) {
           value={value}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder="Ask about product integration..."
+          placeholder={t('input.placeholder')}
           rows={1}
         />
         {isStreaming ? (
-          <button className="chat-send-btn active" onClick={onCancel} title="Stop generating">
+          <button className="chat-send-btn active" onClick={onCancel} title={t('input.stop')}>
             <Square size={16} />
           </button>
         ) : (
@@ -79,7 +82,7 @@ export function ChatInput({ onSend, onCancel, status, editValue }: Props) {
             className={`chat-send-btn${hasText ? ' active' : ''}`}
             onClick={handleSubmit}
             disabled={!hasText}
-            title="Send message"
+            title={t('input.send')}
           >
             <ArrowUp size={18} />
           </button>

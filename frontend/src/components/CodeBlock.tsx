@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { Check, Copy } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   language: string
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function CodeBlock({ language, children }: Props) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -23,7 +25,7 @@ export function CodeBlock({ language, children }: Props) {
         <span>{language || 'text'}</span>
         <button className="code-copy-btn" onClick={handleCopy}>
           {copied ? <Check size={14} /> : <Copy size={14} />}
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? t('code.copied') : t('code.copy')}
         </button>
       </div>
       <SyntaxHighlighter

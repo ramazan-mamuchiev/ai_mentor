@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createSession, deleteSession, getSession, listSessions } from './api/chat'
 import { ChatWindow } from './components/ChatWindow'
+import { FileUpload } from './components/FileUpload'
 import { Layout } from './components/Layout'
 import { useChat } from './hooks/useChat'
 import { useTheme } from './hooks/useTheme'
@@ -12,7 +13,7 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
   const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset } = useChat()
 
-  const activeSession = sessions.find(s => s.id === activeSessionId) ?? null
+  const [showUpload, setShowUpload] = useState(false)
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -93,11 +94,17 @@ export default function App() {
         streamingContent={streamingContent}
         streamingSources={streamingSources}
         status={status}
-        sessionTitle={activeSession?.title ?? null}
         onSend={handleSend}
         onCancel={cancel}
         editValue={lastUserPrompt}
+        onUploadClick={() => setShowUpload(true)}
       />
+      {showUpload && (
+        <FileUpload
+          onClose={() => setShowUpload(false)}
+          onComplete={() => setShowUpload(false)}
+        />
+      )}
     </Layout>
   )
 }

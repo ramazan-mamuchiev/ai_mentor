@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { SourceInfo } from '../types'
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function SourceCard({ source }: Props) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -17,7 +19,7 @@ export function SourceCard({ source }: Props) {
           <div className="source-card-path">{source.heading_path}</div>
           <div className="source-card-score">
             {source.product_name && `${source.product_name} · `}
-            {(source.similarity * 100).toFixed(1)}% match
+            {t('match', { value: (source.similarity * 100).toFixed(1) })}
           </div>
         </div>
         <div className="source-card-toggle">

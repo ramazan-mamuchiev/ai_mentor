@@ -1,9 +1,9 @@
 """SQLAlchemy ORM models for IPCodex MVP."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Index, Integer, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -132,3 +132,39 @@ class ChatMessage(Base):
     session: Mapped["ChatSession"] = relationship(back_populates="messages")
 
     __table_args__ = (Index("idx_chat_messages_session", "session_id"),)
+
+
+def _default_upload_expires():
+    from app.config import settings
+    return datetime.now(timezone.utc) + timedelta(hours=settings.tus_upload_ttl_hours)
+
+
+class UploadSession(Base):
+    __tablename__ = "upload_sessions"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    offset: Mapped[int] = mapped_column(BigInteger, default=0)
+    content_type: Mapped[str] = mapped_column(Text, default="application/octet-stream")
+    product_name: Mapped[str] = mapped_column(Text, nullable=False)
+    firmware_version: Mapped[str] = mapped_column(Text, default="1.0")
+    manufacturer: Mapped[str] = mapped_column(Text, default="")
+    is_archive: Mapped[bool] = mapped_column(Boolean, default=False)
+    force: Mapped[bool] = mapped_column(Boolean, default=False)
+    s3_upload_id: Mapped[str] = mapped_column(Text, default="")
+    s3_key: Mapped[str] = mapped_column(Text, default="")
+    parts_json: Mapped[str] = mapped_column(Text, default="[]")
+    sha256_state: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(Text, default="uploading")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_default_upload_expires
+    )
+
+    __table_args__ = (
+        Index("idx_upload_sessions_status", "status"),
+        Index("idx_upload_sessions_expires", "expires_at"),
+    )
