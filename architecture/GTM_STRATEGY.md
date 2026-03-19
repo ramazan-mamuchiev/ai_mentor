@@ -27,8 +27,11 @@ The fastest path from "new device"       A manual knowledge base
 
 > **"Protocols speak. Codex translates."**
 > *"Протоколы говорят. Codex переводит."*
+>
+> **"Many protocols. One Codex."**
+> *"Протоколов много — Codex один."*
 
-See [BRAND_SLOGANS.md](BRAND_SLOGANS.md) for competitive analysis and alternative variants.
+Slogan (hero) — melodic metaphor explaining what the product does. Subtitle — bold statement of scale and uniqueness. See [BRAND_SLOGANS.md](BRAND_SLOGANS.md) for competitive analysis and alternative variants.
 
 ### 1.3 Central message
 
