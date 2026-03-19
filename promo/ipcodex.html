@@ -1062,12 +1062,17 @@ html.dark .theme-toggle .icon-moon { opacity:1; transform:rotate(0); color:#f1f5
 <div class="hero">
   <img src="ipcodex-logo.png" alt="IPCodex" class="hero-logo hero-logo-light" width="88" height="88">
   <img src="ipcodex-logo-dark.png" alt="IPCodex" class="hero-logo hero-logo-dark" width="88" height="88">
-  <span class="phase-label" style="background:rgba(244,114,182,0.12);color:var(--accent3);border:1px solid rgba(244,114,182,0.25);margin-bottom:12px">Standalone Product</span>
+  <span class="phase-label" style="background:rgba(37,99,235,0.10);color:var(--accent);border:1px solid rgba(37,99,235,0.20);margin-bottom:12px" data-i18n="hero.badge">AI Integration Platform</span>
   <h1>IPCodex</h1>
-  <p style="font-size:1.3rem;font-weight:600;color:var(--text2);margin-bottom:6px;letter-spacing:-0.3px;font-style:italic" data-i18n="hero.slogan">Protocols speak. Codex translates.</p>
-  <p style="font-size:.95rem;font-weight:500;color:var(--text3);margin-bottom:16px;letter-spacing:0.5px;text-transform:uppercase" data-i18n="hero.subslogan">Many protocols. One Codex.</p>
-  <p style="font-size:.85rem;color:var(--text3);margin-bottom:6px;font-weight:400;letter-spacing:0.2px" data-i18n-html="hero.author">Author: Oleg Vaitsekhovich · <a href="https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s">LinkedIn</a></p>
-  <p data-i18n="hero.desc">Commercial product for managing API documentation of physical devices. PDF / Swagger / URL to Markdown conversion, firmware versioning, S3 storage, AI Chat, RAG + MCP for AI-assisted development in modern AI IDEs (Cursor, Antigravity, Windsurf).</p>
+  <p style="font-size:1.4rem;font-weight:600;color:var(--text2);margin-bottom:12px;letter-spacing:-0.3px;font-style:italic" data-i18n="hero.slogan">Protocols speak. Codex translates.</p>
+  <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px;color:var(--text3);font-size:.7rem;letter-spacing:2px">
+    <span style="width:32px;height:1px;background:var(--border)"></span>
+    <span>·</span>
+    <span style="width:32px;height:1px;background:var(--border)"></span>
+  </div>
+  <p style="font-size:1.05rem;font-weight:600;color:var(--text3);margin-bottom:24px;letter-spacing:0.8px;text-transform:uppercase" data-i18n-html="hero.subslogan">Many protocols. <span style="color:var(--accent)">One Codex.</span></p>
+  <p style="font-size:1.05rem;color:var(--text2);max-width:620px;margin:0 auto 24px;line-height:1.8;font-weight:300" data-i18n="hero.desc">AI reads device documentation so developers write integration code, not search queries.</p>
+  <p style="font-size:.78rem;color:var(--text3);font-weight:400;letter-spacing:0.2px" data-i18n-html="hero.author">Author: Oleg Vaitsekhovich · <a href="https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s">LinkedIn</a></p>
 </div>
 
 <!-- GOALS & VALUE SECTION -->
@@ -2280,10 +2285,11 @@ function toggleTheme() {
 /* === I18N ENGINE === */
 let currentLang = localStorage.getItem('ipcodex-lang') || 'en';
 const T = {
+'hero.badge':{en:'AI Integration Platform',ru:'AI-платформа интеграции'},
 'hero.slogan':{en:'Protocols speak. Codex translates.',ru:'Протоколы говорят. Codex переводит.'},
-'hero.subslogan':{en:'Many protocols. One Codex.',ru:'Протоколов много — Codex один.'},
+'hero.subslogan':{en:'Many protocols. <span style="color:var(--accent)">One Codex.</span>',ru:'Протоколов много — <span style="color:var(--accent)">Codex один.</span>'},
 'hero.author':{en:'Author: Oleg Vaitsekhovich · <a href="https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s">LinkedIn</a>',ru:'Автор: Войтехович Олег · <a href="https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s">LinkedIn</a>'},
-'hero.desc':{en:'Commercial product for managing API documentation of physical devices. PDF / Swagger / URL to Markdown conversion, firmware versioning, S3 storage, AI Chat, RAG + MCP for AI-assisted development in modern AI IDEs (Cursor, Antigravity, Windsurf).',ru:'Коммерческий продукт для управления API-документацией физических устройств. Конвертация PDF / Swagger / URL в Markdown, версионирование по прошивкам, S3 хранилище, AI Chat, RAG + MCP для AI-assisted разработки в современных AI IDE (Cursor, Antigravity, Windsurf).'},
+'hero.desc':{en:'AI reads device documentation so developers write integration code, not search queries.',ru:'AI читает документацию устройств, чтобы разработчики писали код интеграции, а не поисковые запросы.'},
 'why.title':{en:'Why This Matters',ru:'Зачем это нужно'},
 'why.desc':{en:'Companies integrating physical devices (IP cameras, access control, POS terminals) spend significant time searching, reading, and understanding documentation from dozens of manufacturers. Documentation comes in various formats, scattered across websites and PDF files, unversioned and inaccessible to AI development tools. Structured Markdown documentation is the foundation for AI assistants (Cursor, Antigravity, Windsurf, GitHub Copilot) to effectively help developers write device integration code.',ru:'Компании, интегрирующие физические устройства (IP-камеры, СКУД, кассы), тратят значительное время на поиск, чтение и понимание документации от десятков производителей. Документация приходит в разных форматах, разбросана по сайтам и PDF-файлам, не версионирована и недоступна для AI-инструментов разработки. А ведь именно структурированная документация в формате Markdown — это основа для того, чтобы AI-помощники (Cursor, Antigravity, Windsurf, GitHub Copilot) могли эффективно помогать разработчикам писать код интеграции с устройствами.'},
 'prob.title':{en:'Problems Today',ru:'Проблемы сегодня'},
