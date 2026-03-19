@@ -12,6 +12,8 @@ export function useTheme() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('ipcodex-theme', theme)
+    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+    if (favicon) favicon.href = theme === 'dark' ? '/logo-on-dark.svg' : '/logo-on-light.svg'
   }, [theme])
 
   const toggle = useCallback(() => {

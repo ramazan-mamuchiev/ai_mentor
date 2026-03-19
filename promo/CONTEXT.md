@@ -269,8 +269,7 @@ ipcodex/
 IPCodex/
 ├── ipcodex.html              # Интерактивная презентация (EN/RU, light/dark)
 ├── comparison.html            # Детальный конкурентный анализ
-├── ipcodex-logo.png           # Логотип для светлой темы (512px PNG)
-├── ipcodex-logo-dark.png      # Логотип для тёмной темы (512px PNG)
+├── (логотипы встроены inline SVG в HTML, исходники в frontend/public/)
 ├── ipcodex-plan-backup.html   # Резервная копия ранней версии
 ├── CONTEXT.md                 # Этот файл — полный контекст проекта
 ```

@@ -70,7 +70,8 @@ export function ChatWindow({
       <div className="messages-container" ref={containerRef} onScroll={handleScroll}>
         {isEmpty ? (
           <div className="messages-empty">
-            <img src="/ipcodex-icon.svg" alt="" className="empty-logo" />
+            <img src="/logo-on-light.svg" alt="" className="empty-logo logo-light" />
+            <img src="/logo-on-dark.svg" alt="" className="empty-logo logo-dark" />
             <span className="empty-badge">{t('empty.badge')}</span>
             <h1 className="empty-title">{t('empty.title')}</h1>
             <p className="empty-slogan">{t('empty.slogan')}</p>

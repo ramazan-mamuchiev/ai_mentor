@@ -259,6 +259,10 @@
   filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.15));
 }
 
+[data-theme='dark'] .empty-logo {
+  filter: drop-shadow(0 4px 16px rgba(119, 184, 253, 0.25));
+}
+
 .empty-badge {
   display: inline-block;
   padding: 5px 16px;
@@ -308,7 +312,7 @@
   display: block;
   width: 28px;
   height: 1px;
-  background: var(--border);
+  background: var(--text-muted);
 }
 
 .empty-dot {

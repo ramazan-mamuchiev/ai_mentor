@@ -84,7 +84,8 @@ export function Layout({
       <aside className="sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
         <div className="sidebar-header">
           <div className="sidebar-header-left">
-            <img src="/ipcodex-icon.svg" alt={t('sidebar.title')} className="sidebar-icon" />
+            <img src="/logo-on-light.svg" alt={t('sidebar.title')} className="sidebar-icon logo-light" />
+            <img src="/logo-on-dark.svg" alt={t('sidebar.title')} className="sidebar-icon logo-dark" />
             <span className="sidebar-title">{t('sidebar.title')}</span>
           </div>
           <button

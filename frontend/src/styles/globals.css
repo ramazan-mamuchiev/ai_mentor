@@ -23,6 +23,11 @@
   --radius-lg: 12px;
 }
 
+.logo-dark { display: none; }
+
+[data-theme='dark'] .logo-light { display: none; }
+[data-theme='dark'] .logo-dark { display: initial; }
+
 [data-theme='dark'] {
   --bg: #0b0f19;
   --bg-secondary: #111827;
@@ -34,6 +39,7 @@
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --accent: #60a5fa;
+  --gradient: linear-gradient(135deg, #77B8FD, #FEA5D0);
 }
 
 *, *::before, *::after {
