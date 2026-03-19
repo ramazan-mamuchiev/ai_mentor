@@ -464,7 +464,7 @@ def ingest_from_bytes(
     t0 = time.perf_counter()
     fmt = document.format
     if fmt == "auto":
-        fmt = detect_format(file_path)
+        fmt = detect_format(original_filename) if original_filename else detect_format(file_path)
         document.format = fmt
 
     logger.info(
@@ -503,7 +503,7 @@ def ingest_from_bytes(
         fmt_effective = "markdown"
     elif fmt == "proto":
         try:
-            text, convert_metadata = convert_proto_file(file_path)
+            text, convert_metadata = convert_proto_file(file_path, original_filename=original_filename)
             convert_ms = convert_metadata.get("total_ms", 0.0)
         except Exception as e:
             document.status = "error"

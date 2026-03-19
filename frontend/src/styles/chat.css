@@ -420,6 +420,40 @@
   color: var(--text-muted);
 }
 
+.message-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: #e53e3e;
+}
+[data-theme="dark"] .message-error {
+  color: #fc8181;
+}
+.message-error svg:first-child {
+  flex-shrink: 0;
+}
+
+.retry-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.retry-button:hover {
+  opacity: 1;
+}
+
 .message-duration {
   font-size: 11px;
   color: var(--text-muted);

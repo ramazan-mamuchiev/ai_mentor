@@ -20,7 +20,7 @@ from app.chat.schemas import (
     SessionResponse,
 )
 from app.database import async_session
-from app.llm.client import stream_chat_completion
+from app.llm.client import LLMError, stream_chat_completion
 from app.models import ChatMessage, ChatSession
 
 logger = logging.getLogger(__name__)
@@ -170,7 +170,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
     - {"type": "token", "content": "..."} — incremental text tokens
     - {"type": "sources", "sources": [...]} — retrieved documentation sources
     - {"type": "done", "message_id": N, "duration_ms": F} — stream complete
-    - {"type": "error", "content": "..."} — error occurred
+    - {"type": "error", "error_code": "...", "status_code": N} — error occurred
     """
     async with async_session() as session:
         chat_session = await session.get(ChatSession, session_id)
@@ -301,6 +301,20 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     },
                 )
 
+        except LLMError as e:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            logger.exception(
+                "Chat stream error",
+                extra={
+                    "session_id": session_id,
+                    "duration_ms": duration_ms,
+                    "token_count": token_count,
+                    "error_type": "LLMError",
+                    "error_code": e.error_code,
+                    "status_code": e.status_code,
+                },
+            )
+            yield f"data: {json.dumps({'type': 'error', 'error_code': e.error_code, 'status_code': e.status_code})}\n\n"
         except Exception as e:
             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
             logger.exception(
@@ -312,7 +326,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     "error_type": type(e).__name__,
                 },
             )
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'error_code': 'internal_error'})}\n\n"
 
     return StreamingResponse(
         event_stream(),

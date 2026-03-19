@@ -11,7 +11,7 @@ export default function App() {
   const { theme, toggle: toggleTheme } = useTheme()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
-  const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset } = useChat()
+  const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast } = useChat()
 
   const [showUpload, setShowUpload] = useState(false)
 
@@ -96,6 +96,7 @@ export default function App() {
         status={status}
         onSend={handleSend}
         onCancel={cancel}
+        onRetry={activeSessionId ? () => retryLast(activeSessionId) : undefined}
         editValue={lastUserPrompt}
         onUploadClick={() => setShowUpload(true)}
       />

@@ -209,6 +209,91 @@ class TestIngestFromBytesSwagger:
             os.unlink(path)
 
 
+class TestIngestFromBytesProto:
+    """Test proto ingestion passes original_filename to the converter."""
+
+    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1024])
+    @patch("app.ingestion.pipeline.chunk_sections")
+    @patch("app.ingestion.pipeline._parse_content")
+    @patch("app.ingestion.pipeline.convert_proto_file")
+    def test_proto_passes_original_filename(self, mock_convert_proto, mock_parse, mock_chunk, mock_embed):
+        from app.ingestion.pipeline import ingest_from_bytes
+        from collections import namedtuple
+        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
+
+        mock_convert_proto.return_value = ("# AcfaService.proto\n\nService content", {"total_ms": 10.0})
+        mock_parse.return_value = [{"heading": "AcfaService", "content": "Service content", "level": 1}]
+        mock_chunk.return_value = [ChunkData("AcfaService", 1, "Service content", 5)]
+
+        doc = _make_mock_document(format="proto")
+        path = _write_temp_file('syntax = "proto3";', suffix=".proto")
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.scalars.return_value.all.return_value = []
+
+        try:
+            result = ingest_from_bytes(
+                session=mock_session, document=doc,
+                file_path=path, original_filename="AcfaService.proto",
+            )
+            assert result["status"] == "ok"
+            mock_convert_proto.assert_called_once_with(path, original_filename="AcfaService.proto")
+        finally:
+            os.unlink(path)
+
+    @patch("app.ingestion.pipeline.convert_proto_file", side_effect=RuntimeError("Parse error"))
+    def test_proto_conversion_failure(self, mock_convert_proto):
+        from app.ingestion.pipeline import ingest_from_bytes
+
+        doc = _make_mock_document(format="proto")
+        path = _write_temp_file("bad proto", suffix=".proto")
+
+        mock_session = MagicMock()
+
+        try:
+            result = ingest_from_bytes(
+                session=mock_session, document=doc,
+                file_path=path, original_filename="Bad.proto",
+            )
+            assert result["status"] == "error"
+            assert "Parse error" in result["error"]
+            assert "Proto conversion failed" in doc.error_message
+            assert doc.status == "error"
+            mock_session.commit.assert_called()
+        finally:
+            os.unlink(path)
+
+    @patch("app.ingestion.pipeline.embed_texts", return_value=[[0.1] * 1024])
+    @patch("app.ingestion.pipeline.chunk_sections")
+    @patch("app.ingestion.pipeline.parse_markdown")
+    def test_auto_detect_uses_original_filename_for_proto(self, mock_parse, mock_chunk, mock_embed):
+        """When format=auto, detect_format should use original_filename (not temp path)."""
+        from app.ingestion.pipeline import ingest_from_bytes
+        from collections import namedtuple
+        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
+
+        mock_parse.return_value = [{"heading": "Test", "content": "data", "level": 1}]
+        mock_chunk.return_value = [ChunkData("Test", 1, "data", 5)]
+
+        doc = _make_mock_document(format="auto")
+        path = _write_temp_file('syntax = "proto3";', suffix=".bin")
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.scalars.return_value.all.return_value = []
+
+        try:
+            with patch("app.ingestion.pipeline.convert_proto_file") as mock_proto:
+                mock_proto.return_value = ("# Test\n\ndata", {"total_ms": 5.0})
+                result = ingest_from_bytes(
+                    session=mock_session, document=doc,
+                    file_path=path, original_filename="TestService.proto",
+                )
+                assert doc.format == "proto"
+                mock_proto.assert_called_once_with(path, original_filename="TestService.proto")
+        finally:
+            os.unlink(path)
+
+
 class TestIngestFromBytesNoContent:
     """Test behavior when no chunks are extracted."""
 

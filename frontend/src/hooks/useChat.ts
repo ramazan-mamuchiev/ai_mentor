@@ -3,6 +3,10 @@ import i18n from '../i18n'
 import { streamMessage } from '../api/chat'
 import type { ChatMessage, DebugInfo, SourceInfo, StreamStatus } from '../types'
 
+function snakeToCamel(s: string): string {
+  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+}
+
 interface UseChatReturn {
   messages: ChatMessage[]
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
@@ -13,6 +17,7 @@ interface UseChatReturn {
   sendMessage: (sessionId: number, content: string) => Promise<void>
   cancel: () => void
   reset: () => void
+  retryLast: (sessionId: number) => void
 }
 
 export function useChat(): UseChatReturn {
@@ -109,12 +114,24 @@ export function useChat(): UseChatReturn {
             durationMs = event.duration_ms
             debugInfo = event.debug ?? null
             break
-          case 'error':
-            setStatus('error')
-            fullContent += `\n\n⚠️ ${i18n.t('chat.error', { message: event.content })}`
-            contentRef.current = fullContent
-            setStreamingContent(fullContent)
+          case 'error': {
+            const errorMsg: ChatMessage = {
+              id: Date.now() + 1,
+              session_id: sessionId,
+              role: 'assistant',
+              content: '',
+              error_code: snakeToCamel(event.error_code || 'internal_error'),
+              created_at: new Date().toISOString(),
+            }
+            setMessages(prev => [...prev, errorMsg])
+            setStreamingContent('')
+            setStreamingSources([])
+            setStatus('idle')
+            setLastUserPrompt(lastPromptRef.current)
+            contentRef.current = ''
+            sourcesRef.current = []
             return
+          }
         }
       }
 
@@ -136,12 +153,37 @@ export function useChat(): UseChatReturn {
       sourcesRef.current = []
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
-        setStatus('error')
+        const errorMsg: ChatMessage = {
+          id: Date.now() + 1,
+          session_id: sessionId,
+          role: 'assistant',
+          content: '',
+          error_code: 'networkError',
+          created_at: new Date().toISOString(),
+        }
+        setMessages(prev => [...prev, errorMsg])
+        setStreamingContent('')
+        setStreamingSources([])
+        setStatus('idle')
+        setLastUserPrompt(lastPromptRef.current)
+        contentRef.current = ''
+        sourcesRef.current = []
       }
     } finally {
       abortRef.current = null
     }
   }, [])
 
-  return { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset }
+  const retryLast = useCallback((sessionId: number) => {
+    const prompt = lastPromptRef.current
+    if (!prompt) return
+    setMessages(prev => {
+      const last = prev[prev.length - 1]
+      if (last?.error_code) return prev.slice(0, -1)
+      return prev
+    })
+    sendMessage(sessionId, prompt)
+  }, [sendMessage])
+
+  return { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast }
 }

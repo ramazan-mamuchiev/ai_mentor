@@ -14,6 +14,7 @@ interface Props {
   status: StreamStatus
   onSend: (content: string) => void
   onCancel: () => void
+  onRetry?: () => void
   editValue?: string
   onUploadClick?: () => void
 }
@@ -25,14 +26,17 @@ export function ChatWindow({
   status,
   onSend,
   onCancel,
+  onRetry,
   editValue,
   onUploadClick,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
+  const programmaticScrollRef = useRef(false)
 
   const handleScroll = useCallback(() => {
+    if (programmaticScrollRef.current) return
     const el = containerRef.current
     if (!el) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
@@ -40,9 +44,14 @@ export function ChatWindow({
   }, [])
 
   useEffect(() => {
-    if (stickToBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
+    if (!stickToBottomRef.current) return
+    const el = containerRef.current
+    if (!el) return
+    programmaticScrollRef.current = true
+    el.scrollTop = el.scrollHeight
+    setTimeout(() => {
+      programmaticScrollRef.current = false
+    }, 0)
   }, [messages, streamingContent])
 
   const handleSend = useCallback(
@@ -75,8 +84,12 @@ export function ChatWindow({
           </div>
         ) : (
           <>
-            {messages.map(msg => (
-              <ChatMessageComponent key={msg.id} message={msg} />
+            {messages.map((msg, idx) => (
+              <ChatMessageComponent
+                key={msg.id}
+                message={msg}
+                onRetry={msg.error_code && idx === messages.length - 1 ? onRetry : undefined}
+              />
             ))}
             {status === 'streaming' && (
               <ChatMessageComponent

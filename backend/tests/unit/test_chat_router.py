@@ -309,6 +309,107 @@ class TestSendMessage:
         assert response.media_type == "text/event-stream"
 
 
+class TestSendMessageErrorHandling:
+    """Test that SSE error events contain error_code instead of raw text."""
+
+    @pytest.mark.asyncio
+    @patch("app.chat.router.stream_chat_completion")
+    @patch("app.chat.router.build_rag_prompt")
+    @patch("app.chat.router.async_session")
+    async def test_llm_error_produces_error_code_in_sse(self, mock_session_factory, mock_rag, mock_llm):
+        from app.llm.client import LLMError
+
+        mock_session, mock_ctx = _mock_async_session()
+        mock_session_factory.return_value = mock_ctx
+
+        chat_session = _make_mock_chat_session(session_id=1, title="Test")
+        chat_session.product_filter = None
+        chat_session.version_filter = None
+        chat_session.doc_context = None
+        mock_session.get = AsyncMock(return_value=chat_session)
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_rag.return_value = (
+            [{"role": "user", "content": "hi"}],
+            [],
+            {"search_ms": 10, "rag_build_ms": 10, "chunks_found": 0, "top_similarity": 0, "min_similarity": 0, "context_tokens": 0, "history_messages": 0, "prompt_messages": 1, "embedding_model": "test"},
+        )
+
+        async def _raise_llm_error(*args, **kwargs):
+            raise LLMError(400, "bad_request", "API rejected")
+            yield  # noqa: unreachable — makes this an async generator
+
+        mock_llm.side_effect = _raise_llm_error
+
+        from app.chat.router import send_message
+        import json
+
+        response = await send_message(1, SendMessageRequest(content="hello"))
+        events = []
+        async for chunk in response.body_iterator:
+            if chunk.strip():
+                events.append(chunk.strip())
+
+        error_events = [e for e in events if '"error"' in e and 'error_code' in e]
+        assert len(error_events) >= 1
+        error_data = json.loads(error_events[-1].replace("data: ", ""))
+        assert error_data["type"] == "error"
+        assert error_data["error_code"] == "bad_request"
+        assert error_data["status_code"] == 400
+
+    @pytest.mark.asyncio
+    @patch("app.chat.router.stream_chat_completion")
+    @patch("app.chat.router.build_rag_prompt")
+    @patch("app.chat.router.async_session")
+    async def test_generic_exception_produces_internal_error_code(self, mock_session_factory, mock_rag, mock_llm):
+        mock_session, mock_ctx = _mock_async_session()
+        mock_session_factory.return_value = mock_ctx
+
+        chat_session = _make_mock_chat_session(session_id=1, title="Test")
+        chat_session.product_filter = None
+        chat_session.version_filter = None
+        chat_session.doc_context = None
+        mock_session.get = AsyncMock(return_value=chat_session)
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_rag.return_value = (
+            [{"role": "user", "content": "hi"}],
+            [],
+            {"search_ms": 10, "rag_build_ms": 10, "chunks_found": 0, "top_similarity": 0, "min_similarity": 0, "context_tokens": 0, "history_messages": 0, "prompt_messages": 1, "embedding_model": "test"},
+        )
+
+        async def _raise_generic(*args, **kwargs):
+            raise ValueError("something unexpected")
+            yield  # noqa: unreachable
+
+        mock_llm.side_effect = _raise_generic
+
+        from app.chat.router import send_message
+        import json
+
+        response = await send_message(1, SendMessageRequest(content="hello"))
+        events = []
+        async for chunk in response.body_iterator:
+            if chunk.strip():
+                events.append(chunk.strip())
+
+        error_events = [e for e in events if '"error"' in e and 'error_code' in e]
+        assert len(error_events) >= 1
+        error_data = json.loads(error_events[-1].replace("data: ", ""))
+        assert error_data["type"] == "error"
+        assert error_data["error_code"] == "internal_error"
+
+
 class TestDeleteSession:
     @pytest.mark.asyncio
     @patch("app.chat.router.async_session")

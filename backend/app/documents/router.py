@@ -516,6 +516,62 @@ async def reindex_all_documents():
     }
 
 
+@router.post("/reingest", status_code=202)
+async def reingest_documents(
+    product_name: str = Form(default=""),
+    format_filter: str = Form(default=""),
+):
+    """Re-run full ingestion (convert + parse + chunk + embed) for existing documents.
+
+    Resets matching documents to 'pending' and queues them for Celery processing.
+    Useful after fixing converters (e.g. proto filename bug).
+
+    Filters (all optional, combined with AND):
+        product_name: Only reingest documents for this product.
+        format_filter: Only reingest documents with this format (e.g. "proto").
+    """
+    from app.celery_app import ingest_document_task
+
+    async with async_session() as session:
+        query = select(Document).where(Document.status == "ready")
+
+        if product_name:
+            product_result = await session.execute(
+                select(Product).where(Product.name == product_name)
+            )
+            product = product_result.scalar_one_or_none()
+            if product is None:
+                raise HTTPException(status_code=404, detail=f"Product '{product_name}' not found")
+            query = query.where(Document.product_id == product.id)
+
+        if format_filter:
+            query = query.where(Document.format == format_filter)
+
+        docs_result = await session.execute(query)
+        docs = docs_result.scalars().all()
+
+        queued = 0
+        for doc in docs:
+            doc.status = "pending"
+            queued += 1
+
+        await session.commit()
+
+    for doc in docs:
+        ingest_document_task.delay(doc.id)
+
+    logger.info(
+        "Reingest queued",
+        extra={"product_name": product_name, "format_filter": format_filter, "documents_queued": queued},
+    )
+    return {
+        "status": "accepted",
+        "documents_queued": queued,
+        "product_name": product_name or "(all)",
+        "format_filter": format_filter or "(all)",
+    }
+
+
 async def _find_by_hash(session, source_hash: str) -> Document | None:
     """Find an existing document with the same content hash."""
     result = await session.execute(

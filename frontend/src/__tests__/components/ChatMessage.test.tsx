@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ChatMessageComponent } from '../../components/ChatMessage'
 import type { ChatMessage } from '../../types'
@@ -94,5 +94,38 @@ describe('ChatMessageComponent', () => {
       />,
     )
     expect(screen.queryByText(/Searching documentation/)).not.toBeInTheDocument()
+  })
+
+  it('renders error message with retry button', async () => {
+    const onRetry = vi.fn()
+    const errorMsg: ChatMessage = {
+      id: 99,
+      session_id: 1,
+      role: 'assistant',
+      content: '',
+      error_code: 'badRequest',
+      created_at: '2026-01-01T00:00:00Z',
+    }
+    render(<ChatMessageComponent message={errorMsg} onRetry={onRetry} />)
+    expect(screen.getByText(/AI service rejected/)).toBeInTheDocument()
+    expect(screen.getByText('Try again')).toBeInTheDocument()
+
+    const user = (await import('@testing-library/user-event')).default
+    await user.setup().click(screen.getByText('Try again'))
+    expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  it('renders error message without retry button when onRetry not provided', () => {
+    const errorMsg: ChatMessage = {
+      id: 99,
+      session_id: 1,
+      role: 'assistant',
+      content: '',
+      error_code: 'timeout',
+      created_at: '2026-01-01T00:00:00Z',
+    }
+    render(<ChatMessageComponent message={errorMsg} />)
+    expect(screen.getByText(/did not respond in time/)).toBeInTheDocument()
+    expect(screen.queryByText('Try again')).not.toBeInTheDocument()
   })
 })

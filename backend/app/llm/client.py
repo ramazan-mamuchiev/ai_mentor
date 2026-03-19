@@ -17,6 +17,28 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+class LLMError(Exception):
+    """Typed LLM error with machine-readable error_code for the frontend."""
+
+    def __init__(self, status_code: int, error_code: str, detail: str):
+        self.status_code = status_code
+        self.error_code = error_code
+        self.detail = detail
+        super().__init__(detail)
+
+
+def _error_code_from_status(status_code: int) -> str:
+    if status_code == 401 or status_code == 403:
+        return "auth_failed"
+    if status_code == 404:
+        return "model_not_found"
+    if status_code == 429:
+        return "rate_limited"
+    if status_code >= 500:
+        return "server_error"
+    return "bad_request"
+
+
 def _effective_model() -> str:
     if settings.llm_provider == "openai":
         return settings.openai_llm_model
@@ -75,34 +97,45 @@ async def _stream_ollama(
         },
     )
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=10.0)) as client:
-        async with client.stream("POST", url, json=payload) as response:
-            if response.status_code != 200:
-                body = await response.aread()
-                duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-                logger.error(
-                    "Ollama API error",
-                    extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms},
-                )
-                raise RuntimeError(f"Ollama returned {response.status_code}")
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=10.0)) as client:
+            async with client.stream("POST", url, json=payload) as response:
+                if response.status_code != 200:
+                    body = await response.aread()
+                    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+                    logger.error(
+                        "Ollama API error",
+                        extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms},
+                    )
+                    raise LLMError(
+                        response.status_code,
+                        _error_code_from_status(response.status_code),
+                        f"Ollama returned {response.status_code}",
+                    )
 
-            async for line in response.aiter_lines():
-                if not line.strip():
-                    continue
-                try:
-                    data = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
 
-                if data.get("done"):
-                    break
+                    if data.get("done"):
+                        break
 
-                content = data.get("message", {}).get("content", "")
-                if content:
-                    token_count += 1
-                    if token_count == 1:
-                        first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
-                    yield content
+                    content = data.get("message", {}).get("content", "")
+                    if content:
+                        token_count += 1
+                        if token_count == 1:
+                            first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
+                        yield content
+    except LLMError:
+        raise
+    except httpx.ConnectError as e:
+        raise LLMError(0, "unreachable", f"Ollama unreachable: {e}") from e
+    except httpx.TimeoutException as e:
+        raise LLMError(0, "timeout", f"Ollama timeout: {e}") from e
 
     _log_completion("ollama", model, token_count, t0, first_token_ms)
 
@@ -148,39 +181,50 @@ async def _stream_openai_compatible(
         },
     )
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
-        async with client.stream("POST", url, json=payload, headers=headers) as response:
-            if response.status_code != 200:
-                body = await response.aread()
-                duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-                logger.error(
-                    "OpenAI-compatible API error",
-                    extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms},
-                )
-                raise RuntimeError(f"LLM API returned {response.status_code}: {body.decode()[:200]}")
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
+            async with client.stream("POST", url, json=payload, headers=headers) as response:
+                if response.status_code != 200:
+                    body = await response.aread()
+                    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+                    logger.error(
+                        "OpenAI-compatible API error",
+                        extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms},
+                    )
+                    raise LLMError(
+                        response.status_code,
+                        _error_code_from_status(response.status_code),
+                        f"LLM API returned {response.status_code}: {body.decode()[:200]}",
+                    )
 
-            async for line in response.aiter_lines():
-                stripped = line.strip()
-                if not stripped or not stripped.startswith("data: "):
-                    continue
-                data_str = stripped[6:]
-                if data_str == "[DONE]":
-                    break
-                try:
-                    data = json.loads(data_str)
-                except json.JSONDecodeError:
-                    continue
+                async for line in response.aiter_lines():
+                    stripped = line.strip()
+                    if not stripped or not stripped.startswith("data: "):
+                        continue
+                    data_str = stripped[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
 
-                choices = data.get("choices", [])
-                if not choices:
-                    continue
-                delta = choices[0].get("delta", {})
-                content = delta.get("content", "")
-                if content:
-                    token_count += 1
-                    if token_count == 1:
-                        first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
-                    yield content
+                    choices = data.get("choices", [])
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        token_count += 1
+                        if token_count == 1:
+                            first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
+                        yield content
+    except LLMError:
+        raise
+    except httpx.ConnectError as e:
+        raise LLMError(0, "unreachable", f"LLM API unreachable: {e}") from e
+    except httpx.TimeoutException as e:
+        raise LLMError(0, "timeout", f"LLM API timeout: {e}") from e
 
     _log_completion("openai-compatible", model, token_count, t0, first_token_ms)
 

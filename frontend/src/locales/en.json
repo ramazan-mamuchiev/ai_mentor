@@ -15,6 +15,17 @@
   "chat.debug": "Debug info",
   "chat.stopped": "*⏹ Generation stopped*",
   "chat.error": "Error: {{message}}",
+  "chat.retry": "Try again",
+
+  "error.badRequest": "The AI service rejected the request. Please try again.",
+  "error.authFailed": "AI service authentication failed. Please check the configuration.",
+  "error.modelNotFound": "The AI model is not available. Please check the configuration.",
+  "error.rateLimited": "Too many requests. Please wait a moment and try again.",
+  "error.serverError": "The AI service is temporarily unavailable. Please try again later.",
+  "error.timeout": "The AI service did not respond in time. Please try again.",
+  "error.unreachable": "Cannot connect to the AI service. Please check the connection.",
+  "error.internalError": "An unexpected error occurred. Please try again.",
+  "error.networkError": "Network error. Please check your connection.",
 
   "debug.identifiers": "Identifiers",
   "debug.session": "Session",

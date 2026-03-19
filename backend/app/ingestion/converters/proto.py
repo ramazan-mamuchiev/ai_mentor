@@ -485,10 +485,16 @@ def convert_proto(text: str, filename: str = "") -> tuple[str, dict]:
     return markdown, metadata
 
 
-def convert_proto_file(file_path: str) -> tuple[str, dict]:
-    """Read a .proto file from disk and convert to Markdown."""
+def convert_proto_file(file_path: str, original_filename: str = "") -> tuple[str, dict]:
+    """Read a .proto file from disk and convert to Markdown.
+
+    Args:
+        file_path: Path to the .proto file on disk (may be a temp file).
+        original_filename: Original filename to use in the Markdown title.
+            Falls back to basename of file_path if not provided.
+    """
     import os
     with open(file_path, "r", encoding="utf-8") as f:
         text = f.read()
-    filename = os.path.basename(file_path)
+    filename = original_filename or os.path.basename(file_path)
     return convert_proto(text, filename)

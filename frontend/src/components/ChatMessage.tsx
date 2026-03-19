@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, Bug, ChevronDown, ChevronUp, Loader2, User } from 'lucide-react'
+import { AlertTriangle, Bot, Bug, ChevronDown, ChevronUp, Loader2, RefreshCw, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -48,14 +48,16 @@ interface Props {
   isStreaming?: boolean
   streamingContent?: string
   streamingSources?: SourceInfo[]
+  onRetry?: () => void
 }
 
-export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources }: Props) {
+export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, onRetry }: Props) {
   const { t } = useTranslation()
   const content = isStreaming ? (streamingContent || '') : message.content
   const sources = isStreaming ? (streamingSources || []) : (message.sources || [])
   const isUser = message.role === 'user'
   const isWaiting = isStreaming && !content
+  const isError = !!message.error_code
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
   const [debugExpanded, setDebugExpanded] = useState(false)
   const debug = message.debug
@@ -67,7 +69,18 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
       </div>
       <div className="message-body">
         <div className={`message-content ${isStreaming && content ? 'streaming-cursor' : ''}`}>
-          {isUser ? (
+          {isError ? (
+            <div className="message-error">
+              <AlertTriangle size={16} />
+              <span>{t(`error.${message.error_code}`)}</span>
+              {onRetry && (
+                <button className="retry-button" onClick={onRetry}>
+                  <RefreshCw size={12} />
+                  <span>{t('chat.retry')}</span>
+                </button>
+              )}
+            </div>
+          ) : isUser ? (
             content
           ) : isWaiting ? (
             <div className="typing-indicator">

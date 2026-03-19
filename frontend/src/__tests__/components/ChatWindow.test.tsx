@@ -9,11 +9,8 @@ const messages: ChatMessage[] = [
   { id: 2, session_id: 1, role: 'assistant', content: 'Hi there!', created_at: '' },
 ]
 
-const scrollIntoViewMock = vi.fn()
-
 beforeEach(() => {
-  scrollIntoViewMock.mockClear()
-  Element.prototype.scrollIntoView = scrollIntoViewMock
+  vi.restoreAllMocks()
 })
 
 function renderChatWindow(overrides: Partial<Parameters<typeof ChatWindow>[0]> = {}) {
@@ -64,7 +61,7 @@ describe('ChatWindow smart auto-scroll', () => {
 
   function simulateScrollPosition(el: HTMLElement, scrollTop: number, scrollHeight: number, clientHeight: number) {
     Object.defineProperty(el, 'scrollHeight', { value: scrollHeight, configurable: true })
-    Object.defineProperty(el, 'scrollTop', { value: scrollTop, configurable: true })
+    Object.defineProperty(el, 'scrollTop', { value: scrollTop, writable: true, configurable: true })
     Object.defineProperty(el, 'clientHeight', { value: clientHeight, configurable: true })
   }
 
@@ -73,13 +70,13 @@ describe('ChatWindow smart auto-scroll', () => {
       messages: [{ id: 1, session_id: 1, role: 'user', content: 'q', created_at: '' }],
       streamingContent: 'tok1',
       status: 'streaming',
-      })
-
-    scrollIntoViewMock.mockClear()
+    })
 
     const container = getContainer()
     simulateScrollPosition(container, 900, 1000, 100)
     fireEvent.scroll(container)
+
+    const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
 
     rerender(
       <ChatWindow
@@ -92,21 +89,24 @@ describe('ChatWindow smart auto-scroll', () => {
       />,
     )
 
-    expect(scrollIntoViewMock).toHaveBeenCalled()
+    expect(scrollTopSpy).toHaveBeenCalled()
   })
 
-  it('does NOT auto-scroll when user scrolled up', () => {
+  it('does NOT auto-scroll when user scrolled up', async () => {
+    vi.useFakeTimers()
     const { rerender } = renderChatWindow({
       messages: [{ id: 1, session_id: 1, role: 'user', content: 'q', created_at: '' }],
       streamingContent: 'tok1',
       status: 'streaming',
     })
 
+    await vi.runAllTimersAsync()
+
     const container = getContainer()
     simulateScrollPosition(container, 200, 1000, 100)
     fireEvent.scroll(container)
 
-    scrollIntoViewMock.mockClear()
+    const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
 
     rerender(
       <ChatWindow
@@ -119,7 +119,8 @@ describe('ChatWindow smart auto-scroll', () => {
       />,
     )
 
-    expect(scrollIntoViewMock).not.toHaveBeenCalled()
+    expect(scrollTopSpy).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 
   it('re-enables auto-scroll when user scrolls back to bottom', () => {
@@ -137,7 +138,7 @@ describe('ChatWindow smart auto-scroll', () => {
     simulateScrollPosition(container, 920, 1000, 100)
     fireEvent.scroll(container)
 
-    scrollIntoViewMock.mockClear()
+    const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
 
     rerender(
       <ChatWindow
@@ -150,7 +151,7 @@ describe('ChatWindow smart auto-scroll', () => {
       />,
     )
 
-    expect(scrollIntoViewMock).toHaveBeenCalled()
+    expect(scrollTopSpy).toHaveBeenCalled()
   })
 
   it('re-enables auto-scroll when user sends a new message', async () => {
@@ -167,8 +168,6 @@ describe('ChatWindow smart auto-scroll', () => {
     const container = getContainer()
     simulateScrollPosition(container, 200, 1000, 100)
     fireEvent.scroll(container)
-
-    scrollIntoViewMock.mockClear()
 
     rerender(
       <ChatWindow
@@ -187,6 +186,8 @@ describe('ChatWindow smart auto-scroll', () => {
     const input = screen.getByPlaceholderText(/Ask about device/i)
     await user.type(input, 'follow up{Enter}')
 
+    const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
+
     rerender(
       <ChatWindow
         messages={[
@@ -202,6 +203,6 @@ describe('ChatWindow smart auto-scroll', () => {
       />,
     )
 
-    expect(scrollIntoViewMock).toHaveBeenCalled()
+    expect(scrollTopSpy).toHaveBeenCalled()
   })
 })

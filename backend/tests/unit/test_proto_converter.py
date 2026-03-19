@@ -285,6 +285,69 @@ class TestConvertProto:
         assert "google/protobuf/timestamp.proto" in md
 
 
+class TestConvertProtoFileOriginalFilename:
+    """Test that convert_proto_file uses original_filename for the Markdown title."""
+
+    def test_uses_original_filename_over_temp_path(self):
+        """When original_filename is provided, it should appear in the title,
+        not the temp file basename."""
+        import os
+        import tempfile
+        from app.ingestion.converters.proto import convert_proto_file
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".proto", delete=False, mode="w", encoding="utf-8",
+        ) as f:
+            f.write(SAMPLE_PROTO)
+            f.flush()
+            temp_path = f.name
+
+        try:
+            md, meta = convert_proto_file(temp_path, original_filename="AcfaService.proto")
+            assert "# AcfaService.proto" in md
+            assert os.path.basename(temp_path) not in md
+        finally:
+            os.unlink(temp_path)
+
+    def test_falls_back_to_file_path_basename(self):
+        """Without original_filename, should fall back to basename of file_path."""
+        import os
+        import tempfile
+        from app.ingestion.converters.proto import convert_proto_file
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".proto", delete=False, mode="w", encoding="utf-8",
+        ) as f:
+            f.write(SAMPLE_PROTO)
+            f.flush()
+            temp_path = f.name
+
+        try:
+            md, meta = convert_proto_file(temp_path)
+            assert f"# {os.path.basename(temp_path)}" in md
+        finally:
+            os.unlink(temp_path)
+
+    def test_empty_original_filename_uses_path(self):
+        """Empty string for original_filename should fall back to file_path basename."""
+        import os
+        import tempfile
+        from app.ingestion.converters.proto import convert_proto_file
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".proto", delete=False, mode="w", encoding="utf-8",
+        ) as f:
+            f.write(SAMPLE_PROTO)
+            f.flush()
+            temp_path = f.name
+
+        try:
+            md, meta = convert_proto_file(temp_path, original_filename="")
+            assert f"# {os.path.basename(temp_path)}" in md
+        finally:
+            os.unlink(temp_path)
+
+
 class TestEdgeCases:
     def test_empty_proto(self):
         md, meta = convert_proto("")

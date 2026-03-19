@@ -37,6 +37,7 @@ export interface ChatMessage {
   sources?: SourceInfo[] | null
   duration_ms?: number | null
   debug?: DebugInfo | null
+  error_code?: string | null
   created_at: string
 }
 
@@ -65,6 +66,6 @@ export type SSEEvent =
   | { type: 'token'; content: string }
   | { type: 'sources'; sources: SourceInfo[] }
   | { type: 'done'; message_id: number; duration_ms: number; debug?: DebugInfo }
-  | { type: 'error'; content: string }
+  | { type: 'error'; error_code: string; status_code?: number }
 
 export type StreamStatus = 'idle' | 'streaming' | 'error'

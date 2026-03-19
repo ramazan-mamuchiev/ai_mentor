@@ -56,7 +56,7 @@ describe('useChat', () => {
   it('handles error events from stream', async () => {
     mockStreamMessage.mockReturnValue(fakeStream([
       { type: 'sources', sources: [] },
-      { type: 'error', content: 'Ollama down' },
+      { type: 'error', error_code: 'bad_request', status_code: 400 },
     ]) as any)
 
     const { result } = renderHook(() => useChat())
@@ -65,8 +65,11 @@ describe('useChat', () => {
       await result.current.sendMessage(1, 'test')
     })
 
-    expect(result.current.status).toBe('error')
-    expect(result.current.messages).toHaveLength(1)
+    expect(result.current.status).toBe('idle')
+    expect(result.current.messages).toHaveLength(2)
+    expect(result.current.messages[1].role).toBe('assistant')
+    expect(result.current.messages[1].error_code).toBe('badRequest')
+    expect(result.current.messages[1].content).toBe('')
   })
 
   it('handles stream exceptions gracefully', async () => {
@@ -80,7 +83,9 @@ describe('useChat', () => {
       await result.current.sendMessage(1, 'test')
     })
 
-    expect(result.current.status).toBe('error')
+    expect(result.current.status).toBe('idle')
+    expect(result.current.messages).toHaveLength(2)
+    expect(result.current.messages[1].error_code).toBe('networkError')
   })
 
   it('cancel sets status to idle', async () => {
