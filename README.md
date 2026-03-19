@@ -1,51 +1,113 @@
-# IPCodex — AI-Powered Documentation Search for Product Integration
+# IPCodex
 
 > **Protocols speak. Codex translates.**
 >
 > *From docs to code. Instantly.*
 
-IPCodex is an MCP server that gives your AI coding assistant instant access to API documentation for hardware devices (IP cameras, access controllers, intercoms) and software platforms (VMS, PSIM, IoT platforms, SDKs) — so it can write accurate integration code instead of hallucinating APIs.
+IPCodex is a platform that transforms chaotic product documentation (PDF, Swagger/OpenAPI, Markdown, web pages, Protobuf) into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
 
-## The Problem
+## Why
 
-Developers integrating physical security and IoT products waste hours reading chaotic vendor documentation:
+Developers integrating physical security and IoT products waste hours reading vendor documentation: 180-page PDFs with no search, scattered Swagger specs, outdated SDK examples. IPCodex indexes it all and serves relevant documentation to your AI assistant in real time.
 
-- 180-page PDFs with no search
-- Swagger specs scattered across vendor portals
-- Outdated SDK examples that don't compile
-- Protocol details buried in page 94 of a manual
-
-**Result:** 8-12 hours to write a single device integration.
-
-## The Solution
-
-IPCodex indexes product documentation (PDF, Swagger/OpenAPI, Markdown, web pages) into a semantic knowledge base and serves it to AI assistants via MCP.
+## Project Structure
 
 ```
-Developer in Cursor:
-  "Write Python code to stream video from a Hikvision camera
-   and register it in Axxon One with analytics metadata"
-
-IPCodex returns:
-  — Hikvision RTSP streaming endpoint (from camera docs)
-  — Hikvision authentication method (from camera docs)
-  — Axxon One gRPC camera registration API (from VMS SDK docs)
-  — Working code combining all three
-
-Total time: minutes, not hours.
+ipcodex/
+├── backend/              Python backend (FastAPI + Celery)
+│   ├── app/
+│   │   ├── mcp/          MCP server — AI coding assistant integration
+│   │   ├── chat/         RAG chat with LLM
+│   │   ├── ingestion/    Document ingestion pipeline
+│   │   ├── search/       Semantic search (pgvector)
+│   │   └── ...
+│   └── tests/            Unit + integration tests (Testcontainers)
+├── frontend/             React SPA (TypeScript + Vite)
+├── architecture/         Architecture docs, API spec, DB schema
+├── promo/                Landing pages and marketing materials
+├── monitoring/           Grafana + Loki + Promtail configs
+├── scripts/              Utility scripts (Ollama entrypoint, etc.)
+└── docker-compose.yml    Full stack: API, worker, DB, Redis, MinIO, Ollama, Grafana
 ```
+
+## Components
+
+### MCP Server
+
+The core of IPCodex — an MCP server that gives AI coding assistants (Cursor, Windsurf, GitHub Copilot) instant access to indexed product documentation.
+
+3 tools: `search_documentation`, `get_api_endpoint`, `list_products`.
+
+See **[MCP Server README](backend/app/mcp/README.md)** for tool reference, quick start, and connection instructions.
+
+### Backend (FastAPI)
+
+REST API for document management, ingestion, search, and RAG chat.
+
+- **Ingestion pipeline** — PDF (with OCR), Swagger/OpenAPI, Markdown, Protobuf, web pages
+- **Semantic search** — pgvector with HNSW index, cosine similarity
+- **RAG chat** — LLM-powered answers grounded in documentation
+- **Async workers** — Celery for background ingestion and monitoring tasks
+
+### Frontend (React)
+
+Web UI for uploading documents, searching the knowledge base, and chatting with the RAG assistant.
+
+- TypeScript + Vite + React
+- Markdown rendering with syntax highlighting
+- File upload with TUS protocol (resumable)
+- i18n support (EN/RU)
+
+### Monitoring
+
+Grafana dashboards with Loki log aggregation via Promtail.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| API | FastAPI + uvicorn |
+| MCP | FastMCP (Python MCP SDK), Streamable HTTP |
+| Database | PostgreSQL 16 + pgvector (HNSW cosine similarity) |
+| Embeddings | Local models (sentence-transformers) / OpenAI |
+| LLM | Ollama (qwen2.5-coder) / OpenAI-compatible API (Gemini) |
+| Object Storage | MinIO (S3-compatible) |
+| Cache & Queue | Redis + Celery |
+| Frontend | React + TypeScript + Vite |
+| Monitoring | Grafana + Loki + Promtail |
+| Containers | Docker Compose |
 
 ## Quick Start
 
-### 1. Run the server
+### Prerequisites
+
+- Docker and Docker Compose
+- Python 3.12+ (for local backend development)
+- Node.js 18+ (for local frontend development)
+
+### Run the full stack
 
 ```bash
+git clone <repo-url>
+cd ipcodex
+cp .env.example .env    # adjust settings if needed
 docker compose up -d
 ```
 
-### 2. Connect from Cursor
+Services:
 
-Add to your `.cursor/mcp.json`:
+| Service | URL |
+|---------|-----|
+| Web UI | http://localhost |
+| API | http://localhost:8000 |
+| API docs (Swagger) | http://localhost:8000/docs |
+| MCP endpoint | http://localhost:8000/mcp |
+| Grafana | http://localhost:3000 |
+| MinIO console | http://localhost:9001 |
+
+### Connect MCP to Cursor
+
+Add to `.cursor/mcp.json`:
 
 ```json
 {
@@ -57,139 +119,43 @@ Add to your `.cursor/mcp.json`:
 }
 ```
 
-### 3. Start coding
-
-Ask your AI assistant anything about the indexed products:
+Then ask your AI assistant:
 
 ```
 How do I open a door via HikCentral HTTP API?
 ```
 
-```
-Show me the ONVIF PTZ continuous move command for pan and tilt.
-```
-
-```
-What's the RTSP stream URL format for Hikvision DS-2CD2347G2-LU?
-```
-
-IPCodex automatically provides the relevant documentation to your AI assistant.
-
-## MCP Tools
-
-IPCodex exposes 3 tools via the Model Context Protocol:
-
-### `search_documentation`
-
-Semantic search across all indexed product documentation. Use this to find API endpoints, authentication methods, request/response formats, and code examples.
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `query` | Yes | Natural language query (e.g. "how to open a door via API") |
-| `product` | No | Filter by product name (e.g. "HikCentral", "Axxon One") |
-| `version` | No | Filter by firmware/API version (e.g. "V2.6.1") |
-| `limit` | No | Number of results, 1-20 (default: 5) |
-
-### `get_api_endpoint`
-
-Look up documentation for a specific API endpoint path. Performs exact match first, then falls back to semantic search.
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `endpoint` | Yes | API path (e.g. "/acs/v1/door/doControl", "/ISAPI/AccessControl/Door/param") |
-| `product` | No | Filter by product name |
-
-### `list_products`
-
-Discover what products have indexed documentation. **Call this first** to see what's available.
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `category` | No | Filter by category (e.g. "camera", "vms", "access_control") |
-| `query` | No | Search by product name or manufacturer (e.g. "Hikvision", "Axxon") |
-
-## Supported Document Formats
-
-| Format | Extensions | How It's Parsed |
-|--------|-----------|-----------------|
-| Markdown | `.md` | Chunked by H1/H2/H3 headers |
-| Swagger / OpenAPI | `.json`, `.yaml` | 1 chunk per endpoint (structured) |
-| PDF | `.pdf` | Text extraction + optional OCR |
-| Web page | URL | HTML scraping + cleanup |
-| Protobuf | `.proto` | Service/method extraction |
-
-## Architecture
-
-```
-Cursor / AI IDE                    IPCodex Server
-┌──────────────┐                  ┌──────────────────────────┐
-│  Developer   │  MCP over HTTP   │  FastAPI + FastMCP       │
-│  asks AI to  │ ───────────────> │                          │
-│  write code  │                  │  ┌────────────────────┐  │
-│              │ <─────────────── │  │ Semantic Search     │  │
-│  AI gets     │  documentation   │  │ (pgvector + HNSW)   │  │
-│  accurate    │  chunks          │  └────────────────────┘  │
-│  code        │                  │           │              │
-└──────────────┘                  │  ┌────────▼───────────┐  │
-                                  │  │ PostgreSQL 16      │  │
-                                  │  │ + pgvector          │  │
-                                  │  │ (embeddings)        │  │
-                                  │  └────────────────────┘  │
-                                  └──────────────────────────┘
-```
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| API | FastAPI + uvicorn |
-| MCP | FastMCP (Python MCP SDK), Streamable HTTP |
-| Database | PostgreSQL 16 + pgvector (HNSW cosine similarity) |
-| Embeddings | OpenAI text-embedding-3-small / local models |
-| Object Storage | MinIO / S3 |
-| Cache | Redis |
-
-## Development
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Python 3.12+
-
-### Local setup
+### Local development
 
 ```bash
-# Clone and start infrastructure
-git clone <repo-url>
-cd ipcodex
-docker compose up -d
-
-# Install backend dependencies
+# Backend
 cd backend
 pip install -r requirements.txt
-
-# Run the server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
 
-### Running tests
+# Frontend
+cd frontend
+npm install
+npm run dev
 
-```bash
+# Tests
 cd backend
 pytest tests/ -v
 ```
 
-Integration tests use Testcontainers (PostgreSQL + pgvector) — Docker must be running.
+## Architecture Docs
 
-## Compared to Context7
+Detailed architecture documentation is in the [`architecture/`](architecture/) directory:
 
-| | Context7 | IPCodex |
-|---|---|---|
-| **Domain** | Open-source software libraries (React, Next.js) | Hardware devices + software platforms (cameras, VMS, access control) |
-| **Sources** | Public GitHub repos | PDF, Swagger, web pages, vendor portals |
-| **Versioning** | Library versions | Firmware versions + API versions |
-| **OCR** | No | Yes (scanned PDFs) |
-| **Target user** | Web/app developers | System integrators, IoT developers |
+| Document | Description |
+|----------|-------------|
+| [PLAN.md](architecture/PLAN.md) | Architecture overview, tech stack, implementation phases |
+| [API.md](architecture/API.md) | REST API endpoints, MCP tools, authentication |
+| [DATABASE.md](architecture/DATABASE.md) | Database schema, indexes, vector search |
+| [FLOWS.md](architecture/FLOWS.md) | Ingestion pipeline, supported formats, E2E flows |
+| [DEPLOYMENT.md](architecture/DEPLOYMENT.md) | Docker Compose, environment config, CI/CD |
+| [MONETIZATION.md](architecture/MONETIZATION.md) | Pricing tiers, billing, marketplace strategy |
+| [MARKET_RESEARCH.md](architecture/MARKET_RESEARCH.md) | Market sizing, competitive analysis |
 
 ## License
 
