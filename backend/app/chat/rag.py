@@ -129,7 +129,10 @@ def _enrich_query(query: str, history: list[ChatMessage] | None) -> str:
     if not history or len(query) > 200:
         return query
 
-    recent_user_msgs = [m.content for m in history if m.role == "user"][-3:]
+    all_user_msgs = [m.content for m in history if m.role == "user"]
+    if all_user_msgs and all_user_msgs[-1] == query:
+        all_user_msgs = all_user_msgs[:-1]
+    recent_user_msgs = all_user_msgs[-3:]
     if not recent_user_msgs:
         return query
 
