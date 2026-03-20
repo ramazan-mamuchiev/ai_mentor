@@ -226,6 +226,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 msgs_result = await db.execute(
                     select(ChatMessage)
                     .where(ChatMessage.session_id == session_id)
+                    .where(ChatMessage.id != user_msg.id)
                     .order_by(ChatMessage.created_at)
                 )
                 history = msgs_result.scalars().all()
