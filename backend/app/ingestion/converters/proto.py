@@ -269,6 +269,26 @@ def _render_message_md(msg: ProtoMessage, heading_level: int = 3) -> str:
         lines.append(msg.comment)
         lines.append("")
 
+    all_fields = list(msg.fields)
+    for oneof in msg.oneofs:
+        all_fields.extend(oneof.fields)
+
+    if all_fields:
+        proto_lines = [f"message {msg.name} {{"]
+        for f in msg.fields:
+            label = f"{f.label} " if f.label else ""
+            proto_lines.append(f"  {label}{f.type} {f.name} = {f.number};")
+        for oneof in msg.oneofs:
+            proto_lines.append(f"  oneof {oneof.name} {{")
+            for f in oneof.fields:
+                proto_lines.append(f"    {f.type} {f.name} = {f.number};")
+            proto_lines.append("  }")
+        proto_lines.append("}")
+        lines.append("```protobuf")
+        lines.extend(proto_lines)
+        lines.append("```")
+        lines.append("")
+
     if msg.fields:
         lines.append("| # | Field | Type | Label | Description |")
         lines.append("|---|-------|------|-------|-------------|")
@@ -302,13 +322,31 @@ def _render_service_md(svc: ProtoService, heading_level: int = 2) -> str:
         lines.append(svc.comment)
         lines.append("")
 
+    if svc.methods:
+        proto_lines = [f"service {svc.name} {{"]
+        for method in svc.methods:
+            in_s = "stream " if method.client_streaming else ""
+            out_s = "stream " if method.server_streaming else ""
+            proto_lines.append(
+                f"  rpc {method.name}({in_s}{method.input_type}) "
+                f"returns ({out_s}{method.output_type});"
+            )
+        proto_lines.append("}")
+        lines.append("```protobuf")
+        lines.extend(proto_lines)
+        lines.append("```")
+        lines.append("")
+
     for method in svc.methods:
-        in_stream = "stream " if method.client_streaming else ""
-        out_stream = "stream " if method.server_streaming else ""
-        sig = f"`rpc {method.name}({in_stream}{method.input_type}) returns ({out_stream}{method.output_type})`"
-        lines.append(f"- {sig}")
         if method.comment:
+            in_s = "stream " if method.client_streaming else ""
+            out_s = "stream " if method.server_streaming else ""
+            lines.append(
+                f"- `rpc {method.name}({in_s}{method.input_type}) "
+                f"returns ({out_s}{method.output_type})`"
+            )
             lines.append(f"  - {method.comment}")
+
     lines.append("")
     return "\n".join(lines)
 

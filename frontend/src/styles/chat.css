@@ -375,6 +375,7 @@
   padding: 10px 16px;
   font-size: 14px;
   line-height: 1.7;
+  overflow-x: auto;
 }
 
 .message.user .message-content {
@@ -538,6 +539,93 @@
   word-break: break-all;
 }
 
+.debug-none {
+  color: var(--text-muted) !important;
+  opacity: 0.45;
+  font-style: italic;
+}
+
+.debug-query-value {
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.debug-section-full {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+.debug-context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px 20px;
+}
+
+.debug-context-grid .debug-row {
+  justify-content: space-between;
+}
+
+.debug-context-grid .debug-row span {
+  flex-shrink: 0;
+}
+
+.debug-row-sub span {
+  padding-left: 8px;
+  font-size: 10px;
+}
+.debug-row-sub code {
+  font-size: 10px !important;
+  opacity: 0.8;
+}
+
+.debug-row-subtotal {
+  margin-top: 2px;
+  padding-top: 3px;
+  border-top: 1px dotted var(--border-color, #e2e8f0);
+}
+.debug-row-subtotal span {
+  font-weight: 500;
+}
+
+.debug-row-total {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-color, #e2e8f0);
+}
+.debug-row-total span,
+.debug-row-total code {
+  font-weight: 600;
+}
+
+.debug-row-config span,
+.debug-row-config code {
+  opacity: 0.5;
+  font-size: 10px !important;
+}
+
+.debug-row-wide {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px dashed var(--border-color, #e2e8f0);
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.debug-row-wide span {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.debug-row-wide code {
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.4;
+}
+
 /* ── Sources ── */
 .sources-container {
   margin-top: 8px;
@@ -681,6 +769,39 @@
 .code-block-wrapper pre {
   margin: 0 !important;
   border-radius: 0 !important;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.code-block-wrapper pre:hover {
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.code-block-wrapper pre:hover::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ── Input ── */
@@ -858,20 +979,24 @@
 }
 
 /* ── Streaming cursor ── */
-@keyframes blink {
+@keyframes blink-cursor {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
 
-.streaming-cursor::after {
-  content: '▊';
-  animation: blink 0.8s ease-in-out infinite;
-  color: var(--accent);
-  font-size: 16px;
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  background: var(--accent, #2563eb);
+  border-radius: 1px;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  animation: blink-cursor 1s step-end infinite;
 }
 
-.message.assistant.streaming-active {
-  animation: pulse-bg 2s ease-in-out infinite;
+.streaming-content > :last-child:not(.streaming-cursor) {
+  display: inline;
 }
 
 /* ── Sidebar footer ── */
@@ -1160,4 +1285,53 @@
 .file-upload-error svg {
   color: #e53e3e;
   flex-shrink: 0;
+}
+
+/* ── Markdown tables (GFM) ── */
+
+.message-content table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: auto;
+  display: block;
+  max-width: 100%;
+}
+
+.message-content thead {
+  background: var(--bg-secondary, #f1f5f9);
+}
+
+.message-content th,
+.message-content td {
+  border: 1px solid var(--border-color, #e2e8f0);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.message-content th {
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary, #64748b);
+}
+
+.message-content tbody tr:nth-child(even) {
+  background: var(--bg-tertiary, #f8fafc);
+}
+
+.message-content tbody tr:hover {
+  background: var(--bg-hover, #eef2ff);
+}
+
+.message-content td code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
 }

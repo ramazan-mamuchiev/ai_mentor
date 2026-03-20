@@ -54,6 +54,7 @@ class ChatMessageResponse(BaseModel):
     content: str
     sources: list[SourceInfo] | None = None
     duration_ms: float | None = None
+    debug: dict | None = None
     created_at: datetime
 
 

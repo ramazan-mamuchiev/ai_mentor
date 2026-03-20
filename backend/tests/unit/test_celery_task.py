@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
+# Heavy deps (celery, boto3, structlog) are mocked in tests/conftest.py
+
 
 def _make_doc(doc_id=1, **kw):
     """Create a simple document-like object with real attribute assignment."""

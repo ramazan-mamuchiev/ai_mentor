@@ -184,7 +184,7 @@ async def tus_create(request: Request):
         "TUS upload session created",
         extra={
             "upload_id": upload_id,
-            "filename": filename,
+            "original_filename": filename,
             "file_size": file_size,
             "product_name": product_name,
             "is_archive": is_archive,

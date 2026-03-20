@@ -2,13 +2,52 @@
 
 import logging
 import time
+from uuid import uuid4
 
 from sqlalchemy import text
 
+from app.billing.usage_writer import write_usage_log
+from app.config import settings
 from app.database import async_session
+from app.models import SearchAnalytics
 from app.search.service import search_documents, search_endpoint
 
 logger = logging.getLogger(__name__)
+
+
+def _embedding_model_name() -> str:
+    if settings.embedding_provider == "local":
+        return settings.embedding_model_local
+    return settings.embedding_model_openai
+
+
+async def _save_search_analytics(
+    source: str,
+    tool_name: str,
+    query: str,
+    duration_ms: float,
+    result_count: int = 0,
+    top_similarity: float = 0.0,
+    product_filter: str | None = None,
+    version_filter: str | None = None,
+) -> None:
+    """Persist a search analytics record (fire-and-forget, errors logged)."""
+    try:
+        async with async_session() as session:
+            session.add(SearchAnalytics(
+                source=source,
+                tool_name=tool_name,
+                query=query,
+                product_filter=product_filter,
+                version_filter=version_filter,
+                result_count=result_count,
+                top_similarity=top_similarity,
+                duration_ms=duration_ms,
+                embedding_model=_embedding_model_name(),
+            ))
+            await session.commit()
+    except Exception:
+        logger.warning("Failed to save search analytics", exc_info=True)
 
 
 async def tool_search_documentation(
@@ -42,9 +81,10 @@ async def tool_search_documentation(
         limit: Number of results (1-20, default 5). Use higher values for broad queries.
     """
     limit = max(1, min(limit, 20))
+    request_id = str(uuid4())
     logger.debug(
         "MCP search_documentation called",
-        extra={"query": query, "product": product, "version": version, "limit": limit},
+        extra={"query": query, "product": product, "version": version, "limit": limit, "request_id": request_id},
     )
 
     t0 = time.perf_counter()
@@ -60,21 +100,51 @@ async def tool_search_documentation(
         "result_count": result_count,
         "top_similarity": top_similarity,
         "duration_ms": duration_ms,
+        "request_id": request_id,
     }
     if duration_ms > 10000:
         logger.warning("MCP search_documentation slow", extra=log_extra)
     else:
         logger.info("MCP search_documentation completed", extra=log_extra)
 
+    await _save_search_analytics(
+        source="mcp",
+        tool_name="search_documentation",
+        query=query,
+        duration_ms=duration_ms,
+        result_count=result_count,
+        top_similarity=top_similarity,
+        product_filter=product,
+        version_filter=version,
+    )
+
     if not results:
-        return "No results found. Try a different query or check available products with list_products."
+        response_text = "No results found. Try a different query or check available products with list_products."
+    else:
+        parts: list[str] = []
+        for i, r in enumerate(results, 1):
+            meta = f"[{i}] {r['product_name']} | {r['firmware_version']} | {r['doc_title']} > {r['heading_path']} (similarity: {r['similarity']})"
+            parts.append(f"{meta}\n\n{r['content']}")
+        response_text = "\n\n---\n\n".join(parts)
 
-    parts: list[str] = []
-    for i, r in enumerate(results, 1):
-        meta = f"[{i}] {r['product_name']} | {r['firmware_version']} | {r['doc_title']} > {r['heading_path']} (similarity: {r['similarity']})"
-        parts.append(f"{meta}\n\n{r['content']}")
+    response_tokens = sum(r.get("token_count", 0) for r in results)
+    query_tokens = max(1, len(query) // 4)
+    await write_usage_log(
+        channel="mcp",
+        action="search_documentation",
+        request_id=request_id,
+        query_text=query,
+        query_tokens=query_tokens,
+        result_count=result_count,
+        response_tokens=response_tokens,
+        response_length=len(response_text),
+        top_similarity=top_similarity,
+        product_filter=product,
+        version_filter=version,
+        duration_ms=duration_ms,
+    )
 
-    return "\n\n---\n\n".join(parts)
+    return response_text
 
 
 async def tool_get_api_endpoint(
@@ -94,9 +164,10 @@ async def tool_get_api_endpoint(
             "/api/v2/cameras/{id}/streams", "POST /event/notification/alertStream"
         product: Filter by product name. Examples: "HikCentral", "Axxon One"
     """
+    request_id = str(uuid4())
     logger.debug(
         "MCP get_api_endpoint called",
-        extra={"endpoint": endpoint, "product": product},
+        extra={"endpoint": endpoint, "product": product, "request_id": request_id},
     )
 
     t0 = time.perf_counter()
@@ -108,32 +179,61 @@ async def tool_get_api_endpoint(
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
         logger.error(
             "MCP get_api_endpoint failed",
-            extra={"tool": "get_api_endpoint", "duration_ms": duration_ms, "error_type": type(e).__name__},
+            extra={"tool": "get_api_endpoint", "duration_ms": duration_ms, "error_type": type(e).__name__, "request_id": request_id},
             exc_info=True,
         )
         raise
 
     result_count = len(results)
+    top_similarity = results[0].get("similarity", 0.0) if results else 0.0
     log_extra = {
         "tool": "get_api_endpoint",
         "result_count": result_count,
         "duration_ms": duration_ms,
+        "request_id": request_id,
     }
     if duration_ms > 10000:
         logger.warning("MCP get_api_endpoint slow", extra=log_extra)
     else:
         logger.info("MCP get_api_endpoint completed", extra=log_extra)
 
+    await _save_search_analytics(
+        source="mcp",
+        tool_name="get_api_endpoint",
+        query=endpoint,
+        duration_ms=duration_ms,
+        result_count=result_count,
+        top_similarity=top_similarity,
+        product_filter=product,
+    )
+
     if not results:
-        return f"No documentation found for endpoint '{endpoint}'. Try search_documentation with a broader query."
+        response_text = f"No documentation found for endpoint '{endpoint}'. Try search_documentation with a broader query."
+    else:
+        parts: list[str] = []
+        for r in results:
+            match_type = r.get("match_type", "vector")
+            meta = f"{r['product_name']} | {r['firmware_version']} | {r['doc_title']} > {r['heading_path']} ({match_type} match)"
+            parts.append(f"{meta}\n\n{r['content']}")
+        response_text = "\n\n---\n\n".join(parts)
 
-    parts: list[str] = []
-    for r in results:
-        match_type = r.get("match_type", "vector")
-        meta = f"{r['product_name']} | {r['firmware_version']} | {r['doc_title']} > {r['heading_path']} ({match_type} match)"
-        parts.append(f"{meta}\n\n{r['content']}")
+    response_tokens = sum(r.get("token_count", 0) for r in results)
+    query_tokens = max(1, len(endpoint) // 4)
+    await write_usage_log(
+        channel="mcp",
+        action="get_api_endpoint",
+        request_id=request_id,
+        query_text=endpoint,
+        query_tokens=query_tokens,
+        result_count=result_count,
+        response_tokens=response_tokens,
+        response_length=len(response_text),
+        top_similarity=top_similarity,
+        product_filter=product,
+        duration_ms=duration_ms,
+    )
 
-    return "\n\n---\n\n".join(parts)
+    return response_text
 
 
 async def tool_list_products(
@@ -153,7 +253,8 @@ async def tool_list_products(
         query: Search products by name or manufacturer.
             Examples: "Hikvision", "Axxon", "DS-2CD"
     """
-    logger.debug("MCP list_products called", extra={"category": category, "query": query})
+    request_id = str(uuid4())
+    logger.debug("MCP list_products called", extra={"category": category, "query": query, "request_id": request_id})
 
     t0 = time.perf_counter()
     async with async_session() as session:
@@ -197,21 +298,46 @@ async def tool_list_products(
         extra={"tool": "list_products", "result_count": len(rows), "duration_ms": duration_ms},
     )
 
+    await _save_search_analytics(
+        source="mcp",
+        tool_name="list_products",
+        query=query or "",
+        duration_ms=duration_ms,
+        result_count=len(rows),
+    )
+
     if not rows:
         if category or query:
-            return f"No products found matching your filter. Try list_products without filters to see all available products."
-        return "No products indexed yet."
+            response_text = "No products found matching your filter. Try list_products without filters to see all available products."
+        else:
+            response_text = "No products indexed yet."
+    else:
+        parts: list[str] = []
+        for row in rows:
+            line = f"- {row['name']}"
+            if row["manufacturer"]:
+                line += f" ({row['manufacturer']})"
+            if row["category"]:
+                line += f" [{row['category']}]"
+            if row["versions"]:
+                line += f" — versions: {row['versions']}"
+            line += f" — {row['doc_count']} docs, {row['chunk_count']} chunks"
+            parts.append(line)
+        response_text = f"Available products ({len(rows)}):\n" + "\n".join(parts)
 
-    parts: list[str] = []
-    for row in rows:
-        line = f"- {row['name']}"
-        if row["manufacturer"]:
-            line += f" ({row['manufacturer']})"
-        if row["category"]:
-            line += f" [{row['category']}]"
-        if row["versions"]:
-            line += f" — versions: {row['versions']}"
-        line += f" — {row['doc_count']} docs, {row['chunk_count']} chunks"
-        parts.append(line)
+    from decimal import Decimal
+    query_tokens = max(1, len(query) // 4) if query else 0
+    await write_usage_log(
+        channel="mcp",
+        action="list_products",
+        request_id=request_id,
+        query_text=query,
+        query_tokens=query_tokens,
+        result_count=len(rows),
+        response_length=len(response_text),
+        duration_ms=duration_ms,
+        cogs_usd=Decimal("0"),
+        charge_usd=Decimal("0"),
+    )
 
-    return f"Available products ({len(rows)}):\n" + "\n".join(parts)
+    return response_text

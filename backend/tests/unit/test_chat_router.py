@@ -1,5 +1,6 @@
 """Unit tests for Chat REST API endpoints."""
 
+import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -408,6 +409,207 @@ class TestSendMessageErrorHandling:
         error_data = json.loads(error_events[-1].replace("data: ", ""))
         assert error_data["type"] == "error"
         assert error_data["error_code"] == "internal_error"
+
+
+class TestAutoContinue:
+    """Test auto-continue when LLM response is truncated (finish_reason=length)."""
+
+    @pytest.mark.asyncio
+    @patch("app.chat.router.MAX_CONTINUATIONS", 3)
+    @patch("app.chat.router.stream_chat_completion")
+    @patch("app.chat.router.build_rag_prompt")
+    @patch("app.chat.router.async_session")
+    async def test_auto_continues_on_length(self, mock_session_factory, mock_rag, mock_llm):
+        mock_session, mock_ctx = _mock_async_session()
+        mock_session_factory.return_value = mock_ctx
+
+        chat_session = _make_mock_chat_session(session_id=1, title="Test")
+        chat_session.product_filter = None
+        chat_session.version_filter = None
+        chat_session.doc_context = None
+        mock_session.get = AsyncMock(return_value=chat_session)
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        mock_msg = MagicMock()
+        mock_msg.id = 10
+        mock_msg.created_at = datetime.now(timezone.utc)
+        mock_session.refresh = AsyncMock()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_rag.return_value = (
+            [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+            [],
+            {"search_ms": 10, "rag_build_ms": 10, "chunks_found": 0, "top_similarity": 0, "min_similarity": 0, "context_tokens": 0, "history_messages": 0, "prompt_messages": 2, "embedding_model": "test"},
+        )
+
+        call_count = 0
+
+        async def _mock_stream(messages, metadata=None, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                if metadata is not None:
+                    metadata["finish_reason"] = "length"
+                    metadata["model"] = "test"
+                    metadata["provider"] = "test"
+                    metadata["temperature"] = 0.2
+                    metadata["max_tokens"] = 100
+                    metadata["first_token_ms"] = 50
+                yield "Part 1..."
+            else:
+                if metadata is not None:
+                    metadata["finish_reason"] = "stop"
+                    metadata["model"] = "test"
+                    metadata["provider"] = "test"
+                    metadata["temperature"] = 0.2
+                    metadata["max_tokens"] = 100
+                    metadata["first_token_ms"] = 30
+                yield " Part 2 done."
+
+        mock_llm.side_effect = _mock_stream
+
+        from app.chat.router import send_message
+        response = await send_message(1, SendMessageRequest(content="hello"))
+
+        events = []
+        async for chunk in response.body_iterator:
+            if chunk.strip():
+                events.append(chunk.strip())
+
+        token_events = [e for e in events if '"token"' in e]
+        assert len(token_events) == 2
+
+        contents = []
+        for e in token_events:
+            data = json.loads(e.replace("data: ", ""))
+            contents.append(data["content"])
+        assert contents == ["Part 1...", " Part 2 done."]
+
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("app.chat.router.MAX_CONTINUATIONS", 2)
+    @patch("app.chat.router.stream_chat_completion")
+    @patch("app.chat.router.build_rag_prompt")
+    @patch("app.chat.router.async_session")
+    async def test_stops_at_max_continuations(self, mock_session_factory, mock_rag, mock_llm):
+        mock_session, mock_ctx = _mock_async_session()
+        mock_session_factory.return_value = mock_ctx
+
+        chat_session = _make_mock_chat_session(session_id=1, title="Test")
+        chat_session.product_filter = None
+        chat_session.version_filter = None
+        chat_session.doc_context = None
+        mock_session.get = AsyncMock(return_value=chat_session)
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        mock_msg = MagicMock()
+        mock_msg.id = 10
+        mock_msg.created_at = datetime.now(timezone.utc)
+        mock_session.refresh = AsyncMock()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_rag.return_value = (
+            [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+            [],
+            {"search_ms": 10, "rag_build_ms": 10, "chunks_found": 0, "top_similarity": 0, "min_similarity": 0, "context_tokens": 0, "history_messages": 0, "prompt_messages": 2, "embedding_model": "test"},
+        )
+
+        call_count = 0
+
+        async def _mock_stream_always_length(messages, metadata=None, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if metadata is not None:
+                metadata["finish_reason"] = "length"
+                metadata["model"] = "test"
+                metadata["provider"] = "test"
+                metadata["temperature"] = 0.2
+                metadata["max_tokens"] = 100
+                metadata["first_token_ms"] = 50
+            yield f"chunk{call_count}"
+
+        mock_llm.side_effect = _mock_stream_always_length
+
+        from app.chat.router import send_message
+        response = await send_message(1, SendMessageRequest(content="hello"))
+
+        events = []
+        async for chunk in response.body_iterator:
+            if chunk.strip():
+                events.append(chunk.strip())
+
+        # 1 initial + MAX_CONTINUATIONS(2) continuation calls = 3 total
+        assert call_count == 3
+
+    @pytest.mark.asyncio
+    @patch("app.chat.router.MAX_CONTINUATIONS", 3)
+    @patch("app.chat.router.stream_chat_completion")
+    @patch("app.chat.router.build_rag_prompt")
+    @patch("app.chat.router.async_session")
+    async def test_no_continue_on_normal_stop(self, mock_session_factory, mock_rag, mock_llm):
+        mock_session, mock_ctx = _mock_async_session()
+        mock_session_factory.return_value = mock_ctx
+
+        chat_session = _make_mock_chat_session(session_id=1, title="Test")
+        chat_session.product_filter = None
+        chat_session.version_filter = None
+        chat_session.doc_context = None
+        mock_session.get = AsyncMock(return_value=chat_session)
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        mock_msg = MagicMock()
+        mock_msg.id = 10
+        mock_msg.created_at = datetime.now(timezone.utc)
+        mock_session.refresh = AsyncMock()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_rag.return_value = (
+            [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+            [],
+            {"search_ms": 10, "rag_build_ms": 10, "chunks_found": 0, "top_similarity": 0, "min_similarity": 0, "context_tokens": 0, "history_messages": 0, "prompt_messages": 2, "embedding_model": "test"},
+        )
+
+        call_count = 0
+
+        async def _mock_stream_stop(messages, metadata=None, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if metadata is not None:
+                metadata["finish_reason"] = "stop"
+                metadata["model"] = "test"
+                metadata["provider"] = "test"
+                metadata["temperature"] = 0.2
+                metadata["max_tokens"] = 100
+                metadata["first_token_ms"] = 50
+            yield "Complete answer."
+
+        mock_llm.side_effect = _mock_stream_stop
+
+        from app.chat.router import send_message
+        response = await send_message(1, SendMessageRequest(content="hello"))
+
+        events = []
+        async for chunk in response.body_iterator:
+            if chunk.strip():
+                events.append(chunk.strip())
+
+        assert call_count == 1
 
 
 class TestDeleteSession:

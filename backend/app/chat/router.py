@@ -5,11 +5,13 @@ import logging
 import time
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
+from app.billing.usage_writer import write_usage_log
 from app.chat.rag import build_rag_prompt
 from app.chat.schemas import (
     ChatMessageResponse,
@@ -19,9 +21,14 @@ from app.chat.schemas import (
     SessionListItem,
     SessionResponse,
 )
+from app.config import settings
 from app.database import async_session
 from app.llm.client import LLMError, stream_chat_completion
-from app.models import ChatMessage, ChatSession
+from app.models import ChatMessage, ChatMessageAnalytics, ChatSession
+
+MAX_CONTINUATIONS = settings.llm_max_continuations
+MAX_RESPONSE_CHARS = 50_000
+CONTINUE_PROMPT = "Continue exactly where you stopped. RULES: 1) Do NOT repeat ANY text, tables, headers, or code blocks already written. 2) Do NOT re-output table column headers. 3) No preamble — continue the text seamlessly. 4) WRAP UP briefly — summarize remaining points in 2-3 sentences if needed. Do not expand further."
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +134,17 @@ async def get_session(session_id: int):
         )
         messages = msgs_result.scalars().all()
 
+        analytics_map: dict[int, ChatMessageAnalytics] = {}
+        if messages:
+            msg_ids = [m.id for m in messages if m.role == "assistant"]
+            if msg_ids:
+                analytics_result = await session.execute(
+                    select(ChatMessageAnalytics)
+                    .where(ChatMessageAnalytics.message_id.in_(msg_ids))
+                )
+                for a in analytics_result.scalars().all():
+                    analytics_map[a.message_id] = a
+
         return SessionDetailResponse(
             id=chat_session.id,
             title=chat_session.title,
@@ -143,6 +161,10 @@ async def get_session(session_id: int):
                     content=m.content,
                     sources=m.sources,
                     duration_ms=m.duration_ms,
+                    debug=analytics_map[m.id].to_debug_dict(
+                        product_filter=chat_session.product_filter,
+                        version_filter=chat_session.version_filter,
+                    ) if m.id in analytics_map else None,
                     created_at=m.created_at,
                 )
                 for m in messages
@@ -180,6 +202,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
     async def event_stream() -> AsyncGenerator[str, None]:
         t0 = time.perf_counter()
         token_count = 0
+        request_id = str(uuid4())
         try:
             async with async_session() as db:
                 chat_session = await db.get(ChatSession, session_id)
@@ -239,11 +262,70 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
                 t_llm = time.perf_counter()
-                full_response = []
-                async for token in stream_chat_completion(messages):
-                    full_response.append(token)
-                    token_count += 1
-                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                full_response: list[str] = []
+                llm_meta: dict = {}
+                continuations = 0
+                llm_messages = list(messages)
+
+                response_chars = 0
+                hit_size_limit = False
+
+                while True:
+                    llm_meta_chunk: dict = {}
+                    async for token in stream_chat_completion(llm_messages, metadata=llm_meta_chunk):
+                        full_response.append(token)
+                        token_count += 1
+                        response_chars += len(token)
+                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+                        if response_chars > MAX_RESPONSE_CHARS:
+                            hit_size_limit = True
+                            break
+
+                    if not llm_meta:
+                        llm_meta.update(llm_meta_chunk)
+                    else:
+                        llm_meta["first_token_ms"] = llm_meta.get("first_token_ms", 0)
+
+                    if hit_size_limit:
+                        logger.info(
+                            "Response size limit reached mid-stream",
+                            extra={"session_id": session_id, "response_chars": response_chars},
+                        )
+                        break
+
+                    if llm_meta_chunk.get("finish_reason") != "length":
+                        break
+
+                    if response_chars > MAX_RESPONSE_CHARS:
+                        logger.info(
+                            "Response size limit reached, skipping continuation",
+                            extra={"session_id": session_id, "response_chars": response_chars},
+                        )
+                        break
+
+                    continuations += 1
+                    if continuations > MAX_CONTINUATIONS:
+                        logger.warning(
+                            "Max continuations reached",
+                            extra={"session_id": session_id, "continuations": continuations},
+                        )
+                        break
+
+                    logger.info(
+                        "Auto-continuing truncated response",
+                        extra={
+                            "session_id": session_id,
+                            "continuation": continuations,
+                            "response_so_far": response_chars,
+                        },
+                    )
+                    partial = "".join(full_response)
+                    llm_messages = list(messages) + [
+                        {"role": "assistant", "content": partial},
+                        {"role": "user", "content": CONTINUE_PROMPT},
+                    ]
+
                 llm_ms = round((time.perf_counter() - t_llm) * 1000, 1)
 
                 duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -267,23 +349,107 @@ async def send_message(session_id: int, req: SendMessageRequest):
 
                 tokens_per_sec = round(token_count / (llm_ms / 1000), 1) if llm_ms > 0 else 0
 
-                from app.config import settings as _cfg
-                from app.llm.client import _effective_model
+                usage = llm_meta.get("usage", {})
+                llm_prompt_tokens = usage.get("prompt_tokens", 0)
+                llm_completion_tokens = usage.get("completion_tokens", 0)
+                llm_total_tokens = usage.get("total_tokens", 0) or (llm_prompt_tokens + llm_completion_tokens)
+
+                query_tokens = rag_debug.get("query_tokens", 0)
+                context_tokens = rag_debug.get("context_tokens", 0)
+                history_tokens = rag_debug.get("history_tokens", 0)
+                system_prompt_tokens = rag_debug.get("system_prompt_tokens", 0)
+
+                user_input_tokens = query_tokens
+                user_output_tokens = llm_completion_tokens or token_count
+
                 debug_info = {
                     "session_id": session_id,
                     "message_id": assistant_msg.id,
                     "user_message_id": user_msg.id,
-                    "model": _effective_model(),
+                    "timestamp": user_msg.created_at.isoformat() if user_msg.created_at else datetime.now(timezone.utc).isoformat(),
+                    "model": llm_meta.get("model", ""),
+                    "llm_provider": llm_meta.get("provider", ""),
+                    "temperature": llm_meta.get("temperature", 0),
+                    "max_tokens": llm_meta.get("max_tokens", 0),
+                    "first_token_ms": llm_meta.get("first_token_ms", 0),
                     "rag_ms": rag_ms,
                     "llm_ms": llm_ms,
                     "total_ms": duration_ms,
                     "token_count": token_count,
                     "tokens_per_sec": tokens_per_sec,
                     "response_length": len(assistant_content),
+                    "user_input_tokens": user_input_tokens,
+                    "user_output_tokens": user_output_tokens,
+                    "llm_prompt_tokens": llm_prompt_tokens,
+                    "llm_completion_tokens": llm_completion_tokens,
+                    "llm_total_tokens": llm_total_tokens,
                     **rag_debug,
                 }
 
-                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'debug': debug_info})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'request_id': request_id, 'debug': debug_info})}\n\n"
+
+                analytics = ChatMessageAnalytics(
+                    message_id=assistant_msg.id,
+                    session_id=session_id,
+                    user_message_id=user_msg.id,
+                    llm_provider=debug_info.get("llm_provider", ""),
+                    model=debug_info.get("model", ""),
+                    temperature=debug_info.get("temperature", 0),
+                    max_tokens=debug_info.get("max_tokens", 0),
+                    token_count=debug_info.get("token_count", 0),
+                    tokens_per_sec=debug_info.get("tokens_per_sec", 0),
+                    response_length=debug_info.get("response_length", 0),
+                    total_ms=debug_info.get("total_ms", 0),
+                    rag_ms=debug_info.get("rag_ms", 0),
+                    llm_ms=debug_info.get("llm_ms", 0),
+                    search_ms=debug_info.get("search_ms", 0),
+                    first_token_ms=debug_info.get("first_token_ms", 0),
+                    rag_build_ms=debug_info.get("rag_build_ms", 0),
+                    chunks_found=debug_info.get("chunks_found", 0),
+                    top_similarity=debug_info.get("top_similarity", 0),
+                    min_similarity=debug_info.get("min_similarity", 0),
+                    context_tokens=debug_info.get("context_tokens", 0),
+                    history_messages=debug_info.get("history_messages", 0),
+                    prompt_messages=debug_info.get("prompt_messages", 0),
+                    embedding_model=debug_info.get("embedding_model", ""),
+                    doc_context=debug_info.get("doc_context"),
+                    auto_product=debug_info.get("auto_product"),
+                    detected_doc_context=debug_info.get("detected_doc_context"),
+                    search_query=debug_info.get("search_query"),
+                    user_input_tokens=user_input_tokens,
+                    user_output_tokens=user_output_tokens,
+                    llm_prompt_tokens=llm_prompt_tokens,
+                    llm_completion_tokens=llm_completion_tokens,
+                    llm_total_tokens=llm_total_tokens,
+                )
+                db.add(analytics)
+                await db.commit()
+
+                await write_usage_log(
+                    channel="chat",
+                    action="chat_completion",
+                    request_id=request_id,
+                    llm_provider=llm_meta.get("provider"),
+                    llm_model=llm_meta.get("model"),
+                    prompt_tokens=llm_prompt_tokens,
+                    completion_tokens=llm_completion_tokens,
+                    context_chunks=rag_debug.get("chunks_found", 0),
+                    context_tokens=rag_debug.get("context_tokens", 0),
+                    history_messages=rag_debug.get("history_messages", 0),
+                    query_tokens=rag_debug.get("query_tokens", 0),
+                    history_tokens=rag_debug.get("history_tokens", 0),
+                    system_prompt_tokens=rag_debug.get("system_prompt_tokens", 0),
+                    query_text=req.content,
+                    result_count=len(sources),
+                    response_tokens=token_count,
+                    response_length=len(assistant_content),
+                    top_similarity=rag_debug.get("top_similarity", 0),
+                    product_filter=chat_session.product_filter,
+                    version_filter=chat_session.version_filter,
+                    duration_ms=duration_ms,
+                    search_ms=rag_debug.get("search_ms", 0),
+                    llm_ms=llm_ms,
+                )
 
                 logger.info(
                     "Chat message completed",
@@ -298,6 +464,11 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         "response_length": len(assistant_content),
                         "sources_count": len(sources),
                         "product_filter": chat_session.product_filter,
+                        "request_id": request_id,
+                        "llm_prompt_tokens": llm_prompt_tokens,
+                        "llm_completion_tokens": llm_completion_tokens,
+                        "user_input_tokens": user_input_tokens,
+                        "user_output_tokens": user_output_tokens,
                     },
                 )
 

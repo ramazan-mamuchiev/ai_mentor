@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
+# Heavy deps (celery, boto3, structlog) are mocked in tests/conftest.py
 from app.s3 import s3_key_for_document
 
 

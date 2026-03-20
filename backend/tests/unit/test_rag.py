@@ -178,3 +178,16 @@ class TestBuildRagPrompt:
         assert len(sources) == 0
         system_content = messages[0]["content"]
         assert "No relevant documentation found" in system_content
+
+    @pytest.mark.asyncio
+    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag.search_documents")
+    async def test_system_prompt_instructs_proto_formatting(self, mock_search, _mock_detect):
+        mock_search.return_value = []
+        db = AsyncMock()
+        messages, _, _debug = await build_rag_prompt(db=db, query="test")
+
+        system_content = messages[0]["content"]
+        assert "proto/gRPC" in system_content
+        assert "proto" in system_content.lower()
+        assert "table" in system_content.lower()

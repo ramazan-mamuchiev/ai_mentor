@@ -89,10 +89,6 @@ except ModuleNotFoundError:
     sys.modules.setdefault("structlog.contextvars", _mock_structlog.contextvars)
 
 # Other optional heavy deps
-for _mod_name in ("mcp", "mcp.server", "mcp.server.fastmcp", "mcp.types",
-                  "mcp.server.transport_security",
-                  "PIL", "PIL.Image"):
-    sys.modules.setdefault(_mod_name, MagicMock())
 
 
 EMBEDDING_DIMS = 1024

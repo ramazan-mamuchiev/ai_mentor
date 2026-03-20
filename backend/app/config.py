@@ -26,18 +26,26 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 50
     max_archive_size_mb: int = 350
 
-    llm_provider: str = "ollama"  # "ollama" or "openai" (OpenAI-compatible: Gemini, GPT, etc.)
+    tus_max_file_size_gb: int = 5
+    tus_upload_ttl_hours: int = 24
+
+    reindex_heartbeat_interval_sec: int = 10
+    reindex_stale_timeout_sec: int = 300
+    reindex_doc_timeout_sec: int = 600
+
+    llm_provider: str = "openai"  # "ollama" or "openai" (OpenAI-compatible: Gemini, GPT, etc.)
     ollama_url: str = "http://ollama:11434"
     llm_model: str = "qwen2.5-coder:7b"
-    llm_max_tokens: int = 4096
+    llm_max_tokens: int = 16384
     llm_temperature: float = 0.2
     llm_timeout: int = 600
+    llm_max_continuations: int = 3
 
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     openai_llm_api_key: str = ""
     openai_llm_model: str = "gemini-2.5-flash"
 
-    rag_top_k: int = 8
+    rag_top_k: int = 15
     rag_history_messages: int = 10
 
     ocr_enabled: bool = False

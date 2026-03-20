@@ -1,23 +1,11 @@
 """Unit tests for the Celery cleanup_expired_uploads task."""
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Mock heavy dependencies before importing celery_app
-_mock_celery = MagicMock()
-sys.modules.setdefault("celery", _mock_celery)
-sys.modules.setdefault("boto3", MagicMock())
-sys.modules.setdefault("botocore", MagicMock())
-sys.modules.setdefault("botocore.exceptions", MagicMock())
-
-# Make the @celery.task decorator return the function unchanged
-_mock_celery.Celery.return_value.task = lambda *a, **kw: (lambda fn: fn)
-_mock_celery.Celery.return_value.conf = MagicMock()
-
-# Now import the module
-import app.celery_app as celery_module  # noqa: E402
+# Heavy deps (celery, boto3, structlog) are mocked in tests/conftest.py
+import app.celery_app as celery_module
 
 
 class _FakeUploadSession:

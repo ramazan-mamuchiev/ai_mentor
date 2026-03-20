@@ -38,6 +38,18 @@ class TestLLMError:
         assert _error_code_from_status(status) == expected_code
 
 
+def _patch_ollama_settings():
+    """Return a patch context that forces the Ollama provider path."""
+    mock_settings = MagicMock()
+    mock_settings.llm_provider = "ollama"
+    mock_settings.ollama_url = "http://ollama:11434"
+    mock_settings.llm_model = "qwen2.5-coder:7b"
+    mock_settings.llm_temperature = 0.2
+    mock_settings.llm_max_tokens = 4096
+    mock_settings.llm_timeout = 60
+    return patch("app.llm.client.settings", mock_settings)
+
+
 class TestStreamChatCompletion:
     """Test stream_chat_completion function."""
 
@@ -63,7 +75,7 @@ class TestStreamChatCompletion:
         mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
             from app.llm.client import stream_chat_completion
 
             tokens = []
@@ -88,7 +100,7 @@ class TestStreamChatCompletion:
         mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
             from app.llm.client import stream_chat_completion
 
             with pytest.raises(LLMError) as exc_info:
@@ -113,7 +125,7 @@ class TestStreamChatCompletion:
         mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
             from app.llm.client import stream_chat_completion
 
             with pytest.raises(LLMError) as exc_info:
@@ -130,7 +142,7 @@ class TestStreamChatCompletion:
         mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
             from app.llm.client import stream_chat_completion
 
             with pytest.raises(LLMError) as exc_info:
@@ -147,7 +159,7 @@ class TestStreamChatCompletion:
         mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
             from app.llm.client import stream_chat_completion
 
             with pytest.raises(LLMError) as exc_info:
@@ -177,7 +189,7 @@ class TestStreamChatCompletion:
         mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
             from app.llm.client import stream_chat_completion
 
             tokens = []
@@ -209,7 +221,7 @@ class TestStreamChatCompletion:
         mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
             from app.llm.client import stream_chat_completion
 
             tokens = []
@@ -242,7 +254,7 @@ class TestStreamChatCompletion:
         mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
             from app.llm.client import stream_chat_completion
 
             tokens = []
@@ -250,6 +262,297 @@ class TestStreamChatCompletion:
                 tokens.append(token)
 
             assert tokens == ["data"]
+
+
+class TestFinishReason:
+    """Test that finish_reason is captured in metadata."""
+
+    @pytest.mark.asyncio
+    async def test_ollama_finish_reason_stop(self):
+        chunks = [
+            json.dumps({"message": {"content": "Hello"}, "done": False}),
+            json.dumps({"done": True}),
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = MagicMock(return_value=_async_iter(chunks))
+
+        mock_client = AsyncMock()
+        mock_stream_ctx = AsyncMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client.stream = MagicMock(return_value=mock_stream_ctx)
+
+        mock_client_ctx = AsyncMock()
+        mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+            from app.llm.client import stream_chat_completion
+
+            meta: dict = {}
+            async for _ in stream_chat_completion([{"role": "user", "content": "hi"}], metadata=meta):
+                pass
+
+            assert meta["finish_reason"] == "stop"
+
+    @pytest.mark.asyncio
+    async def test_ollama_finish_reason_length(self):
+        chunks = [
+            json.dumps({"message": {"content": "Hello"}, "done": False}),
+            json.dumps({"done": True, "done_reason": "length"}),
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = MagicMock(return_value=_async_iter(chunks))
+
+        mock_client = AsyncMock()
+        mock_stream_ctx = AsyncMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client.stream = MagicMock(return_value=mock_stream_ctx)
+
+        mock_client_ctx = AsyncMock()
+        mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with _patch_ollama_settings(), patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx):
+            from app.llm.client import stream_chat_completion
+
+            meta: dict = {}
+            async for _ in stream_chat_completion([{"role": "user", "content": "hi"}], metadata=meta):
+                pass
+
+            assert meta["finish_reason"] == "length"
+
+    @pytest.mark.asyncio
+    async def test_openai_finish_reason_stop(self):
+        chunks = [
+            'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}',
+            'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+            "data: [DONE]",
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = MagicMock(return_value=_async_iter(chunks))
+
+        mock_client = AsyncMock()
+        mock_stream_ctx = AsyncMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client.stream = MagicMock(return_value=mock_stream_ctx)
+
+        mock_client_ctx = AsyncMock()
+        mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx),
+            patch("app.llm.client.settings") as mock_settings,
+        ):
+            mock_settings.llm_provider = "openai"
+            mock_settings.openai_llm_model = "gpt-4"
+            mock_settings.llm_temperature = 0.2
+            mock_settings.llm_max_tokens = 4096
+            mock_settings.llm_timeout = 60
+            mock_settings.openai_base_url = "https://api.openai.com/v1"
+            mock_settings.openai_llm_api_key = "test-key"
+
+            from app.llm.client import stream_chat_completion
+
+            meta: dict = {}
+            async for _ in stream_chat_completion([{"role": "user", "content": "hi"}], metadata=meta):
+                pass
+
+            assert meta["finish_reason"] == "stop"
+
+    @pytest.mark.asyncio
+    async def test_openai_finish_reason_length(self):
+        chunks = [
+            'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}',
+            'data: {"choices":[{"delta":{},"finish_reason":"length"}]}',
+            "data: [DONE]",
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = MagicMock(return_value=_async_iter(chunks))
+
+        mock_client = AsyncMock()
+        mock_stream_ctx = AsyncMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client.stream = MagicMock(return_value=mock_stream_ctx)
+
+        mock_client_ctx = AsyncMock()
+        mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx),
+            patch("app.llm.client.settings") as mock_settings,
+        ):
+            mock_settings.llm_provider = "openai"
+            mock_settings.openai_llm_model = "gpt-4"
+            mock_settings.llm_temperature = 0.2
+            mock_settings.llm_max_tokens = 4096
+            mock_settings.llm_timeout = 60
+            mock_settings.openai_base_url = "https://api.openai.com/v1"
+            mock_settings.openai_llm_api_key = "test-key"
+
+            from app.llm.client import stream_chat_completion
+
+            meta: dict = {}
+            async for _ in stream_chat_completion([{"role": "user", "content": "hi"}], metadata=meta):
+                pass
+
+            assert meta["finish_reason"] == "length"
+
+
+class TestUsageExtraction:
+    """Test that token usage data is extracted from LLM API responses."""
+
+    @pytest.mark.asyncio
+    async def test_openai_usage_from_stream(self):
+        """Gemini/OpenAI returns usage in a separate SSE chunk with empty choices."""
+        chunks = [
+            'data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}',
+            'data: {"choices":[{"delta":{"content":" world"},"finish_reason":null}]}',
+            'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+            'data: {"choices":[],"usage":{"prompt_tokens":150,"completion_tokens":25,"total_tokens":175}}',
+            "data: [DONE]",
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = MagicMock(return_value=_async_iter(chunks))
+
+        mock_client = AsyncMock()
+        mock_stream_ctx = AsyncMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client.stream = MagicMock(return_value=mock_stream_ctx)
+
+        mock_client_ctx = AsyncMock()
+        mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx),
+            patch("app.llm.client.settings") as mock_settings,
+        ):
+            mock_settings.llm_provider = "openai"
+            mock_settings.openai_llm_model = "gemini-2.5-flash"
+            mock_settings.llm_temperature = 0.2
+            mock_settings.llm_max_tokens = 4096
+            mock_settings.llm_timeout = 60
+            mock_settings.openai_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+            mock_settings.openai_llm_api_key = "test-key"
+
+            from app.llm.client import stream_chat_completion
+
+            meta: dict = {}
+            tokens = []
+            async for token in stream_chat_completion([{"role": "user", "content": "hi"}], metadata=meta):
+                tokens.append(token)
+
+            assert tokens == ["Hello", " world"]
+            assert "usage" in meta
+            assert meta["usage"]["prompt_tokens"] == 150
+            assert meta["usage"]["completion_tokens"] == 25
+            assert meta["usage"]["total_tokens"] == 175
+
+    @pytest.mark.asyncio
+    async def test_openai_usage_fallback_when_no_usage_chunk(self):
+        """When API doesn't return usage data, fallback to SSE chunk count."""
+        chunks = [
+            'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}',
+            'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+            "data: [DONE]",
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = MagicMock(return_value=_async_iter(chunks))
+
+        mock_client = AsyncMock()
+        mock_stream_ctx = AsyncMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client.stream = MagicMock(return_value=mock_stream_ctx)
+
+        mock_client_ctx = AsyncMock()
+        mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx),
+            patch("app.llm.client.settings") as mock_settings,
+        ):
+            mock_settings.llm_provider = "openai"
+            mock_settings.openai_llm_model = "gemini-2.5-flash"
+            mock_settings.llm_temperature = 0.2
+            mock_settings.llm_max_tokens = 4096
+            mock_settings.llm_timeout = 60
+            mock_settings.openai_base_url = "https://api.openai.com/v1"
+            mock_settings.openai_llm_api_key = "test-key"
+
+            from app.llm.client import stream_chat_completion
+
+            meta: dict = {}
+            async for _ in stream_chat_completion([{"role": "user", "content": "hi"}], metadata=meta):
+                pass
+
+            assert "usage" in meta
+            assert meta["usage"]["prompt_tokens"] == 0
+            assert meta["usage"]["completion_tokens"] == 1
+            assert meta["usage"]["total_tokens"] == 1
+
+    @pytest.mark.asyncio
+    async def test_stream_options_include_usage_in_payload(self):
+        """Verify that stream_options with include_usage is sent in the request payload."""
+        chunks = [
+            'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}',
+            "data: [DONE]",
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = MagicMock(return_value=_async_iter(chunks))
+
+        mock_client = AsyncMock()
+        mock_stream_ctx = AsyncMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client.stream = MagicMock(return_value=mock_stream_ctx)
+
+        mock_client_ctx = AsyncMock()
+        mock_client_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("app.llm.client.httpx.AsyncClient", return_value=mock_client_ctx),
+            patch("app.llm.client.settings") as mock_settings,
+        ):
+            mock_settings.llm_provider = "openai"
+            mock_settings.openai_llm_model = "gemini-2.5-flash"
+            mock_settings.llm_temperature = 0.2
+            mock_settings.llm_max_tokens = 4096
+            mock_settings.llm_timeout = 60
+            mock_settings.openai_base_url = "https://api.openai.com/v1"
+            mock_settings.openai_llm_api_key = "test-key"
+
+            from app.llm.client import stream_chat_completion
+
+            async for _ in stream_chat_completion([{"role": "user", "content": "hi"}]):
+                pass
+
+            call_args = mock_client.stream.call_args
+            payload = call_args.kwargs.get("json") or call_args[1].get("json")
+            assert payload["stream_options"] == {"include_usage": True}
 
 
 class TestCheckHealth:

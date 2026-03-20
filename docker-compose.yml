@@ -1,7 +1,14 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "5432:5432"
     environment:
@@ -20,6 +27,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "6379:6379"
     volumes:
@@ -33,6 +41,7 @@ services:
   minio:
     image: minio/minio
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -51,6 +60,7 @@ services:
   api:
     build: ./backend
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "8000:8000"
     depends_on:
@@ -59,8 +69,6 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_started
-      ollama:
         condition: service_started
     environment:
       DATABASE_URL: postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
@@ -75,15 +83,15 @@ services:
       MAX_ARCHIVE_SIZE_MB: ${MAX_ARCHIVE_SIZE_MB:-350}
       EMBEDDING_PROVIDER: local
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-      OLLAMA_URL: http://ollama:11434
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-16384}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.2}
       LLM_TIMEOUT: ${LLM_TIMEOUT:-600}
+      LLM_MAX_CONTINUATIONS: ${LLM_MAX_CONTINUATIONS:-3}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       OPENAI_LLM_API_KEY: ${OPENAI_LLM_API_KEY:-}
       OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
-      RAG_TOP_K: ${RAG_TOP_K:-8}
+      RAG_TOP_K: ${RAG_TOP_K:-15}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs
@@ -102,6 +110,7 @@ services:
   worker:
     build: ./backend
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       postgres:
         condition: service_healthy
@@ -130,33 +139,17 @@ services:
   web:
     build: ./frontend
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
     depends_on:
       api:
         condition: service_healthy
 
-  ollama:
-    image: ollama/ollama
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    environment:
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
-    volumes:
-      - ollama_data:/root/.ollama
-      - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["bash", "/entrypoint.sh"]
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list | grep -q qwen2.5-coder || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 40
-      start_period: 300s
-
   loki:
     image: grafana/loki:3.4.2
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "3100:3100"
     volumes:
@@ -167,6 +160,7 @@ services:
   promtail:
     image: grafana/promtail:3.4.2
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -177,6 +171,7 @@ services:
   grafana:
     image: grafana/grafana:11.6.0
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "3000:3000"
     environment:
@@ -189,12 +184,56 @@ services:
       - grafanadata:/var/lib/grafana
     depends_on:
       - loki
+      - prometheus
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheusdata:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--storage.tsdb.retention.size=2GB"
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    restart: unless-stopped
+    logging: *default-logging
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
+    restart: unless-stopped
+    logging: *default-logging
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
 
 volumes:
   pgdata:
   hfcache:
   redisdata:
   minio_data:
-  ollama_data:
   lokidata:
   grafanadata:
+  prometheusdata:

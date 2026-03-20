@@ -968,3 +968,90 @@ message Item { string name = 1; }
         svc = result.services[0]
         assert len(svc.methods) == 1
         assert svc.methods[0].name == "GetItem"
+
+
+class TestProtoCodeBlocks:
+    """Test that convert_proto generates fenced ```protobuf code blocks."""
+
+    PROTO_WITH_SERVICE = """\
+syntax = "proto3";
+package test.v1;
+service UserService {
+  rpc GetUser(GetUserRequest) returns (User);
+  rpc ListUsers(ListUsersRequest) returns (stream User);
+}
+message GetUserRequest { string id = 1; }
+message ListUsersRequest { int32 page_size = 1; string token = 2; }
+message User { string id = 1; string name = 2; }
+"""
+
+    def test_service_has_protobuf_code_block(self):
+        md, _ = convert_proto(self.PROTO_WITH_SERVICE)
+        assert "```protobuf" in md
+        assert "service UserService {" in md
+        assert "rpc GetUser(GetUserRequest) returns (User);" in md
+
+    def test_service_code_block_contains_stream(self):
+        md, _ = convert_proto(self.PROTO_WITH_SERVICE)
+        assert "rpc ListUsers(ListUsersRequest) returns (stream User);" in md
+
+    def test_message_has_protobuf_code_block(self):
+        md, _ = convert_proto(self.PROTO_WITH_SERVICE)
+        assert "message ListUsersRequest {" in md
+        assert "int32 page_size = 1;" in md
+        assert "string token = 2;" in md
+
+    def test_field_table_preserved_alongside_code_block(self):
+        md, _ = convert_proto(self.PROTO_WITH_SERVICE)
+        assert "| # | Field | Type | Label | Description |" in md
+        assert "| `page_size` |" in md
+
+    def test_enum_has_no_code_block(self):
+        proto = """\
+syntax = "proto3";
+enum Status {
+  UNKNOWN = 0;
+  ACTIVE = 1;
+}
+"""
+        md, _ = convert_proto(proto)
+        assert "- `UNKNOWN` = 0" in md
+        assert "- `ACTIVE` = 1" in md
+        lines = md.split("\n")
+        protobuf_blocks = [l for l in lines if l.strip() == "```protobuf"]
+        assert len(protobuf_blocks) == 0
+
+    def test_commented_methods_listed_separately(self):
+        proto = """\
+syntax = "proto3";
+service Svc {
+  // Fetch item by ID.
+  rpc Get(Req) returns (Resp);
+  rpc List(ListReq) returns (stream Resp);
+}
+message Req { string id = 1; }
+message ListReq {}
+message Resp { string name = 1; }
+"""
+        md, _ = convert_proto(proto)
+        assert "service Svc {" in md
+        assert "- `rpc Get(Req) returns (Resp)`" in md
+        assert "Fetch item by ID." in md
+        assert "- `rpc List(" not in md  # no comment → not in bullet list
+
+    def test_message_with_oneof_code_block(self):
+        proto = """\
+syntax = "proto3";
+message Filter {
+  string name = 1;
+  oneof criteria {
+    string by_id = 2;
+    int32 by_index = 3;
+  }
+}
+"""
+        md, _ = convert_proto(proto)
+        assert "```protobuf" in md
+        assert "message Filter {" in md
+        assert "oneof criteria {" in md
+        assert "string by_id = 2;" in md

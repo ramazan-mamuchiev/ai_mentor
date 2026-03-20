@@ -43,6 +43,8 @@ celery.conf.update(
     task_routes={
         "queue_status_snapshot": {"queue": "monitoring"},
         "cleanup_expired_uploads": {"queue": "monitoring"},
+        "check_stale_reindex_jobs": {"queue": "monitoring"},
+        "ensure_usage_partitions": {"queue": "monitoring"},
     },
     beat_schedule={
         "cleanup-expired-uploads": {
@@ -52,6 +54,14 @@ celery.conf.update(
         "queue-status-snapshot": {
             "task": "queue_status_snapshot",
             "schedule": 30.0,
+        },
+        "check-stale-reindex-jobs": {
+            "task": "check_stale_reindex_jobs",
+            "schedule": 60.0,
+        },
+        "ensure-usage-partitions": {
+            "task": "ensure_usage_partitions",
+            "schedule": 86400.0,
         },
     },
 )
@@ -264,6 +274,35 @@ def ingest_document_task(self, document_id: int):
                 os.unlink(tmp_path)
 
 
+@celery.task(name="run_reindex_job", bind=True, max_retries=0)
+def run_reindex_job_task(self, job_id: int, document_ids: list[int]):
+    """Celery task: orchestrate a reindex job."""
+    from app.reindex.service import run_reindex_sync
+    logger.info(
+        "Celery run_reindex_job_task started",
+        extra={"job_id": job_id, "document_count": len(document_ids), "task_id": self.request.id},
+    )
+    try:
+        run_reindex_sync(job_id, document_ids)
+    except Exception as exc:
+        logger.error(
+            "Celery run_reindex_job_task crashed",
+            extra={"job_id": job_id, "error_type": type(exc).__name__},
+            exc_info=True,
+        )
+        from app.models import ReindexJob
+        from datetime import datetime, timezone
+        engine = _get_sync_engine()
+        with Session(engine) as session:
+            job = session.get(ReindexJob, job_id)
+            if job and job.status == "running":
+                job.status = "failed"
+                job.error_message = f"Task crashed: {exc}"
+                job.finished_at = datetime.now(timezone.utc)
+                session.commit()
+        raise
+
+
 @celery.task(name="cleanup_expired_uploads", bind=True)
 def cleanup_expired_uploads_task(self):
     """Periodic task: abort S3 multipart uploads and delete expired upload sessions."""
@@ -304,6 +343,46 @@ def cleanup_expired_uploads_task(self):
     return {"cleaned": cleaned}
 
 
+@celery.task(name="check_stale_reindex_jobs", bind=True)
+def check_stale_reindex_jobs_task(self):
+    """Periodic task: detect and mark stale reindex jobs."""
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from app.models import ReindexJob
+
+    engine = _get_sync_engine()
+    threshold = datetime.now(timezone.utc) - __import__("datetime").timedelta(
+        seconds=settings.reindex_stale_timeout_sec
+    )
+
+    with Session(engine) as session:
+        stale_jobs = session.execute(
+            select(ReindexJob).where(
+                ReindexJob.status == "running",
+                ReindexJob.heartbeat_at < threshold,
+            )
+        ).scalars().all()
+
+        for job in stale_jobs:
+            job.status = "stale"
+            job.finished_at = datetime.now(timezone.utc)
+            job.error_message = (
+                f"Heartbeat stopped at {job.heartbeat_at}. "
+                f"Exceeded stale timeout of {settings.reindex_stale_timeout_sec}s."
+            )
+            logger.warning(
+                "Reindex job marked stale by periodic check",
+                extra={
+                    "event": "reindex_job_stale",
+                    "job_id": job.id,
+                    "last_heartbeat": str(job.heartbeat_at),
+                },
+            )
+
+        if stale_jobs:
+            session.commit()
+
+
 @celery.task(name="queue_status_snapshot", bind=True)
 def queue_status_snapshot_task(self):
     """Periodic task (every 30s): log current queue depth by document status."""
@@ -329,4 +408,47 @@ def queue_status_snapshot_task(self):
             "processing_count": processing,
             "total_queued": pending + processing,
         },
+    )
+
+
+def _add_months(d, months: int):
+    """Add N months to a date, returning the 1st of the resulting month."""
+    month = d.month - 1 + months
+    year = d.year + month // 12
+    month = month % 12 + 1
+    return d.replace(year=year, month=month, day=1)
+
+
+@celery.task(name="ensure_usage_partitions", bind=True)
+def ensure_usage_partitions_task(self):
+    """Create usage_log partitions for the current month and the next 2 months.
+
+    Safe to run repeatedly — uses IF NOT EXISTS. Runs daily via Beat.
+    """
+    from datetime import date
+    from sqlalchemy import text as sa_text
+
+    engine = _get_sync_engine()
+    today = date.today()
+    created = []
+
+    with Session(engine) as session:
+        for offset in range(3):
+            month_start = _add_months(today, offset)
+            month_end = _add_months(today, offset + 1)
+            partition_name = f"usage_log_{month_start.year}_{month_start.month:02d}"
+
+            session.execute(sa_text(
+                f"CREATE TABLE IF NOT EXISTS {partition_name} "
+                f"PARTITION OF usage_log "
+                f"FOR VALUES FROM ('{month_start.isoformat()}') "
+                f"TO ('{month_end.isoformat()}')"
+            ))
+            created.append(partition_name)
+
+        session.commit()
+
+    logger.info(
+        "Usage partitions ensured",
+        extra={"event": "usage_partitions", "partitions": created},
     )

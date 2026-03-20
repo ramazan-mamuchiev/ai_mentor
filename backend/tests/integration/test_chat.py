@@ -195,14 +195,14 @@ class TestRAGIntegration:
     async def test_rag_finds_relevant_chunks(self, db_session):
         await self._ingest_test_data(db_session)
 
-        messages, sources = await build_rag_prompt(
+        messages, sources, _debug = await build_rag_prompt(
             db=db_session,
             query="How to authenticate with HMAC?",
         )
 
-        assert len(messages) >= 3
+        assert len(messages) >= 2
         assert messages[0]["role"] == "system"
-        assert "IPCodex AI Assistant" in messages[0]["content"]
+        assert "IPCodex AI" in messages[0]["content"]
         assert messages[-1]["role"] == "user"
         assert messages[-1]["content"] == "How to authenticate with HMAC?"
         assert len(sources) > 0
@@ -210,13 +210,13 @@ class TestRAGIntegration:
     async def test_rag_with_product_filter(self, db_session):
         await self._ingest_test_data(db_session)
 
-        _, sources_match = await build_rag_prompt(
+        _, sources_match, _d1 = await build_rag_prompt(
             db=db_session,
             query="authentication",
             product_filter="HikCentral",
         )
 
-        _, sources_no_match = await build_rag_prompt(
+        _, sources_no_match, _d2 = await build_rag_prompt(
             db=db_session,
             query="authentication",
             product_filter="NonExistentDevice",
@@ -240,7 +240,7 @@ class TestRAGIntegration:
             db_session.add(h)
         await db_session.flush()
 
-        messages, _ = await build_rag_prompt(
+        messages, _, _debug = await build_rag_prompt(
             db=db_session,
             query="How do I use it?",
             history=history,
@@ -252,19 +252,19 @@ class TestRAGIntegration:
         assert messages[-1]["content"] == "How do I use it?"
 
     async def test_rag_empty_db(self, db_session):
-        messages, sources = await build_rag_prompt(
+        messages, sources, _debug = await build_rag_prompt(
             db=db_session,
             query="anything at all",
         )
 
         assert len(sources) == 0
-        context_msg = messages[1]["content"]
-        assert "No relevant documentation found" in context_msg
+        system_msg = messages[0]["content"]
+        assert "No relevant documentation found" in system_msg
 
     async def test_rag_source_fields(self, db_session):
         await self._ingest_test_data(db_session)
 
-        _, sources = await build_rag_prompt(
+        _, sources, _debug = await build_rag_prompt(
             db=db_session,
             query="door control",
         )

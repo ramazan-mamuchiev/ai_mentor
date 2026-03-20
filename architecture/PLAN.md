@@ -140,7 +140,17 @@
 - Auto-detection of product from user query (no explicit filter required)
 - Query enrichment: short follow-up messages expanded using conversation history
 - History-aware: last N messages included in LLM context for multi-turn conversations
+- **Persistent debug/analytics**: every assistant response saves detailed metrics to `chat_message_analytics` table (LLM params, timing, RAG quality, context). Survives page reload (Ctrl+F5) and enables future admin search, billing reconciliation, and quality analysis
 - Implementation: `chat/router.py`, `chat/rag.py`, `llm/client.py`
+
+### Search Analytics (MCP & API Observability)
+- Every MCP tool call (`search_documentation`, `get_api_endpoint`, `list_products`) records a `search_analytics` entry
+- Tracks: query, product/version filters, result count, top similarity, duration, embedding model
+- Separate from chat analytics — different metric set, no LLM involvement
+- Enables: search quality analysis, popular query tracking, billing verification, vendor analytics (future)
+- Fire-and-forget writes — analytics failures never block the search response
+- Implementation: `mcp/server.py`, `models.py` (`SearchAnalytics`)
+- Schema: [DATABASE.md — search_analytics](DATABASE.md#current-schema-implemented)
 
 ### LLM Provider
 - **Tiered model strategy**: different developer tiers use different LLM models

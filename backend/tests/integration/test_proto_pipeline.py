@@ -519,3 +519,143 @@ class TestMixedStyleProtoIngestion:
 
         finally:
             os.unlink(proto_path)
+
+
+# ---------------------------------------------------------------------------
+# Proto code blocks in pipeline
+# ---------------------------------------------------------------------------
+
+CODE_BLOCK_PROTO = """\
+syntax = "proto3";
+package test.codeblocks;
+
+service ItemService {
+  rpc GetItem(GetItemRequest) returns (Item);
+  rpc ListItems(ListItemsRequest) returns (stream Item);
+}
+
+message GetItemRequest {
+  string id = 1;
+}
+
+message ListItemsRequest {
+  int32 page_size = 1;
+  string token = 2;
+}
+
+message Item {
+  string id = 1;
+  string name = 2;
+}
+"""
+
+ALLMAN_CODE_BLOCK_PROTO = """\
+syntax = "proto3";
+package test.allman.codeblocks;
+
+service DeviceService
+{
+  rpc GetDevice(GetDeviceRequest) returns (Device);
+}
+
+message GetDeviceRequest
+{
+  string uid = 1;
+}
+
+message Device
+{
+  string uid = 1;
+  string model = 2;
+}
+"""
+
+
+@pytest.mark.usefixtures("_init_schema")
+class TestProtoCodeBlocksInPipeline:
+    """Integration: proto code blocks survive the full ingestion pipeline."""
+
+    async def test_code_blocks_in_chunks(self, db_session):
+        proto_path = _write_proto(CODE_BLOCK_PROTO)
+        try:
+            result = await ingest_file(
+                session=db_session,
+                file_path=proto_path,
+                product_name="CodeBlockProduct",
+                firmware_version="1.0",
+            )
+            assert result["status"] == "ok"
+
+            product = (await db_session.execute(
+                select(Product).where(Product.name == "CodeBlockProduct")
+            )).scalar_one()
+            doc = (await db_session.execute(
+                select(Document).where(Document.product_id == product.id)
+            )).scalar_one()
+            chunks = (await db_session.execute(
+                select(Chunk).where(Chunk.document_id == doc.id)
+            )).scalars().all()
+
+            all_text = _all_chunk_text(chunks)
+            assert "```protobuf" in all_text
+            assert "service ItemService {" in all_text
+            assert "rpc GetItem(GetItemRequest) returns (Item);" in all_text
+
+        finally:
+            os.unlink(proto_path)
+
+    async def test_field_tables_in_chunks(self, db_session):
+        proto_path = _write_proto(CODE_BLOCK_PROTO)
+        try:
+            result = await ingest_file(
+                session=db_session,
+                file_path=proto_path,
+                product_name="FieldTableProduct",
+                firmware_version="1.0",
+            )
+            assert result["status"] == "ok"
+
+            product = (await db_session.execute(
+                select(Product).where(Product.name == "FieldTableProduct")
+            )).scalar_one()
+            doc = (await db_session.execute(
+                select(Document).where(Document.product_id == product.id)
+            )).scalar_one()
+            chunks = (await db_session.execute(
+                select(Chunk).where(Chunk.document_id == doc.id)
+            )).scalars().all()
+
+            all_text = _all_chunk_text(chunks)
+            assert "| # | Field | Type |" in all_text
+
+        finally:
+            os.unlink(proto_path)
+
+    async def test_allman_style_generates_code_blocks(self, db_session):
+        proto_path = _write_proto(ALLMAN_CODE_BLOCK_PROTO)
+        try:
+            result = await ingest_file(
+                session=db_session,
+                file_path=proto_path,
+                product_name="AllmanCodeBlockProduct",
+                firmware_version="1.0",
+            )
+            assert result["status"] == "ok"
+
+            product = (await db_session.execute(
+                select(Product).where(Product.name == "AllmanCodeBlockProduct")
+            )).scalar_one()
+            doc = (await db_session.execute(
+                select(Document).where(Document.product_id == product.id)
+            )).scalar_one()
+            chunks = (await db_session.execute(
+                select(Chunk).where(Chunk.document_id == doc.id)
+            )).scalars().all()
+
+            all_text = _all_chunk_text(chunks)
+            assert "```protobuf" in all_text
+            assert "service DeviceService {" in all_text
+            assert "message Device {" in all_text
+
+        finally:
+            os.unlink(proto_path)

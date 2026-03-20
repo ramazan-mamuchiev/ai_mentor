@@ -6,8 +6,9 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-m 'not smoke'"
 markers = [
-    "smoke: slow tests with real embedding model (deselect with '-m not smoke')",
+    "smoke: slow tests with real embedding model (run explicitly with '-m smoke')",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

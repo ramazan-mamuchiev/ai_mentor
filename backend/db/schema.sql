@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     title TEXT,
     product_filter TEXT,
     version_filter TEXT,
+    doc_context TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -81,6 +82,99 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
+
+-- Chat message analytics (per-response debug/metrics for RAG answers)
+CREATE TABLE IF NOT EXISTS chat_message_analytics (
+    id SERIAL PRIMARY KEY,
+    message_id INT NOT NULL UNIQUE REFERENCES chat_messages(id) ON DELETE CASCADE,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    user_message_id INT REFERENCES chat_messages(id) ON DELETE SET NULL,
+    -- LLM
+    llm_provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    temperature FLOAT NOT NULL DEFAULT 0,
+    max_tokens INT NOT NULL DEFAULT 0,
+    token_count INT NOT NULL DEFAULT 0,
+    tokens_per_sec FLOAT NOT NULL DEFAULT 0,
+    response_length INT NOT NULL DEFAULT 0,
+    -- Timing
+    total_ms FLOAT NOT NULL DEFAULT 0,
+    rag_ms FLOAT NOT NULL DEFAULT 0,
+    llm_ms FLOAT NOT NULL DEFAULT 0,
+    search_ms FLOAT NOT NULL DEFAULT 0,
+    first_token_ms FLOAT NOT NULL DEFAULT 0,
+    rag_build_ms FLOAT NOT NULL DEFAULT 0,
+    -- RAG
+    chunks_found INT NOT NULL DEFAULT 0,
+    top_similarity FLOAT NOT NULL DEFAULT 0,
+    min_similarity FLOAT NOT NULL DEFAULT 0,
+    context_tokens INT NOT NULL DEFAULT 0,
+    history_messages INT NOT NULL DEFAULT 0,
+    prompt_messages INT NOT NULL DEFAULT 0,
+    embedding_model TEXT NOT NULL DEFAULT '',
+    -- Context
+    doc_context TEXT,
+    auto_product TEXT,
+    detected_doc_context TEXT,
+    search_query TEXT,
+    -- Billing
+    user_input_tokens INT NOT NULL DEFAULT 0,
+    user_output_tokens INT NOT NULL DEFAULT 0,
+    llm_prompt_tokens INT NOT NULL DEFAULT 0,
+    llm_completion_tokens INT NOT NULL DEFAULT 0,
+    llm_total_tokens INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cma_session ON chat_message_analytics(session_id);
+CREATE INDEX IF NOT EXISTS idx_cma_message ON chat_message_analytics(message_id);
+CREATE INDEX IF NOT EXISTS idx_cma_model ON chat_message_analytics(model);
+CREATE INDEX IF NOT EXISTS idx_cma_provider ON chat_message_analytics(llm_provider);
+CREATE INDEX IF NOT EXISTS idx_cma_created ON chat_message_analytics(created_at);
+CREATE INDEX IF NOT EXISTS idx_cma_similarity ON chat_message_analytics(top_similarity);
+
+-- Search analytics (per-query metrics for MCP tools and API search)
+CREATE TABLE IF NOT EXISTS search_analytics (
+    id BIGSERIAL PRIMARY KEY,
+    source TEXT NOT NULL,                    -- "mcp" | "api" | "chat_rag"
+    tool_name TEXT NOT NULL,                 -- "search_documentation" | "get_api_endpoint" | "list_products"
+    query TEXT NOT NULL DEFAULT '',
+    product_filter TEXT,
+    version_filter TEXT,
+    result_count INT NOT NULL DEFAULT 0,
+    top_similarity FLOAT NOT NULL DEFAULT 0,
+    duration_ms FLOAT NOT NULL DEFAULT 0,
+    embedding_model TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sa_source ON search_analytics(source);
+CREATE INDEX IF NOT EXISTS idx_sa_tool ON search_analytics(tool_name);
+CREATE INDEX IF NOT EXISTS idx_sa_created ON search_analytics(created_at);
+CREATE INDEX IF NOT EXISTS idx_sa_product ON search_analytics(product_filter) WHERE product_filter IS NOT NULL;
+
+-- Reindex jobs (background reindexing operations)
+CREATE TABLE IF NOT EXISTS reindex_jobs (
+    id SERIAL PRIMARY KEY,
+    mode TEXT NOT NULL,                     -- "reingest" or "reembed"
+    status TEXT NOT NULL DEFAULT 'pending', -- pending | running | completed | failed | cancelled | stale
+    product_filter TEXT,
+    format_filter TEXT,
+    total_documents INT NOT NULL DEFAULT 0,
+    processed_documents INT NOT NULL DEFAULT 0,
+    failed_documents INT NOT NULL DEFAULT 0,
+    skipped_documents INT NOT NULL DEFAULT 0,
+    total_chunks INT NOT NULL DEFAULT 0,
+    celery_task_id TEXT,
+    error_message TEXT,
+    errors_json TEXT NOT NULL DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    heartbeat_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_reindex_jobs_status ON reindex_jobs(status);
 
 -- Deduplication index on document content hash
 CREATE INDEX IF NOT EXISTS idx_documents_source_hash ON documents(source_hash) WHERE source_hash != '';
@@ -108,3 +202,61 @@ CREATE TABLE IF NOT EXISTS upload_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_status ON upload_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_expires ON upload_sessions(expires_at);
+
+-- Usage log (append-only billing audit trail, partitioned by month)
+CREATE TABLE IF NOT EXISTS usage_log (
+    id BIGSERIAL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    channel TEXT NOT NULL,                          -- 'chat' | 'mcp'
+    action TEXT NOT NULL,                           -- 'chat_completion' | 'search_documentation' | 'get_api_endpoint' | 'list_products'
+    request_id TEXT NOT NULL,                       -- UUID v4 for deduplication and audit
+
+    llm_provider TEXT,                              -- 'openai' (OpenAI-compatible: Gemini, GPT, etc.)
+    llm_model TEXT,                                 -- 'gemini-2.5-flash', 'gemini-2.5-pro', etc.
+    prompt_tokens INT NOT NULL DEFAULT 0,           -- from LLM API: usage.prompt_tokens
+    completion_tokens INT NOT NULL DEFAULT 0,       -- from LLM API: usage.completion_tokens
+    total_tokens INT NOT NULL DEFAULT 0,            -- prompt_tokens + completion_tokens
+
+    context_chunks INT NOT NULL DEFAULT 0,          -- RAG chunks used in prompt
+    context_tokens INT NOT NULL DEFAULT 0,          -- sum of chunk token_count from RAG
+    history_messages INT NOT NULL DEFAULT 0,        -- chat history messages in prompt
+    query_tokens INT NOT NULL DEFAULT 0,            -- approximate tokens of user query text only
+    history_tokens INT NOT NULL DEFAULT 0,          -- approximate tokens of chat history in prompt
+    system_prompt_tokens INT NOT NULL DEFAULT 0,    -- approximate tokens of system prompt (incl. RAG header)
+
+    query_text TEXT,                                -- user query / search query (for audit)
+    result_count INT NOT NULL DEFAULT 0,            -- search results returned
+    response_tokens INT NOT NULL DEFAULT 0,         -- approximate token count of response text
+    response_length INT NOT NULL DEFAULT 0,         -- len() of response text in characters
+    top_similarity FLOAT NOT NULL DEFAULT 0,
+
+    product_filter TEXT,
+    version_filter TEXT,
+
+    duration_ms FLOAT NOT NULL DEFAULT 0,
+    embedding_ms FLOAT NOT NULL DEFAULT 0,
+    search_ms FLOAT NOT NULL DEFAULT 0,
+    llm_ms FLOAT NOT NULL DEFAULT 0,
+
+    cogs_usd NUMERIC(12,8) NOT NULL DEFAULT 0,     -- our cost: actual LLM API / infra cost
+    charge_usd NUMERIC(12,8) NOT NULL DEFAULT 0,   -- client charge: user-facing price (for billing)
+
+    tenant_id UUID,                                 -- reserved for multi-tenant (nullable for now)
+
+    PRIMARY KEY (id, created_at)
+) PARTITION BY RANGE (created_at);
+
+-- Initial partitions (current month + next 2 months)
+CREATE TABLE IF NOT EXISTS usage_log_2026_03 PARTITION OF usage_log
+    FOR VALUES FROM ('2026-03-01') TO ('2026-04-01');
+CREATE TABLE IF NOT EXISTS usage_log_2026_04 PARTITION OF usage_log
+    FOR VALUES FROM ('2026-04-01') TO ('2026-05-01');
+CREATE TABLE IF NOT EXISTS usage_log_2026_05 PARTITION OF usage_log
+    FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
+
+CREATE INDEX IF NOT EXISTS idx_usage_log_channel ON usage_log (channel, created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_log_action ON usage_log (action, created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_log_request ON usage_log (request_id);
+CREATE INDEX IF NOT EXISTS idx_usage_log_tenant ON usage_log (tenant_id, created_at) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_usage_log_model ON usage_log (llm_model, created_at) WHERE llm_model IS NOT NULL;

@@ -9,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import ChatMessage, ChatSession, Chunk, Product, Document, FirmwareVersion
+from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Chunk, Product, Document, FirmwareVersion
 
 
 async def _async_iter(items):
@@ -53,6 +53,7 @@ async def chat_client(db_engine):
                 yield ac
 
     async with test_session_maker() as cleanup_session:
+        await cleanup_session.execute(delete(ChatMessageAnalytics))
         await cleanup_session.execute(delete(ChatMessage))
         await cleanup_session.execute(delete(ChatSession))
         await cleanup_session.execute(delete(Chunk))
@@ -306,7 +307,7 @@ class TestChatMessagesAPI:
 
         error_events = [e for e in events if e["type"] == "error"]
         assert len(error_events) == 1
-        assert "Ollama returned 500" in error_events[0]["content"]
+        assert error_events[0]["error_code"] == "internal_error"
 
 
 class TestChatWithRAG:
@@ -378,3 +379,119 @@ class TestChatWithRAG:
         sources = sources_events[0]["sources"]
         assert len(sources) > 0
         assert sources[0]["doc_title"] == "TestCam API Guide"
+
+
+class TestDebugPersistence:
+    """Test that debug/analytics info is persisted and returned after reload."""
+
+    async def test_debug_persisted_after_stream(self, chat_client):
+        """Send a message, then GET session — debug dict must be present."""
+        create_resp = await chat_client.post(
+            "/api/v1/chat/sessions",
+            json={"title": "Debug Persist Test"},
+        )
+        session_id = create_resp.json()["id"]
+
+        with patch(
+            "app.chat.router.stream_chat_completion",
+            return_value=_async_iter(["Hello", " world"]),
+        ):
+            await chat_client.post(
+                f"/api/v1/chat/sessions/{session_id}/messages",
+                json={"content": "Test question"},
+            )
+
+        detail_resp = await chat_client.get(f"/api/v1/chat/sessions/{session_id}")
+        assert detail_resp.status_code == 200
+        messages = detail_resp.json()["messages"]
+
+        assistant_msgs = [m for m in messages if m["role"] == "assistant"]
+        assert len(assistant_msgs) == 1
+
+        debug = assistant_msgs[0].get("debug")
+        assert debug is not None, "debug must be present after reload"
+        assert "model" in debug
+        assert "llm_provider" in debug
+        assert "total_ms" in debug
+        assert "chunks_found" in debug
+        assert "top_similarity" in debug
+        assert "embedding_model" in debug
+        assert debug["session_id"] == session_id
+        assert debug["message_id"] == assistant_msgs[0]["id"]
+        assert debug["user_message_id"] is not None
+        assert debug["rag_build_ms"] >= 0
+
+    async def test_debug_contains_timing_metrics(self, chat_client):
+        """Verify timing fields are populated with non-negative values."""
+        create_resp = await chat_client.post(
+            "/api/v1/chat/sessions",
+            json={"title": "Timing Test"},
+        )
+        session_id = create_resp.json()["id"]
+
+        with patch(
+            "app.chat.router.stream_chat_completion",
+            return_value=_async_iter(["Response"]),
+        ):
+            await chat_client.post(
+                f"/api/v1/chat/sessions/{session_id}/messages",
+                json={"content": "How does it work?"},
+            )
+
+        detail_resp = await chat_client.get(f"/api/v1/chat/sessions/{session_id}")
+        debug = detail_resp.json()["messages"][1]["debug"]
+
+        assert debug["total_ms"] >= 0
+        assert debug["rag_ms"] >= 0
+        assert debug["llm_ms"] >= 0
+        assert debug["token_count"] >= 0
+        assert debug["response_length"] > 0
+
+    async def test_user_messages_have_no_debug(self, chat_client):
+        """User messages should not have debug info."""
+        create_resp = await chat_client.post(
+            "/api/v1/chat/sessions",
+            json={"title": "No Debug Test"},
+        )
+        session_id = create_resp.json()["id"]
+
+        with patch(
+            "app.chat.router.stream_chat_completion",
+            return_value=_async_iter(["OK"]),
+        ):
+            await chat_client.post(
+                f"/api/v1/chat/sessions/{session_id}/messages",
+                json={"content": "Hello"},
+            )
+
+        detail_resp = await chat_client.get(f"/api/v1/chat/sessions/{session_id}")
+        user_msgs = [m for m in detail_resp.json()["messages"] if m["role"] == "user"]
+        for m in user_msgs:
+            assert m.get("debug") is None
+
+    async def test_debug_survives_multiple_messages(self, chat_client):
+        """Debug should be present for each assistant message in multi-turn chat."""
+        create_resp = await chat_client.post(
+            "/api/v1/chat/sessions",
+            json={"title": "Multi-turn Debug"},
+        )
+        session_id = create_resp.json()["id"]
+
+        for i in range(3):
+            with patch(
+                "app.chat.router.stream_chat_completion",
+                return_value=_async_iter([f"Reply {i}"]),
+            ):
+                await chat_client.post(
+                    f"/api/v1/chat/sessions/{session_id}/messages",
+                    json={"content": f"Question {i}"},
+                )
+
+        detail_resp = await chat_client.get(f"/api/v1/chat/sessions/{session_id}")
+        assistant_msgs = [m for m in detail_resp.json()["messages"] if m["role"] == "assistant"]
+        assert len(assistant_msgs) == 3
+
+        for msg in assistant_msgs:
+            assert msg["debug"] is not None
+            assert msg["debug"]["session_id"] == session_id
+            assert msg["debug"]["user_message_id"] is not None

@@ -50,13 +50,22 @@ async def stream_chat_completion(
     model: str | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    metadata: dict | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Stream chat completion tokens from the configured LLM provider."""
+    """Stream chat completion tokens from the configured LLM provider.
+
+    If *metadata* dict is passed, it will be populated with stream stats
+    (first_token_ms, provider, resolved model, temperature, max_tokens)
+    after the stream completes.
+    """
+    meta = metadata if metadata is not None else {}
+    meta["provider"] = settings.llm_provider
+
     if settings.llm_provider == "openai":
-        async for token in _stream_openai_compatible(messages, model, temperature, max_tokens):
+        async for token in _stream_openai_compatible(messages, model, temperature, max_tokens, meta):
             yield token
     else:
-        async for token in _stream_ollama(messages, model, temperature, max_tokens):
+        async for token in _stream_ollama(messages, model, temperature, max_tokens, meta):
             yield token
 
 
@@ -65,11 +74,14 @@ async def _stream_ollama(
     model: str | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    meta: dict | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream from local Ollama server."""
     model = model or settings.llm_model
     temperature = temperature if temperature is not None else settings.llm_temperature
     max_tokens = max_tokens or settings.llm_max_tokens
+    if meta is not None:
+        meta.update(model=model, temperature=temperature, max_tokens=max_tokens)
 
     payload = {
         "model": model,
@@ -113,6 +125,7 @@ async def _stream_ollama(
                         f"Ollama returned {response.status_code}",
                     )
 
+                finish_reason = "stop"
                 async for line in response.aiter_lines():
                     if not line.strip():
                         continue
@@ -122,6 +135,8 @@ async def _stream_ollama(
                         continue
 
                     if data.get("done"):
+                        if data.get("done_reason") == "length":
+                            finish_reason = "length"
                         break
 
                     content = data.get("message", {}).get("content", "")
@@ -137,6 +152,9 @@ async def _stream_ollama(
     except httpx.TimeoutException as e:
         raise LLMError(0, "timeout", f"Ollama timeout: {e}") from e
 
+    if meta is not None:
+        meta["first_token_ms"] = first_token_ms
+        meta["finish_reason"] = finish_reason
     _log_completion("ollama", model, token_count, t0, first_token_ms)
 
 
@@ -145,11 +163,14 @@ async def _stream_openai_compatible(
     model: str | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    meta: dict | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream from any OpenAI-compatible API (Gemini, GPT-4o, OpenRouter, etc.)."""
     model = model or settings.openai_llm_model
     temperature = temperature if temperature is not None else settings.llm_temperature
     max_tokens = max_tokens or settings.llm_max_tokens
+    if meta is not None:
+        meta.update(model=model, temperature=temperature, max_tokens=max_tokens)
 
     payload: dict = {
         "model": model,
@@ -157,6 +178,7 @@ async def _stream_openai_compatible(
         "stream": True,
         "temperature": temperature,
         "max_tokens": max_tokens,
+        "stream_options": {"include_usage": True},
     }
 
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
@@ -197,6 +219,8 @@ async def _stream_openai_compatible(
                         f"LLM API returned {response.status_code}: {body.decode()[:200]}",
                     )
 
+                finish_reason = "stop"
+                usage_data: dict | None = None
                 async for line in response.aiter_lines():
                     stripped = line.strip()
                     if not stripped or not stripped.startswith("data: "):
@@ -209,9 +233,15 @@ async def _stream_openai_compatible(
                     except json.JSONDecodeError:
                         continue
 
+                    if data.get("usage"):
+                        usage_data = data["usage"]
+
                     choices = data.get("choices", [])
                     if not choices:
                         continue
+                    fr = choices[0].get("finish_reason")
+                    if fr:
+                        finish_reason = fr
                     delta = choices[0].get("delta", {})
                     content = delta.get("content", "")
                     if content:
@@ -226,6 +256,25 @@ async def _stream_openai_compatible(
     except httpx.TimeoutException as e:
         raise LLMError(0, "timeout", f"LLM API timeout: {e}") from e
 
+    if meta is not None:
+        meta["first_token_ms"] = first_token_ms
+        meta["finish_reason"] = finish_reason
+        if usage_data:
+            meta["usage"] = {
+                "prompt_tokens": usage_data.get("prompt_tokens", 0),
+                "completion_tokens": usage_data.get("completion_tokens", 0),
+                "total_tokens": usage_data.get("total_tokens", 0),
+            }
+        else:
+            meta["usage"] = {
+                "prompt_tokens": 0,
+                "completion_tokens": token_count,
+                "total_tokens": token_count,
+            }
+            logger.warning(
+                "LLM API did not return usage data, falling back to SSE chunk count",
+                extra={"model": model, "token_count": token_count},
+            )
     _log_completion("openai-compatible", model, token_count, t0, first_token_ms)
 
 

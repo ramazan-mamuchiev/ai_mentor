@@ -131,14 +131,12 @@ class TestFindOcrPages:
         from PIL import Image
 
         pdf_path = str(tmp_path / "test.pdf")
+        img_path = str(tmp_path / "large.png")
+        Image.new("RGB", (400, 400), (128, 128, 128)).save(img_path)
+
         doc = pymupdf.open()
         page = doc.new_page(width=612, height=792)
-        img = Image.new("RGB", (400, 400), (128, 128, 128))
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
-        rect = pymupdf.Rect(50, 50, 450, 450)
-        page.insert_image(rect, stream=buf.read())
+        page.insert_image(pymupdf.Rect(50, 50, 450, 450), filename=img_path)
         doc.save(pdf_path)
         doc.close()
 
@@ -149,14 +147,12 @@ class TestFindOcrPages:
         from PIL import Image
 
         pdf_path = str(tmp_path / "test.pdf")
+        img_path = str(tmp_path / "small.png")
+        Image.new("RGB", (50, 50), (200, 200, 200)).save(img_path)
+
         doc = pymupdf.open()
         page = doc.new_page(width=612, height=792)
-        img = Image.new("RGB", (50, 50), (200, 200, 200))
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
-        rect = pymupdf.Rect(50, 50, 100, 100)
-        page.insert_image(rect, stream=buf.read())
+        page.insert_image(pymupdf.Rect(50, 50, 100, 100), filename=img_path)
         doc.save(pdf_path)
         doc.close()
 
@@ -177,23 +173,19 @@ class TestFindOcrPages:
         from PIL import Image
 
         pdf_path = str(tmp_path / "mixed.pdf")
-        doc = pymupdf.open()
+        img_large_path = str(tmp_path / "large.png")
+        img_small_path = str(tmp_path / "small.png")
+        Image.new("RGB", (500, 500), (100, 100, 100)).save(img_large_path)
+        Image.new("RGB", (20, 20), (50, 50, 50)).save(img_small_path)
 
+        doc = pymupdf.open()
         doc.new_page(width=612, height=792)
 
         page1 = doc.new_page(width=612, height=792)
-        img_large = Image.new("RGB", (500, 500), (100, 100, 100))
-        buf = io.BytesIO()
-        img_large.save(buf, format="PNG")
-        buf.seek(0)
-        page1.insert_image(pymupdf.Rect(10, 10, 510, 510), stream=buf.read())
+        page1.insert_image(pymupdf.Rect(10, 10, 510, 510), filename=img_large_path)
 
         page2 = doc.new_page(width=612, height=792)
-        img_small = Image.new("RGB", (20, 20), (50, 50, 50))
-        buf2 = io.BytesIO()
-        img_small.save(buf2, format="PNG")
-        buf2.seek(0)
-        page2.insert_image(pymupdf.Rect(10, 10, 30, 30), stream=buf2.read())
+        page2.insert_image(pymupdf.Rect(10, 10, 30, 30), filename=img_small_path)
 
         doc.save(pdf_path)
         doc.close()

@@ -206,7 +206,7 @@ class TestExtractionParity:
 # Tests: full ingestion pipeline with 7z-extracted files
 # ---------------------------------------------------------------------------
 
-@pytest.mark.usefixtures("_init_schema", "mock_embedder")
+@pytest.mark.usefixtures("_init_schema", "_mock_embedder")
 class TestArchive7zIngestionPipeline:
     """Integration test: ingest files extracted from a 7z archive through the full pipeline."""
 

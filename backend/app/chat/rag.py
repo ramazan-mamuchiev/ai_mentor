@@ -14,29 +14,31 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.
 
-Your primary goal is to provide ACTIONABLE, CODE-READY answers based on the documentation context provided below.
+## ⚠️ MANDATORY LENGTH LIMIT — READ FIRST
 
-## CRITICAL: How to answer
+Your response MUST NOT exceed 8000 words. This is a hard limit. If the topic is very broad, cover the most important parts in detail and briefly mention the rest, telling the user they can ask follow-up questions. Do NOT try to exhaustively cover every sub-topic in one response. NEVER repeat the same table, code block, or section. NEVER duplicate column headers in tables.
 
-1. **Your answer MUST be based on the "Documentation context" section below.** Read ALL the source chunks carefully. If any chunk contains information relevant to the user's question — USE IT in your answer.
-2. **Do NOT say "I don't have information" if the information IS present in the sources below.** Search through every source chunk for relevant functions, APIs, parameters, and details before concluding that information is missing.
-3. **Cite your sources** (e.g., "[Honeywell IPM SDK, Section 4.2.8]") so the user can verify.
+## How to answer
+
+1. Base your answer ONLY on the "Documentation context" section below. Read ALL source chunks. If a chunk is relevant — USE IT.
+2. Do NOT say "I don't have information" if the information IS in the sources. Check every chunk first.
+3. Cite sources (e.g., "[AxxonOneSDK, Section 5.6.21]") so the user can verify.
 
 ## Anti-hallucination rules
 
-4. **NEVER mix up different systems.** If the user asks about system A, do NOT answer using documentation from system B.
-5. **NEVER fabricate API endpoints, parameters, URLs, or code not present in the context.**
-6. **NEVER guess API details by analogy with other systems.**
-7. **Only say "I don't have documentation about [X]" if you have carefully checked ALL source chunks below and NONE of them contain relevant information.**
+4. NEVER mix up different systems. If asked about system A, do NOT use docs from system B.
+5. NEVER fabricate API endpoints, parameters, URLs, or code not in the context.
+6. NEVER guess API details by analogy with other systems.
 
 ## Response format
 
-8. Include working code examples (Python with `requests`/`httpx`, or `curl`) when relevant.
-9. Show API endpoints with full URLs, HTTP methods, headers, and request/response bodies from the documentation.
-10. Structure: **Overview** → **Step-by-step** → **Code example** → **Notes**.
-11. Include API specs, auth details, code samples, headers, and parameter tables verbatim. Do NOT skip details.
-12. ALWAYS respond in the same language as the user's question.
-13. Use rich markdown: `##` headers, code blocks with language tags, tables, **bold** for key terms."""
+7. Structure: **Overview** → **Key methods/parameters** → **Code example** → **Notes**.
+8. ALWAYS respond in the same language as the user's question.
+9. Use markdown: `##` headers, code blocks with language tags, tables, **bold** for key terms.
+10. For proto/gRPC: show the proto definition in a code block ONCE, then a brief table with key fields only. Summarize less important fields in one line.
+11. For large APIs: overview table of methods, then detail ONLY the 2-3 most relevant. Mention others by name only.
+12. Parameter tables: ALWAYS use GFM syntax with separator row (`|---|---|`). NEVER omit it. NEVER insert blank lines between rows.
+13. Include code examples (Python/curl) when relevant, but keep them short."""
 
 
 async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None:
@@ -80,8 +82,13 @@ def _format_context(chunks: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate: 1 token ≈ 4 characters for English/mixed text."""
+    return max(1, len(text) // 4) if text else 0
+
+
 def _build_history_messages(history: list[ChatMessage], max_messages: int) -> list[dict]:
-    """Convert DB message history to Ollama message format."""
+    """Convert DB message history to LLM message format."""
     recent = history[-max_messages:] if len(history) > max_messages else history
     return [{"role": msg.role, "content": msg.content} for msg in recent]
 
@@ -177,6 +184,11 @@ async def build_rag_prompt(
         for c in chunks
     ]
 
+    query_tokens = _estimate_tokens(query)
+    history_msgs = _build_history_messages(history, settings.rag_history_messages) if history else []
+    history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
+    system_prompt_tokens = _estimate_tokens(combined_system)
+
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     top_sim = round(chunks[0]["similarity"], 4) if chunks else 0
     min_sim = round(chunks[-1]["similarity"], 4) if chunks else 0
@@ -186,14 +198,20 @@ async def build_rag_prompt(
         "top_similarity": top_sim,
         "min_similarity": min_sim,
         "context_tokens": context_tokens,
+        "query_tokens": query_tokens,
+        "history_tokens": history_tokens,
+        "system_prompt_tokens": system_prompt_tokens,
         "search_ms": search_ms,
         "rag_build_ms": total_ms,
         "history_messages": len(history) if history else 0,
         "prompt_messages": len(messages),
         "embedding_model": settings.embedding_model_local if settings.embedding_provider == "local" else settings.embedding_model_openai,
+        "product_filter": product_filter,
+        "version_filter": version_filter,
         "doc_context": doc_context,
         "auto_product": auto_product,
         "detected_doc_context": detected_doc,
+        "search_query": search_query if search_query != query else None,
     }
 
     logger.info(

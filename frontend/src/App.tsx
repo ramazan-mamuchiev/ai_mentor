@@ -72,12 +72,16 @@ export default function App() {
         setActiveSessionId(session.id)
         sessionId = session.id
       } catch {
+        setMessages([
+          { id: Date.now(), session_id: 0, role: 'user', content, created_at: new Date().toISOString() },
+          { id: Date.now() + 1, session_id: 0, role: 'assistant', content: '', error_code: 'networkError', created_at: new Date().toISOString() },
+        ])
         return
       }
     }
     await sendMessage(sessionId, content)
     refreshSessions()
-  }, [activeSessionId, sendMessage, refreshSessions])
+  }, [activeSessionId, sendMessage, setMessages, refreshSessions])
 
   return (
     <Layout
@@ -96,7 +100,15 @@ export default function App() {
         status={status}
         onSend={handleSend}
         onCancel={cancel}
-        onRetry={activeSessionId ? () => retryLast(activeSessionId) : undefined}
+        onRetry={activeSessionId
+          ? () => retryLast(activeSessionId)
+          : messages.length > 0
+            ? () => {
+                const userMsg = [...messages].reverse().find(m => m.role === 'user')
+                if (userMsg) { setMessages([]); handleSend(userMsg.content) }
+              }
+            : undefined
+        }
         editValue={lastUserPrompt}
         onUploadClick={() => setShowUpload(true)}
       />

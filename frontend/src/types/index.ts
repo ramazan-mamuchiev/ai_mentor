@@ -11,7 +11,12 @@ export interface DebugInfo {
   session_id: number
   message_id: number
   user_message_id: number
+  timestamp: string
   model: string
+  llm_provider: string
+  temperature: number
+  max_tokens: number
+  first_token_ms: number
   rag_ms: number
   llm_ms: number
   total_ms: number
@@ -27,6 +32,21 @@ export interface DebugInfo {
   history_messages: number
   prompt_messages: number
   embedding_model: string
+  product_filter: string | null
+  version_filter: string | null
+  doc_context: string | null
+  auto_product: string | null
+  detected_doc_context: string | null
+  search_query: string | null
+  query_tokens: number
+  context_tokens: number
+  history_tokens: number
+  system_prompt_tokens: number
+  user_input_tokens: number
+  user_output_tokens: number
+  llm_prompt_tokens: number
+  llm_completion_tokens: number
+  llm_total_tokens: number
 }
 
 export interface ChatMessage {

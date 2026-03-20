@@ -128,6 +128,59 @@ CREATE TABLE upload_sessions (
 );
 ```
 
+-- Chat message analytics (per-response debug/metrics for RAG answers)
+-- 1:1 with chat_messages (assistant messages only)
+CREATE TABLE chat_message_analytics (
+    id SERIAL PRIMARY KEY,
+    message_id INT NOT NULL UNIQUE REFERENCES chat_messages(id) ON DELETE CASCADE,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    -- LLM parameters
+    llm_provider TEXT NOT NULL,          -- "ollama" | "openai"
+    model TEXT NOT NULL,
+    temperature FLOAT NOT NULL DEFAULT 0,
+    max_tokens INT NOT NULL DEFAULT 0,
+    token_count INT NOT NULL DEFAULT 0,
+    tokens_per_sec FLOAT NOT NULL DEFAULT 0,
+    response_length INT NOT NULL DEFAULT 0,
+    -- Timing
+    total_ms FLOAT NOT NULL DEFAULT 0,
+    rag_ms FLOAT NOT NULL DEFAULT 0,
+    llm_ms FLOAT NOT NULL DEFAULT 0,
+    search_ms FLOAT NOT NULL DEFAULT 0,
+    first_token_ms FLOAT NOT NULL DEFAULT 0,
+    -- RAG quality metrics
+    chunks_found INT NOT NULL DEFAULT 0,
+    top_similarity FLOAT NOT NULL DEFAULT 0,
+    min_similarity FLOAT NOT NULL DEFAULT 0,
+    context_tokens INT NOT NULL DEFAULT 0,
+    history_messages INT NOT NULL DEFAULT 0,
+    prompt_messages INT NOT NULL DEFAULT 0,
+    embedding_model TEXT NOT NULL DEFAULT '',
+    -- Context (for debugging)
+    doc_context TEXT,
+    auto_product TEXT,
+    detected_doc_context TEXT,
+    search_query TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Search analytics (per-query metrics for MCP tools and API search)
+-- Standalone table, not linked to chat messages
+CREATE TABLE search_analytics (
+    id BIGSERIAL PRIMARY KEY,
+    source TEXT NOT NULL,                -- "mcp" | "api" | "chat_rag"
+    tool_name TEXT NOT NULL,             -- "search_documentation" | "get_api_endpoint" | "list_products"
+    query TEXT NOT NULL DEFAULT '',
+    product_filter TEXT,
+    version_filter TEXT,
+    result_count INT NOT NULL DEFAULT 0,
+    top_similarity FLOAT NOT NULL DEFAULT 0,
+    duration_ms FLOAT NOT NULL DEFAULT 0,
+    embedding_model TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
 ### Current Indexes
 
 ```sql
@@ -141,6 +194,20 @@ CREATE INDEX idx_reindex_jobs_status ON reindex_jobs(status);
 CREATE INDEX idx_documents_source_hash ON documents(source_hash) WHERE source_hash != '';
 CREATE INDEX idx_upload_sessions_status ON upload_sessions(status);
 CREATE INDEX idx_upload_sessions_expires ON upload_sessions(expires_at);
+
+-- Chat message analytics indexes
+CREATE INDEX idx_cma_session ON chat_message_analytics(session_id);
+CREATE INDEX idx_cma_message ON chat_message_analytics(message_id);
+CREATE INDEX idx_cma_model ON chat_message_analytics(model);
+CREATE INDEX idx_cma_provider ON chat_message_analytics(llm_provider);
+CREATE INDEX idx_cma_created ON chat_message_analytics(created_at);
+CREATE INDEX idx_cma_similarity ON chat_message_analytics(top_similarity);
+
+-- Search analytics indexes
+CREATE INDEX idx_sa_source ON search_analytics(source);
+CREATE INDEX idx_sa_tool ON search_analytics(tool_name);
+CREATE INDEX idx_sa_created ON search_analytics(created_at);
+CREATE INDEX idx_sa_product ON search_analytics(product_filter) WHERE product_filter IS NOT NULL;
 ```
 
 ---

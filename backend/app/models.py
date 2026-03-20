@@ -3,8 +3,10 @@
 from datetime import datetime, timedelta, timezone
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
+from decimal import Decimal
+
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -130,8 +132,182 @@ class ChatMessage(Base):
     )
 
     session: Mapped["ChatSession"] = relationship(back_populates="messages")
+    analytics: Mapped["ChatMessageAnalytics | None"] = relationship(
+        back_populates="message", uselist=False, cascade="all, delete-orphan",
+        foreign_keys="ChatMessageAnalytics.message_id",
+    )
 
     __table_args__ = (Index("idx_chat_messages_session", "session_id"),)
+
+
+class ChatMessageAnalytics(Base):
+    __tablename__ = "chat_message_analytics"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    user_message_id: Mapped[int | None] = mapped_column(
+        ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
+    )
+
+    llm_provider: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    temperature: Mapped[float] = mapped_column(Float, default=0)
+    max_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_per_sec: Mapped[float] = mapped_column(Float, default=0)
+    response_length: Mapped[int] = mapped_column(Integer, default=0)
+
+    total_ms: Mapped[float] = mapped_column(Float, default=0)
+    rag_ms: Mapped[float] = mapped_column(Float, default=0)
+    llm_ms: Mapped[float] = mapped_column(Float, default=0)
+    search_ms: Mapped[float] = mapped_column(Float, default=0)
+    first_token_ms: Mapped[float] = mapped_column(Float, default=0)
+    rag_build_ms: Mapped[float] = mapped_column(Float, default=0)
+
+    chunks_found: Mapped[int] = mapped_column(Integer, default=0)
+    top_similarity: Mapped[float] = mapped_column(Float, default=0)
+    min_similarity: Mapped[float] = mapped_column(Float, default=0)
+    context_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    history_messages: Mapped[int] = mapped_column(Integer, default=0)
+    prompt_messages: Mapped[int] = mapped_column(Integer, default=0)
+    embedding_model: Mapped[str] = mapped_column(Text, default="")
+
+    doc_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    auto_product: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detected_doc_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    search_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    user_input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    user_output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    llm_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    llm_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    llm_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    message: Mapped["ChatMessage"] = relationship(
+        back_populates="analytics", foreign_keys=[message_id]
+    )
+
+    __table_args__ = (
+        Index("idx_cma_session", "session_id"),
+        Index("idx_cma_model", "model"),
+        Index("idx_cma_provider", "llm_provider"),
+        Index("idx_cma_created", "created_at"),
+        Index("idx_cma_similarity", "top_similarity"),
+    )
+
+    def to_debug_dict(
+        self,
+        product_filter: str | None = None,
+        version_filter: str | None = None,
+    ) -> dict:
+        """Convert to the debug_info dict expected by the frontend."""
+        return {
+            "session_id": self.session_id,
+            "message_id": self.message_id,
+            "user_message_id": self.user_message_id,
+            "timestamp": self.created_at.isoformat() if self.created_at else None,
+            "model": self.model,
+            "llm_provider": self.llm_provider,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "first_token_ms": self.first_token_ms,
+            "rag_ms": self.rag_ms,
+            "llm_ms": self.llm_ms,
+            "total_ms": self.total_ms,
+            "search_ms": self.search_ms,
+            "rag_build_ms": self.rag_build_ms,
+            "token_count": self.token_count,
+            "tokens_per_sec": self.tokens_per_sec,
+            "response_length": self.response_length,
+            "chunks_found": self.chunks_found,
+            "top_similarity": self.top_similarity,
+            "min_similarity": self.min_similarity,
+            "context_tokens": self.context_tokens,
+            "history_messages": self.history_messages,
+            "prompt_messages": self.prompt_messages,
+            "embedding_model": self.embedding_model,
+            "product_filter": product_filter,
+            "version_filter": version_filter,
+            "doc_context": self.doc_context,
+            "auto_product": self.auto_product,
+            "detected_doc_context": self.detected_doc_context,
+            "search_query": self.search_query,
+            "user_input_tokens": self.user_input_tokens,
+            "user_output_tokens": self.user_output_tokens,
+            "llm_prompt_tokens": self.llm_prompt_tokens,
+            "llm_completion_tokens": self.llm_completion_tokens,
+            "llm_total_tokens": self.llm_total_tokens,
+        }
+
+
+class SearchAnalytics(Base):
+    __tablename__ = "search_analytics"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    source: Mapped[str] = mapped_column(Text, nullable=False)
+    tool_name: Mapped[str] = mapped_column(Text, nullable=False)
+    query: Mapped[str] = mapped_column(Text, default="")
+    product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_count: Mapped[int] = mapped_column(Integer, default=0)
+    top_similarity: Mapped[float] = mapped_column(Float, default=0)
+    duration_ms: Mapped[float] = mapped_column(Float, default=0)
+    embedding_model: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        Index("idx_sa_source", "source"),
+        Index("idx_sa_tool", "tool_name"),
+        Index("idx_sa_created", "created_at"),
+    )
+
+
+class ReindexJob(Base):
+    """Tracks a background reindexing operation (reingest or re-embed).
+
+    Lifecycle: pending → running → completed | failed | cancelled | stale
+    The Celery orchestrator updates heartbeat_at periodically so the API can
+    detect hung jobs (heartbeat_at older than the stale threshold).
+    """
+    __tablename__ = "reindex_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    mode: Mapped[str] = mapped_column(Text, nullable=False)  # "reingest" | "reembed"
+    status: Mapped[str] = mapped_column(Text, default="pending")
+    product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    format_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    total_documents: Mapped[int] = mapped_column(Integer, default=0)
+    processed_documents: Mapped[int] = mapped_column(Integer, default=0)
+    failed_documents: Mapped[int] = mapped_column(Integer, default=0)
+    skipped_documents: Mapped[int] = mapped_column(Integer, default=0)
+    total_chunks: Mapped[int] = mapped_column(Integer, default=0)
+
+    celery_task_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    errors_json: Mapped[str] = mapped_column(Text, default="[]")
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_reindex_jobs_status", "status"),
+    )
 
 
 def _default_upload_expires():
@@ -167,4 +343,61 @@ class UploadSession(Base):
     __table_args__ = (
         Index("idx_upload_sessions_status", "status"),
         Index("idx_upload_sessions_expires", "expires_at"),
+    )
+
+
+class UsageLog(Base):
+    """Append-only billing audit log. Partitioned by month on created_at.
+
+    Every billable event (chat completion, MCP search) writes exactly one row.
+    This table is immutable — no UPDATE or DELETE in application code.
+    """
+    __tablename__ = "usage_log"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), primary_key=True,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    channel: Mapped[str] = mapped_column(Text, nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    request_id: Mapped[str] = mapped_column(Text, nullable=False)
+
+    llm_provider: Mapped[str | None] = mapped_column(Text, nullable=True)
+    llm_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    context_chunks: Mapped[int] = mapped_column(Integer, default=0)
+    context_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    history_messages: Mapped[int] = mapped_column(Integer, default=0)
+    query_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    history_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    system_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    query_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_count: Mapped[int] = mapped_column(Integer, default=0)
+    response_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    response_length: Mapped[int] = mapped_column(Integer, default=0)
+    top_similarity: Mapped[float] = mapped_column(Float, default=0)
+
+    product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    duration_ms: Mapped[float] = mapped_column(Float, default=0)
+    embedding_ms: Mapped[float] = mapped_column(Float, default=0)
+    search_ms: Mapped[float] = mapped_column(Float, default=0)
+    llm_ms: Mapped[float] = mapped_column(Float, default=0)
+
+    cogs_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
+    charge_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
+
+    tenant_id = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_usage_log_channel", "channel", "created_at"),
+        Index("idx_usage_log_action", "action", "created_at"),
+        Index("idx_usage_log_request", "request_id"),
     )
