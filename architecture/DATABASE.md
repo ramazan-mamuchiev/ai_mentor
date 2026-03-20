@@ -179,6 +179,60 @@ CREATE TABLE search_analytics (
     embedding_model TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Usage log (append-only billing audit trail, partitioned by month)
+-- Every billable event (chat completion, MCP search) writes exactly one row.
+-- Immutable: no UPDATE or DELETE in application code.
+CREATE TABLE usage_log (
+    id BIGSERIAL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    channel TEXT NOT NULL,                          -- 'chat' | 'mcp'
+    action TEXT NOT NULL,                           -- 'chat_completion' | 'search_documentation' | 'get_api_endpoint' | 'list_products'
+    request_id TEXT NOT NULL,                       -- UUID v4 for deduplication and audit
+
+    -- LLM metrics (from API response)
+    llm_provider TEXT,                              -- 'openai' (OpenAI-compatible: Gemini, GPT, etc.)
+    llm_model TEXT,                                 -- 'gemini-2.5-flash', 'gemini-2.5-pro', etc.
+    prompt_tokens INT NOT NULL DEFAULT 0,           -- from LLM API: usage.prompt_tokens
+    completion_tokens INT NOT NULL DEFAULT 0,       -- from LLM API: usage.completion_tokens
+    total_tokens INT NOT NULL DEFAULT 0,            -- prompt_tokens + completion_tokens
+
+    -- Prompt decomposition (for billing audit — sum ≈ prompt_tokens)
+    context_chunks INT NOT NULL DEFAULT 0,          -- RAG chunks used in prompt
+    context_tokens INT NOT NULL DEFAULT 0,          -- sum of chunk token_count from RAG
+    history_messages INT NOT NULL DEFAULT 0,        -- chat history messages in prompt
+    query_tokens INT NOT NULL DEFAULT 0,            -- approximate tokens of user query text only
+    history_tokens INT NOT NULL DEFAULT 0,          -- approximate tokens of chat history in prompt
+    system_prompt_tokens INT NOT NULL DEFAULT 0,    -- approximate tokens of system prompt (incl. RAG header)
+
+    -- Request/response details
+    query_text TEXT,                                -- user query / search query (for audit)
+    result_count INT NOT NULL DEFAULT 0,            -- search results returned
+    response_tokens INT NOT NULL DEFAULT 0,         -- approximate token count of response text
+    response_length INT NOT NULL DEFAULT 0,         -- len() of response text in characters
+    top_similarity FLOAT NOT NULL DEFAULT 0,
+
+    product_filter TEXT,
+    version_filter TEXT,
+
+    -- Timing
+    duration_ms FLOAT NOT NULL DEFAULT 0,
+    embedding_ms FLOAT NOT NULL DEFAULT 0,
+    search_ms FLOAT NOT NULL DEFAULT 0,
+    llm_ms FLOAT NOT NULL DEFAULT 0,
+
+    -- Cost tracking (dual: our cost vs client charge)
+    cogs_usd NUMERIC(12,8) NOT NULL DEFAULT 0,     -- our cost: actual LLM API / infra cost
+    charge_usd NUMERIC(12,8) NOT NULL DEFAULT 0,   -- client charge: user-facing price (for billing)
+
+    tenant_id UUID,                                 -- reserved for multi-tenant (nullable for now)
+
+    PRIMARY KEY (id, created_at)
+) PARTITION BY RANGE (created_at);
+
+-- Partitions auto-created by Celery Beat task (ensure_usage_partitions)
+-- Initial: usage_log_2026_03, usage_log_2026_04, usage_log_2026_05
 ```
 
 ### Current Indexes
@@ -208,6 +262,13 @@ CREATE INDEX idx_sa_source ON search_analytics(source);
 CREATE INDEX idx_sa_tool ON search_analytics(tool_name);
 CREATE INDEX idx_sa_created ON search_analytics(created_at);
 CREATE INDEX idx_sa_product ON search_analytics(product_filter) WHERE product_filter IS NOT NULL;
+
+-- Usage log indexes (partitioned table — indexes apply to all partitions)
+CREATE INDEX idx_usage_log_channel ON usage_log (channel, created_at);
+CREATE INDEX idx_usage_log_action ON usage_log (action, created_at);
+CREATE INDEX idx_usage_log_request ON usage_log (request_id);
+CREATE INDEX idx_usage_log_tenant ON usage_log (tenant_id, created_at) WHERE tenant_id IS NOT NULL;
+CREATE INDEX idx_usage_log_model ON usage_log (llm_model, created_at) WHERE llm_model IS NOT NULL;
 ```
 
 ---
@@ -404,18 +465,12 @@ CREATE TABLE tenant_devices (
     UNIQUE(tenant_id, device_id)
 );
 
--- Usage log (for billing and analytics)
-CREATE TABLE usage_log (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
-    action TEXT NOT NULL,                -- search | ingest | storage_snapshot
-    tokens_input INT NOT NULL DEFAULT 0, -- query tokens (search) or doc tokens (ingest)
-    chunks_returned INT NOT NULL DEFAULT 0,
-    duration_ms INT NOT NULL DEFAULT 0,
-    billable_units INT NOT NULL DEFAULT 1, -- 1 search = 1 unit, 1 ingest = 1 unit
-    cost_usd NUMERIC(10,8) DEFAULT 0,     -- calculated internal cost for analytics
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Usage log: ALREADY IMPLEMENTED — see "Current Schema" section above.
+-- The current usage_log is partitioned by month (PARTITION BY RANGE),
+-- tracks cogs_usd + charge_usd separately, includes full prompt
+-- decomposition (query_tokens, context_tokens, history_tokens,
+-- system_prompt_tokens), and has tenant_id as nullable UUID
+-- (will become NOT NULL REFERENCES tenants(id) when multi-tenancy is added).
 ```
 
 ### Indexes
@@ -432,7 +487,7 @@ CREATE INDEX idx_chunks_document ON chunks(document_id);
 CREATE INDEX idx_devices_tenant ON devices(tenant_id);
 CREATE INDEX idx_documents_tenant ON documents(tenant_id);
 CREATE INDEX idx_api_keys_hash ON api_keys(key_hash);
-CREATE INDEX idx_usage_tenant_date ON usage_log(tenant_id, created_at);
+-- usage_log indexes: already defined in Current Schema section
 
 -- Vendor indexes
 CREATE INDEX idx_vendor_api_keys_hash ON vendor_api_keys(key_hash);

@@ -126,10 +126,16 @@
 - JWT (future) for both tenant Web UI and vendor dashboard
 
 ### Usage Metering & Billing Pipeline
-- Every billable API call writes to `usage_log` table (async, non-blocking)
-- Redis counters for real-time rate limiting (sliding window per tenant)
-- Celery Beat schedules — see [DEPLOYMENT.md — Celery Beat Schedule](DEPLOYMENT.md#celery-beat-schedule)
-- Stripe integration: Subscriptions for base tier, metered billing for overage
+- ✅ Every billable API call writes to `usage_log` table (async, non-blocking, fire-and-forget)
+- ✅ `usage_log` is partitioned by month (`PARTITION BY RANGE (created_at)`) for scalability and archival
+- ✅ Celery Beat task `ensure_usage_partitions` auto-creates partitions 2 months ahead
+- ✅ Dual cost tracking: `cogs_usd` (our LLM/infra cost) + `charge_usd` (user-facing price) per record
+- ✅ Full prompt decomposition: `query_tokens`, `context_tokens`, `history_tokens`, `system_prompt_tokens` — enables billing formula changes without data loss
+- ✅ LLM token extraction: `prompt_tokens` and `completion_tokens` from OpenAI-compatible API (`stream_options: {"include_usage": True}`)
+- ✅ Pricing module: `billing/pricing.py` with `MODEL_COGS` (real API prices) and `MODEL_CHARGE` (user-facing rates with margin)
+- Planned: Redis counters for real-time rate limiting (sliding window per tenant)
+- Planned: Stripe integration — subscriptions for base tier, metered billing for overage
+- Planned: Spending alerts — email at 80%/100% quota
 - Full pricing model: [MONETIZATION.md](MONETIZATION.md)
 
 ### RAG Chat (LLM-Powered Conversational Interface)
@@ -140,16 +146,19 @@
 - Auto-detection of product from user query (no explicit filter required)
 - Query enrichment: short follow-up messages expanded using conversation history
 - History-aware: last N messages included in LLM context for multi-turn conversations
+- **History token budget**: `rag_history_max_tokens` (default 16,000) limits total tokens from chat history in prompt — trims oldest messages first to stay within budget
 - **Persistent debug/analytics**: every assistant response saves detailed metrics to `chat_message_analytics` table (LLM params, timing, RAG quality, context). Survives page reload (Ctrl+F5) and enables future admin search, billing reconciliation, and quality analysis
-- Implementation: `chat/router.py`, `chat/rag.py`, `llm/client.py`
+- **Billing audit**: every chat completion writes to `usage_log` with full prompt decomposition (`query_tokens`, `context_tokens`, `history_tokens`, `system_prompt_tokens`) plus `cogs_usd` (our LLM cost) and `charge_usd` (user-facing price)
+- Implementation: `chat/router.py`, `chat/rag.py`, `llm/client.py`, `billing/usage_writer.py`
 
 ### Search Analytics (MCP & API Observability)
 - Every MCP tool call (`search_documentation`, `get_api_endpoint`, `list_products`) records a `search_analytics` entry
 - Tracks: query, product/version filters, result count, top similarity, duration, embedding model
 - Separate from chat analytics — different metric set, no LLM involvement
+- **Billing audit**: MCP search/endpoint calls also write to `usage_log` with `query_tokens`, `response_tokens`, `cogs_usd`, `charge_usd`
 - Enables: search quality analysis, popular query tracking, billing verification, vendor analytics (future)
 - Fire-and-forget writes — analytics failures never block the search response
-- Implementation: `mcp/server.py`, `models.py` (`SearchAnalytics`)
+- Implementation: `mcp/server.py`, `models.py` (`SearchAnalytics`), `billing/usage_writer.py`
 - Schema: [DATABASE.md — search_analytics](DATABASE.md#current-schema-implemented)
 
 ### LLM Provider
@@ -290,6 +299,17 @@ ipcodex/
       mcp/
         server.py            # MCP tools: search_documentation, get_api_endpoint, list_products
 
+      billing/               # ✅ Usage metering & pricing (Phase 2 partial)
+        __init__.py
+        pricing.py           # MODEL_COGS (LLM API cost) + MODEL_CHARGE (user-facing price)
+        usage_writer.py      # Async fire-and-forget writer for usage_log audit table
+
+      reindex/               # ✅ Background reindexing operations
+        __init__.py
+        router.py            # REST API: create/list/cancel reindex jobs
+        schemas.py           # Pydantic: ReindexRequest, ReindexJobResponse
+        service.py           # Reindex orchestration: reingest or re-embed documents
+
       ingestion/
         chunker.py           # Chunking logic (split/merge/overlap by token count)
         embedder.py          # Embedding abstraction (E5 local + OpenAI)
@@ -309,7 +329,9 @@ ipcodex/
       # --- Planned (not yet implemented) ---
       auth/                  # API Key + JWT auth (Phase 2)
       tenants/               # Tenant CRUD (Phase 2)
-      billing/               # Usage metering, Stripe, alerts (Phase 5)
+      billing/stripe.py      # Stripe subscriptions + metered billing (Phase 5)
+      billing/alerts.py      # Spending alerts: email at 80%/100% quota (Phase 5)
+      billing/limits.py      # Rate limiting + quota enforcement (Phase 2)
       vendor/                # Vendor portal + analytics (Phase 4)
       artifacts/             # Firmware/SDK distribution (Phase 4b)
       importers/             # Custom vendor importers (Phase 6)
@@ -387,7 +409,8 @@ ipcodex/
 | File Integrity | hashlib SHA-256 (incremental during TUS upload) | ✅ |
 | Migrations | Alembic | Planned |
 | Auth | API Key (SHA-256 hashed) + JWT (future) | Planned |
-| Billing | Stripe (subscriptions + metered usage records) | Planned |
+| Billing (audit) | usage_log (partitioned), pricing module, COGS/charge tracking | ✅ |
+| Billing (payments) | Stripe (subscriptions + metered usage records) | Planned |
 | Antivirus | ClamAV (clamd TCP socket) | Planned |
 
 ---
@@ -427,7 +450,8 @@ ipcodex/
 | 7 | FastAPI application with routers | ✅ | `main.py`, routers |
 | 8 | Dual API Key auth: tenant keys (`ipx_`) + vendor keys (`ipv_`) | Planned | `auth/` |
 | 9 | Rate limiting middleware (Redis sliding window) | Planned | `billing/limits.py` |
-| 10 | Usage metering: log every billable call, quota check | Planned | `billing/usage.py` |
+| 10 | Usage metering: log every billable call (usage_log, partitioned) | ✅ | `billing/usage_writer.py`, `billing/pricing.py` |
+| 10a | Quota check (per-tenant limits enforcement) | Planned | `billing/limits.py` |
 | 11 | REST endpoints: documents, search, ingest, chat, upload | ✅ | all routers |
 | 12 | MCP server with Streamable HTTP transport | ✅ | `mcp/server.py` |
 | 13 | MCP tools (3): search_documentation, get_api_endpoint, list_products | ✅ | `mcp/server.py` |
@@ -455,12 +479,16 @@ ipcodex/
 
 ### Phase 5 — Billing + Production Readiness
 
-| # | Task | Key Files |
-|---|------|-----------|
-| 19 | Stripe integration: subscriptions, usage records, webhooks | `billing/stripe.py`, `billing/webhooks.py` |
-| 20 | Spending alerts: email at 80%/100% quota (Celery Beat hourly) | `billing/alerts.py` |
-| 21 | Monthly overage calculation + Stripe reporting (Celery Beat) | `billing/tasks.py` |
-| 22 | Database migrations (Alembic) | `db/migrations/`, `alembic.ini` |
+| # | Task | Status | Key Files |
+|---|------|:------:|-----------|
+| 19a | Usage audit log (partitioned, append-only, COGS + charge) | ✅ | `billing/usage_writer.py`, `db/schema.sql` |
+| 19b | Pricing module (MODEL_COGS + MODEL_CHARGE, per-token) | ✅ | `billing/pricing.py` |
+| 19c | LLM token extraction (prompt + completion from API) | ✅ | `llm/client.py` |
+| 19d | Celery Beat: auto-create usage_log partitions | ✅ | `celery_app.py` |
+| 19 | Stripe integration: subscriptions, usage records, webhooks | Planned | `billing/stripe.py`, `billing/webhooks.py` |
+| 20 | Spending alerts: email at 80%/100% quota (Celery Beat hourly) | Planned | `billing/alerts.py` |
+| 21 | Monthly overage calculation + Stripe reporting (Celery Beat) | Planned | `billing/tasks.py` |
+| 22 | Database migrations (Alembic) | Planned | `db/migrations/`, `alembic.ini` |
 | 23 | Production Docker config + Celery Beat service | `Dockerfile`, `docker-compose.prod.yml` |
 | 24 | API documentation + README | auto-generated from FastAPI + `README.md` |
 | 25 | Health checks, monitoring, observability | `/health`, `/ready` endpoints |

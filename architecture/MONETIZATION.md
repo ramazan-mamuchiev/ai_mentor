@@ -69,12 +69,26 @@ IPCodex offers two LLM models for AI Chat. The model determines answer quality a
 
 ### Model Pricing (user-facing)
 
-| Model | Input (per query) | Output (per query) | Avg total per query | Quality |
-|-------|:-----------------:|:------------------:|:-------------------:|:-------:|
-| **Gemini 2.5 Flash** | ~$0.002 | ~$0.002 | **~$0.004** | Good |
-| **Claude Opus 4.6** | ~$0.020 | ~$0.025 | **~$0.045** | Excellent |
+**Per-token rates (implemented in `billing/pricing.py` as `MODEL_CHARGE`):**
 
-Actual billing is based on token count: input tokens (prompt + RAG context + history) and output tokens (generated answer) are metered separately and charged at the model's rate. See [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md#26-llm-api-for-rag-chat) for detailed per-token costs.
+| Model | Input (per 1M tokens) | Output (per 1M tokens) | Avg total per query | Quality |
+|-------|:---------------------:|:----------------------:|:-------------------:|:-------:|
+| **Gemini 2.5 Flash** | **$0.50** | **$4.00** | **~$0.005** | Good |
+| **Gemini 2.5 Flash Lite** | $0.25 | $2.00 | ~$0.003 | Basic |
+| **Gemini 2.5 Pro** | $2.50 | $20.00 | ~$0.030 | Very Good |
+| **Claude Opus 4.6** | TBD | TBD | **~$0.045** | Excellent |
+
+**COGS vs Charge (margin analysis):**
+
+| Model | COGS Input/1M | COGS Output/1M | Charge Input/1M | Charge Output/1M | Margin |
+|-------|:------------:|:--------------:|:---------------:|:----------------:|:------:|
+| Gemini 2.5 Flash | $0.30 | $2.50 | $0.50 | $4.00 | ~60% |
+| Gemini 2.5 Pro | $1.25 | $10.00 | $2.50 | $20.00 | ~100% |
+| Claude Opus 4.6 | $5.00 | $25.00 | TBD | TBD | TBD |
+
+> **Note**: COGS = actual LLM API price (what we pay the provider). Charge = user-facing price (what the client pays us). Both are recorded per-request in `usage_log` as `cogs_usd` and `charge_usd`. See [DATABASE.md](DATABASE.md#current-schema-implemented) for the full `usage_log` schema.
+
+Actual billing is based on token count: input tokens (prompt + RAG context + history) and output tokens (generated answer) are metered separately and charged at the model's per-token rate. See [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md#26-llm-api-for-rag-chat) for detailed cost analysis.
 
 ### Tier-to-Model Mapping
 
@@ -129,6 +143,42 @@ Campaign: "Free AI Answers — pay only for questions!"
 ```
 
 This lever can be activated/deactivated via configuration without code changes — the billing system already tracks input and output separately.
+
+### Billing Audit Trail (Implemented)
+
+Every billable event writes an immutable record to the `usage_log` table (partitioned by month). This provides a complete audit trail for billing reconciliation, dispute resolution, and margin analysis.
+
+**What is recorded per request:**
+
+```
+usage_log record:
+  channel          = "chat" | "mcp"
+  action           = "chat_completion" | "search_documentation" | "get_api_endpoint"
+  request_id       = UUID v4 (for deduplication)
+
+  LLM metrics (from API):
+    prompt_tokens      = 4,550    ← exact, from LLM API response
+    completion_tokens  = 800      ← exact, from LLM API response
+
+  Prompt decomposition (for audit — sum ≈ prompt_tokens):
+    query_tokens           =    50   ← user's question
+    context_tokens         = 3,000   ← RAG documentation chunks
+    history_tokens         = 1,000   ← chat history
+    system_prompt_tokens   =   500   ← system prompt + RAG header
+
+  Cost tracking:
+    cogs_usd    = $0.0034   ← what we pay Google (Gemini API)
+    charge_usd  = $0.0055   ← what the client pays us
+    margin      = $0.0021   ← our profit per request (~38%)
+```
+
+**Why dual cost tracking matters:**
+- `cogs_usd` — for P&L, margin analysis, infrastructure planning
+- `charge_usd` — for invoicing, Stripe metered billing, spending alerts
+- If pricing changes, historical `cogs_usd` and `charge_usd` remain accurate for that period
+- Raw token counts (`prompt_tokens`, `completion_tokens`) allow retroactive recalculation
+
+**Implementation:** `billing/pricing.py` (MODEL_COGS + MODEL_CHARGE), `billing/usage_writer.py` (async writer), `db/schema.sql` (partitioned table). See [DATABASE.md](DATABASE.md#current-schema-implemented) for full schema.
 
 ---
 
