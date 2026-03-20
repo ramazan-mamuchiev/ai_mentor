@@ -1,0 +1,51 @@
+---
+description: Project infrastructure and Docker setup context
+alwaysApply: true
+---
+
+# IPCodex — Infrastructure Context
+
+## Stack
+
+- **Backend**: Python 3.11, FastAPI, Celery, SQLAlchemy (async), pgvector
+- **Frontend**: React 19, Vite, TypeScript, nginx (production)
+- **DB**: PostgreSQL 16 (pgvector), Redis 7
+- **Storage**: MinIO (S3-compatible)
+- **LLM**: Ollama (local) or OpenAI-compatible API (Gemini)
+- **Monitoring**: Loki + Promtail + Grafana
+
+## Docker
+
+The project is fully Dockerized. Do NOT re-explore Docker setup each time.
+
+- `docker-compose.yml` — production stack (postgres, redis, minio, api, worker, web, ollama, loki, promtail, grafana)
+- `docker-compose.dev.yml` — dev (postgres only)
+- `backend/Dockerfile` — Python 3.11-slim, uvicorn
+- `frontend/Dockerfile` — multi-stage: node:20-alpine build + nginx:alpine serve
+- `frontend/nginx.conf` — reverse proxy /api/ to `api:8000`, SPA fallback, SSE support, TUS uploads
+
+### Key services
+
+| Service  | Port | Image               |
+|----------|------|---------------------|
+| web      | 80   | frontend (nginx)    |
+| api      | 8000 | backend (uvicorn)   |
+| postgres | 5432 | pgvector/pgvector:pg16 |
+| redis    | 6379 | redis:7-alpine      |
+| minio    | 9000/9001 | minio/minio    |
+| ollama   | 11434 | ollama/ollama      |
+| grafana  | 3000 | grafana/grafana     |
+
+### Common commands
+
+- Rebuild & restart frontend: `docker compose build --no-cache web && docker compose up -d web`
+- Rebuild & restart backend: `docker compose build --no-cache api && docker compose up -d api worker`
+- Full stack up: `docker compose up -d`
+- Logs: `docker compose logs -f <service>`
+
+## Frontend assets
+
+- Static assets in `frontend/public/` (logos, favicon)
+- Theme switching via `[data-theme="dark"]` on `<html>`
+- No `src/assets/` directory — all static files in `public/`
+- No path aliases in tsconfig or vite config

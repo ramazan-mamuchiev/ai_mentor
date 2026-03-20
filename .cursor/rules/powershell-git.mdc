@@ -1,0 +1,35 @@
+---
+description: Use PowerShell-compatible git commands (no heredoc/bash syntax)
+alwaysApply: true
+---
+
+# PowerShell Git Commands
+
+The user's shell is **PowerShell**. NEVER use bash/zsh heredoc syntax (`cat <<'EOF'`).
+
+## Git commit
+
+Always pass the commit message directly with `-m`:
+
+```powershell
+git commit -m "Short commit message"
+```
+
+For multi-line messages use PowerShell backtick-n:
+
+```powershell
+git commit -m "First line`nSecond line`nThird line"
+```
+
+## Git tag
+
+```powershell
+git tag -a v1.0.0 -m "Release v1.0.0"
+```
+
+## General rules
+
+- NEVER use `$(cat <<'EOF' ... EOF)` or any heredoc construct
+- NEVER use `bash -c` wrappers to work around PowerShell
+- Use double quotes `"..."` for strings (PowerShell variable expansion is fine)
+- For special characters in commit messages, escape with backtick: `` ` ``

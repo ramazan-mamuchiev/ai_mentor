@@ -32,8 +32,9 @@ pgdata/
 # Runtime logs
 logs/
 
-# Cursor IDE project settings
-.cursor/
+# Cursor IDE (keep .cursor/rules/ for shared project rules)
+.cursor/*
+!.cursor/rules/
 
 # Playwright test artifacts
 frontend/test-results/
