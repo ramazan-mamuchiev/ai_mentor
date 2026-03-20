@@ -3,6 +3,7 @@
 import logging
 import time
 
+import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,28 +125,79 @@ def _build_history_messages(
     return [{"role": msg.role, "content": msg.content} for msg in recent]
 
 
-def _enrich_query(query: str, history: list[ChatMessage] | None) -> str:
-    """Enrich a short follow-up query with context from recent user messages."""
-    if not history or len(query) > 200:
+_REWRITE_PROMPT = (
+    "Given the conversation history and a new user question, "
+    "rewrite the question so it is fully self-contained and can be understood "
+    "without the conversation history. "
+    "If the question is already self-contained, return it unchanged. "
+    "Return ONLY the rewritten question, nothing else."
+)
+
+
+async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> str:
+    """Use LLM to rewrite a follow-up query into a standalone question.
+
+    Falls back to the original query on any error or if there is no history.
+    """
+    if not history:
         return query
 
-    all_user_msgs = [m.content for m in history if m.role == "user"]
-    if all_user_msgs and all_user_msgs[-1] == query:
-        all_user_msgs = all_user_msgs[:-1]
-    recent_user_msgs = all_user_msgs[-3:]
-    if not recent_user_msgs:
+    recent = [m for m in history if m.role == "user"][-3:]
+    if not recent:
         return query
 
-    context_words: list[str] = []
-    for msg in recent_user_msgs:
-        words = msg.split()[:10]
-        context_words.extend(words)
+    messages = [{"role": "system", "content": _REWRITE_PROMPT}]
+    for msg in recent:
+        messages.append({"role": "user", "content": msg.content})
+    messages.append({"role": "user", "content": f"New question: {query}"})
 
-    if not context_words:
-        return query
+    try:
+        if settings.llm_provider == "openai":
+            result = await _llm_rewrite_openai(messages)
+        else:
+            result = await _llm_rewrite_ollama(messages)
+        if result and len(result) < 500:
+            logger.info("Query rewritten", extra={"original": query[:100], "rewritten": result[:200]})
+            return result
+    except Exception:
+        logger.warning("Query rewrite failed, using original", exc_info=True)
 
-    context_prefix = " ".join(dict.fromkeys(context_words))
-    return f"{context_prefix} {query}"
+    return query
+
+
+async def _llm_rewrite_openai(messages: list[dict]) -> str:
+    url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+    payload = {
+        "model": settings.openai_llm_model,
+        "messages": messages,
+        "temperature": 0,
+        "max_tokens": 256,
+        "reasoning_effort": "none",
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {settings.openai_llm_api_key}",
+    }
+    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"].strip()
+
+
+async def _llm_rewrite_ollama(messages: list[dict]) -> str:
+    url = f"{settings.ollama_url}/api/chat"
+    payload = {
+        "model": settings.llm_model,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": 0, "num_predict": 256},
+    }
+    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
+        resp = await client.post(url, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["message"]["content"].strip()
 
 
 async def build_rag_prompt(
@@ -170,7 +222,9 @@ async def build_rag_prompt(
             product_filter = auto_product
             logger.info("Auto-detected product from query", extra={"product": auto_product, "query": query[:100]})
 
-    search_query = _enrich_query(query, history) if history else query
+    t_rewrite = time.perf_counter()
+    search_query = await _rewrite_query(query, history) if history else query
+    rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
 
     t_search = time.perf_counter()
     chunks = await search_documents(
@@ -245,6 +299,7 @@ async def build_rag_prompt(
         "query_tokens": query_tokens,
         "history_tokens": history_tokens,
         "system_prompt_tokens": system_prompt_tokens,
+        "rewrite_ms": rewrite_ms if history else 0,
         "search_ms": search_ms,
         "rag_build_ms": total_ms,
         "history_messages": len(history) if history else 0,
@@ -263,6 +318,7 @@ async def build_rag_prompt(
         extra={
             "query": query[:100],
             "search_query": search_query[:200] if search_query != query else None,
+            "rewrite_ms": rewrite_ms if history else 0,
             "product_filter": product_filter,
             **rag_debug,
         },
