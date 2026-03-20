@@ -132,7 +132,7 @@ def _upload_archive(args):
     for f_result in result.get("files", []):
         status_icon = {"pending": "[...]", "skipped": "[skip]", "error": "[ERR]"}.get(f_result["status"], "?")
         doc_id = f_result.get("document_id", "—")
-        print(f"  {status_icon} {f_result['filename']} → {f_result['status']} (doc_id={doc_id})")
+        print(f"  {status_icon} {f_result['filename']} -> {f_result['status']} (doc_id={doc_id})")
         if f_result.get("message"):
             print(f"     {f_result['message']}")
 

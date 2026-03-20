@@ -38,10 +38,16 @@ The project is fully Dockerized. Do NOT re-explore Docker setup each time.
 
 ### Common commands
 
-- Rebuild & restart frontend: `docker compose build --no-cache web && docker compose up -d web`
-- Rebuild & restart backend: `docker compose build --no-cache api && docker compose up -d api worker`
+- Rebuild & restart frontend: `docker compose build web && docker compose up -d web`
+- Rebuild & restart backend: `docker compose build api && docker compose up -d api worker`
 - Full stack up: `docker compose up -d`
 - Logs: `docker compose logs -f <service>`
+
+### Build rules
+
+- **NEVER** use `--no-cache` unless requirements.txt or Dockerfile changed. Cached layers save disk and time.
+- Use `--no-cache` only when dependencies (requirements.txt, package.json) or Dockerfile itself changed.
+- Periodically run `docker system prune -f` to clean dangling images.
 
 ## Frontend assets
 
