@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     openai_llm_api_key: str = ""
     openai_llm_model: str = "gemini-2.5-flash"
 
-    llm_reasoning_effort: str = "low"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
+    llm_reasoning_effort: str = "none"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 
     rag_top_k: int = 10
     rag_min_similarity: float = 0.35

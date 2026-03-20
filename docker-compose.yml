@@ -9,6 +9,11 @@ services:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
     ports:
       - "5432:5432"
     environment:
@@ -42,6 +47,11 @@ services:
     image: minio/minio
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -61,6 +71,11 @@ services:
     build: ./backend
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
     ports:
       - "8000:8000"
     depends_on:
@@ -95,7 +110,7 @@ services:
       RAG_MIN_SIMILARITY: ${RAG_MIN_SIMILARITY:-0.35}
       RAG_HISTORY_MESSAGES: ${RAG_HISTORY_MESSAGES:-6}
       RAG_HISTORY_MAX_TOKENS: ${RAG_HISTORY_MAX_TOKENS:-8000}
-      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-none}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs
@@ -115,6 +130,13 @@ services:
     build: ./backend
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          memory: 512M
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,7 +160,7 @@ services:
     volumes:
       - hfcache:/root/.cache/huggingface
       - ${LOG_DIR:-./logs}:/app/logs
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=3 -Q celery,monitoring -B
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2 -Q celery,monitoring -B
 
   web:
     build: ./frontend
@@ -154,6 +176,11 @@ services:
     image: grafana/loki:3.4.2
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
     ports:
       - "3100:3100"
     volumes:
@@ -176,6 +203,11 @@ services:
     image: grafana/grafana:11.6.0
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
     ports:
       - "3000:3000"
     environment:
@@ -194,6 +226,11 @@ services:
     image: prom/prometheus:v3.2.1
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
     ports:
       - "9090:9090"
     volumes:
