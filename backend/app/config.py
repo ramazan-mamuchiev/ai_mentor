@@ -45,9 +45,12 @@ class Settings(BaseSettings):
     openai_llm_api_key: str = ""
     openai_llm_model: str = "gemini-2.5-flash"
 
-    rag_top_k: int = 15
-    rag_history_messages: int = 10
-    rag_history_max_tokens: int = 16000
+    llm_reasoning_effort: str = "low"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
+
+    rag_top_k: int = 10
+    rag_min_similarity: float = 0.35
+    rag_history_messages: int = 6
+    rag_history_max_tokens: int = 8000
 
     ocr_enabled: bool = False
     ocr_languages: str = "en"

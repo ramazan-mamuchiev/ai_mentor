@@ -20,10 +20,23 @@ function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
 }
 
+function fmtSec(ms: number | undefined | null): string {
+  return ms != null ? (ms / 1000).toFixed(1) + 's' : '—'
+}
+
+function fmtPct(v: number | undefined | null): string {
+  return v != null ? (v * 100).toFixed(1) + '%' : '—'
+}
+
 function DebugPanel({ debug }: { debug: DebugInfo }) {
   const { t } = useTranslation()
   const promptTotal = (debug.query_tokens ?? 0) + (debug.context_tokens ?? 0)
     + (debug.history_tokens ?? 0) + (debug.system_prompt_tokens ?? 0)
+  const hasTiming = debug.total_ms != null || debug.rag_ms != null
+  const hasLlm = debug.model != null
+  const hasRag = debug.chunks_found != null
+  const hasIds = debug.session_id != null
+  const hasContext = debug.product_filter != null || debug.search_query != null
   return (
     <div className="debug-panel">
       <div className="debug-grid">
@@ -43,54 +56,85 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
           <div className="debug-row"><span>{t('debug.llmCompletionTokens')}</span><code>{fmt(debug.llm_completion_tokens)}</code></div>
           <div className="debug-row debug-row-total"><span>{t('debug.llmTotalTokens')}</span><code>{fmt(debug.llm_total_tokens)}</code></div>
         </div>
-        <div className="debug-section">
-          <div className="debug-section-title">{t('debug.timing')}</div>
-          <div className="debug-row"><span>{t('debug.total')}</span><code>{(debug.total_ms / 1000).toFixed(1)}s</code></div>
-          <div className="debug-row"><span>{t('debug.rag')}</span><code>{(debug.rag_ms / 1000).toFixed(1)}s</code></div>
-          <div className="debug-row"><span>{t('debug.llmTime')}</span><code>{(debug.llm_ms / 1000).toFixed(1)}s</code></div>
-          <div className="debug-row"><span>{t('debug.search')}</span><code>{(debug.search_ms / 1000).toFixed(1)}s</code></div>
-          {debug.first_token_ms > 0 && <div className="debug-row"><span>{t('debug.firstToken')}</span><code>{(debug.first_token_ms / 1000).toFixed(2)}s</code></div>}
-        </div>
-        <div className="debug-section">
-          <div className="debug-section-title">{t('debug.llm')}</div>
-          <div className="debug-row"><span>{t('debug.model')}</span><code>{debug.model}</code></div>
-          {debug.llm_provider && <div className="debug-row"><span>{t('debug.provider')}</span><code>{debug.llm_provider}</code></div>}
-          <div className="debug-row"><span>{t('debug.speed')}</span><code>{debug.tokens_per_sec} tok/s</code></div>
-          <div className="debug-row"><span>{t('debug.response')}</span><code>{fmt(debug.response_length)} chars</code></div>
-          <div className="debug-row"><span>{t('debug.tokens')}</span><code>{fmt(debug.token_count)}</code></div>
-          <div className="debug-row debug-row-config"><span>{t('debug.temperature')}</span><code>{debug.temperature}</code></div>
-          <div className="debug-row debug-row-config"><span>{t('debug.maxTokens')}</span><code>{fmt(debug.max_tokens)}</code></div>
-        </div>
-        <div className="debug-section">
-          <div className="debug-section-title">{t('debug.ragSection')}</div>
-          <div className="debug-row"><span>{t('debug.chunks')}</span><code>{debug.chunks_found}</code></div>
-          <div className="debug-row"><span>{t('debug.topSim')}</span><code>{(debug.top_similarity * 100).toFixed(1)}%</code></div>
-          <div className="debug-row"><span>{t('debug.minSim')}</span><code>{(debug.min_similarity * 100).toFixed(1)}%</code></div>
-          <div className="debug-row"><span>{t('debug.historyMsgs')}</span><code>{debug.history_messages}</code></div>
-          <div className="debug-row"><span>{t('debug.promptMsgs')}</span><code>{debug.prompt_messages}</code></div>
-          <div className="debug-row"><span>{t('debug.embed')}</span><code className="debug-embed">{debug.embedding_model}</code></div>
-        </div>
-        <div className="debug-section">
-          <div className="debug-section-title">{t('debug.identifiers')}</div>
-          <div className="debug-row"><span>{t('debug.session')}</span><code>#{debug.session_id}</code></div>
-          <div className="debug-row"><span>{t('debug.message')}</span><code>#{debug.message_id}</code></div>
-          <div className="debug-row"><span>{t('debug.userMsg')}</span><code>#{debug.user_message_id}</code></div>
-          {debug.timestamp && <div className="debug-row"><span>{t('debug.timestamp')}</span><code>{formatTimestamp(debug.timestamp)}</code></div>}
-        </div>
-        <div className="debug-section debug-section-full">
-          <div className="debug-section-title">{t('debug.context')}</div>
-          <div className="debug-context-grid">
-            <div className="debug-row"><span>{t('debug.productFilter')}</span><code className={debug.product_filter ? '' : 'debug-none'}>{debug.product_filter ?? 'none'}</code></div>
-            <div className="debug-row"><span>{t('debug.versionFilter')}</span><code className={debug.version_filter ? '' : 'debug-none'}>{debug.version_filter ?? 'none'}</code></div>
-            <div className="debug-row"><span>{t('debug.autoProduct')}</span><code className={debug.auto_product ? '' : 'debug-none'}>{debug.auto_product ?? 'none'}</code></div>
-            <div className="debug-row"><span>{t('debug.docContext')}</span><code className={debug.doc_context ? '' : 'debug-none'}>{debug.doc_context ?? 'none'}</code></div>
-            <div className="debug-row"><span>{t('debug.detectedDoc')}</span><code className={debug.detected_doc_context ? '' : 'debug-none'}>{debug.detected_doc_context ?? 'none'}</code></div>
+        {hasTiming && (
+          <div className="debug-section">
+            <div className="debug-section-title">{t('debug.timing')}</div>
+            <div className="debug-row"><span>{t('debug.total')}</span><code>{fmtSec(debug.total_ms)}</code></div>
+            <div className="debug-row"><span>{t('debug.rag')}</span><code>{fmtSec(debug.rag_ms)}</code></div>
+            <div className="debug-row"><span>{t('debug.llmTime')}</span><code>{fmtSec(debug.llm_ms)}</code></div>
+            <div className="debug-row"><span>{t('debug.search')}</span><code>{fmtSec(debug.search_ms)}</code></div>
+            {(debug.first_token_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.firstToken')}</span><code>{(debug.first_token_ms! / 1000).toFixed(2)}s</code></div>}
           </div>
-          <div className="debug-row debug-row-wide">
-            <span>{t('debug.searchQuery')}</span>
-            <code className={debug.search_query ? 'debug-query-value' : 'debug-none'}>{debug.search_query ?? 'none'}</code>
+        )}
+        {hasLlm && (
+          <div className="debug-section">
+            <div className="debug-section-title">{t('debug.llm')}</div>
+            <div className="debug-row"><span>{t('debug.model')}</span><code>{debug.model}</code></div>
+            {debug.llm_provider && <div className="debug-row"><span>{t('debug.provider')}</span><code>{debug.llm_provider}</code></div>}
+            <div className="debug-row"><span>{t('debug.speed')}</span><code>{debug.tokens_per_sec ?? '—'} tok/s</code></div>
+            <div className="debug-row"><span>{t('debug.response')}</span><code>{fmt(debug.response_length)} chars</code></div>
+            <div className="debug-row"><span>{t('debug.tokens')}</span><code>{fmt(debug.token_count)}</code></div>
+            <div className="debug-row debug-row-config"><span>{t('debug.temperature')}</span><code>{debug.temperature ?? '—'}</code></div>
+            <div className="debug-row debug-row-config"><span>{t('debug.maxTokens')}</span><code>{fmt(debug.max_tokens)}</code></div>
           </div>
-        </div>
+        )}
+        {hasRag && (
+          <div className="debug-section">
+            <div className="debug-section-title">{t('debug.ragSection')}</div>
+            <div className="debug-row"><span>{t('debug.chunks')}</span><code>{fmt(debug.chunks_found)}</code></div>
+            <div className="debug-row"><span>{t('debug.topSim')}</span><code>{fmtPct(debug.top_similarity)}</code></div>
+            <div className="debug-row"><span>{t('debug.minSim')}</span><code>{fmtPct(debug.min_similarity)}</code></div>
+            <div className="debug-row"><span>{t('debug.historyMsgs')}</span><code>{fmt(debug.history_messages)}</code></div>
+            <div className="debug-row"><span>{t('debug.promptMsgs')}</span><code>{fmt(debug.prompt_messages)}</code></div>
+            <div className="debug-row"><span>{t('debug.embed')}</span><code className="debug-embed">{debug.embedding_model ?? '—'}</code></div>
+          </div>
+        )}
+        {hasIds && (
+          <div className="debug-section">
+            <div className="debug-section-title">{t('debug.identifiers')}</div>
+            <div className="debug-row"><span>{t('debug.session')}</span><code>#{debug.session_id}</code></div>
+            <div className="debug-row"><span>{t('debug.message')}</span><code>#{debug.message_id}</code></div>
+            <div className="debug-row"><span>{t('debug.userMsg')}</span><code>#{debug.user_message_id}</code></div>
+            {debug.timestamp && <div className="debug-row"><span>{t('debug.timestamp')}</span><code>{formatTimestamp(debug.timestamp)}</code></div>}
+          </div>
+        )}
+        {hasContext && (
+          <div className="debug-section debug-section-full">
+            <div className="debug-section-title">{t('debug.context')}</div>
+            <div className="debug-context-grid">
+              <div className="debug-row"><span>{t('debug.productFilter')}</span><code className={debug.product_filter ? '' : 'debug-none'}>{debug.product_filter ?? 'none'}</code></div>
+              <div className="debug-row"><span>{t('debug.versionFilter')}</span><code className={debug.version_filter ? '' : 'debug-none'}>{debug.version_filter ?? 'none'}</code></div>
+              <div className="debug-row"><span>{t('debug.autoProduct')}</span><code className={debug.auto_product ? '' : 'debug-none'}>{debug.auto_product ?? 'none'}</code></div>
+              <div className="debug-row"><span>{t('debug.docContext')}</span><code className={debug.doc_context ? '' : 'debug-none'}>{debug.doc_context ?? 'none'}</code></div>
+              <div className="debug-row"><span>{t('debug.detectedDoc')}</span><code className={debug.detected_doc_context ? '' : 'debug-none'}>{debug.detected_doc_context ?? 'none'}</code></div>
+            </div>
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.searchQuery')}</span>
+              <code className={debug.search_query ? 'debug-query-value' : 'debug-none'}>{debug.search_query ?? 'none'}</code>
+            </div>
+            {debug.status && debug.status !== 'success' && (
+              <div className="debug-row debug-row-wide debug-status-row">
+                <span>{t('debug.status')}</span>
+                <code className={debug.status === 'error' ? 'debug-error-badge' : 'debug-stopped-badge'}>
+                  {debug.status === 'error' ? t('debug.statusError') : t('debug.statusStopped')}
+                  {debug.status_detail ? `: ${debug.status_detail}` : ''}
+                </code>
+              </div>
+            )}
+          </div>
+        )}
+        {(!hasContext && debug.status && debug.status !== 'success') && (
+          <div className="debug-section debug-section-full">
+            <div className="debug-section-title">{t('debug.status')}</div>
+            <div className="debug-row debug-row-wide debug-status-row">
+              <span>{t('debug.status')}</span>
+              <code className={debug.status === 'error' ? 'debug-error-badge' : 'debug-stopped-badge'}>
+                {debug.status === 'error' ? t('debug.statusError') : t('debug.statusStopped')}
+                {debug.status_detail ? `: ${debug.status_detail}` : ''}
+              </code>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -158,18 +202,26 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             ))}
           </div>
         )}
-        {!isStreaming && (message.duration_ms || debug) && (
+        {!isStreaming && !isUser && (message.duration_ms != null || debug) && (
           <div className="message-footer">
-            {message.duration_ms ? (
+            {message.duration_ms != null && (
               <span className="message-duration">
                 {(message.duration_ms / 1000).toFixed(1)}s
               </span>
-            ) : null}
+            )}
             {debug && (
               <>
-                <span className="message-ids">
-                  S#{debug.session_id} M#{debug.message_id}
-                </span>
+                {(debug.session_id != null) && (
+                  <span className="message-ids">
+                    S#{debug.session_id}{debug.message_id ? ` M#${debug.message_id}` : ''}
+                  </span>
+                )}
+                {debug.status === 'stopped' && (
+                  <span className="debug-stopped-badge">{t('debug.statusStopped')}</span>
+                )}
+                {debug.status === 'error' && (
+                  <span className="debug-error-badge">{t('debug.statusError')}</span>
+                )}
                 <button
                   className="debug-toggle"
                   onClick={() => setDebugExpanded(prev => !prev)}

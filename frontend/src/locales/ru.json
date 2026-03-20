@@ -72,6 +72,10 @@
   "debug.llmPromptTokens": "= Prompt итого",
   "debug.llmCompletionTokens": "Completion",
   "debug.llmTotalTokens": "Итого LLM",
+  "debug.stopped": "Остановлено",
+  "debug.status": "Статус",
+  "debug.statusStopped": "Остановлено",
+  "debug.statusError": "Ошибка",
 
   "sidebar.newChat": "Новый чат",
   "sidebar.title": "IPCodex",

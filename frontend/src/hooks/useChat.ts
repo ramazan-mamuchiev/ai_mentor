@@ -30,6 +30,8 @@ export function useChat(): UseChatReturn {
   const contentRef = useRef('')
   const sourcesRef = useRef<SourceInfo[]>([])
   const lastPromptRef = useRef('')
+  const streamStartRef = useRef(0)
+  const partialDebugRef = useRef<Partial<DebugInfo> | null>(null)
 
   const cancel = useCallback(() => {
     abortRef.current?.abort()
@@ -37,13 +39,32 @@ export function useChat(): UseChatReturn {
 
     const partial = contentRef.current
     const partialSources = sourcesRef.current
+    const elapsedMs = streamStartRef.current ? Date.now() - streamStartRef.current : 0
     if (partial) {
+      const tokenCount = partial.split(/\s+/).length
+      const serverDebug = partialDebugRef.current ?? {}
+      const completionTokens = tokenCount
+      const promptTokens = (serverDebug.llm_prompt_tokens as number) ?? 0
+
+      const mergedDebug: DebugInfo = {
+        ...serverDebug,
+        total_ms: elapsedMs,
+        token_count: completionTokens,
+        response_length: partial.length,
+        user_output_tokens: completionTokens,
+        llm_completion_tokens: completionTokens,
+        llm_total_tokens: promptTokens + completionTokens,
+        status: 'stopped',
+      } as DebugInfo
+
       const stoppedMsg: ChatMessage = {
         id: Date.now() + 1,
-        session_id: 0,
+        session_id: (serverDebug.session_id as number) ?? 0,
         role: 'assistant',
         content: partial + '\n\n' + i18n.t('chat.stopped'),
         sources: partialSources.length > 0 ? partialSources : undefined,
+        duration_ms: elapsedMs,
+        debug: mergedDebug,
         created_at: new Date().toISOString(),
       }
       setMessages(prev => [...prev, stoppedMsg])
@@ -55,6 +76,8 @@ export function useChat(): UseChatReturn {
     setLastUserPrompt(lastPromptRef.current)
     contentRef.current = ''
     sourcesRef.current = []
+    streamStartRef.current = 0
+    partialDebugRef.current = null
   }, [])
 
   const reset = useCallback(() => {
@@ -89,6 +112,8 @@ export function useChat(): UseChatReturn {
 
     const controller = new AbortController()
     abortRef.current = controller
+    streamStartRef.current = Date.now()
+    partialDebugRef.current = null
 
     try {
       let fullContent = ''
@@ -96,11 +121,13 @@ export function useChat(): UseChatReturn {
       let msgId = 0
       let durationMs = 0
       let debugInfo: DebugInfo | null = null
+      let tokenCount = 0
 
       for await (const event of streamMessage(sessionId, content, controller.signal)) {
         switch (event.type) {
           case 'token':
             fullContent += event.content
+            tokenCount++
             contentRef.current = fullContent
             setStreamingContent(fullContent)
             break
@@ -109,18 +136,31 @@ export function useChat(): UseChatReturn {
             sourcesRef.current = sources
             setStreamingSources(sources)
             break
+          case 'debug_partial':
+            partialDebugRef.current = event.debug as Partial<DebugInfo>
+            break
           case 'done':
             msgId = event.message_id
             durationMs = event.duration_ms
             debugInfo = event.debug ?? null
             break
           case 'error': {
+            const errCode = snakeToCamel(event.error_code || 'internal_error')
+            const elapsedErr = streamStartRef.current ? Date.now() - streamStartRef.current : 0
+            const errServerDebug = partialDebugRef.current ?? {}
             const errorMsg: ChatMessage = {
               id: Date.now() + 1,
               session_id: sessionId,
               role: 'assistant',
               content: '',
-              error_code: snakeToCamel(event.error_code || 'internal_error'),
+              error_code: errCode,
+              duration_ms: elapsedErr,
+              debug: {
+                ...errServerDebug,
+                total_ms: elapsedErr,
+                status: 'error',
+                status_detail: errCode,
+              } as DebugInfo,
               created_at: new Date().toISOString(),
             }
             setMessages(prev => [...prev, errorMsg])
@@ -130,6 +170,8 @@ export function useChat(): UseChatReturn {
             setLastUserPrompt(lastPromptRef.current)
             contentRef.current = ''
             sourcesRef.current = []
+            streamStartRef.current = 0
+            partialDebugRef.current = null
             return
           }
         }
@@ -151,14 +193,25 @@ export function useChat(): UseChatReturn {
       setStatus('idle')
       contentRef.current = ''
       sourcesRef.current = []
+      streamStartRef.current = 0
+      partialDebugRef.current = null
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
+        const elapsedNet = streamStartRef.current ? Date.now() - streamStartRef.current : 0
+        const netServerDebug = partialDebugRef.current ?? {}
         const errorMsg: ChatMessage = {
           id: Date.now() + 1,
           session_id: sessionId,
           role: 'assistant',
           content: '',
           error_code: 'networkError',
+          duration_ms: elapsedNet,
+          debug: {
+            ...netServerDebug,
+            total_ms: elapsedNet,
+            status: 'error',
+            status_detail: 'networkError',
+          } as DebugInfo,
           created_at: new Date().toISOString(),
         }
         setMessages(prev => [...prev, errorMsg])
@@ -168,6 +221,8 @@ export function useChat(): UseChatReturn {
         setLastUserPrompt(lastPromptRef.current)
         contentRef.current = ''
         sourcesRef.current = []
+        streamStartRef.current = 0
+        partialDebugRef.current = null
       }
     } finally {
       abortRef.current = null

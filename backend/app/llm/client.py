@@ -181,6 +181,9 @@ async def _stream_openai_compatible(
         "stream_options": {"include_usage": True},
     }
 
+    if settings.llm_reasoning_effort and settings.llm_reasoning_effort != "high":
+        payload["reasoning_effort"] = settings.llm_reasoning_effort
+
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
     headers = {
         "Content-Type": "application/json",
@@ -198,6 +201,7 @@ async def _stream_openai_compatible(
             "model": model,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "reasoning_effort": payload.get("reasoning_effort"),
             "prompt_messages": len(messages),
             "base_url": settings.openai_base_url,
         },

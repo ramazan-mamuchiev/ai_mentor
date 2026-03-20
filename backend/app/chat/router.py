@@ -260,6 +260,33 @@ async def send_message(session_id: int, req: SendMessageRequest):
 
                 yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
+                query_tokens = rag_debug.get("query_tokens", 0)
+                context_tokens = rag_debug.get("context_tokens", 0)
+                history_tokens = rag_debug.get("history_tokens", 0)
+                system_prompt_tokens = rag_debug.get("system_prompt_tokens", 0)
+                prompt_estimate = query_tokens + context_tokens + history_tokens + system_prompt_tokens
+
+                debug_partial = {
+                    "session_id": session_id,
+                    "user_message_id": user_msg.id,
+                    "timestamp": user_msg.created_at.isoformat() if user_msg.created_at else datetime.now(timezone.utc).isoformat(),
+                    "model": settings.llm_model,
+                    "llm_provider": settings.llm_provider,
+                    "temperature": settings.llm_temperature,
+                    "max_tokens": settings.llm_max_tokens,
+                    "rag_ms": rag_ms,
+                    "user_input_tokens": query_tokens,
+                    "llm_prompt_tokens": prompt_estimate,
+                    "query_tokens": query_tokens,
+                    "context_tokens": context_tokens,
+                    "history_tokens": history_tokens,
+                    "system_prompt_tokens": system_prompt_tokens,
+                    **{k: v for k, v in rag_debug.items() if k not in (
+                        "query_tokens", "context_tokens", "history_tokens", "system_prompt_tokens",
+                    )},
+                }
+                yield f"data: {json.dumps({'type': 'debug_partial', 'debug': debug_partial})}\n\n"
+
                 t_llm = time.perf_counter()
                 full_response: list[str] = []
                 llm_meta: dict = {}
@@ -327,17 +354,12 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 tokens_per_sec = round(token_count / (llm_ms / 1000), 1) if llm_ms > 0 else 0
 
                 usage = llm_meta.get("usage", {})
-                llm_prompt_tokens = usage.get("prompt_tokens", 0)
-                llm_completion_tokens = usage.get("completion_tokens", 0)
+                llm_prompt_tokens = usage.get("prompt_tokens", 0) or prompt_estimate
+                llm_completion_tokens = usage.get("completion_tokens", 0) or token_count
                 llm_total_tokens = usage.get("total_tokens", 0) or (llm_prompt_tokens + llm_completion_tokens)
 
-                query_tokens = rag_debug.get("query_tokens", 0)
-                context_tokens = rag_debug.get("context_tokens", 0)
-                history_tokens = rag_debug.get("history_tokens", 0)
-                system_prompt_tokens = rag_debug.get("system_prompt_tokens", 0)
-
                 user_input_tokens = query_tokens
-                user_output_tokens = llm_completion_tokens or token_count
+                user_output_tokens = llm_completion_tokens
 
                 debug_info = {
                     "session_id": session_id,

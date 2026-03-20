@@ -46,6 +46,8 @@ export interface DebugInfo {
   llm_prompt_tokens: number
   llm_completion_tokens: number
   llm_total_tokens: number
+  status?: 'success' | 'stopped' | 'error'
+  status_detail?: string
 }
 
 export interface ChatMessage {
@@ -84,6 +86,7 @@ export interface SessionDetail {
 export type SSEEvent =
   | { type: 'token'; content: string }
   | { type: 'sources'; sources: SourceInfo[] }
+  | { type: 'debug_partial'; debug: Partial<DebugInfo> }
   | { type: 'done'; message_id: number; duration_ms: number; debug?: DebugInfo }
   | { type: 'error'; error_code: string; status_code?: number }
 

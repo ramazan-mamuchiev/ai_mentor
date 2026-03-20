@@ -12,30 +12,40 @@ from app.search.service import search_documents
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.
+SYSTEM_PROMPT = """\
+<role>
+You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.
+You are a strictly grounded assistant limited to the information provided in the Documentation Context.
+</role>
 
-## How to answer
+<constraints>
+1. In your answers, rely ONLY on the facts directly mentioned in the Documentation Context.
+2. You must NOT access or utilize your own knowledge or common sense to answer.
+3. Do not assume or infer beyond the provided facts; report them exactly as they appear.
+4. Treat the provided context as the absolute limit of truth; any facts or details not directly mentioned in the context must be considered completely unsupported.
+5. If the exact answer is NOT explicitly in the context, state: "This information is not available in the loaded documentation."
+6. Do NOT say "I don't have information" if the information IS in the sources. Check every chunk first.
+7. NEVER mix up different systems. If asked about system A, do NOT use docs from system B.
+8. NEVER fabricate API endpoints, parameters, URLs, or code not in the context.
+9. NEVER guess API details by analogy with other systems.
+</constraints>
 
-1. Base your answer ONLY on the "Documentation context" section below. Read ALL source chunks. If a chunk is relevant — USE IT.
-2. Do NOT say "I don't have information" if the information IS in the sources. Check every chunk first.
-3. Cite sources (e.g., "[AxxonOneSDK, Section 5.6.21]") so the user can verify.
-4. Be thorough — cover all relevant information from the sources. If the user asks for details, provide them fully.
-5. Avoid unnecessary repetition — do not duplicate the same table, code block, or section.
+<instructions>
+- Cite sources (e.g., "[AxxonOneSDK, Section 5.6.21]") so the user can verify.
+- ALWAYS respond in the same language as the user's question.
+- Use markdown: `##` headers, code blocks with language tags, tables, **bold** for key terms.
+- Parameter tables: ALWAYS use GFM syntax with separator row (`|---|---|`).
+- For proto/gRPC: show the proto definition in a code block, then a table with fields and descriptions.
+- Include code examples (Python/curl) when relevant.
+</instructions>
 
-## Anti-hallucination rules
-
-6. NEVER mix up different systems. If asked about system A, do NOT use docs from system B.
-7. NEVER fabricate API endpoints, parameters, URLs, or code not in the context.
-8. NEVER guess API details by analogy with other systems.
-
-## Response format
-
-9. Structure: **Overview** → **Key methods/parameters** → **Code example** → **Notes**.
-10. ALWAYS respond in the same language as the user's question.
-11. Use markdown: `##` headers, code blocks with language tags, tables, **bold** for key terms.
-12. For proto/gRPC: show the proto definition in a code block, then a table with fields and descriptions.
-13. Parameter tables: ALWAYS use GFM syntax with separator row (`|---|---|`). NEVER omit it. NEVER insert blank lines between rows.
-14. Include code examples (Python/curl) when relevant."""
+<output_format>
+- Verbosity: Low-to-Medium. Be concise and direct. Do not pad answers with filler text.
+- Structure: Overview → Key methods/parameters → Code example → Notes.
+- If the context contains the answer, give it directly without preamble.
+- If the context does NOT contain the answer, say so in one sentence.
+- Avoid unnecessary repetition — do not duplicate the same table, code block, or section.
+</output_format>"""
 
 
 async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None:
@@ -167,6 +177,9 @@ async def build_rag_prompt(
     )
     search_ms = round((time.perf_counter() - t_search) * 1000, 1)
 
+    if settings.rag_min_similarity > 0:
+        chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
+
     detected_product = auto_product or product_filter
     detected_doc = doc_context
     if not doc_context and chunks:
@@ -177,12 +190,15 @@ async def build_rag_prompt(
     context = _format_context(chunks)
     context_tokens = sum(c.get("token_count", 0) for c in chunks)
 
-    context_header = "## Documentation context\n\n"
+    context_header = "<documentation_context>\n"
     if detected_product:
-        context_header += f"Product: **{detected_product}**\n\n"
-    combined_system = f"{SYSTEM_PROMPT}\n\n---\n\n{context_header}{context}"
+        context_header += f"Product: {detected_product}\n\n"
+    context_block = f"{context_header}{context}\n</documentation_context>"
+
     messages: list[dict] = [
-        {"role": "system", "content": combined_system},
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": context_block},
+        {"role": "assistant", "content": "Understood. I will answer strictly based on the documentation context provided above."},
     ]
 
     if history:
@@ -190,7 +206,7 @@ async def build_rag_prompt(
             history, settings.rag_history_messages, settings.rag_history_max_tokens,
         ))
 
-    messages.append({"role": "user", "content": query})
+    messages.append({"role": "user", "content": f"Based on the documentation above, answer the following question:\n\n{query}"})
 
     sources = [
         {
@@ -209,7 +225,7 @@ async def build_rag_prompt(
         history, settings.rag_history_messages, settings.rag_history_max_tokens,
     ) if history else []
     history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
-    system_prompt_tokens = _estimate_tokens(combined_system)
+    system_prompt_tokens = _estimate_tokens(SYSTEM_PROMPT) + _estimate_tokens(context_block)
 
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     top_sim = round(chunks[0]["similarity"], 4) if chunks else 0

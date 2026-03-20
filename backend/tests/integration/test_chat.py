@@ -249,7 +249,7 @@ class TestRAGIntegration:
         contents = [m["content"] for m in messages]
         assert any("What is HMAC?" in c for c in contents)
         assert any("HMAC is a hash-based auth." in c for c in contents)
-        assert messages[-1]["content"] == "How do I use it?"
+        assert "How do I use it?" in messages[-1]["content"]
 
     async def test_rag_empty_db(self, db_session):
         messages, sources, _debug = await build_rag_prompt(
@@ -258,8 +258,8 @@ class TestRAGIntegration:
         )
 
         assert len(sources) == 0
-        system_msg = messages[0]["content"]
-        assert "No relevant documentation found" in system_msg
+        context_msg = messages[1]["content"]
+        assert "No relevant documentation found" in context_msg
 
     async def test_rag_source_fields(self, db_session):
         await self._ingest_test_data(db_session)

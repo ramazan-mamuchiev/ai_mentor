@@ -97,11 +97,13 @@ class TestBuildRagPrompt:
             product_filter="HikCentral",
         )
 
-        assert len(messages) >= 2
+        assert len(messages) >= 3
         assert messages[0]["role"] == "system"
         assert "IPCodex AI" in messages[0]["content"]
+        assert messages[1]["role"] == "user"
+        assert "<documentation_context>" in messages[1]["content"]
         assert messages[-1]["role"] == "user"
-        assert messages[-1]["content"] == "How to authenticate?"
+        assert "How to authenticate?" in messages[-1]["content"]
 
         assert len(sources) == 1
         assert sources[0]["doc_title"] == "HikCentral API"
@@ -117,7 +119,7 @@ class TestBuildRagPrompt:
 
         system_content = messages[0]["content"]
         assert "code examples" in system_content.lower()
-        assert "API endpoints" in system_content
+        assert "NEVER fabricate API endpoints" in system_content
         assert "same language as the user" in system_content
 
     @pytest.mark.asyncio
@@ -164,7 +166,7 @@ class TestBuildRagPrompt:
         roles = [m["role"] for m in messages]
         assert "user" in roles
         assert "assistant" in roles
-        assert messages[-1]["content"] == "What is the API key?"
+        assert "What is the API key?" in messages[-1]["content"]
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
@@ -176,8 +178,8 @@ class TestBuildRagPrompt:
         messages, sources, _debug = await build_rag_prompt(db=db, query="Unknown topic")
 
         assert len(sources) == 0
-        system_content = messages[0]["content"]
-        assert "No relevant documentation found" in system_content
+        context_content = messages[1]["content"]
+        assert "No relevant documentation found" in context_content
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
@@ -191,3 +193,32 @@ class TestBuildRagPrompt:
         assert "proto/gRPC" in system_content
         assert "proto" in system_content.lower()
         assert "table" in system_content.lower()
+
+    @pytest.mark.asyncio
+    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag.search_documents")
+    async def test_grounding_instruction_present(self, mock_search, _mock_detect):
+        mock_search.return_value = []
+        db = AsyncMock()
+        messages, _, _debug = await build_rag_prompt(db=db, query="test")
+
+        system_content = messages[0]["content"]
+        assert "strictly grounded" in system_content
+        assert "<constraints>" in system_content
+        assert "<output_format>" in system_content
+
+    @pytest.mark.asyncio
+    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag.search_documents")
+    async def test_similarity_threshold_filters_chunks(self, mock_search, _mock_detect):
+        mock_search.return_value = [
+            {"content": "Good", "heading_path": "H1", "heading_level": 2, "token_count": 5,
+             "doc_title": "Doc", "product_name": "", "manufacturer": "", "firmware_version": "", "similarity": 0.9},
+            {"content": "Bad", "heading_path": "H2", "heading_level": 2, "token_count": 5,
+             "doc_title": "Doc", "product_name": "", "manufacturer": "", "firmware_version": "", "similarity": 0.1},
+        ]
+        db = AsyncMock()
+        _, sources, debug = await build_rag_prompt(db=db, query="test")
+
+        assert len(sources) == 1
+        assert sources[0]["similarity"] == 0.9

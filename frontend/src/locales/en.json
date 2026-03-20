@@ -72,6 +72,10 @@
   "debug.llmPromptTokens": "= Prompt total",
   "debug.llmCompletionTokens": "Completion",
   "debug.llmTotalTokens": "Total LLM",
+  "debug.stopped": "Stopped",
+  "debug.status": "Status",
+  "debug.statusStopped": "Stopped",
+  "debug.statusError": "Error",
 
   "sidebar.newChat": "New chat",
   "sidebar.title": "IPCodex",
