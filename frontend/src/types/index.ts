@@ -39,7 +39,6 @@ export interface DebugInfo {
   detected_doc_context: string | null
   search_query: string | null
   query_tokens: number
-  context_tokens: number
   history_tokens: number
   system_prompt_tokens: number
   user_input_tokens: number
