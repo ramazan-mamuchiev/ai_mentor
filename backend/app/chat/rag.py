@@ -87,9 +87,30 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4) if text else 0
 
 
-def _build_history_messages(history: list[ChatMessage], max_messages: int) -> list[dict]:
-    """Convert DB message history to LLM message format."""
-    recent = history[-max_messages:] if len(history) > max_messages else history
+def _build_history_messages(
+    history: list[ChatMessage],
+    max_messages: int,
+    max_tokens: int | None = None,
+) -> list[dict]:
+    """Convert DB message history to LLM message format.
+
+    Limits by message count first, then trims from the oldest if the total
+    token budget is exceeded — keeping the most recent messages.
+    """
+    recent = history[-max_messages:] if len(history) > max_messages else list(history)
+
+    if max_tokens and max_tokens > 0:
+        result: list[dict] = []
+        budget = max_tokens
+        for msg in reversed(recent):
+            est = _estimate_tokens(msg.content)
+            if est > budget:
+                break
+            budget -= est
+            result.append({"role": msg.role, "content": msg.content})
+        result.reverse()
+        return result
+
     return [{"role": msg.role, "content": msg.content} for msg in recent]
 
 
@@ -168,7 +189,9 @@ async def build_rag_prompt(
     ]
 
     if history:
-        messages.extend(_build_history_messages(history, settings.rag_history_messages))
+        messages.extend(_build_history_messages(
+            history, settings.rag_history_messages, settings.rag_history_max_tokens,
+        ))
 
     messages.append({"role": "user", "content": query})
 
@@ -185,7 +208,9 @@ async def build_rag_prompt(
     ]
 
     query_tokens = _estimate_tokens(query)
-    history_msgs = _build_history_messages(history, settings.rag_history_messages) if history else []
+    history_msgs = _build_history_messages(
+        history, settings.rag_history_messages, settings.rag_history_max_tokens,
+    ) if history else []
     history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
     system_prompt_tokens = _estimate_tokens(combined_system)
 

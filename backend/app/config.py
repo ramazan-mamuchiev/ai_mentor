@@ -47,6 +47,7 @@ class Settings(BaseSettings):
 
     rag_top_k: int = 15
     rag_history_messages: int = 10
+    rag_history_max_tokens: int = 16000
 
     ocr_enabled: bool = False
     ocr_languages: str = "en"
