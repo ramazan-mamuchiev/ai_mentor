@@ -31,5 +31,6 @@ git tag -a v1.0.0 -m "Release v1.0.0"
 
 - NEVER use `$(cat <<'EOF' ... EOF)` or any heredoc construct
 - NEVER use `bash -c` wrappers to work around PowerShell
+- NEVER chain commands with `&&` — run them as separate sequential Shell tool calls
 - Use double quotes `"..."` for strings (PowerShell variable expansion is fine)
 - For special characters in commit messages, escape with backtick: `` ` ``
