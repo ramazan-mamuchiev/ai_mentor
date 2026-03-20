@@ -27,8 +27,7 @@ from app.llm.client import LLMError, stream_chat_completion
 from app.models import ChatMessage, ChatMessageAnalytics, ChatSession
 
 MAX_CONTINUATIONS = settings.llm_max_continuations
-MAX_RESPONSE_CHARS = 50_000
-CONTINUE_PROMPT = "Continue exactly where you stopped. RULES: 1) Do NOT repeat ANY text, tables, headers, or code blocks already written. 2) Do NOT re-output table column headers. 3) No preamble — continue the text seamlessly. 4) WRAP UP briefly — summarize remaining points in 2-3 sentences if needed. Do not expand further."
+CONTINUE_PROMPT = "Continue exactly where you stopped. RULES: 1) Do NOT repeat ANY text, tables, headers, or code blocks already written. 2) Do NOT re-output table column headers. 3) No preamble — continue the text seamlessly."
 
 logger = logging.getLogger(__name__)
 
@@ -267,41 +266,19 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 continuations = 0
                 llm_messages = list(messages)
 
-                response_chars = 0
-                hit_size_limit = False
-
                 while True:
                     llm_meta_chunk: dict = {}
                     async for token in stream_chat_completion(llm_messages, metadata=llm_meta_chunk):
                         full_response.append(token)
                         token_count += 1
-                        response_chars += len(token)
                         yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-
-                        if response_chars > MAX_RESPONSE_CHARS:
-                            hit_size_limit = True
-                            break
 
                     if not llm_meta:
                         llm_meta.update(llm_meta_chunk)
                     else:
                         llm_meta["first_token_ms"] = llm_meta.get("first_token_ms", 0)
 
-                    if hit_size_limit:
-                        logger.info(
-                            "Response size limit reached mid-stream",
-                            extra={"session_id": session_id, "response_chars": response_chars},
-                        )
-                        break
-
                     if llm_meta_chunk.get("finish_reason") != "length":
-                        break
-
-                    if response_chars > MAX_RESPONSE_CHARS:
-                        logger.info(
-                            "Response size limit reached, skipping continuation",
-                            extra={"session_id": session_id, "response_chars": response_chars},
-                        )
                         break
 
                     continuations += 1
@@ -317,7 +294,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         extra={
                             "session_id": session_id,
                             "continuation": continuations,
-                            "response_so_far": response_chars,
+                            "tokens_so_far": token_count,
                         },
                     )
                     partial = "".join(full_response)
