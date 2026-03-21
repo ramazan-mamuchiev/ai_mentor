@@ -253,27 +253,36 @@ User sends message via Web UI:
         │
         ▼
 Server: load session (product_filter, version_filter, history)
-        │
+        │  history excludes the current user message (WHERE id != user_msg.id)
         ▼
 RAG Pipeline (chat/rag.py):
   1. Auto-detect product from query (if no explicit filter)
      → scan products table for name match in query text
-  2. Enrich query (if short follow-up like "and how about auth?")
-     → prepend context from last assistant message
-  3. Embed enriched query → vector [0.023, -0.118, ...]
-  4. Vector search: ORDER BY embedding <=> $q LIMIT rag_top_k (default 8)
+  2. LLM Query Rewrite (if history exists):
+     → send last 3 user messages + current question to LLM
+     → LLM reformulates follow-up into standalone query
+     → uses Gemini with reasoning_effort=none, temperature=0
+     → self-contained questions pass through unchanged
+     → fallback to original query on any error
+  3. Embed rewritten query → vector [0.023, -0.118, ...]
+  4. Vector search: ORDER BY embedding <=> $q LIMIT rag_top_k (default 10)
      → optional product/version filter
-  5. Format context: each chunk as numbered source with metadata
-  6. Build LLM messages:
-     - System prompt: "You are IPCodex assistant. Answer ONLY based on
-       provided documentation. Cite sources by number. If no relevant
-       docs found, say so."
-     - History: last N messages (configurable, default 10)
-     - User message with documentation context
+  5. Similarity threshold filtering:
+     → discard chunks with similarity < rag_min_similarity (default 0.35)
+  6. Format context: each chunk as numbered source with metadata
+     → wrapped in <documentation_context> XML tags
+  7. Build LLM messages (5-part sequence for implicit caching):
+     a. System message — SYSTEM_PROMPT with XML-tagged sections:
+        <role>, <constraints> (9 rules), <instructions>, <output_format>
+     b. User message — documentation context
+     c. Assistant ack — "Understood. I will answer strictly based on..."
+     d. History — last 6 messages, up to 8,000 tokens (trims oldest first)
+     e. User query — with anchor phrase
         │
         ▼
 LLM Streaming (llm/client.py):
-  Provider: Ollama (local) or OpenAI-compatible API
+  Provider: Gemini 2.5 Flash (default) or Ollama (fallback)
+  → reasoning_effort=none (thinking disabled for speed)
   → Stream tokens via SSE to client
         │
         ▼
@@ -285,10 +294,14 @@ SSE Events to client:
         │
         ▼
 Server: save assistant message + sources to chat_messages table
+        save analytics (rewrite_ms, rag timing, LLM params) to chat_message_analytics
 ```
 
 **Anti-hallucination strategy:**
-- System prompt explicitly instructs LLM to answer only from provided documentation
-- If no relevant chunks found (empty search results), LLM is told to say "I don't have documentation for this"
+- **Structured grounding prompt**: 9 constraints in `<constraints>` XML section, following Google's recommendations for Gemini
+- **Separate system/context/ack message pattern**: enables Gemini implicit caching of static instructions
+- **Similarity threshold filtering**: `rag_min_similarity` (default 0.35) removes low-relevance chunks before they reach the LLM
+- **Factual grounding**: API details (endpoints, params, URLs) must come from context only; code generation allowed using general programming knowledge based on documented API details
+- **Language enforcement**: "CRITICAL: ALWAYS respond in the same language as the user's question" — top-level instruction
 - Source attribution: each answer references numbered sources that the user can verify
-- RAG debug info (search similarity scores, query enrichment) available in response metadata
+- RAG debug info (search similarity, rewrite_ms, query rewrite result) available in response metadata

@@ -49,7 +49,11 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       OPENAI_LLM_API_KEY: ${OPENAI_LLM_API_KEY:-}
       OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
-      RAG_TOP_K: ${RAG_TOP_K:-8}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-none}
+      RAG_TOP_K: ${RAG_TOP_K:-10}
+      RAG_MIN_SIMILARITY: ${RAG_MIN_SIMILARITY:-0.35}
+      RAG_HISTORY_MESSAGES: ${RAG_HISTORY_MESSAGES:-6}
+      RAG_HISTORY_MAX_TOKENS: ${RAG_HISTORY_MAX_TOKENS:-8000}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-50}
       MAX_ARCHIVE_SIZE_MB: ${MAX_ARCHIVE_SIZE_MB:-350}
       HF_HOME: /root/.cache/huggingface
@@ -210,18 +214,21 @@ EMBEDDING_PROVIDER=local                     # local | openai
 OPENAI_API_KEY=sk-...                        # only if EMBEDDING_PROVIDER=openai
 
 # === LLM (RAG Chat) — Tiered Model Strategy ===
-# Default provider for development (local, $0 cost):
-LLM_PROVIDER=ollama                          # ollama | openai
-OLLAMA_URL=http://ollama:11434
-LLM_MODEL=qwen2.5-coder:7b                  # Ollama model name
+# Default provider for production (Gemini via OpenAI-compatible API):
+LLM_PROVIDER=openai                          # ollama | openai
 LLM_MAX_TOKENS=4096
 LLM_TEMPERATURE=0.2
 LLM_TIMEOUT=600                              # seconds
+LLM_REASONING_EFFORT=none                    # none | low | medium | high — Gemini thinking budget (none = disabled for speed)
 
 # Gemini Flash — default for Free & Pro tiers ($0.30/$2.50 per 1M tokens)
 OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 OPENAI_LLM_API_KEY=...
 OPENAI_LLM_MODEL=gemini-2.5-flash
+
+# Ollama — development fallback only ($0 cost):
+OLLAMA_URL=http://ollama:11434
+LLM_MODEL=qwen2.5-coder:7b                  # Ollama model name
 
 # Claude Opus 4.6 — default for Team & Enterprise tiers ($5/$25 per 1M tokens)
 OPUS_BASE_URL=https://api.anthropic.com/v1
@@ -236,7 +243,10 @@ OPUS_OVERAGE_PRO=0.05                        # $/query overage for Pro
 OPUS_OVERAGE_TEAM=0.04                       # $/query overage for Team
 
 # === RAG ===
-RAG_TOP_K=8                                  # number of chunks to retrieve for context
+RAG_TOP_K=10                                 # number of chunks to retrieve for context
+RAG_MIN_SIMILARITY=0.35                      # minimum cosine similarity threshold (discard below)
+RAG_HISTORY_MESSAGES=6                       # max conversation messages included in LLM context
+RAG_HISTORY_MAX_TOKENS=8000                  # max tokens from chat history in prompt
 
 # === Upload Limits ===
 MAX_UPLOAD_SIZE_MB=50                        # single file upload limit

@@ -21,6 +21,7 @@
 | [GTM_STRATEGY.md](GTM_STRATEGY.md) | AI-first positioning, messaging framework, 12-month execution roadmap, channel priorities, budget | ~400 |
 | [MONITORING.md](MONITORING.md) | Monitoring stack (Grafana + Loki + Promtail), dashboards, alert rules, structured logging | ~200 |
 | [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 IPCodex slogan candidates (EN/RU), next steps for partner review | ~130 |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Design system: colors, typography, icons, components, logo, animations, UI/UX competitor analysis | ~310 |
 
 ---
 
@@ -76,9 +77,9 @@
         │                 ┌────────────────────┼────────────────┐
         │                 ▼                    ▼                ▼
         │       ┌──────────────────┐ ┌──────────────┐ ┌────────────────┐
-        │       │  MinIO / S3      │ │  Ollama      │ │  Loki +        │
-        │       │  documents       │ │  LLM for RAG │ │  Grafana       │
-        └──────▶│  uploads         │ │  qwen2.5     │ │  (monitoring)  │
+        │       │  MinIO / S3      │ │  Gemini 2.5  │ │  Loki +        │
+        │       │  documents       │ │  Flash (LLM) │ │  Grafana       │
+        └──────▶│  uploads         │ │  via OpenAI  │ │  (monitoring)  │
                 └──────────────────┘ └──────────────┘ └────────────────┘
 ```
 
@@ -141,13 +142,25 @@
 ### RAG Chat (LLM-Powered Conversational Interface)
 - AI chat with retrieval-augmented generation — answers grounded in indexed documentation
 - SSE streaming: tokens streamed to client as they are generated
-- Anti-hallucination: system prompt instructs LLM to cite only found sources, refuse if no relevant docs
 - Source attribution: each response includes source chunks with similarity scores
 - Auto-detection of product from user query (no explicit filter required)
-- Query enrichment: short follow-up messages expanded using conversation history
+- **LLM query rewriting**: follow-up questions are reformulated into standalone queries via a lightweight LLM call (Gemini with `reasoning_effort=none`, `temperature=0`). Self-contained questions pass through unchanged. Fallback to original query on error
+- **Similarity threshold**: `rag_min_similarity` (default 0.35) filters out low-relevance chunks after retrieval
 - History-aware: last N messages included in LLM context for multi-turn conversations
-- **History token budget**: `rag_history_max_tokens` (default 16,000) limits total tokens from chat history in prompt — trims oldest messages first to stay within budget
-- **Persistent debug/analytics**: every assistant response saves detailed metrics to `chat_message_analytics` table (LLM params, timing, RAG quality, context). Survives page reload (Ctrl+F5) and enables future admin search, billing reconciliation, and quality analysis
+- **History limits**: `rag_history_messages` (default 6), `rag_history_max_tokens` (default 8,000) — trims oldest messages first to stay within budget
+- **Structured grounding prompt** (XML-tagged `<role>`, `<constraints>`, `<instructions>`, `<output_format>`):
+  - 9 grounding constraints following Google's recommendations
+  - Strict factual grounding: API details (endpoints, params, URLs) must come from context only
+  - Code generation allowed in any language using documented API details + general programming knowledge
+  - Mandatory response in the user's language
+  - Summary section for overview questions
+- **Prompt architecture** (5-part message sequence for Gemini implicit caching):
+  1. System message — `SYSTEM_PROMPT` (static, cacheable)
+  2. User message — `<documentation_context>` with retrieved chunks (cacheable for same query)
+  3. Assistant ack — "Understood. I will answer strictly based on the documentation context provided above."
+  4. History messages — recent conversation turns (up to 6 messages / 8,000 tokens)
+  5. User query — with anchor phrase: "Based on the documentation above, answer the following question:"
+- **Persistent debug/analytics**: every assistant response saves detailed metrics to `chat_message_analytics` table (LLM params, timing, RAG quality, rewrite_ms). Survives page reload and enables future admin search, billing reconciliation, and quality analysis
 - **Billing audit**: every chat completion writes to `usage_log` with full prompt decomposition (`query_tokens`, `context_tokens`, `history_tokens`, `system_prompt_tokens`) plus `cogs_usd` (our LLM cost) and `charge_usd` (user-facing price)
 - Implementation: `chat/router.py`, `chat/rag.py`, `llm/client.py`, `billing/usage_writer.py`
 
@@ -163,13 +176,14 @@
 
 ### LLM Provider
 - **Tiered model strategy**: different developer tiers use different LLM models
-- **Ollama** (local): `qwen2.5-coder:7b` — default for development, zero API cost
+- **Gemini 2.5 Flash** (default): primary production model via OpenAI-compatible API, thinking disabled (`reasoning_effort=none`) for speed and cost efficiency
+- **Ollama** (local): development fallback only, zero API cost
 - **OpenAI-compatible API**: any endpoint that implements the OpenAI chat completions API
 - Provider selected via `LLM_PROVIDER` env variable (`ollama` | `openai`)
 - Model routing by tier: Free/Pro → Gemini Flash, Team/Enterprise → Opus 4.6
 - Streaming support for both providers (Ollama JSON lines, OpenAI SSE)
 - **Per-model billing**: input + output charged separately at model-specific rates
-- Configurable: model, temperature, max_tokens, timeout
+- Configurable: model, temperature, max_tokens, timeout, reasoning_effort
 
 **Production models:**
 
@@ -177,7 +191,7 @@
 |-------|----------|:------------------------------:|:--------------:|------|
 | Gemini 2.5 Flash | Google AI Studio | $0.30 / $2.50 | ~$0.004 | Free, Pro (default) |
 | Claude Opus 4.6 | Anthropic | $5.00 / $25.00 | ~$0.045 | Team, Enterprise, Pro (option: 100/mo) |
-| Ollama (qwen2.5-coder:7b) | Local | $0 (GPU ~$200-400/mo) | ~$0 | Development / fallback |
+| Ollama | Local | $0 (GPU ~$200-400/mo) | ~$0 | Development fallback only |
 
 Opus 4.6 serves as a premium **anchor product** — its superior quality drives tier upgrades while per-model billing protects margins. See [MONETIZATION.md](MONETIZATION.md#ai-model-tiers) for tier mapping and [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md#26-llm-api-for-rag-chat) for detailed cost analysis.
 
@@ -278,7 +292,7 @@ ipcodex/
 
       chat/                  # ✅ RAG Chat with LLM
         router.py            # REST API: sessions CRUD, send message (SSE streaming)
-        rag.py               # RAG service: query enrichment, context building, anti-hallucination
+        rag.py               # RAG service: LLM query rewrite, structured prompt building, similarity filtering, grounding
         schemas.py           # Pydantic: CreateSessionRequest, SessionResponse, SourceInfo, etc.
 
       llm/                   # ✅ LLM provider abstraction
@@ -341,6 +355,7 @@ ipcodex/
 
     scripts/
       upload_document.py     # CLI: upload document or archive to API
+      check_documents.py     # CLI: check document/chunk counts and DB health
       convert_to_md.py       # CLI: offline document → Markdown conversion
 
     tests/
@@ -390,8 +405,8 @@ ipcodex/
 |-------|-----------|:------:|
 | API Gateway | FastAPI + uvicorn | ✅ |
 | MCP Server | FastMCP (Python MCP SDK), Streamable HTTP | ✅ |
-| LLM (local) | Ollama — qwen2.5-coder:7b (default) | ✅ |
-| LLM (cloud) | Gemini 2.5 Flash (Free/Pro) + Claude Opus 4.6 (Team/Enterprise) | ✅ |
+| LLM (cloud) | Gemini 2.5 Flash (default, `reasoning_effort=none`) + Claude Opus 4.6 (Team/Enterprise) | ✅ |
+| LLM (local) | Ollama — development fallback only | ✅ |
 | Database | PostgreSQL 16 + pgvector (HNSW index) | ✅ |
 | Cache / Queue | Redis 7 (Celery broker, TUS state) | ✅ |
 | Object Storage | MinIO / AWS S3 | ✅ |
@@ -525,7 +540,7 @@ Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scali
 - [x] ~~Monitoring: Prometheus + Grafana vs cloud-native~~ → Grafana + Loki + Promtail (log-based, see [MONITORING.md](MONITORING.md))
 - [ ] CDN for static assets and S3 presigned URLs
 - [ ] Backup strategy: pg_dump schedule, S3 versioning
-- [x] ~~AI Chat interface~~ → Implemented: RAG Chat with Ollama/OpenAI, SSE streaming, source attribution
+- [x] ~~AI Chat interface~~ → Implemented: RAG Chat with Gemini 2.5 Flash, SSE streaming, LLM query rewrite, structured grounding prompt, source attribution
 - [x] ~~Self-hosted embedding model selection~~ → `intfloat/multilingual-e5-small` (1024 dims, multilingual)
 
 ### Billing & Payments
