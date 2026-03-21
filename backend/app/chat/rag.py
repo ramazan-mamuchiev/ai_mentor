@@ -284,7 +284,7 @@ async def build_rag_prompt(
             "doc_context": doc_context,
             "auto_product": None,
             "detected_doc_context": None,
-            "search_query": None,
+            "search_query": query,
             "no_documents": True,
         }
 
