@@ -36,7 +36,7 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
   const hasLlm = debug.model != null
   const hasRag = debug.chunks_found != null
   const hasIds = debug.session_id != null
-  const hasContext = debug.product_filter != null || debug.search_query != null
+  const hasContext = debug.product_filter != null || debug.search_query != null || debug.no_documents === true
   return (
     <div className="debug-panel">
       <div className="debug-grid">
@@ -102,6 +102,9 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
           <div className="debug-section debug-section-full">
             <div className="debug-section-title">{t('debug.context')}</div>
             <div className="debug-context-grid">
+              {debug.no_documents && (
+                <div className="debug-row"><span>{t('debug.noDocuments')}</span><code className="debug-error-badge">true</code></div>
+              )}
               <div className="debug-row"><span>{t('debug.productFilter')}</span><code className={debug.product_filter ? '' : 'debug-none'}>{debug.product_filter ?? 'none'}</code></div>
               <div className="debug-row"><span>{t('debug.versionFilter')}</span><code className={debug.version_filter ? '' : 'debug-none'}>{debug.version_filter ?? 'none'}</code></div>
               <div className="debug-row"><span>{t('debug.autoProduct')}</span><code className={debug.auto_product ? '' : 'debug-none'}>{debug.auto_product ?? 'none'}</code></div>

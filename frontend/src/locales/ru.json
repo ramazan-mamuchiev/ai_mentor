@@ -61,6 +61,7 @@
   "debug.docContext": "Документ",
   "debug.detectedDoc": "Авто-документ",
   "debug.searchQuery": "Поисковый запрос",
+  "debug.noDocuments": "Нет документов",
   "debug.billing": "Биллинг",
   "debug.userInputTokens": "Входящие (запрос)",
   "debug.userOutputTokens": "Исходящие (ответ)",
