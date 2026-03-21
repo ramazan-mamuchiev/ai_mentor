@@ -61,7 +61,6 @@
   "debug.docContext": "Document",
   "debug.detectedDoc": "Auto document",
   "debug.searchQuery": "Search query",
-  "debug.noDocuments": "No documents",
   "debug.billing": "Billing",
   "debug.userInputTokens": "Input (query)",
   "debug.userOutputTokens": "Output (response)",
