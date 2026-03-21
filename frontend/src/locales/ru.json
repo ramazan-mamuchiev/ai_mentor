@@ -118,14 +118,14 @@
   "landing.nav.problems": "Проблемы",
   "landing.nav.goals": "Цели",
   "landing.nav.howItWorks": "Как это работает",
-  "landing.nav.openApp": "Открыть приложение",
+  "landing.nav.openApp": "Начать",
 
   "landing.hero.badge": "AI-платформа интеграции",
   "landing.hero.title": "IPCodex",
   "landing.hero.slogan": "Протоколы говорят. Codex переводит.",
   "landing.hero.subslogan": "Из документации в код. Мгновенно.",
   "landing.hero.description": "AI читает документацию устройств, чтобы разработчики писали код интеграции, а не искали информацию.",
-  "landing.hero.cta": "Начать работу",
+  "landing.hero.cta": "Начать бесплатно",
   "landing.hero.author": "от",
 
   "landing.elevator.label": "Elevator Pitch",
