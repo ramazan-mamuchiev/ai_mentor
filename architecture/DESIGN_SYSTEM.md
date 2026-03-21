@@ -485,18 +485,124 @@ padding: 40px 20px;
 5. **Прогресс-бары** для длительных операций (индексация, reindex)
 6. **Минимум кликов**: upload → автоматический переход к отслеживанию
 7. **Dark mode** из коробки
-8. **Sidebar navigation** с переключением разделов (Chat / Documents)
+8. **Sidebar navigation** с переключением разделов (5 пунктов)
 9. **Stepper** для многошаговых процессов (Upload → Processing → Ready)
 10. **Empty states** с CTA-кнопкой для первого действия
 
 ---
 
-## 11. Структура файлов стилей
+## 11. Sidebar-навигация
+
+### Разделы
+
+IPCodex — публичный коммерческий SaaS-продукт. Sidebar содержит 5 разделов навигации (паттерн из GitBook, Documentation.AI, Postman, Algolia):
+
+| Иконка (lucide-react) | Раздел | `activePage` value | Статус |
+|---|---|---|---|
+| `MessageSquare` | Chat | `'chat'` | Работает |
+| `FileText` | Documents | `'documents'` | Реализуем |
+| `Box` | Products | `'products'` | Заглушка (Coming Soon) |
+| `BarChart3` | Analytics | `'analytics'` | Заглушка (Coming Soon) |
+| `Settings` | Settings | `'settings'` | Заглушка (Coming Soon) |
+
+### Стиль навигационных пунктов
+
+```css
+/* Nav item */
+display: flex;
+align-items: center;
+gap: 10px;
+padding: 8px 10px;
+border-radius: 8px;
+font-size: 13px;
+font-weight: 500;
+color: var(--text-secondary);
+cursor: pointer;
+transition: background 0.15s, color 0.15s;
+
+/* Active */
+background: var(--surface-hover);
+color: var(--text);
+border-left: 2.5px solid var(--accent);
+
+/* Hover */
+background: var(--surface-hover);
+```
+
+### Поведение
+
+- При `activePage === 'chat'` — под навигацией показывается список сессий (как сейчас)
+- При других страницах — список сессий скрывается, sidebar показывает только навигацию + footer
+- Разделитель `1px solid var(--border)` между навигацией и контентом sidebar
+
+### Страницы-заглушки
+
+Компоненты `ProductsPage`, `AnalyticsPage`, `SettingsPage` — empty state (стиль как `.messages-empty`):
+- Иконка раздела (48px, `color: var(--text-muted)`)
+- Заголовок раздела (gradient text)
+- Описание функционала (1-2 строки, `var(--text-secondary)`)
+- Бейдж "Coming Soon" (pill-shape, `background: rgba(37, 99, 235, 0.08)`, `color: var(--accent)`)
+
+---
+
+## 12. Copyright и брендинг
+
+IPCodex — **публичный коммерческий SaaS-продукт**. Copyright обязателен.
+
+### Лендинг footer
+
+```
+© 2026 IPCodex · by Aleh Vaitsekhovich
+```
+
+Где "Aleh Vaitsekhovich" — кликабельная ссылка на LinkedIn:
+`https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/`
+(`target="_blank"`, `rel="noopener noreferrer"`)
+
+### App sidebar footer
+
+В footer sidebar (рядом с переключателями темы и языка) добавить:
+
+```
+© 2026 IPCodex · by Aleh Vaitsekhovich
+```
+
+Стиль:
+```css
+font-size: 11px;
+color: var(--text-muted);
+```
+
+### Референсы конкурентов
+
+| Продукт | Copyright | Расположение |
+|---------|-----------|-------------|
+| Documentation.AI | © 2026 Documentation.AI | Footer сайта |
+| Context7 | © 2026, Context7 is an Upstash project | Footer сайта |
+| GitBook | Нет в app UI | — |
+| Postman | Нет в app UI (есть на сайте) | — |
+
+### Правило
+
+Для публичного SaaS-продукта copyright должен быть виден в UI. Размещение в footer — стандартное решение.
+
+### Локализация
+
+```json
+"landing.footer.copyright": "© 2026 IPCodex",
+"landing.footer.by": "by" / "от",
+"landing.footer.author": "Aleh Vaitsekhovich"
+```
+
+---
+
+## 13. Структура файлов стилей
 
 ```
 frontend/src/styles/
   globals.css      — CSS-переменные, reset, scrollbar, base styles
   chat.css         — Sidebar, layout, messages, input, sources, debug, file upload, code blocks
+  landing.css      — Лендинг: header, hero, секции, карточки, steps, footer, responsive
   documents.css    — (NEW) Таблица документов, статус-бейджи, прогресс-бары, reindex panel, navigation tabs
 ```
 
@@ -504,6 +610,92 @@ frontend/src/styles/
 
 - Все стили — через CSS-переменные из `globals.css`.
 - Без CSS-in-JS, без CSS Modules — plain CSS с BEM-подобными именами классов.
-- Префиксы классов по компоненту: `.file-upload-*`, `.docs-*`, `.reindex-*`.
-- Адаптивность: `@media (max-width: 768px)` и `@media (max-width: 480px)`.
+- Префиксы классов по компоненту: `.file-upload-*`, `.docs-*`, `.reindex-*`, `.nav-*`, `.landing-*`.
+- Адаптивность: обязательна для всех компонентов (см. секцию 15).
 - Анимации: переиспользовать существующие `@keyframes` из `chat.css`.
+
+---
+
+## 14. Тип продукта
+
+**IPCodex — публичный коммерческий SaaS-продукт** для управления и поиска по технической документации с помощью AI.
+
+### Следствия для UI/UX
+
+- Copyright обязателен (см. секцию 12)
+- Онбординг и empty states должны быть дружелюбными и информативными
+- Все тексты локализованы (EN/RU)
+- UI должен соответствовать стандартам коммерческих SaaS (профессиональный вид, консистентность, accessibility)
+- Брендинг (логотип, цвета, шрифты) должен быть единообразным во всех разделах
+
+---
+
+## 15. Адаптивность (Responsive Design)
+
+**Вся разметка должна корректно отображаться на компьютерах, планшетах и телефонах.**
+
+### Breakpoints
+
+| Устройство | Breakpoint | Поведение |
+|---|---|---|
+| Desktop | > 1024px | Полная раскладка, sidebar, таблицы, 3-колоночные сетки |
+| Tablet | 768px–1024px | Sidebar скрыт (hamburger), 2-колоночные сетки, упрощённые таблицы |
+| Mobile | < 768px | Одна колонка, карточки вместо таблиц, компактный header, hamburger-меню |
+| Small Mobile | < 480px | Уменьшенные шрифты и отступы |
+
+### Правила
+
+- **Touch targets**: минимум 44×44px для кнопок на mobile (Apple HIG)
+- **Лендинг**: hero — одна колонка на mobile; карточки — 1 колонка mobile, 2 tablet, 3 desktop
+- **App sidebar**: на tablet/mobile — скрыт, открывается по hamburger (overlay)
+- **Таблица документов**: на mobile — заменяется карточками
+- **Header лендинга**: на mobile — hamburger-меню вместо горизонтальной навигации
+- **CTA-кнопки**: на mobile — full-width
+- **Все отступы/шрифты**: уменьшаются через media queries
+
+### Media queries
+
+```css
+@media (max-width: 1024px) { /* Tablet */ }
+@media (max-width: 768px)  { /* Mobile */ }
+@media (max-width: 480px)  { /* Small mobile */ }
+```
+
+---
+
+## 16. Роутинг
+
+### Библиотека
+
+`react-router-dom` (v7+)
+
+### Структура роутов
+
+| Путь | Компонент | Описание |
+|------|-----------|----------|
+| `/` | `LandingPage` | Публичный лендинг (маркетинговая страница) |
+| `/app` | `ChatApp` | Основное приложение (Chat) |
+| `/app/documents` | `DocumentsPage` | Управление документами (будущее) |
+| `/app/products` | `ProductsPage` | Продукты (заглушка) |
+| `/app/analytics` | `AnalyticsPage` | Аналитика (заглушка) |
+| `/app/settings` | `SettingsPage` | Настройки (заглушка) |
+| `*` | Redirect → `/` | Fallback |
+
+### Файловая структура
+
+```
+frontend/src/
+  pages/
+    LandingPage.tsx    — Публичный лендинг
+    ChatApp.tsx        — Основное приложение (бывший App.tsx)
+    DocumentsPage.tsx  — (будущее) Управление документами
+    ProductsPage.tsx   — (будущее) Заглушка
+    AnalyticsPage.tsx  — (будущее) Заглушка
+    SettingsPage.tsx   — (будущее) Заглушка
+  App.tsx              — Роутер (Routes)
+  main.tsx             — BrowserRouter + App
+```
+
+### nginx
+
+Существующий `try_files $uri $uri/ /index.html` обеспечивает SPA fallback для всех роутов.
