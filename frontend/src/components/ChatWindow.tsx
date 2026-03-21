@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+import { Cpu } from 'lucide-react'
 import type { SourceInfo, StreamStatus } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { ChatMessageComponent } from './ChatMessage'
@@ -72,7 +73,7 @@ export function ChatWindow({
           <div className="messages-empty">
             <img src="/logo-on-light.svg" alt="" className="empty-logo logo-light" />
             <img src="/logo-on-dark.svg" alt="" className="empty-logo logo-dark" />
-            <span className="empty-badge">{t('empty.badge')}</span>
+            <span className="empty-badge"><Cpu size={14} />{t('empty.badge')}</span>
             <h1 className="empty-title">{t('empty.title')}</h1>
             <p className="empty-slogan">{t('empty.slogan')}</p>
             <div className="empty-divider">

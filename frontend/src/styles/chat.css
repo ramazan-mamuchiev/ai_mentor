@@ -264,7 +264,9 @@
 }
 
 .empty-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 16px;
   border-radius: 20px;
   font-size: 11px;
