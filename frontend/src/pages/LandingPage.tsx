@@ -147,12 +147,6 @@ export function LandingPage() {
             <ArrowRight size={16} />
           </Link>
         </div>
-        <p className="landing-hero-author">
-          {t('landing.hero.author')}{' '}
-          <a href={AUTHOR_LINKEDIN} target="_blank" rel="noopener noreferrer">
-            {t('landing.footer.author')}
-          </a>
-        </p>
       </section>
 
       {/* Elevator Pitch */}
