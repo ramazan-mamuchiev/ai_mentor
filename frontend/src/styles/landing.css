@@ -426,16 +426,6 @@
   color: #fff;
 }
 
-.landing-step:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 24px;
-  left: calc(50% + 28px);
-  width: calc(100% - 56px);
-  height: 2px;
-  background: var(--border);
-  z-index: 1;
-}
 
 .landing-step h4 {
   font-size: 14px;
@@ -533,10 +523,6 @@
 
   .landing-step {
     flex: 0 0 calc(33.33% - 12px);
-  }
-
-  .landing-step::after {
-    display: none;
   }
 }
 
@@ -645,10 +631,6 @@
 
   .landing-step h4 {
     margin-top: 0;
-  }
-
-  .landing-step::after {
-    display: none;
   }
 
   .landing-step-detail {
