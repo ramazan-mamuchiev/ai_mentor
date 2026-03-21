@@ -305,3 +305,55 @@ Server: save assistant message + sources to chat_messages table
 - **Language enforcement**: "CRITICAL: ALWAYS respond in the same language as the user's question" — top-level instruction
 - Source attribution: each answer references numbered sources that the user can verify
 - RAG debug info (search similarity, rewrite_ms, query rewrite result) available in response metadata
+
+---
+
+## Frontend Routing Flow
+
+```
+User opens http://82.38.66.177/ (or http://localhost/)
+        │
+        ▼
+nginx: try_files $uri $uri/ /index.html (SPA fallback)
+        │
+        ▼
+React app (main.tsx): BrowserRouter wraps <App />
+        │
+        ▼
+App.tsx: react-router-dom <Routes> resolves path:
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ PATH               │ COMPONENT      │ DESCRIPTION               │
+  │────────────────────┼────────────────┼───────────────────────────│
+  │ /                  │ LandingPage    │ Public marketing page     │
+  │ /app               │ ChatApp        │ Chat application (Layout) │
+  │ /app/documents     │ DocumentsPage  │ Document management (TBD) │
+  │ /app/products      │ ProductsPage   │ Products (TBD)            │
+  │ /app/analytics     │ AnalyticsPage  │ Analytics (TBD)           │
+  │ /app/settings      │ SettingsPage   │ Settings (TBD)            │
+  │ *                  │ Navigate to /  │ Fallback redirect         │
+  └─────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+LandingPage (/):
+  - Header with nav links (anchor scroll within page)
+  - Hero section with logo, slogan, CTA → /app
+  - Sections: Elevator Pitch, Why, Problems, Goals, How It Works
+  - Footer with copyright + author link
+  - i18n: all text via t('landing.*') keys
+  - Responsive: hamburger menu on mobile
+        │
+        ▼
+ChatApp (/app):
+  - Layout component: sidebar (sessions, nav, footer) + main area
+  - ChatWindow: messages, empty state with logo, SSE streaming
+  - FileUpload modal: TUS resumable upload
+  - Theme toggle (light/dark), language toggle (EN/RU)
+```
+
+**Key files:**
+- `frontend/src/main.tsx` — `BrowserRouter` wrapper
+- `frontend/src/App.tsx` — `Routes` definition
+- `frontend/src/pages/LandingPage.tsx` — marketing landing page
+- `frontend/src/pages/ChatApp.tsx` — chat application (extracted from original `App.tsx`)
+- `frontend/src/styles/landing.css` — landing page styles (responsive)
+- `frontend/nginx.conf` — `try_files` SPA fallback, `/api/` proxy to `api:8000`

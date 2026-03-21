@@ -31,6 +31,7 @@
   <img src="/logo-on-dark.svg" class="sidebar-icon logo-dark" />
   ```
 - **Empty state (чат)**: `frontend/src/components/ChatWindow.tsx` — 72×72px, с `drop-shadow`
+- **Landing hero**: `frontend/src/pages/LandingPage.tsx` — 80px, с `drop-shadow` glow, переключение по теме (✅ реализовано)
 - **Promo**: `promo/comparison.html`, `promo/ipcodex.html` — inline SVG, 72×80px / 88px
 
 ### Правила
@@ -549,7 +550,7 @@ background: var(--surface-hover);
 
 IPCodex — **публичный коммерческий SaaS-продукт**. Copyright обязателен.
 
-### Лендинг footer
+### Лендинг footer ✅
 
 ```
 © 2026 IPCodex · by Aleh Vaitsekhovich
@@ -558,6 +559,8 @@ IPCodex — **публичный коммерческий SaaS-продукт**.
 Где "Aleh Vaitsekhovich" — кликабельная ссылка на LinkedIn:
 `https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/`
 (`target="_blank"`, `rel="noopener noreferrer"`)
+
+Реализовано в `frontend/src/pages/LandingPage.tsx`.
 
 ### App sidebar footer
 
@@ -602,8 +605,8 @@ color: var(--text-muted);
 frontend/src/styles/
   globals.css      — CSS-переменные, reset, scrollbar, base styles
   chat.css         — Sidebar, layout, messages, input, sources, debug, file upload, code blocks
-  landing.css      — Лендинг: header, hero, секции, карточки, steps, footer, responsive
-  documents.css    — (NEW) Таблица документов, статус-бейджи, прогресс-бары, reindex panel, navigation tabs
+  landing.css      — ✅ Лендинг: header, hero, секции, карточки, steps, footer, responsive
+  documents.css    — (Planned) Таблица документов, статус-бейджи, прогресс-бары, reindex panel, navigation tabs
 ```
 
 ### Правила
@@ -671,15 +674,15 @@ frontend/src/styles/
 
 ### Структура роутов
 
-| Путь | Компонент | Описание |
-|------|-----------|----------|
-| `/` | `LandingPage` | Публичный лендинг (маркетинговая страница) |
-| `/app` | `ChatApp` | Основное приложение (Chat) |
-| `/app/documents` | `DocumentsPage` | Управление документами (будущее) |
-| `/app/products` | `ProductsPage` | Продукты (заглушка) |
-| `/app/analytics` | `AnalyticsPage` | Аналитика (заглушка) |
-| `/app/settings` | `SettingsPage` | Настройки (заглушка) |
-| `*` | Redirect → `/` | Fallback |
+| Путь | Компонент | Описание | Статус |
+|------|-----------|----------|:------:|
+| `/` | `LandingPage` | Публичный лендинг (маркетинговая страница) | ✅ |
+| `/app` | `ChatApp` | Основное приложение (Chat) | ✅ |
+| `/app/documents` | `DocumentsPage` | Управление документами | Planned |
+| `/app/products` | `ProductsPage` | Продукты (заглушка) | Planned |
+| `/app/analytics` | `AnalyticsPage` | Аналитика (заглушка) | Planned |
+| `/app/settings` | `SettingsPage` | Настройки (заглушка) | Planned |
+| `*` | Redirect → `/` | Fallback | ✅ |
 
 ### Файловая структура
 

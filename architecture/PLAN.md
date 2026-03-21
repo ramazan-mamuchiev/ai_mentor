@@ -373,11 +373,14 @@ ipcodex/
 
   frontend/
     src/
-      components/            # ChatWindow, FileUpload, SessionList, MarkdownRenderer, etc.
+      pages/                 # ✅ LandingPage, ChatApp (route-level components)
+      components/            # ChatWindow, FileUpload, SessionList, Layout, etc.
       hooks/                 # useChat (SSE streaming), useTheme
       api/                   # HTTP client, chat API
       locales/               # en.json, ru.json (i18n)
-      styles/                # globals.css, chat.css (light/dark theme)
+      styles/                # globals.css, chat.css, landing.css
+      App.tsx                # Router (react-router-dom Routes)
+      main.tsx               # BrowserRouter + App
     package.json
     vite.config.ts
 
@@ -419,6 +422,8 @@ ipcodex/
 | Monitoring | Grafana 11.6 + Loki 3.4 + Promtail 3.4 | ✅ |
 | Logging | structlog (JSON) + request_id middleware | ✅ |
 | Frontend | React + TypeScript + Vite | ✅ |
+| Routing | react-router-dom v7 (`/` landing, `/app` chat) | ✅ |
+| Landing Page | Marketing page with i18n, responsive design | ✅ |
 | Internationalization | i18next + react-i18next (en, ru) | ✅ |
 | Theme | Light/dark theme (CSS variables + data-theme) | ✅ |
 | File Integrity | hashlib SHA-256 (incremental during TUS upload) | ✅ |
@@ -457,6 +462,7 @@ ipcodex/
 | 6h | Monitoring: Grafana + Loki + Promtail (9 dashboards, 8 alerts) | ✅ | `monitoring/` |
 | 6i | Request logging middleware | ✅ | `middleware/request_logging.py` |
 | 6j | Frontend: React SPA (chat, upload, i18n, dark/light theme) | ✅ | `frontend/src/` |
+| 6k | Landing page + react-router-dom routing (`/` landing, `/app` chat) | ✅ | `pages/LandingPage.tsx`, `pages/ChatApp.tsx`, `styles/landing.css`, `App.tsx` |
 
 ### Phase 2 — API + MCP + IDE Integration (partially done)
 
@@ -535,7 +541,7 @@ Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scali
 
 ### Technical
 - [ ] Reranking strategy: cross-encoder model selection for top-N reranking
-- [x] ~~Web UI technology: React + TypeScript SPA vs Next.js~~ → React + TypeScript SPA + Vite
+- [x] ~~Web UI technology: React + TypeScript SPA vs Next.js~~ → React + TypeScript SPA + Vite. Landing page: custom React page with i18n, responsive design, deployed at `/`; app at `/app` via react-router-dom v7
 - [ ] On-premise deployment: Helm chart for Kubernetes
 - [x] ~~Monitoring: Prometheus + Grafana vs cloud-native~~ → Grafana + Loki + Promtail (log-based, see [MONITORING.md](MONITORING.md))
 - [ ] CDN for static assets and S3 presigned URLs

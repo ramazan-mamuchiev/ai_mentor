@@ -124,7 +124,7 @@ services:
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
 ```
 
-### Service URLs
+### Service URLs (Local)
 
 | Service | URL | Description |
 |---------|-----|-------------|
@@ -136,11 +136,72 @@ services:
 | MinIO | http://localhost:9001 | Object storage console |
 | Ollama | http://localhost:11434 | LLM API |
 
+### Service URLs (Staging VPS)
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Web UI + Landing | http://82.38.66.177 | Landing (`/`) + App (`/app`) via nginx |
+| API | http://82.38.66.177/api/ | Proxied to api:8000 by nginx |
+
 ### Planned Docker Compose (Production)
 
 ```yaml
 # docker-compose.prod.yml — not yet implemented
 # Will add: replicas, resource limits, ClamAV, Stripe webhooks, production logging
+```
+
+---
+
+## VPS Deployment (Staging / Demo)
+
+Current staging environment for testing and demos.
+
+### Server
+
+| Parameter | Value |
+|-----------|-------|
+| IP | `82.38.66.177` |
+| OS | Ubuntu (Docker pre-installed) |
+| Access | `ssh root@82.38.66.177` |
+| Project path | `/opt/ipcodex` |
+| Repository | `https://github.com/olegvphoenix/ipcodex.git` (branch: `main`) |
+
+### Running Services
+
+| Service | Status |
+|---------|:------:|
+| web (nginx + React SPA) | ✅ |
+| api (FastAPI + uvicorn) | ✅ |
+| postgres (pgvector) | ✅ |
+| redis | ✅ |
+| minio | ✅ |
+
+Monitoring stack (Loki, Promtail, Grafana) and Ollama are not deployed on staging VPS.
+
+### Deploy Commands
+
+**Full stack rebuild (backend + frontend):**
+
+```bash
+ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api web && docker compose up -d api worker web"
+```
+
+**Frontend only:**
+
+```bash
+ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build web && docker compose up -d web"
+```
+
+**Backend only:**
+
+```bash
+ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api && docker compose up -d api worker"
+```
+
+**View logs:**
+
+```bash
+ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose logs -f web api"
 ```
 
 ---
