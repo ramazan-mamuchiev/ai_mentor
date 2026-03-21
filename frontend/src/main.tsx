@@ -5,6 +5,7 @@ import './i18n'
 import App from './App'
 import './styles/globals.css'
 import './styles/chat.css'
+import './styles/documents.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -91,3 +91,52 @@ export type SSEEvent =
   | { type: 'error'; error_code: string; status_code?: number }
 
 export type StreamStatus = 'idle' | 'streaming' | 'error'
+
+export type DocumentStatusValue = 'pending' | 'processing' | 'ready' | 'error'
+
+export interface DocumentListItem {
+  id: number
+  title: string
+  format: string
+  status: DocumentStatusValue
+  original_filename: string
+  file_size_bytes: number
+  total_chunks: number
+  product_name: string | null
+  firmware_version: string | null
+  ingested_at: string | null
+}
+
+export interface DocumentDownload {
+  document_id: number
+  original_filename: string
+  download_url: string
+  expires_in_seconds: number
+}
+
+export type ReindexMode = 'reingest' | 'reembed'
+export type ReindexStatus = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed'
+
+export interface ReindexJob {
+  id: number
+  mode: ReindexMode
+  status: ReindexStatus
+  product_filter: string | null
+  format_filter: string | null
+  total_documents: number
+  processed_documents: number
+  failed_documents: number
+  skipped_documents: number
+  total_chunks: number
+  progress_percent: number
+  error_message: string | null
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+  is_stale: boolean
+}
+
+export interface ReindexJobList {
+  jobs: ReindexJob[]
+  total: number
+}

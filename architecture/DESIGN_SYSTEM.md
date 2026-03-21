@@ -500,11 +500,11 @@ IPCodex — публичный коммерческий SaaS-продукт. Sid
 
 | Иконка (lucide-react) | Раздел | `activePage` value | Статус |
 |---|---|---|---|
-| `MessageSquare` | Chat | `'chat'` | Работает |
-| `FileText` | Documents | `'documents'` | Реализуем |
-| `Box` | Products | `'products'` | Заглушка (Coming Soon) |
-| `BarChart3` | Analytics | `'analytics'` | Заглушка (Coming Soon) |
-| `Settings` | Settings | `'settings'` | Заглушка (Coming Soon) |
+| `MessageSquare` | Chat | `'chat'` | ✅ |
+| `FileText` | Documents | `'documents'` | ✅ |
+| `Box` | Products | `'products'` | ✅ Заглушка |
+| `BarChart3` | Analytics | `'analytics'` | ✅ Заглушка |
+| `Settings` | Settings | `'settings'` | ✅ Заглушка |
 
 ### Стиль навигационных пунктов
 
@@ -606,7 +606,7 @@ frontend/src/styles/
   globals.css      — CSS-переменные, reset, scrollbar, base styles
   chat.css         — Sidebar, layout, messages, input, sources, debug, file upload, code blocks
   landing.css      — ✅ Лендинг: header, hero, секции, карточки, steps, footer, responsive
-  documents.css    — (Planned) Таблица документов, статус-бейджи, прогресс-бары, reindex panel, navigation tabs
+  documents.css    — ✅ Навигация sidebar, таблица документов, статус-бейджи, карточки (mobile), stub-pages, responsive
 ```
 
 ### Правила
@@ -678,10 +678,10 @@ frontend/src/styles/
 |------|-----------|----------|:------:|
 | `/` | `LandingPage` | Публичный лендинг (маркетинговая страница) | ✅ |
 | `/app` | `ChatApp` | Основное приложение (Chat) | ✅ |
-| `/app/documents` | `DocumentsPage` | Управление документами | Planned |
-| `/app/products` | `ProductsPage` | Продукты (заглушка) | Planned |
-| `/app/analytics` | `AnalyticsPage` | Аналитика (заглушка) | Planned |
-| `/app/settings` | `SettingsPage` | Настройки (заглушка) | Planned |
+| `/app/documents` | `DocumentsPage` | Управление документами | ✅ |
+| `/app/products` | `ProductsPage` | Продукты (заглушка) | ✅ |
+| `/app/analytics` | `AnalyticsPage` | Аналитика (заглушка) | ✅ |
+| `/app/settings` | `SettingsPage` | Настройки (заглушка) | ✅ |
 | `*` | Redirect → `/` | Fallback | ✅ |
 
 ### Файловая структура
@@ -691,10 +691,10 @@ frontend/src/
   pages/
     LandingPage.tsx    — Публичный лендинг
     ChatApp.tsx        — Основное приложение (бывший App.tsx)
-    DocumentsPage.tsx  — (будущее) Управление документами
-    ProductsPage.tsx   — (будущее) Заглушка
-    AnalyticsPage.tsx  — (будущее) Заглушка
-    SettingsPage.tsx   — (будущее) Заглушка
+    DocumentsPage.tsx  — ✅ Управление документами (таблица, статусы, действия, empty state)
+    ProductsPage.tsx   — ✅ Заглушка (Coming Soon)
+    AnalyticsPage.tsx  — ✅ Заглушка (Coming Soon)
+    SettingsPage.tsx   — ✅ Заглушка (Coming Soon)
   App.tsx              — Роутер (Routes)
   main.tsx             — BrowserRouter + App
 ```

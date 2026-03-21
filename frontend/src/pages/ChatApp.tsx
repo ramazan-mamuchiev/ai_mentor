@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { createSession, deleteSession, getSession, listSessions } from '../api/chat'
 import { ChatWindow } from '../components/ChatWindow'
 import { FileUpload } from '../components/FileUpload'
@@ -6,6 +7,10 @@ import { Layout } from '../components/Layout'
 import { useChat } from '../hooks/useChat'
 import { useTheme } from '../hooks/useTheme'
 import type { ChatSession } from '../types'
+import { DocumentsPage } from './DocumentsPage'
+import { ProductsPage } from './ProductsPage'
+import { AnalyticsPage } from './AnalyticsPage'
+import { SettingsPage } from './SettingsPage'
 
 export function ChatApp() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -83,6 +88,28 @@ export function ChatApp() {
     refreshSessions()
   }, [activeSessionId, sendMessage, setMessages, refreshSessions])
 
+  const chatContent = (
+    <ChatWindow
+      messages={messages}
+      streamingContent={streamingContent}
+      streamingSources={streamingSources}
+      status={status}
+      onSend={handleSend}
+      onCancel={cancel}
+      onRetry={activeSessionId
+        ? () => retryLast(activeSessionId)
+        : messages.length > 0
+          ? () => {
+              const userMsg = [...messages].reverse().find(m => m.role === 'user')
+              if (userMsg) { setMessages([]); handleSend(userMsg.content) }
+            }
+          : undefined
+      }
+      editValue={lastUserPrompt}
+      onUploadClick={() => setShowUpload(true)}
+    />
+  )
+
   return (
     <Layout
       sessions={sessions}
@@ -93,25 +120,14 @@ export function ChatApp() {
       onDeleteSession={handleDeleteSession}
       onToggleTheme={toggleTheme}
     >
-      <ChatWindow
-        messages={messages}
-        streamingContent={streamingContent}
-        streamingSources={streamingSources}
-        status={status}
-        onSend={handleSend}
-        onCancel={cancel}
-        onRetry={activeSessionId
-          ? () => retryLast(activeSessionId)
-          : messages.length > 0
-            ? () => {
-                const userMsg = [...messages].reverse().find(m => m.role === 'user')
-                if (userMsg) { setMessages([]); handleSend(userMsg.content) }
-              }
-            : undefined
-        }
-        editValue={lastUserPrompt}
-        onUploadClick={() => setShowUpload(true)}
-      />
+      <Routes>
+        <Route index element={chatContent} />
+        <Route path="documents" element={<DocumentsPage onUploadClick={() => setShowUpload(true)} />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/app" replace />} />
+      </Routes>
       {showUpload && (
         <FileUpload
           onClose={() => setShowUpload(false)}

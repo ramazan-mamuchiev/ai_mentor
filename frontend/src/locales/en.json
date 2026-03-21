@@ -180,5 +180,57 @@
 
   "landing.footer.copyright": "© 2026 IPCodex",
   "landing.footer.by": "by",
-  "landing.footer.author": "Aleh Vaitsekhovich"
+  "landing.footer.author": "Aleh Vaitsekhovich",
+
+  "nav.chat": "Chat",
+  "nav.documents": "Documents",
+  "nav.products": "Products",
+  "nav.analytics": "Analytics",
+  "nav.settings": "Settings",
+
+  "docs.title": "Documents",
+  "docs.upload": "Upload",
+  "docs.empty.title": "No documents yet",
+  "docs.empty.description": "Upload documentation to get started — PDF, Markdown, Swagger, archives.",
+  "docs.empty.cta": "Upload Document",
+  "docs.table.name": "Name",
+  "docs.table.format": "Format",
+  "docs.table.status": "Status",
+  "docs.table.size": "Size",
+  "docs.table.chunks": "Chunks",
+  "docs.table.product": "Product",
+  "docs.table.date": "Date",
+  "docs.table.actions": "Actions",
+  "docs.status.pending": "Pending",
+  "docs.status.processing": "Processing",
+  "docs.status.ready": "Ready",
+  "docs.status.error": "Error",
+  "docs.actions.download": "Download",
+  "docs.actions.reindex": "Reindex",
+  "docs.actions.delete": "Delete",
+  "docs.actions.confirmDelete": "Delete this document?",
+  "docs.format.markdown": "Markdown",
+  "docs.format.swagger": "Swagger",
+  "docs.format.pdf": "PDF",
+  "docs.format.web": "Web",
+  "docs.format.proto": "Proto",
+  "docs.format.postman": "Postman",
+
+  "reindex.title": "Reindex Jobs",
+  "reindex.start": "Start Reindex",
+  "reindex.cancel": "Cancel",
+  "reindex.mode.reingest": "Full re-ingest",
+  "reindex.mode.reembed": "Re-embed only",
+
+  "products.title": "Products",
+  "products.description": "Manage your product catalog — devices, firmware versions, and documentation sets.",
+  "products.comingSoon": "Coming Soon",
+
+  "analytics.title": "Analytics",
+  "analytics.description": "Search analytics, usage metrics, and documentation quality insights.",
+  "analytics.comingSoon": "Coming Soon",
+
+  "settings.title": "Settings",
+  "settings.description": "API keys, team management, billing, and integration settings.",
+  "settings.comingSoon": "Coming Soon"
 }

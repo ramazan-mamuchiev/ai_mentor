@@ -180,5 +180,57 @@
 
   "landing.footer.copyright": "© 2026 IPCodex",
   "landing.footer.by": "от",
-  "landing.footer.author": "Aleh Vaitsekhovich"
+  "landing.footer.author": "Aleh Vaitsekhovich",
+
+  "nav.chat": "Чат",
+  "nav.documents": "Документы",
+  "nav.products": "Продукты",
+  "nav.analytics": "Аналитика",
+  "nav.settings": "Настройки",
+
+  "docs.title": "Документы",
+  "docs.upload": "Загрузить",
+  "docs.empty.title": "Документов пока нет",
+  "docs.empty.description": "Загрузите документацию — PDF, Markdown, Swagger, архивы.",
+  "docs.empty.cta": "Загрузить документ",
+  "docs.table.name": "Название",
+  "docs.table.format": "Формат",
+  "docs.table.status": "Статус",
+  "docs.table.size": "Размер",
+  "docs.table.chunks": "Чанки",
+  "docs.table.product": "Продукт",
+  "docs.table.date": "Дата",
+  "docs.table.actions": "Действия",
+  "docs.status.pending": "Ожидание",
+  "docs.status.processing": "Обработка",
+  "docs.status.ready": "Готов",
+  "docs.status.error": "Ошибка",
+  "docs.actions.download": "Скачать",
+  "docs.actions.reindex": "Переиндексировать",
+  "docs.actions.delete": "Удалить",
+  "docs.actions.confirmDelete": "Удалить этот документ?",
+  "docs.format.markdown": "Markdown",
+  "docs.format.swagger": "Swagger",
+  "docs.format.pdf": "PDF",
+  "docs.format.web": "Веб",
+  "docs.format.proto": "Proto",
+  "docs.format.postman": "Postman",
+
+  "reindex.title": "Задачи переиндексации",
+  "reindex.start": "Запустить переиндексацию",
+  "reindex.cancel": "Отменить",
+  "reindex.mode.reingest": "Полная переобработка",
+  "reindex.mode.reembed": "Только пересоздание эмбеддингов",
+
+  "products.title": "Продукты",
+  "products.description": "Управление каталогом продуктов — устройства, версии прошивок и наборы документации.",
+  "products.comingSoon": "Скоро",
+
+  "analytics.title": "Аналитика",
+  "analytics.description": "Аналитика поиска, метрики использования и качество документации.",
+  "analytics.comingSoon": "Скоро",
+
+  "settings.title": "Настройки",
+  "settings.description": "API-ключи, управление командой, биллинг и настройки интеграции.",
+  "settings.comingSoon": "Скоро"
 }

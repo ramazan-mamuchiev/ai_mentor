@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { SquarePen } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { SquarePen, MessageSquare, FileText, Box, BarChart3, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 import { LanguageToggle } from './LanguageToggle'
@@ -21,6 +22,14 @@ function loadWidth(): number {
   } catch { /* ignore */ }
   return DEFAULT_WIDTH
 }
+
+const NAV_ITEMS = [
+  { path: '/app', icon: MessageSquare, labelKey: 'nav.chat' },
+  { path: '/app/documents', icon: FileText, labelKey: 'nav.documents' },
+  { path: '/app/products', icon: Box, labelKey: 'nav.products' },
+  { path: '/app/analytics', icon: BarChart3, labelKey: 'nav.analytics' },
+  { path: '/app/settings', icon: Settings, labelKey: 'nav.settings' },
+] as const
 
 interface Props {
   sessions: ChatSession[]
@@ -47,6 +56,10 @@ export function Layout({
   const dragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const isChat = location.pathname === '/app' || location.pathname === '/app/'
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
@@ -88,21 +101,46 @@ export function Layout({
             <img src="/logo-on-dark.svg" alt={t('sidebar.title')} className="sidebar-icon logo-dark" />
             <span className="sidebar-title">{t('sidebar.title')}</span>
           </div>
-          <button
-            className="new-chat-btn"
-            onClick={onNewSession}
-            aria-label={t('sidebar.newChat')}
-          >
-            <SquarePen size={18} />
-          </button>
+          {isChat && (
+            <button
+              className="new-chat-btn"
+              onClick={onNewSession}
+              aria-label={t('sidebar.newChat')}
+            >
+              <SquarePen size={18} />
+            </button>
+          )}
         </div>
-        <SessionList
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onSelect={onSelectSession}
-          onNew={onNewSession}
-          onDelete={onDeleteSession}
-        />
+
+        <nav className="sidebar-nav">
+          {NAV_ITEMS.map(item => {
+            const Icon = item.icon
+            const active = item.path === '/app'
+              ? isChat
+              : location.pathname.startsWith(item.path)
+            return (
+              <button
+                key={item.path}
+                className={`nav-item${active ? ' nav-item--active' : ''}`}
+                onClick={() => navigate(item.path)}
+              >
+                <Icon size={18} />
+                {t(item.labelKey)}
+              </button>
+            )
+          })}
+        </nav>
+
+        {isChat && (
+          <SessionList
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelect={onSelectSession}
+            onNew={onNewSession}
+            onDelete={onDeleteSession}
+          />
+        )}
+
         <div className="sidebar-footer">
           <LanguageToggle />
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
