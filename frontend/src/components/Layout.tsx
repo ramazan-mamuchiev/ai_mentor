@@ -1,26 +1,37 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { SquarePen, MessageSquare, FileText, Box, BarChart3, Settings } from 'lucide-react'
+import {
+  SquarePen, MessageSquare, FileText, Box, BarChart3, Settings,
+  PanelLeftClose, PanelLeftOpen,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 import { LanguageToggle } from './LanguageToggle'
 import { SessionList } from './SessionList'
 import { ThemeToggle } from './ThemeToggle'
 
-const STORAGE_KEY = 'ipcodex-sidebar-width'
+const WIDTH_KEY = 'ipcodex-sidebar-width'
+const COLLAPSED_KEY = 'ipcodex-sidebar-collapsed'
 const DEFAULT_WIDTH = 280
 const MIN_WIDTH = 180
 const MAX_WIDTH = 600
+const COLLAPSED_WIDTH = 56
 
 function loadWidth(): number {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(WIDTH_KEY)
     if (stored) {
       const n = parseInt(stored, 10)
       if (!isNaN(n) && n >= MIN_WIDTH && n <= MAX_WIDTH) return n
     }
   } catch { /* ignore */ }
   return DEFAULT_WIDTH
+}
+
+function loadCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === 'true'
+  } catch { return false }
 }
 
 const NAV_ITEMS = [
@@ -53,6 +64,7 @@ export function Layout({
   children,
 }: Props) {
   const [sidebarWidth, setSidebarWidth] = useState(loadWidth)
+  const [collapsed, setCollapsed] = useState(loadCollapsed)
   const dragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -61,7 +73,16 @@ export function Layout({
 
   const isChat = location.pathname === '/app' || location.pathname === '/app/'
 
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed(prev => {
+      const next = !prev
+      try { localStorage.setItem(COLLAPSED_KEY, String(next)) } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (collapsed) return
     e.preventDefault()
     dragging.current = true
     startX.current = e.clientX
@@ -70,7 +91,7 @@ export function Layout({
     document.body.style.userSelect = 'none'
     const target = e.target as HTMLElement
     target.setPointerCapture?.(e.pointerId)
-  }, [sidebarWidth])
+  }, [sidebarWidth, collapsed])
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return
@@ -87,32 +108,55 @@ export function Layout({
   }, [])
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, String(sidebarWidth)) } catch { /* ignore */ }
-  }, [sidebarWidth])
+    if (!collapsed) {
+      try { localStorage.setItem(WIDTH_KEY, String(sidebarWidth)) } catch { /* ignore */ }
+    }
+  }, [sidebarWidth, collapsed])
+
+  const handleNewChat = useCallback(() => {
+    if (!isChat) navigate('/app')
+    onNewSession()
+  }, [isChat, navigate, onNewSession])
 
   const { t } = useTranslation()
 
+  const effectiveWidth = collapsed ? COLLAPSED_WIDTH : sidebarWidth
+
   return (
     <div className="app-layout">
-      <aside className="sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
+      <aside
+        className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}
+        style={{ width: effectiveWidth, minWidth: effectiveWidth }}
+      >
         <div className="sidebar-header">
-          <div className="sidebar-header-left">
-            <img src="/logo-on-light.svg" alt={t('sidebar.title')} className="sidebar-icon logo-light" />
-            <img src="/logo-on-dark.svg" alt={t('sidebar.title')} className="sidebar-icon logo-dark" />
-            <span className="sidebar-title">{t('sidebar.title')}</span>
-          </div>
-          {isChat && (
-            <button
-              className="new-chat-btn"
-              onClick={onNewSession}
-              aria-label={t('sidebar.newChat')}
-            >
-              <SquarePen size={18} />
-            </button>
+          {!collapsed && (
+            <div className="sidebar-header-left">
+              <img src="/logo-on-light.svg" alt={t('sidebar.title')} className="sidebar-icon logo-light" />
+              <img src="/logo-on-dark.svg" alt={t('sidebar.title')} className="sidebar-icon logo-dark" />
+              <span className="sidebar-title">{t('sidebar.title')}</span>
+            </div>
           )}
+          <button
+            className="sidebar-toggle-btn"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
         </div>
 
         <nav className="sidebar-nav">
+          <button
+            className="nav-item nav-item--new-chat"
+            onClick={handleNewChat}
+            title={collapsed ? t('sidebar.newChat') : undefined}
+          >
+            <SquarePen size={18} />
+            {!collapsed && t('sidebar.newChat')}
+          </button>
+
+          <div className="nav-divider" />
+
           {NAV_ITEMS.map(item => {
             const Icon = item.icon
             const active = item.path === '/app'
@@ -123,15 +167,16 @@ export function Layout({
                 key={item.path}
                 className={`nav-item${active ? ' nav-item--active' : ''}`}
                 onClick={() => navigate(item.path)}
+                title={collapsed ? t(item.labelKey) : undefined}
               >
                 <Icon size={18} />
-                {t(item.labelKey)}
+                {!collapsed && t(item.labelKey)}
               </button>
             )
           })}
         </nav>
 
-        {isChat && (
+        {!collapsed && isChat ? (
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -139,6 +184,8 @@ export function Layout({
             onNew={onNewSession}
             onDelete={onDeleteSession}
           />
+        ) : (
+          <div className="sidebar-spacer" />
         )}
 
         <div className="sidebar-footer">
@@ -146,13 +193,15 @@ export function Layout({
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </aside>
-      <div
-        className="splitter"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      />
+      {!collapsed && (
+        <div
+          className="splitter"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        />
+      )}
       {children}
     </div>
   )

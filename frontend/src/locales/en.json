@@ -79,6 +79,8 @@
 
   "sidebar.newChat": "New chat",
   "sidebar.title": "IPCodex",
+  "sidebar.collapse": "Collapse sidebar",
+  "sidebar.expand": "Expand sidebar",
 
   "session.newChat": "New Chat",
   "session.rename": "Rename",

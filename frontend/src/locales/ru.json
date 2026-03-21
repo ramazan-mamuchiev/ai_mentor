@@ -79,6 +79,8 @@
 
   "sidebar.newChat": "Новый чат",
   "sidebar.title": "IPCodex",
+  "sidebar.collapse": "Свернуть панель",
+  "sidebar.expand": "Развернуть панель",
 
   "session.newChat": "Новый чат",
   "session.rename": "Переименовать",

@@ -71,7 +71,7 @@
   background-clip: text;
 }
 
-.new-chat-btn {
+.sidebar-toggle-btn {
   width: 34px;
   height: 34px;
   display: flex;
@@ -86,9 +86,36 @@
   cursor: pointer;
 }
 
-.new-chat-btn:hover {
+.sidebar-toggle-btn:hover {
   background: var(--surface-hover);
   color: var(--text);
+}
+
+/* ── Collapsed sidebar ── */
+.sidebar--collapsed {
+  transition: width 0.2s ease, min-width 0.2s ease;
+}
+
+.sidebar--collapsed .sidebar-header {
+  justify-content: center;
+  padding: 10px 0 2px;
+}
+
+.sidebar--collapsed .sidebar-nav {
+  padding: 6px 4px;
+  align-items: center;
+}
+
+.sidebar--collapsed .nav-item {
+  justify-content: center;
+  padding: 8px;
+  width: auto;
+}
+
+.sidebar--collapsed .sidebar-footer {
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 4px;
 }
 
 .session-list {
@@ -104,14 +131,14 @@
 }
 
 .session-item {
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-secondary);
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
   position: relative;
 }
 
@@ -120,10 +147,12 @@
 }
 
 .session-item.active {
-  background: var(--surface-hover);
-  color: var(--text);
-  border-left: 2.5px solid var(--accent);
-  font-weight: 500;
+  background: rgba(37, 99, 235, 0.07);
+  color: var(--accent);
+}
+
+[data-theme='dark'] .session-item.active {
+  background: rgba(96, 165, 250, 0.1);
 }
 
 .session-item-title {
@@ -1070,7 +1099,7 @@
 }
 
 .file-upload-modal {
-  background: var(--bg-primary);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 12px;
   width: 480px;
@@ -1104,8 +1133,8 @@
 }
 
 .file-upload-close:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .file-upload-dropzone {
@@ -1122,7 +1151,7 @@
 .file-upload-dropzone:hover,
 .file-upload-dropzone.dragover {
   border-color: var(--accent);
-  background: var(--bg-hover);
+  background: var(--surface-hover);
   color: var(--accent);
 }
 
@@ -1194,8 +1223,8 @@
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: var(--bg);
+  color: var(--text);
   font-size: 14px;
 }
 
@@ -1284,14 +1313,14 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-secondary);
-  color: var(--text-primary);
+  color: var(--text);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .file-upload-btn:hover {
-  background: var(--bg-hover);
+  background: var(--surface-hover);
 }
 
 .file-upload-btn-danger {
@@ -1375,7 +1404,7 @@
 }
 
 .message-content tbody tr:hover {
-  background: var(--bg-hover, #eef2ff);
+  background: var(--surface-hover);
 }
 
 .message-content td code {

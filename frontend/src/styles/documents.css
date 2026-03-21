@@ -1,3 +1,8 @@
+/* ── Sidebar Spacer (pushes footer to bottom when SessionList is hidden) ── */
+.sidebar-spacer {
+  flex: 1;
+}
+
 /* ── Sidebar Navigation ── */
 .sidebar-nav {
   padding: 6px 8px;
@@ -23,6 +28,8 @@
   width: 100%;
   text-align: left;
   font-family: var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .nav-item:hover {
@@ -32,7 +39,18 @@
 .nav-item--active {
   background: var(--surface-hover);
   color: var(--text);
-  border-left: 2.5px solid var(--accent);
+  border-left: 2.5px solid var(--accent2);
+}
+
+.nav-item--new-chat {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
 }
 
 /* ── Documents Page ── */
