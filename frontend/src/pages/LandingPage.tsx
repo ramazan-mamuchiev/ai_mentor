@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -22,6 +22,7 @@ import {
   Sun,
   Moon,
   Globe,
+  Rocket,
 } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
 import '../styles/landing.css'
@@ -48,29 +49,46 @@ export function LandingPage() {
     i18n.changeLanguage(next)
   }
 
-  const scrollTo = (id: string) => {
+  const scrollTo = useCallback((id: string) => {
     setMobileMenuOpen(false)
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-  }
+    setTimeout(() => {
+      const el = document.getElementById(id)
+      if (el) {
+        const headerHeight = 64
+        const y = el.getBoundingClientRect().top + window.scrollY - headerHeight
+        window.scrollTo({ top: y, behavior: 'smooth' })
+      }
+    }, 10)
+  }, [])
+
+  const handleAnchorClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    scrollTo(id)
+  }, [scrollTo])
 
   return (
     <div className="landing">
       {/* Header */}
       <header className="landing-header">
-        <a href="#" className="landing-header-logo" onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
+        <a
+          href="/"
+          className="landing-header-logo"
+          onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+        >
           <img src="/logo-on-light.svg" alt="IPCodex" className="logo-light" />
           <img src="/logo-on-dark.svg" alt="IPCodex" className="logo-dark" />
           <span>IPCodex</span>
         </a>
 
         <nav className="landing-nav">
-          <a href="#problems" onClick={e => { e.preventDefault(); scrollTo('problems') }}>
+          <a href="#problems" onClick={e => handleAnchorClick(e, 'problems')}>
             {t('landing.nav.problems')}
           </a>
-          <a href="#goals" onClick={e => { e.preventDefault(); scrollTo('goals') }}>
+          <a href="#goals" onClick={e => handleAnchorClick(e, 'goals')}>
             {t('landing.nav.goals')}
           </a>
-          <a href="#how-it-works" onClick={e => { e.preventDefault(); scrollTo('how-it-works') }}>
+          <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
             {t('landing.nav.howItWorks')}
           </a>
         </nav>
@@ -98,13 +116,13 @@ export function LandingPage() {
 
       {/* Mobile nav overlay */}
       <div className={`landing-mobile-nav${mobileMenuOpen ? ' open' : ''}`}>
-        <a href="#problems" onClick={e => { e.preventDefault(); scrollTo('problems') }}>
+        <a href="#problems" onClick={e => handleAnchorClick(e, 'problems')}>
           {t('landing.nav.problems')}
         </a>
-        <a href="#goals" onClick={e => { e.preventDefault(); scrollTo('goals') }}>
+        <a href="#goals" onClick={e => handleAnchorClick(e, 'goals')}>
           {t('landing.nav.goals')}
         </a>
-        <a href="#how-it-works" onClick={e => { e.preventDefault(); scrollTo('how-it-works') }}>
+        <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
           {t('landing.nav.howItWorks')}
         </a>
         <Link to="/app" className="landing-btn-primary" style={{ marginTop: 12, justifyContent: 'center' }}>
@@ -137,8 +155,19 @@ export function LandingPage() {
         </p>
       </section>
 
-      {/* Why This Matters */}
+      {/* Elevator Pitch */}
       <section className="landing-section">
+        <div className="landing-elevator">
+          <span className="landing-elevator-label">
+            <Rocket size={14} />
+            {t('landing.elevator.label')}
+          </span>
+          <p dangerouslySetInnerHTML={{ __html: t('landing.elevator.text') }} />
+        </div>
+      </section>
+
+      {/* Why This Matters */}
+      <section className="landing-section" id="why">
         <h2 className="landing-section-title">{t('landing.why.title')}</h2>
         <p className="landing-section-text">{t('landing.why.text')}</p>
       </section>
@@ -206,8 +235,14 @@ export function LandingPage() {
         </div>
 
         <div className="landing-step-detail">
-          <h4>{t(`landing.howItWorks.${STEP_KEYS[activeStep]}.title`)}</h4>
+          <h4>
+            {t('landing.howItWorks.step', { defaultValue: 'Step' })} {activeStep + 1}:{' '}
+            {t(`landing.howItWorks.${STEP_KEYS[activeStep]}.title`)}
+          </h4>
           <p>{t(`landing.howItWorks.${STEP_KEYS[activeStep]}.text`)}</p>
+          <pre className="landing-code-block">
+            <code>{t(`landing.howItWorks.${STEP_KEYS[activeStep]}.code`)}</code>
+          </pre>
         </div>
       </section>
 

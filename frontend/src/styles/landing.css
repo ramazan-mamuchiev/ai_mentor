@@ -259,6 +259,44 @@
   color: var(--accent);
 }
 
+/* --- Elevator Pitch --- */
+.landing-elevator {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 32px 40px;
+  text-align: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  position: relative;
+}
+
+.landing-elevator-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.landing-elevator p {
+  font-size: 18px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.landing-elevator p strong {
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 600;
+}
+
 /* --- Sections --- */
 .landing-section {
   padding: 80px 24px;
@@ -431,6 +469,26 @@
   color: var(--text-secondary);
 }
 
+/* Code block inside step detail */
+.landing-code-block {
+  margin-top: 20px;
+  padding: 20px 24px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre;
+}
+
+[data-theme='dark'] .landing-code-block {
+  background: #0d1117;
+  border-color: #30363d;
+}
+
 /* --- Footer --- */
 .landing-footer {
   padding: 32px 24px;
@@ -531,6 +589,14 @@
   .landing-hero-cta .landing-btn-secondary {
     width: 100%;
     justify-content: center;
+  }
+
+  .landing-elevator {
+    padding: 24px 20px;
+  }
+
+  .landing-elevator p {
+    font-size: 16px;
   }
 
   .landing-section {
