@@ -227,7 +227,6 @@ export function LandingPage() {
                 <div className="landing-step-number">
                   <Icon size={20} />
                 </div>
-                {i < STEP_KEYS.length - 1 && <div className="landing-step-connector" />}
                 <h4>{t(`landing.howItWorks.${key}.title`)}</h4>
               </div>
             )

@@ -426,18 +426,15 @@
   color: #fff;
 }
 
-.landing-step-connector {
+.landing-step:not(:last-child)::after {
+  content: '';
   position: absolute;
   top: 24px;
-  left: calc(50% + 24px);
-  right: calc(-50% + 24px);
+  left: calc(50% + 28px);
+  width: calc(100% - 56px);
   height: 2px;
   background: var(--border);
   z-index: 1;
-}
-
-.landing-step:last-child .landing-step-connector {
-  display: none;
 }
 
 .landing-step h4 {
@@ -538,7 +535,7 @@
     flex: 0 0 calc(33.33% - 12px);
   }
 
-  .landing-step-connector {
+  .landing-step::after {
     display: none;
   }
 }
@@ -650,7 +647,7 @@
     margin-top: 0;
   }
 
-  .landing-step-connector {
+  .landing-step::after {
     display: none;
   }
 
