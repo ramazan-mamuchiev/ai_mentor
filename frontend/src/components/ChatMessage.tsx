@@ -36,7 +36,7 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
   const hasLlm = debug.model != null
   const hasRag = debug.chunks_found != null
   const hasIds = debug.session_id != null
-  const hasContext = debug.product_filter != null || debug.search_query != null
+  const hasContext = debug.product_filter != null || debug.search_query != null || debug.chunks_found != null
   return (
     <div className="debug-panel">
       <div className="debug-grid">
