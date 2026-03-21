@@ -10,7 +10,12 @@ from app.chat.rag import _format_context, _build_history_messages, build_rag_pro
 class TestFormatContext:
     def test_empty_chunks(self):
         result = _format_context([])
-        assert result == "No relevant documentation found."
+        assert result == "No relevant documentation found for this query."
+
+    def test_no_documents_at_all(self):
+        result = _format_context([], no_documents_at_all=True)
+        assert "empty" in result.lower()
+        assert "no documents" in result.lower()
 
     def test_single_chunk(self):
         chunks = [{
@@ -73,9 +78,10 @@ class TestBuildHistoryMessages:
 
 class TestBuildRagPrompt:
     @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_builds_prompt_with_context(self, mock_search, _mock_detect):
+    async def test_builds_prompt_with_context(self, mock_search, _mock_detect, _mock_has_docs):
         mock_search.return_value = [
             {
                 "content": "Use HMAC-SHA256 for auth.",
@@ -110,9 +116,10 @@ class TestBuildRagPrompt:
         assert sources[0]["similarity"] == 0.92
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_system_prompt_instructs_code_generation(self, mock_search, _mock_detect):
+    async def test_system_prompt_instructs_code_generation(self, mock_search, _mock_detect, _mock_has_docs):
         mock_search.return_value = []
         db = AsyncMock()
         messages, _, _debug = await build_rag_prompt(db=db, query="test")
@@ -123,9 +130,10 @@ class TestBuildRagPrompt:
         assert "same language as the user" in system_content
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_content_preview_length_500(self, mock_search, _mock_detect):
+    async def test_content_preview_length_500(self, mock_search, _mock_detect, _mock_has_docs):
         long_content = "A" * 1000
         mock_search.return_value = [
             {
@@ -146,9 +154,10 @@ class TestBuildRagPrompt:
         assert len(sources[0]["content_preview"]) == 500
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_includes_history(self, mock_search, _mock_detect):
+    async def test_includes_history(self, mock_search, _mock_detect, _mock_has_docs):
         mock_search.return_value = []
 
         history = [
@@ -169,9 +178,10 @@ class TestBuildRagPrompt:
         assert "What is the API key?" in messages[-1]["content"]
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_empty_search_results(self, mock_search, _mock_detect):
+    async def test_empty_search_results(self, mock_search, _mock_detect, _mock_has_docs):
         mock_search.return_value = []
 
         db = AsyncMock()
@@ -182,9 +192,10 @@ class TestBuildRagPrompt:
         assert "No relevant documentation found" in context_content
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_system_prompt_instructs_proto_formatting(self, mock_search, _mock_detect):
+    async def test_system_prompt_instructs_proto_formatting(self, mock_search, _mock_detect, _mock_has_docs):
         mock_search.return_value = []
         db = AsyncMock()
         messages, _, _debug = await build_rag_prompt(db=db, query="test")
@@ -195,9 +206,10 @@ class TestBuildRagPrompt:
         assert "table" in system_content.lower()
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_grounding_instruction_present(self, mock_search, _mock_detect):
+    async def test_grounding_instruction_present(self, mock_search, _mock_detect, _mock_has_docs):
         mock_search.return_value = []
         db = AsyncMock()
         messages, _, _debug = await build_rag_prompt(db=db, query="test")
@@ -208,9 +220,10 @@ class TestBuildRagPrompt:
         assert "<output_format>" in system_content
 
     @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
     @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
     @patch("app.chat.rag.search_documents")
-    async def test_similarity_threshold_filters_chunks(self, mock_search, _mock_detect):
+    async def test_similarity_threshold_filters_chunks(self, mock_search, _mock_detect, _mock_has_docs):
         mock_search.return_value = [
             {"content": "Good", "heading_path": "H1", "heading_level": 2, "token_count": 5,
              "doc_title": "Doc", "product_name": "", "manufacturer": "", "firmware_version": "", "similarity": 0.9},
@@ -222,3 +235,42 @@ class TestBuildRagPrompt:
 
         assert len(sources) == 1
         assert sources[0]["similarity"] == 0.9
+
+    @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=False)
+    async def test_no_documents_in_system(self, _mock_has_docs):
+        db = AsyncMock()
+        messages, sources, debug = await build_rag_prompt(db=db, query="какие документы есть?")
+
+        assert len(sources) == 0
+        assert debug["no_documents"] is True
+        assert debug["chunks_found"] == 0
+
+        system_content = messages[0]["content"]
+        assert "IPCodex AI" in system_content
+        assert "EMPTY" in system_content
+        assert messages[-1]["role"] == "user"
+        assert "какие документы есть?" in messages[-1]["content"]
+
+    @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=False)
+    async def test_no_documents_skips_rag_search(self, _mock_has_docs):
+        db = AsyncMock()
+        with patch("app.chat.rag.search_documents") as mock_search:
+            await build_rag_prompt(db=db, query="test")
+            mock_search.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=False)
+    async def test_no_documents_preserves_history(self, _mock_has_docs):
+        history = [
+            MagicMock(role="user", content="Hello"),
+            MagicMock(role="assistant", content="Hi!"),
+        ]
+        db = AsyncMock()
+        messages, _, debug = await build_rag_prompt(db=db, query="test", history=history)
+
+        roles = [m["role"] for m in messages]
+        assert "user" in roles
+        assert "assistant" in roles
+        assert debug["history_messages"] == 2

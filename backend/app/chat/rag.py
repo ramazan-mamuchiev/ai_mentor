@@ -13,6 +13,24 @@ from app.search.service import search_documents
 
 logger = logging.getLogger(__name__)
 
+SYSTEM_PROMPT_NO_DOCS = """\
+<role>
+You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.
+</role>
+
+<situation>
+The knowledge base is currently EMPTY — no documentation has been uploaded yet.
+</situation>
+
+<instructions>
+- CRITICAL: ALWAYS respond in the same language as the user's question. If the user writes in Russian, your ENTIRE response must be in Russian. If in English — respond in English.
+- Politely explain that the knowledge base is empty and no documents have been uploaded yet.
+- You may briefly describe what IPCodex can do once documentation is loaded: semantic search across documentation, answering technical questions about APIs and protocols, generating code examples based on documentation.
+- Do NOT suggest the user to upload documents or give instructions on how to do it.
+- Do NOT make up any technical details about specific products or APIs.
+- Keep the response concise and helpful.
+</instructions>"""
+
 SYSTEM_PROMPT = """\
 <role>
 You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.
@@ -53,6 +71,14 @@ You are a strictly grounded assistant limited to the information provided in the
 </output_format>"""
 
 
+async def _has_any_documents(db: AsyncSession) -> bool:
+    """Check whether the knowledge base has at least one ready document."""
+    result = await db.execute(
+        text("SELECT EXISTS(SELECT 1 FROM documents WHERE status = 'ready' LIMIT 1)")
+    )
+    return bool(result.scalar())
+
+
 async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None:
     """Match product/manufacturer names mentioned in the user query against the products table.
 
@@ -76,10 +102,12 @@ async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None
     return None
 
 
-def _format_context(chunks: list[dict]) -> str:
+def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) -> str:
     """Format retrieved chunks into a context string for the LLM."""
+    if no_documents_at_all:
+        return "The knowledge base is completely empty — no documents have been uploaded yet."
     if not chunks:
-        return "No relevant documentation found."
+        return "No relevant documentation found for this query."
 
     parts = []
     for i, chunk in enumerate(chunks, 1):
@@ -216,6 +244,57 @@ async def build_rag_prompt(
     """
     t0 = time.perf_counter()
 
+    has_docs = await _has_any_documents(db)
+
+    if not has_docs:
+        query_tokens = _estimate_tokens(query)
+        system_prompt_tokens = _estimate_tokens(SYSTEM_PROMPT_NO_DOCS)
+
+        messages: list[dict] = [
+            {"role": "system", "content": SYSTEM_PROMPT_NO_DOCS},
+        ]
+        if history:
+            messages.extend(_build_history_messages(
+                history, settings.rag_history_messages, settings.rag_history_max_tokens,
+            ))
+        messages.append({"role": "user", "content": query})
+
+        history_msgs = _build_history_messages(
+            history, settings.rag_history_messages, settings.rag_history_max_tokens,
+        ) if history else []
+        history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
+
+        total_ms = round((time.perf_counter() - t0) * 1000, 1)
+        rag_debug = {
+            "chunks_found": 0,
+            "top_similarity": 0,
+            "min_similarity": 0,
+            "context_tokens": 0,
+            "query_tokens": query_tokens,
+            "history_tokens": history_tokens,
+            "system_prompt_tokens": system_prompt_tokens,
+            "rewrite_ms": 0,
+            "search_ms": 0,
+            "rag_build_ms": total_ms,
+            "history_messages": len(history) if history else 0,
+            "prompt_messages": len(messages),
+            "embedding_model": settings.embedding_model_local if settings.embedding_provider == "local" else settings.embedding_model_openai,
+            "product_filter": product_filter,
+            "version_filter": version_filter,
+            "doc_context": doc_context,
+            "auto_product": None,
+            "detected_doc_context": None,
+            "search_query": None,
+            "no_documents": True,
+        }
+
+        logger.info(
+            "RAG prompt built (no documents in system)",
+            extra={"query": query[:100], **rag_debug},
+        )
+
+        return messages, [], rag_debug
+
     auto_product = None
     if not product_filter and not doc_context:
         auto_product = await _detect_product_from_query(db, query)
@@ -256,7 +335,7 @@ async def build_rag_prompt(
         context_header += f"Product: {detected_product}\n\n"
     context_block = f"{context_header}{context}\n</documentation_context>"
 
-    messages: list[dict] = [
+    messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": context_block},
         {"role": "assistant", "content": "Understood. I will answer strictly based on the documentation context provided above."},
@@ -312,6 +391,7 @@ async def build_rag_prompt(
         "auto_product": auto_product,
         "detected_doc_context": detected_doc,
         "search_query": search_query if search_query != query else None,
+        "no_documents": False,
     }
 
     logger.info(
