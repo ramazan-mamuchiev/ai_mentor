@@ -133,13 +133,21 @@ export function LandingPage() {
 
       {/* Hero */}
       <section className="landing-hero">
+        <img src="/logo-on-light.svg" alt="" className="landing-hero-logo logo-light" />
+        <img src="/logo-on-dark.svg" alt="" className="landing-hero-logo logo-dark" />
         <div className="landing-hero-badge">
           <Cpu size={14} />
           {t('landing.hero.badge')}
         </div>
         <h1 className="landing-hero-title">{t('landing.hero.title')}</h1>
         <p className="landing-hero-slogan">{t('landing.hero.slogan')}</p>
-        <p className="landing-hero-subslogan">{t('landing.hero.subslogan')}</p>
+        <div className="landing-hero-divider">
+          <span /><span className="landing-hero-dot">·</span><span />
+        </div>
+        <p className="landing-hero-subslogan">
+          {t('landing.hero.subslogan')}{' '}
+          <em>{t('landing.hero.instantly')}</em>
+        </p>
         <p className="landing-hero-description">{t('landing.hero.description')}</p>
         <div className="landing-hero-cta">
           <Link to="/app" className="landing-btn-primary">
