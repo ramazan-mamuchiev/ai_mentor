@@ -1,9 +1,13 @@
-"""Embedding abstraction: local (multilingual-e5-large) or OpenAI.
+"""Embedding abstraction: local (multilingual-e5-large), OpenAI, or Gemini.
 
 E5 models require prefix instructions:
   - "query: " for search queries
   - "passage: " for document passages being indexed
 The model produces 1024-dim vectors natively.
+
+Gemini models use task_type for the same purpose:
+  - "RETRIEVAL_QUERY" for search queries
+  - "RETRIEVAL_DOCUMENT" for document passages being indexed
 """
 
 import logging
@@ -81,6 +85,8 @@ def embed_texts(texts: list[str], *, is_query: bool = False) -> list[list[float]
 
     if settings.embedding_provider == "openai":
         return _embed_openai(texts)
+    if settings.embedding_provider == "gemini":
+        return _embed_gemini(texts, is_query=is_query)
     return _embed_local(texts, is_query=is_query)
 
 
@@ -148,6 +154,54 @@ def _embed_openai(texts: list[str]) -> list[list[float]]:
     logger.info(
         "Embedding completed",
         extra={"texts_count": len(texts), "provider": "openai", "dims": EMBEDDING_DIMS},
+    )
+    return all_embeddings
+
+
+def _embed_gemini(texts: list[str], *, is_query: bool = False) -> list[list[float]]:
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    task_type = "RETRIEVAL_QUERY" if is_query else "RETRIEVAL_DOCUMENT"
+    target_dims = EMBEDDING_DIMS
+
+    all_embeddings: list[list[float]] = []
+
+    for i in range(0, len(texts), BATCH_SIZE):
+        batch = texts[i : i + BATCH_SIZE]
+        t0 = time.perf_counter()
+        result = client.models.embed_content(
+            model=settings.embedding_model_gemini,
+            contents=batch,
+            config=types.EmbedContentConfig(
+                task_type=task_type,
+                output_dimensionality=target_dims,
+            ),
+        )
+        batch_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        for emb in result.embeddings:
+            vec = emb.values
+            norm = sum(v * v for v in vec) ** 0.5
+            if norm > 0:
+                vec = [v / norm for v in vec]
+            all_embeddings.append(vec)
+
+        logger.debug(
+            "Gemini embedding batch completed",
+            extra={"texts_count": len(batch), "duration_ms": batch_ms},
+        )
+
+    logger.info(
+        "Embedding completed",
+        extra={
+            "texts_count": len(texts),
+            "provider": "gemini",
+            "model": settings.embedding_model_gemini,
+            "dims": target_dims,
+            "task_type": task_type,
+        },
     )
     return all_embeddings
 

@@ -47,7 +47,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
-      OPENAI_LLM_API_KEY: ${OPENAI_LLM_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-none}
       RAG_TOP_K: ${RAG_TOP_K:-10}
@@ -284,7 +284,7 @@ LLM_REASONING_EFFORT=none                    # none | low | medium | high — Ge
 
 # Gemini Flash — default for Free & Pro tiers ($0.30/$2.50 per 1M tokens)
 OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-OPENAI_LLM_API_KEY=...
+GEMINI_API_KEY=...
 OPENAI_LLM_MODEL=gemini-2.5-flash
 
 # Ollama — development fallback only ($0 cost):

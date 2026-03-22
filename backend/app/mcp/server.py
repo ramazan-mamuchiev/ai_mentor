@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 def _embedding_model_name() -> str:
     if settings.embedding_provider == "local":
         return settings.embedding_model_local
+    if settings.embedding_provider == "gemini":
+        return settings.embedding_model_gemini
     return settings.embedding_model_openai
 
 

@@ -187,7 +187,7 @@ async def _stream_openai_compatible(
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {settings.openai_llm_api_key}",
+        "Authorization": f"Bearer {settings.gemini_api_key}",
     }
 
     t0 = time.perf_counter()
@@ -324,12 +324,12 @@ async def _check_health_ollama() -> bool:
 
 
 async def _check_health_openai() -> bool:
-    if not settings.openai_llm_api_key:
+    if not settings.gemini_api_key:
         logger.warning("OpenAI-compatible API key not configured")
         return False
     try:
         url = f"{settings.openai_base_url.rstrip('/')}/models"
-        headers = {"Authorization": f"Bearer {settings.openai_llm_api_key}"}
+        headers = {"Authorization": f"Bearer {settings.gemini_api_key}"}
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:

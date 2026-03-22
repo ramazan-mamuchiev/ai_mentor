@@ -8,9 +8,10 @@ class Settings(BaseSettings):
 
     api_key: str = "ipx_dev_key_12345"
 
-    embedding_provider: str = "local"  # "local" or "openai"
+    embedding_provider: str = "local"  # "local", "openai", or "gemini"
     embedding_model_local: str = "intfloat/multilingual-e5-large"
     embedding_model_openai: str = "text-embedding-3-small"
+    embedding_model_gemini: str = "gemini-embedding-2-preview"
     embedding_dims: int = 1024
     openai_api_key: str = ""
 
@@ -44,7 +45,7 @@ class Settings(BaseSettings):
     llm_max_continuations: int = 3
 
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
-    openai_llm_api_key: str = ""
+    gemini_api_key: str = ""
     openai_llm_model: str = "gemini-2.5-flash"
 
     llm_reasoning_effort: str = "none"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)

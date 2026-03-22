@@ -15,6 +15,15 @@ from app.search.service import search_documents
 
 logger = logging.getLogger(__name__)
 
+
+def _embedding_model_name() -> str:
+    if settings.embedding_provider == "local":
+        return settings.embedding_model_local
+    if settings.embedding_provider == "gemini":
+        return settings.embedding_model_gemini
+    return settings.embedding_model_openai
+
+
 SYSTEM_PROMPT_NO_DOCS = """\
 <role>
 You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.
@@ -224,7 +233,7 @@ async def _llm_rewrite_openai(messages: list[dict]) -> str:
     }
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {settings.openai_llm_api_key}",
+        "Authorization": f"Bearer {settings.gemini_api_key}",
     }
     async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
         resp = await client.post(url, json=payload, headers=headers)
@@ -297,7 +306,7 @@ async def build_rag_prompt(
             "rag_build_ms": total_ms,
             "history_messages": len(history) if history else 0,
             "prompt_messages": len(messages),
-            "embedding_model": settings.embedding_model_local if settings.embedding_provider == "local" else settings.embedding_model_openai,
+            "embedding_model": _embedding_model_name(),
             "product_filter": product_filter,
             "version_filter": version_filter,
             "doc_context": doc_context,
@@ -403,7 +412,7 @@ async def build_rag_prompt(
         "rag_build_ms": total_ms,
         "history_messages": len(history) if history else 0,
         "prompt_messages": len(messages),
-        "embedding_model": settings.embedding_model_local if settings.embedding_provider == "local" else settings.embedding_model_openai,
+        "embedding_model": _embedding_model_name(),
         "product_filter": product_filter,
         "version_filter": version_filter,
         "doc_context": doc_context,

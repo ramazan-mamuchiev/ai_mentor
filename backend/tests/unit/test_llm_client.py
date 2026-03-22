@@ -359,7 +359,7 @@ class TestFinishReason:
             mock_settings.llm_max_tokens = 4096
             mock_settings.llm_timeout = 60
             mock_settings.openai_base_url = "https://api.openai.com/v1"
-            mock_settings.openai_llm_api_key = "test-key"
+            mock_settings.gemini_api_key = "test-key"
 
             from app.llm.client import stream_chat_completion
 
@@ -401,7 +401,7 @@ class TestFinishReason:
             mock_settings.llm_max_tokens = 4096
             mock_settings.llm_timeout = 60
             mock_settings.openai_base_url = "https://api.openai.com/v1"
-            mock_settings.openai_llm_api_key = "test-key"
+            mock_settings.gemini_api_key = "test-key"
 
             from app.llm.client import stream_chat_completion
 
@@ -450,7 +450,7 @@ class TestUsageExtraction:
             mock_settings.llm_max_tokens = 4096
             mock_settings.llm_timeout = 60
             mock_settings.openai_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
-            mock_settings.openai_llm_api_key = "test-key"
+            mock_settings.gemini_api_key = "test-key"
 
             from app.llm.client import stream_chat_completion
 
@@ -498,7 +498,7 @@ class TestUsageExtraction:
             mock_settings.llm_max_tokens = 4096
             mock_settings.llm_timeout = 60
             mock_settings.openai_base_url = "https://api.openai.com/v1"
-            mock_settings.openai_llm_api_key = "test-key"
+            mock_settings.gemini_api_key = "test-key"
 
             from app.llm.client import stream_chat_completion
 
@@ -543,7 +543,7 @@ class TestUsageExtraction:
             mock_settings.llm_max_tokens = 4096
             mock_settings.llm_timeout = 60
             mock_settings.openai_base_url = "https://api.openai.com/v1"
-            mock_settings.openai_llm_api_key = "test-key"
+            mock_settings.gemini_api_key = "test-key"
 
             from app.llm.client import stream_chat_completion
 
