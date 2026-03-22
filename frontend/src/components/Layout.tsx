@@ -225,16 +225,20 @@ export function Layout({
           onPointerCancel={onPointerUp}
         />
       )}
-      {isMobile && (
-        <button
-          className="mobile-menu-btn"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Menu"
-        >
-          <Menu size={20} />
-        </button>
-      )}
-      {children}
+      <div className="main-content">
+        {isMobile && (
+          <div className="mobile-topbar">
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Menu"
+            >
+              <Menu size={20} />
+            </button>
+          </div>
+        )}
+        {children}
+      </div>
     </div>
   )
 }
