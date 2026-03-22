@@ -166,7 +166,7 @@ export function Layout({
               onClick={() => setMobileOpen(false)}
               aria-label={t('sidebar.collapse')}
             >
-              <PanelLeftClose size={18} />
+              <PanelLeftClose size={20} />
             </button>
           ) : (
             <button
