@@ -17,6 +17,7 @@ def _make_mock_document(doc_id=1, **overrides):
     doc.status = overrides.get("status", "pending")
     doc.error_message = None
     doc.total_chunks = 0
+    doc.title = overrides.get("title", "")
     return doc
 
 

@@ -25,6 +25,7 @@ _UNDERSCORE_BI_RE = re.compile(r"_{1,3}([^\n_]+?)_{1,3}")
 _STRIKETHROUGH_RE = re.compile(r"~~([^\n~]+?)~~")
 _HEADING_HASH_RE = re.compile(r"^#{1,6}\s+", re.MULTILINE)
 _BLOCKQUOTE_RE = re.compile(r"^>\s?", re.MULTILINE)
+_LIST_MARKER_RE = re.compile(r"^([\t ]*)([-*+]|\d+\.)\s", re.MULTILINE)
 _MULTI_NEWLINE_RE = re.compile(r"\n{3,}")
 _MULTI_SPACE_RE = re.compile(r"[ \t]{2,}")
 
@@ -93,6 +94,7 @@ def clean_for_embedding(text: str) -> str:
     text = _STRIKETHROUGH_RE.sub(r"\1", text)
     text = _HEADING_HASH_RE.sub("", text)
     text = _BLOCKQUOTE_RE.sub("", text)
+    text = _LIST_MARKER_RE.sub(r"\1", text)
 
     for i, block in enumerate(code_blocks):
         text = text.replace(f"\x00CODEBLOCK{i}\x00", block)

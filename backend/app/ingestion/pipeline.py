@@ -34,16 +34,18 @@ def enrich_for_embedding(chunks: list[ChunkData]) -> list[str]:
        describes (e.g. "API Reference > GET /doors > Parameters").
 
     Warns and truncates if enriched text exceeds model max_seq_length.
+    Truncation preserves the heading prefix and only cuts content.
     """
     from app.ingestion.chunker import _estimate_tokens
 
     enriched: list[str] = []
     for c in chunks:
         cleaned = _clean_md(c.content)
-        if c.heading_path and c.heading_path not in ("Document", "Preamble"):
-            text = f"[{c.heading_path}]\n{cleaned}"
-        else:
-            text = cleaned
+        heading_prefix = ""
+        if c.heading_path:
+            heading_prefix = f"[{c.heading_path}]\n"
+
+        text = heading_prefix + cleaned
 
         token_count = _estimate_tokens(text)
         if token_count > MAX_EMBEDDING_TOKENS:
@@ -55,12 +57,24 @@ def enrich_for_embedding(chunks: list[ChunkData]) -> list[str]:
                     "max_tokens": MAX_EMBEDDING_TOKENS,
                 },
             )
-            words = text.split()
-            approx_word_limit = int(MAX_EMBEDDING_TOKENS / 1.3)
-            text = " ".join(words[:approx_word_limit])
+            prefix_tokens = _estimate_tokens(heading_prefix) if heading_prefix else 0
+            content_budget = max(1, int((MAX_EMBEDDING_TOKENS - prefix_tokens) / 1.3))
+            words = cleaned.split()
+            text = heading_prefix + " ".join(words[:content_budget])
 
         enriched.append(text)
     return enriched
+
+
+def _replace_generic_headings(sections: list, title: str) -> list:
+    """Replace 'Document' and 'Preamble' heading_paths with the actual document title."""
+    for s in sections:
+        hp = getattr(s, "heading_path", None)
+        if hp == "Document":
+            s.heading_path = title
+        elif hp == "Preamble":
+            s.heading_path = f"{title} > Preamble"
+    return sections
 
 
 def _log_chunk_stats(chunks: list[ChunkData], file_path: str) -> None:
@@ -271,6 +285,7 @@ async def ingest_file(
     try:
         t_parse = time.perf_counter()
         sections = _parse_content(text, fmt_effective, file_path)
+        _replace_generic_headings(sections, title)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -307,6 +322,7 @@ async def ingest_file(
                 heading_path=chunk_data.heading_path,
                 heading_level=chunk_data.heading_level,
                 content=chunk_data.content,
+                content_clean=_clean_md(chunk_data.content),
                 parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
@@ -443,6 +459,7 @@ async def ingest_url(
     try:
         t_parse = time.perf_counter()
         sections = parse_markdown(text)
+        _replace_generic_headings(sections, title)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -471,6 +488,7 @@ async def ingest_url(
                 heading_path=chunk_data.heading_path,
                 heading_level=chunk_data.heading_level,
                 content=chunk_data.content,
+                content_clean=_clean_md(chunk_data.content),
                 parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
@@ -598,6 +616,8 @@ def ingest_from_bytes(
     try:
         t_parse = time.perf_counter()
         sections = _parse_content(text, fmt_effective, file_path)
+        doc_title = document.title or os.path.splitext(os.path.basename(original_filename or file_path))[0]
+        _replace_generic_headings(sections, doc_title)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -630,6 +650,7 @@ def ingest_from_bytes(
                 heading_path=chunk_data.heading_path,
                 heading_level=chunk_data.heading_level,
                 content=chunk_data.content,
+                content_clean=_clean_md(chunk_data.content),
                 parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,

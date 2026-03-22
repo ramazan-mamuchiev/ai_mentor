@@ -62,27 +62,38 @@ Celery Worker: ingest_document(document_id)
         - token_count recalculated on merged text (not just summed)
         - parent_content preserved during merge
      d. Preserve heading_path hierarchy (e.g. "API > Doors > Open")
-  7. Contextual enrichment for embedding (pipeline.py):
+  7. **Document title enrichment** (pipeline.py):
+     - Generic heading_paths "Document" and "Preamble" replaced with actual
+       document title (from filename or metadata)
+     - "Document" → "{title}", "Preamble" → "{title} > Preamble"
+     - Ensures every chunk carries meaningful topic context for embedding
+  8. Contextual enrichment for embedding (pipeline.py):
      a. Clean Markdown artifacts from content (text_cleaner.py):
         - Strip bold/italic/strikethrough formatting (line-scoped, no cross-line greed)
         - Convert links to plain text (keep anchor, drop URL)
         - Remove images entirely
         - Strip HTML tags, bare URLs, blockquote markers (>)
+        - **Strip list markers** (-, *, +, 1., 2., etc.) preserving indentation
         - Handle both single and double backtick inline code
         - Preserve code blocks (contain valuable API details)
-     b. Prepend "[heading_path]" to cleaned text
+     b. Prepend "[heading_path]" to cleaned text (all heading paths enriched)
      c. **Truncation guard**: if enriched text exceeds 500 tokens (model limit),
-        log warning and truncate to prevent silent embedding truncation
+        log warning and truncate **only the content part**, preserving the
+        heading_path prefix intact
      d. Original Markdown content stored in DB unchanged (for display)
-  8. **Chunk quality logging** (pipeline.py):
+     e. Cleaned content also stored in `content_clean` column for BM25 indexing
+  9. **Chunk quality logging** (pipeline.py):
      - After chunking, log min/max/avg/median token counts, parent_content stats
      - Enables production monitoring of chunk size distribution
-  9. Embed all enriched chunks in batch (embedder.py)
+  10. Embed all enriched chunks in batch (embedder.py)
      - Local: multilingual-e5-large (1024-dim), "passage:" prefix
      - OpenAI: text-embedding-3-small, up to 256 texts per batch
-  10. INSERT chunks (content, parent_content, embedding) into pgvector
-  11. UPDATE document SET status='ready', total_chunks=N
-  12. Log usage (billable_units, tokens consumed, duration)
+  11. INSERT chunks (content, content_clean, parent_content, embedding) into pgvector
+     - `content_clean` — Markdown-stripped text for BM25 full-text indexing
+     - PostgreSQL trigger builds tsvector from `COALESCE(content_clean, content)`
+       with **'english' stemmer** (stemming + stop-word removal)
+  12. UPDATE document SET status='ready', total_chunks=N
+  13. Log usage (billable_units, tokens consumed, duration)
 ```
 
 **Swagger/OpenAPI special handling:**
@@ -308,8 +319,10 @@ RAG Pipeline (chat/rag.py):
      → "query:" prefix for E5 models
   4. Hybrid search (two parallel retrieval paths):
      a. Vector search: ORDER BY embedding <=> $q LIMIT rerank_candidates (default 20)
-     b. BM25 full-text: tsv @@ plainto_tsquery('simple', $q) ORDER BY ts_rank_cd
-        → uses PostgreSQL tsvector/GIN index on (heading_path + content)
+     b. BM25 full-text: tsv @@ plainto_tsquery('english', $q) ORDER BY ts_rank_cd
+        → uses PostgreSQL tsvector/GIN index on (heading_path + content_clean)
+        → **'english' stemmer**: doors→door, connecting→connect + stop-word removal
+        → `content_clean` column: Markdown-stripped text (no bold/links/list markers)
         → catches exact term matches that bi-encoder may miss (API paths, codes)
      c. RRF fusion: score = w_vec/(k+rank_vec) + w_bm25/(k+rank_bm25)
         → default weights: vector=0.7, bm25=0.3, k=60
@@ -317,18 +330,26 @@ RAG Pipeline (chat/rag.py):
      → optional product/version filter on both paths
      → deduplication by (heading_path, SHA-256(content)) — full content hash
   5. Cross-encoder re-ranking (reranker.py):
-     → cross-encoder/ms-marco-MiniLM-L-12-v2 scores each (query, cleaned_enriched_text) pair
+     → **multilingual cross-encoder** (mmarco-mMiniLMv2-L12-H384-v1, 100+ languages)
+     → scores each (query, cleaned_enriched_text) pair
      → text cleaned from Markdown artifacts (same as embedding pipeline)
      → enriched with "[heading_path]\n{cleaned_content}" for topic-aware scoring
+     → **similarity updated to sigmoid(rerank_score)** — normalized [0, 1]
+     → raw `rerank_score` preserved for debugging; original dicts not mutated
      → top rag_top_k (default 10) results kept after re-ranking
      → configurable: rerank_enabled (default true)
   6. Similarity threshold filtering:
      → discard chunks with similarity < rag_min_similarity (default 0.35)
+     → after re-ranking, uses the sigmoid-normalized cross-encoder score
   7. Small-to-big context expansion:
      → if chunk has parent_content (was split from larger section),
        use full section text in LLM context instead of chunk fragment
      → deduplicate when multiple child chunks from same section are retrieved
-  8. Format context: each source as numbered block with metadata
+  8. Format context: each source as **Markdown-cleaned** numbered block with metadata
+     → parent_content and chunk content cleaned via clean_for_embedding()
+     → strips bold, links, images, list markers — saves LLM tokens
+     → code blocks and tables preserved
+     → context_tokens calculated on actual formatted text (not sum of chunk sizes)
      → wrapped in <documentation_context> XML tags
   9. Build LLM messages (5-part sequence for implicit caching):
      a. System message — SYSTEM_PROMPT with XML-tagged sections:
@@ -359,18 +380,19 @@ Server: save assistant message + sources to chat_messages table
 **Anti-hallucination strategy:**
 - **Structured grounding prompt**: 9 constraints in `<constraints>` XML section, following Google's recommendations for Gemini
 - **Separate system/context/ack message pattern**: enables Gemini implicit caching of static instructions
-- **Hybrid retrieval (BM25 + vector)**: RRF fusion of semantic vector search and lexical BM25 full-text search; catches exact API paths and codes that bi-encoder may miss
-- **Cross-encoder re-ranking**: bi-encoder+BM25 retrieve 20 candidates, cross-encoder (ms-marco-MiniLM) re-scores Markdown-cleaned enriched text for precision
-- **Small-to-big context**: search by small chunks (precision), expand to full section in LLM context (completeness); parent deduplication via SHA-256 hash
-- **Contextual embeddings**: Markdown-cleaned content with heading_path prefix for topic-aware retrieval
+- **Hybrid retrieval (BM25 + vector)**: RRF fusion of semantic vector search and lexical BM25 full-text search; BM25 uses `'english'` stemmer on `content_clean` (Markdown-stripped) column; catches exact API paths and codes that bi-encoder may miss
+- **Multilingual cross-encoder re-ranking**: bi-encoder+BM25 retrieve 20 candidates, multilingual cross-encoder (mmarco-mMiniLMv2-L12-H384-v1, 100+ languages) re-scores Markdown-cleaned enriched text; similarity updated to sigmoid(rerank_score) for accurate threshold filtering
+- **Small-to-big context**: search by small chunks (precision), expand to full Markdown-cleaned section in LLM context (completeness); parent deduplication via SHA-256 hash; context_tokens based on actual formatted text
+- **Document title enrichment**: generic headings ("Document", "Preamble") replaced with actual document title for meaningful embedding context
+- **Contextual embeddings**: Markdown-cleaned content with heading_path prefix for topic-aware retrieval; all heading paths enriched (no skip for generic headings)
 - **Code-block-aware parsing**: headings inside fenced code blocks (```...```) are ignored during section splitting, preventing false document structure from shell comments, YAML comments, etc.
-- **Text cleaning pipeline**: Markdown artifacts (bold, links, images, HTML, blockquotes) stripped before embedding AND cross-encoder scoring; bold/italic/strikethrough regexes are line-scoped (no cross-line greed); both single and double backtick inline code handled; code blocks preserved
-- **Enrichment truncation guard**: enriched text exceeding 500 tokens is truncated with a warning log, preventing silent embedding model truncation
+- **Text cleaning pipeline**: Markdown artifacts (bold, links, images, HTML, blockquotes, list markers) stripped before embedding, BM25 indexing, cross-encoder scoring, AND LLM context; bold/italic/strikethrough regexes are line-scoped (no cross-line greed); both single and double backtick inline code handled; code blocks preserved
+- **Enrichment truncation guard**: enriched text exceeding 500 tokens is truncated with a warning log; **heading_path prefix preserved intact** — only content is truncated
 - **Smart chunk merging**: when small chunks are merged, heading_path combines both paths and token_count is recalculated on actual merged text (not just summed)
 - **Chunk quality monitoring**: after chunking, min/max/avg/median token counts and parent_content statistics are logged for production quality tracking
 - **Unicode normalization**: NFKC normalization at parser input ensures consistent matching
 - **Token-safe chunking**: max_tokens=380 aligned with E5 max_seq_length=514; real E5 tokenizer used when available, preventing silent truncation
-- **Similarity threshold filtering**: `rag_min_similarity` (default 0.35) removes low-relevance chunks before they reach the LLM
+- **Similarity threshold filtering**: `rag_min_similarity` (default 0.35) applied after cross-encoder re-ranking using sigmoid-normalized score; removes low-relevance chunks before they reach the LLM
 - **Factual grounding**: API details (endpoints, params, URLs) must come from context only; code generation allowed using general programming knowledge based on documented API details
 - **Language enforcement**: "CRITICAL: ALWAYS respond in the same language as the user's question" — top-level instruction
 - Source attribution: each answer references numbered sources that the user can verify

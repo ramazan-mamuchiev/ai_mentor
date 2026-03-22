@@ -175,6 +175,37 @@ class TestCleanForEmbedding:
         result = clean_for_embedding(text)
         assert ">" in result
 
+    def test_unordered_list_markers_removed(self):
+        """Unordered list markers (-, *, +) should be stripped."""
+        text = "- Item one\n* Item two\n+ Item three"
+        result = clean_for_embedding(text)
+        assert result == "Item one\nItem two\nItem three"
+
+    def test_ordered_list_markers_removed(self):
+        """Ordered list markers (1., 2., etc.) should be stripped."""
+        text = "1. First\n2. Second\n10. Tenth"
+        result = clean_for_embedding(text)
+        assert "1." not in result
+        assert "2." not in result
+        assert "First" in result
+        assert "Second" in result
+        assert "Tenth" in result
+
+    def test_nested_list_markers_removed(self):
+        """Nested list markers should be stripped, preserving indentation structure."""
+        text = "- Parent\n  - Child\n    - Grandchild"
+        result = clean_for_embedding(text)
+        assert "- " not in result
+        assert "Parent" in result
+        assert "Child" in result
+        assert "Grandchild" in result
+
+    def test_list_markers_inside_code_blocks_preserved(self):
+        """List markers inside code blocks should NOT be stripped."""
+        text = "```\n- this is code\n1. also code\n```"
+        result = clean_for_embedding(text)
+        assert "- this is code" in result
+        assert "1. also code" in result
 
     def test_unclosed_code_block_preserved(self):
         """Unclosed code block should be treated as code, not cleaned."""

@@ -53,23 +53,29 @@ CREATE TABLE IF NOT EXISTS chunks (
     UNIQUE(document_id, chunk_index)
 );
 
+-- Cleaned content for BM25 (Markdown stripped in Python, populated during ingestion)
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS content_clean TEXT;
+
 -- Full-text search column (BM25 via tsvector for hybrid search)
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
 
 CREATE OR REPLACE FUNCTION chunks_tsv_trigger() RETURNS trigger AS $$
 BEGIN
-    NEW.tsv := to_tsvector('simple', COALESCE(NEW.heading_path, '') || ' ' || COALESCE(NEW.content, ''));
+    NEW.tsv := to_tsvector('english',
+        COALESCE(NEW.heading_path, '') || ' ' ||
+        COALESCE(NEW.content_clean, NEW.content, ''));
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_chunks_tsv ON chunks;
-CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, heading_path ON chunks
+CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path ON chunks
     FOR EACH ROW EXECUTE FUNCTION chunks_tsv_trigger();
 
--- Backfill existing rows
-UPDATE chunks SET tsv = to_tsvector('simple', COALESCE(heading_path, '') || ' ' || COALESCE(content, ''))
-    WHERE tsv IS NULL;
+-- Backfill existing rows with english stemmer
+UPDATE chunks SET tsv = to_tsvector('english',
+    COALESCE(heading_path, '') || ' ' ||
+    COALESCE(content_clean, content, ''));
 
 -- GIN index for full-text search
 CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON chunks USING gin(tsv);

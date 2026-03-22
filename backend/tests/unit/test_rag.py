@@ -34,6 +34,38 @@ class TestFormatContext:
         assert "0.85" in result
         assert "POST /api/login" in result
 
+    def test_markdown_cleaned_in_context(self):
+        """Markdown formatting should be stripped from context sent to LLM."""
+        chunks = [{
+            "doc_title": "Doc",
+            "heading_path": "Section",
+            "product_name": "",
+            "firmware_version": "",
+            "similarity": 0.9,
+            "content": "Use **bold** and [link](https://example.com).",
+        }]
+        result = _format_context(chunks)
+        assert "**" not in result
+        assert "https://example.com" not in result
+        assert "bold" in result
+        assert "link" in result
+
+    def test_parent_content_cleaned(self):
+        """Parent content should also be cleaned of Markdown artifacts."""
+        chunks = [{
+            "doc_title": "Doc",
+            "heading_path": "Section",
+            "product_name": "",
+            "firmware_version": "",
+            "similarity": 0.9,
+            "content": "chunk text",
+            "parent_content": "Full **section** with ![img](x.png) and - list items.",
+        }]
+        result = _format_context(chunks)
+        assert "**" not in result
+        assert "![" not in result
+        assert "section" in result
+
     def test_multiple_chunks_numbered(self):
         chunks = [
             {"doc_title": "Doc1", "heading_path": "H1", "product_name": "", "firmware_version": "", "similarity": 0.9, "content": "Content 1"},

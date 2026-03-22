@@ -1,5 +1,6 @@
 """Unit tests for app.search.reranker."""
 
+import math
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -105,3 +106,53 @@ class TestRerank:
         assert "https://example.com" not in text_sent
         assert "HMAC-SHA256" in text_sent
         assert "auth" in text_sent
+
+    @patch("app.search.reranker._get_reranker")
+    def test_rerank_score_stored(self, mock_get):
+        """Reranked results must carry the raw cross-encoder score."""
+        model = MagicMock()
+        model.predict.return_value = np.array([2.5, -1.0])
+        mock_get.return_value = model
+
+        results = [
+            {"content": "a", "similarity": 0.8},
+            {"content": "b", "similarity": 0.7},
+        ]
+        reranked = rerank("q", results, top_k=2)
+
+        assert reranked[0]["rerank_score"] == round(2.5, 4)
+        assert reranked[1]["rerank_score"] == round(-1.0, 4)
+
+    @patch("app.search.reranker._get_reranker")
+    def test_similarity_is_sigmoid_of_rerank_score(self, mock_get):
+        """After reranking, similarity must be sigmoid(rerank_score), not original cosine."""
+        model = MagicMock()
+        model.predict.return_value = np.array([3.0, -2.0])
+        mock_get.return_value = model
+
+        results = [
+            {"content": "a", "similarity": 0.5},
+            {"content": "b", "similarity": 0.9},
+        ]
+        reranked = rerank("q", results, top_k=2)
+
+        expected_a = round(1.0 / (1.0 + math.exp(-3.0)), 4)
+        expected_b = round(1.0 / (1.0 + math.exp(2.0)), 4)
+        assert reranked[0]["similarity"] == expected_a
+        assert reranked[1]["similarity"] == expected_b
+
+    @patch("app.search.reranker._get_reranker")
+    def test_rerank_does_not_mutate_original(self, mock_get):
+        """Reranking must not modify the original result dicts."""
+        model = MagicMock()
+        model.predict.return_value = np.array([1.0, 0.5])
+        mock_get.return_value = model
+
+        original = [
+            {"content": "a", "similarity": 0.8},
+            {"content": "b", "similarity": 0.7},
+        ]
+        rerank("q", original, top_k=2)
+
+        assert "rerank_score" not in original[0]
+        assert original[0]["similarity"] == 0.8

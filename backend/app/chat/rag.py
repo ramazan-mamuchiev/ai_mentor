@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
 from app.models import ChatMessage
 from app.search.service import search_documents
 
@@ -131,9 +132,9 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
             if parent_key in seen_parents:
                 continue
             seen_parents.add(parent_key)
-            body = parent
+            body = _clean_md(parent)
         else:
-            body = chunk["content"]
+            body = _clean_md(chunk["content"])
 
         parts.append(f"--- Source {i}: {source} (similarity: {chunk['similarity']}) ---\n{body}")
 
@@ -346,7 +347,7 @@ async def build_rag_prompt(
             detected_doc = next(iter(titles))
 
     context = _format_context(chunks)
-    context_tokens = sum(c.get("token_count", 0) for c in chunks)
+    context_tokens = _estimate_tokens(context)
 
     context_header = "<documentation_context>\n"
     if detected_product:

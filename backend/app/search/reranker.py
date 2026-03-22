@@ -9,6 +9,7 @@ before scoring, consistent with the embedding pipeline.
 """
 
 import logging
+import math
 import time
 from typing import TYPE_CHECKING
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 _reranker: "CrossEncoder | None" = None
 
-RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-12-v2"
+RERANK_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
 
 
 def _get_reranker() -> "CrossEncoder":
@@ -76,7 +77,13 @@ def rerank(query: str, results: list[dict], top_k: int = 5) -> list[dict]:
     scored = list(zip(results, scores))
     scored.sort(key=lambda x: float(x[1]), reverse=True)
 
-    reranked = [r for r, _ in scored[:top_k]]
+    reranked: list[dict] = []
+    for r, score in scored[:top_k]:
+        r = dict(r)
+        raw_score = float(score)
+        r["rerank_score"] = round(raw_score, 4)
+        r["similarity"] = round(1.0 / (1.0 + math.exp(-raw_score)), 4)
+        reranked.append(r)
 
     logger.debug(
         "Re-ranking completed",
@@ -84,6 +91,7 @@ def rerank(query: str, results: list[dict], top_k: int = 5) -> list[dict]:
             "candidates": len(results),
             "top_k": top_k,
             "rerank_ms": rerank_ms,
+            "top_rerank_score": reranked[0]["rerank_score"] if reranked else 0,
         },
     )
     return reranked
