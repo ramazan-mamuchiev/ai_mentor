@@ -95,6 +95,10 @@ def embed_texts(texts: list[str], *, is_query: bool = False) -> list[list[float]
     if not texts:
         return []
 
+    logger.info(
+        "Embedding dispatch",
+        extra={"provider_setting": settings.embedding_provider, "texts_count": len(texts)},
+    )
     if settings.embedding_provider == "gemini":
         return _embed_gemini(texts, is_query=is_query)
     return _embed_local(texts, is_query=is_query)
