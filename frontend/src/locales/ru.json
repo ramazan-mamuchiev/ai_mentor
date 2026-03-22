@@ -199,6 +199,7 @@
   "docs.search.placeholder": "Поиск документов...",
   "docs.group.label": "Группировка",
   "docs.group.toggle": "Группировать",
+  "docs.columns.settings": "Настройка колонок",
   "docs.table.name": "Название",
   "docs.table.format": "Формат",
   "docs.table.status": "Статус",

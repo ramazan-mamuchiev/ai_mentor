@@ -19,6 +19,9 @@ import {
   Layers,
   ChevronRight,
   ChevronDown,
+  Settings2,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import {
   useReactTable,
@@ -33,6 +36,8 @@ import {
   type ColumnOrderState,
   type GroupingState,
   type ExpandedState,
+  type VisibilityState,
+  type ColumnSizingState,
 } from '@tanstack/react-table'
 import {
   DndContext,
@@ -57,6 +62,30 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
 
 const POLL_INTERVAL = 5000
+const STORAGE_KEY = 'ipcodex-docs-table'
+
+interface TableSettings {
+  sorting?: SortingState
+  grouping?: GroupingState
+  columnOrder?: ColumnOrderState
+  columnVisibility?: VisibilityState
+  columnSizing?: ColumnSizingState
+}
+
+function loadTableSettings(): TableSettings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveTableSettings(settings: TableSettings) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+  } catch { /* quota exceeded */ }
+}
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -110,14 +139,57 @@ function SortIcon({ direction }: { direction: false | 'asc' | 'desc' }) {
   return <ArrowUpDown size={14} className="docs-sort-icon" />
 }
 
-function DraggableHeader({ header, children }: { header: { id: string; column: { getCanSort: () => boolean; getIsSorted: () => false | 'asc' | 'desc'; getToggleSortingHandler: () => ((e: unknown) => void) | undefined; getCanGroup: () => boolean } }; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: header.id })
+function DraggableHeader({
+  headerId,
+  canSort,
+  isSorted,
+  toggleSortingHandler,
+  width,
+  onResize,
+  children,
+}: {
+  headerId: string
+  canSort: boolean
+  isSorted: false | 'asc' | 'desc'
+  toggleSortingHandler: ((e: unknown) => void) | undefined
+  width: number
+  onResize: (delta: number) => void
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: headerId })
+  const resizeRef = useRef<{ startX: number; startW: number } | null>(null)
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    width: `${width}px`,
+    minWidth: `${width}px`,
+    maxWidth: `${width}px`,
   }
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    resizeRef.current = { startX: e.clientX, startW: width }
+
+    const handleMove = (ev: MouseEvent) => {
+      if (!resizeRef.current) return
+      const delta = ev.clientX - resizeRef.current.startX
+      onResize(delta)
+    }
+    const handleUp = () => {
+      resizeRef.current = null
+      document.removeEventListener('mousemove', handleMove)
+      document.removeEventListener('mouseup', handleUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', handleMove)
+    document.addEventListener('mouseup', handleUp)
+  }, [width, onResize])
 
   return (
     <th ref={setNodeRef} style={style} className="docs-th">
@@ -126,12 +198,13 @@ function DraggableHeader({ header, children }: { header: { id: string; column: {
           <GripVertical size={12} />
         </span>
         <span
-          className={header.column.getCanSort() ? 'docs-th-label docs-th-label--sortable' : 'docs-th-label'}
-          onClick={header.column.getToggleSortingHandler()}
+          className={canSort ? 'docs-th-label docs-th-label--sortable' : 'docs-th-label'}
+          onClick={toggleSortingHandler}
         >
           {children}
-          {header.column.getCanSort() && <SortIcon direction={header.column.getIsSorted()} />}
+          {canSort && <SortIcon direction={isSorted} />}
         </span>
+        <span className="docs-th-resizer" onMouseDown={handleResizeStart} />
       </div>
     </th>
   )
@@ -149,18 +222,84 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<DocumentListItem | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [grouping, setGrouping] = useState<GroupingState>([])
-  const [expanded, setExpanded] = useState<ExpandedState>(true)
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const colSettingsRef = useRef<HTMLDivElement>(null)
 
   const defaultColumnOrder: string[] = useMemo(
     () => ['title', 'format', 'status', 'size', 'chunks', 'product', 'date', 'actions'],
     [],
   )
-  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(defaultColumnOrder)
+
+  const saved = useMemo(() => loadTableSettings(), [])
+  const [sorting, setSorting] = useState<SortingState>(saved.sorting ?? [])
+  const [grouping, setGrouping] = useState<GroupingState>(saved.grouping ?? [])
+  const [expanded, setExpanded] = useState<ExpandedState>(true)
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(saved.columnOrder ?? defaultColumnOrder)
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(saved.columnVisibility ?? {})
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(saved.columnSizing ?? {})
+
+  const persistRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const persist = useCallback((partial: Partial<TableSettings>) => {
+    if (persistRef.current) clearTimeout(persistRef.current)
+    persistRef.current = setTimeout(() => {
+      const current = loadTableSettings()
+      saveTableSettings({ ...current, ...partial })
+    }, 300)
+  }, [])
+
+  const handleSortingChange = useCallback((updater: SortingState | ((old: SortingState) => SortingState)) => {
+    setSorting(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      persist({ sorting: next })
+      return next
+    })
+  }, [persist])
+
+  const handleGroupingChange = useCallback((updater: GroupingState | ((old: GroupingState) => GroupingState)) => {
+    setGrouping(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      persist({ grouping: next })
+      return next
+    })
+  }, [persist])
+
+  const handleColumnOrderChange = useCallback((updater: ColumnOrderState | ((old: ColumnOrderState) => ColumnOrderState)) => {
+    setColumnOrder(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      persist({ columnOrder: next })
+      return next
+    })
+  }, [persist])
+
+  const handleColumnVisibilityChange = useCallback((updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
+    setColumnVisibility(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      persist({ columnVisibility: next })
+      return next
+    })
+  }, [persist])
+
+  const handleColumnSizingChange = useCallback((updater: ColumnSizingState | ((old: ColumnSizingState) => ColumnSizingState)) => {
+    setColumnSizing(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      persist({ columnSizing: next })
+      return next
+    })
+  }, [persist])
+
+  useEffect(() => {
+    if (!showColumnSettings) return
+    const handler = (e: MouseEvent) => {
+      if (colSettingsRef.current && !colSettingsRef.current.contains(e.target as Node)) {
+        setShowColumnSettings(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showColumnSettings])
 
   const fetchDocs = useCallback(async () => {
     try {
@@ -222,6 +361,8 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
         </div>
       ),
       enableGrouping: true,
+      size: 280,
+      minSize: 150,
     },
     {
       id: 'format',
@@ -229,6 +370,8 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       header: () => t('docs.table.format'),
       cell: ({ getValue }) => <span className="docs-format">{String(getValue())}</span>,
       enableGrouping: true,
+      size: 110,
+      minSize: 80,
     },
     {
       id: 'status',
@@ -236,6 +379,8 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       header: () => t('docs.table.status'),
       cell: ({ row }) => <StatusBadge status={row.original.status} errorMessage={row.original.error_message} />,
       enableGrouping: true,
+      size: 140,
+      minSize: 100,
     },
     {
       id: 'size',
@@ -244,6 +389,8 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       cell: ({ getValue }) => <span className="docs-size">{formatBytes(Number(getValue()))}</span>,
       enableGrouping: false,
       sortingFn: 'basic',
+      size: 90,
+      minSize: 70,
     },
     {
       id: 'chunks',
@@ -251,7 +398,8 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       header: () => t('docs.table.chunks'),
       cell: ({ getValue }) => <span className="docs-chunks">{Number(getValue()) || '—'}</span>,
       enableGrouping: false,
-      meta: { className: 'col-chunks' },
+      size: 80,
+      minSize: 60,
     },
     {
       id: 'product',
@@ -259,6 +407,8 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       header: () => t('docs.table.product'),
       cell: ({ getValue }) => <span className="docs-product">{String(getValue() || '—')}</span>,
       enableGrouping: true,
+      size: 150,
+      minSize: 80,
     },
     {
       id: 'date',
@@ -267,12 +417,17 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       cell: ({ getValue }) => <span className="docs-date">{formatDate(getValue() as string | null)}</span>,
       enableGrouping: false,
       sortingFn: 'datetime',
+      size: 130,
+      minSize: 90,
     },
     {
       id: 'actions',
       header: () => t('docs.table.actions'),
       enableSorting: false,
       enableGrouping: false,
+      enableResizing: false,
+      size: 120,
+      minSize: 100,
       cell: ({ row }) => {
         const doc = row.original
         return (
@@ -299,18 +454,22 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const table = useReactTable({
     data: documents,
     columns,
-    state: { sorting, globalFilter, columnOrder, grouping, expanded },
-    onSortingChange: setSorting,
+    state: { sorting, globalFilter, columnOrder, grouping, expanded, columnVisibility, columnSizing },
+    onSortingChange: handleSortingChange,
     onGlobalFilterChange: setGlobalFilter,
-    onColumnOrderChange: setColumnOrder,
-    onGroupingChange: setGrouping,
+    onColumnOrderChange: handleColumnOrderChange,
+    onGroupingChange: handleGroupingChange,
     onExpandedChange: setExpanded,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
+    onColumnSizingChange: handleColumnSizingChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     enableMultiSort: true,
+    enableColumnResizing: true,
+    columnResizeMode: 'onChange',
     getRowId: row => String(row.id),
   })
 
@@ -327,24 +486,31 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
     setActiveId(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
-    setColumnOrder(prev => {
+    handleColumnOrderChange(prev => {
       const oldIndex = prev.indexOf(String(active.id))
       const newIndex = prev.indexOf(String(over.id))
       return arrayMove(prev, oldIndex, newIndex)
     })
-  }, [])
+  }, [handleColumnOrderChange])
 
   const removeGrouping = useCallback((columnId: string) => {
-    setGrouping(prev => prev.filter(g => g !== columnId))
-  }, [])
+    handleGroupingChange(prev => prev.filter(g => g !== columnId))
+  }, [handleGroupingChange])
 
   const toggleGrouping = useCallback((columnId: string) => {
-    setGrouping(prev =>
+    handleGroupingChange(prev =>
       prev.includes(columnId)
         ? prev.filter(g => g !== columnId)
         : [...prev, columnId]
     )
-  }, [])
+  }, [handleGroupingChange])
+
+  const handleColumnResize = useCallback((columnId: string, delta: number, startSize: number) => {
+    const col = table.getColumn(columnId)
+    const minSize = col?.columnDef.minSize ?? 50
+    const newSize = Math.max(minSize, startSize + delta)
+    handleColumnSizingChange(prev => ({ ...prev, [columnId]: newSize }))
+  }, [table, handleColumnSizingChange])
 
   if (loading) {
     return (
@@ -375,7 +541,10 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   return (
     <div className="docs-page">
       <div className="docs-header">
-        <h1>{t('docs.title')}</h1>
+        <h1 className="docs-page-title">
+          <FileText size={20} />
+          {t('docs.title')}
+        </h1>
         <div className="docs-header-actions">
           <div className="docs-search">
             <Search size={16} />
@@ -391,6 +560,33 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
               <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }}>
                 <X size={14} />
               </button>
+            )}
+          </div>
+          <div className="docs-col-settings-wrap" ref={colSettingsRef}>
+            <button
+              className="docs-col-settings-btn"
+              onClick={() => setShowColumnSettings(v => !v)}
+              title={t('docs.columns.settings')}
+            >
+              <Settings2 size={16} />
+            </button>
+            {showColumnSettings && (
+              <div className="docs-col-settings-dropdown">
+                <div className="docs-col-settings-title">{t('docs.columns.settings')}</div>
+                {table.getAllLeafColumns()
+                  .filter(col => col.id !== 'actions')
+                  .map(col => (
+                    <label key={col.id} className="docs-col-settings-item">
+                      <input
+                        type="checkbox"
+                        checked={col.getIsVisible()}
+                        onChange={col.getToggleVisibilityHandler()}
+                      />
+                      {col.getIsVisible() ? <Eye size={14} /> : <EyeOff size={14} />}
+                      <span>{flexRender(col.columnDef.header, { table, header: null as never, column: col })}</span>
+                    </label>
+                  ))}
+              </div>
             )}
           </div>
           <button className="docs-upload-btn" onClick={onUploadClick}>
@@ -422,16 +618,15 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       {/* Desktop/Tablet: TanStack Table */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="docs-table-wrap">
-          <table className="docs-table">
+          <table className="docs-table" style={{ width: table.getTotalSize() }}>
             <thead>
               {table.getHeaderGroups().map(headerGroup => (
                 <tr key={headerGroup.id}>
                   <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
                     {headerGroup.headers.map(header => {
-                      const meta = header.column.columnDef.meta as { className?: string } | undefined
                       if (header.id === 'actions') {
                         return (
-                          <th key={header.id} className={meta?.className}>
+                          <th key={header.id} style={{ width: header.getSize(), minWidth: header.getSize() }}>
                             <div className="docs-th-inner">
                               <span className="docs-th-label">
                                 {flexRender(header.column.columnDef.header, header.getContext())}
@@ -441,7 +636,15 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                         )
                       }
                       return (
-                        <DraggableHeader key={header.id} header={header}>
+                        <DraggableHeader
+                          key={header.id}
+                          headerId={header.id}
+                          canSort={header.column.getCanSort()}
+                          isSorted={header.column.getIsSorted()}
+                          toggleSortingHandler={header.column.getToggleSortingHandler()}
+                          width={header.getSize()}
+                          onResize={(delta) => handleColumnResize(header.id, delta, header.getSize())}
+                        >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                         </DraggableHeader>
                       )
@@ -454,7 +657,6 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
               {table.getRowModel().rows.map(row => (
                 <tr key={row.id} className={row.getIsGrouped() ? 'docs-row-group' : undefined}>
                   {row.getVisibleCells().map(cell => {
-                    const meta = cell.column.columnDef.meta as { className?: string } | undefined
                     if (cell.getIsGrouped()) {
                       return (
                         <td key={cell.id} colSpan={row.getVisibleCells().length} className="docs-group-cell">
@@ -469,9 +671,9 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                       )
                     }
                     if (cell.getIsAggregated()) return null
-                    if (cell.getIsPlaceholder()) return <td key={cell.id} className={meta?.className} />
+                    if (cell.getIsPlaceholder()) return <td key={cell.id} />
                     return (
-                      <td key={cell.id} className={meta?.className}>
+                      <td key={cell.id} style={{ width: cell.column.getSize() }}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     )
@@ -493,7 +695,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
         </DragOverlay>
       </DndContext>
 
-      {/* Context menu for grouping */}
+      {/* Grouping toggle buttons */}
       <div className="docs-group-actions">
         {table.getAllLeafColumns()
           .filter(col => col.getCanGroup() && col.id !== 'actions')

@@ -78,6 +78,22 @@
   margin: 0;
 }
 
+.docs-page-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.docs-page-title svg {
+  color: var(--accent);
+  flex-shrink: 0;
+  -webkit-text-fill-color: initial;
+}
+
 .docs-upload-btn {
   display: flex;
   align-items: center;
@@ -103,6 +119,79 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* ── Column Settings ── */
+.docs-col-settings-wrap {
+  position: relative;
+}
+
+.docs-col-settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.docs-col-settings-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.docs-col-settings-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 200px;
+  animation: confirm-slide-up 0.15s ease-out;
+}
+
+.docs-col-settings-title {
+  padding: 6px 14px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.docs-col-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.docs-col-settings-item:hover {
+  background: var(--surface-hover);
+}
+
+.docs-col-settings-item input[type="checkbox"] {
+  display: none;
+}
+
+.docs-col-settings-item svg {
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 /* ── Search ── */
@@ -251,9 +340,11 @@
 }
 
 .docs-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
 }
 
 .docs-table th,
@@ -276,8 +367,9 @@
 .docs-th-inner {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 10px 14px;
+  position: relative;
 }
 
 .docs-th-drag {
@@ -285,13 +377,16 @@
   align-items: center;
   cursor: grab;
   color: var(--text-muted);
-  opacity: 0.4;
+  opacity: 0;
   transition: opacity 0.15s;
   flex-shrink: 0;
+  width: 0;
+  overflow: hidden;
 }
 
 .docs-th:hover .docs-th-drag {
-  opacity: 0.8;
+  opacity: 0.6;
+  width: auto;
 }
 
 .docs-th-label {
@@ -299,6 +394,8 @@
   align-items: center;
   gap: 4px;
   user-select: none;
+  flex: 1;
+  min-width: 0;
 }
 
 .docs-th-label--sortable {
@@ -313,11 +410,34 @@
   color: var(--text-muted);
   opacity: 0.4;
   transition: opacity 0.15s;
+  flex-shrink: 0;
 }
 
 .docs-sort-icon--active {
   color: var(--accent);
   opacity: 1;
+}
+
+/* ── Column Resizer ── */
+.docs-th-resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  opacity: 0;
+  background: var(--accent);
+  transition: opacity 0.15s;
+}
+
+.docs-th:hover .docs-th-resizer {
+  opacity: 0.3;
+}
+
+.docs-th-resizer:hover,
+.docs-th-resizer:active {
+  opacity: 1 !important;
 }
 
 .docs-table td {
