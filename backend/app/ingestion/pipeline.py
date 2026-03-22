@@ -344,7 +344,7 @@ async def ingest_file(
         doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
         doc.embedding_tokens = sum(token_counts)
 
-        await session.commit()
+        await session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
         duration = time.perf_counter() - t0
@@ -528,7 +528,7 @@ async def ingest_url(
         doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
         doc.embedding_tokens = sum(token_counts)
 
-        await session.commit()
+        await session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
         duration = time.perf_counter() - t0
@@ -708,7 +708,7 @@ def ingest_from_bytes(
         document.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
         document.embedding_tokens = sum(token_counts)
 
-        session.commit()
+        session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
         duration = time.perf_counter() - t0
