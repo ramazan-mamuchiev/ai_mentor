@@ -223,9 +223,8 @@ Opus 4.6 serves as a premium **anchor product** — its superior quality drives 
 
 ### Embedding Strategy
 - **Gemini `gemini-embedding-2-preview`** — production default, MTEB Multilingual leader (68.3), 100+ languages, Matryoshka dims (128–3072), $0.20/1M tokens
-- **OpenAI `text-embedding-3-small`** (1536 dims) — budget cloud alternative
 - **`intfloat/multilingual-e5-large`** (1024 dims) for local / offline — default for development
-- Provider selected via `EMBEDDING_PROVIDER` env variable (`local` | `openai` | `gemini`)
+- Provider selected via `EMBEDDING_PROVIDER` env variable (`local` | `gemini`)
 - Configurable dimensions via `EMBEDDING_DIMS` (default 1024); Gemini uses `output_dimensionality`, local uses zero-padding
 - E5 models use instruction-prefixed queries (`query:` / `passage:`); Gemini uses `task_type` (`RETRIEVAL_QUERY` / `RETRIEVAL_DOCUMENT`)
 - `GEMINI_API_KEY` — single key shared between LLM (chat) and embeddings
@@ -328,7 +327,7 @@ ipcodex/
 
       ingestion/
         chunker.py           # Chunking logic (split/merge/overlap by token count)
-        embedder.py          # Embedding abstraction (E5 local + OpenAI)
+        embedder.py          # Embedding abstraction (E5 local + Gemini)
         pipeline.py          # Orchestration: detect format → convert → parse → chunk → embed → store
         converters/
           pdf.py             # PDF → Markdown (pymupdf4llm + optional EasyOCR)
@@ -417,7 +416,7 @@ ipcodex/
 | Object Storage | MinIO / AWS S3 | ✅ |
 | Background Jobs | Celery + Redis broker + Celery Beat (periodic) | ✅ |
 | Embedding (local) | intfloat/multilingual-e5-small (1024 dims) | ✅ |
-| Embedding (cloud) | OpenAI text-embedding-3-small (1536 dims) | ✅ |
+| Embedding (cloud) | Gemini gemini-embedding-2-preview (1024 dims, Matryoshka) | ✅ |
 | ORM | SQLAlchemy 2.0 (async) | ✅ |
 | Upload Protocol | TUS v1.0.0 (resumable, chunked to S3 multipart) | ✅ |
 | Archive Support | py7zr, rarfile, zipfile, tarfile | ✅ |
@@ -446,7 +445,7 @@ ipcodex/
 | 1 | Infrastructure: Docker Compose + PostgreSQL schema | ✅ | `docker-compose.yml`, `db/schema.sql` |
 | 2 | Configuration + database layer + SQLAlchemy models | ✅ | `config.py`, `database.py`, `models.py` |
 | 3 | Markdown chunker with tests | ✅ | `ingestion/chunker.py`, `tests/test_chunker.py` |
-| 4 | Embedding abstraction (local E5 + OpenAI) with tests | ✅ | `ingestion/embedder.py`, `tests/test_embedder.py` |
+| 4 | Embedding abstraction (local E5 + Gemini) with tests | ✅ | `ingestion/embedder.py`, `tests/test_embedder.py` |
 | 5 | Ingestion pipeline + Celery task + multi-format converters | ✅ | `ingestion/pipeline.py`, `ingestion/converters/` |
 | 6 | Vector search service | ✅ | `search/service.py`, `tests/test_search.py` |
 | 6a | PDF converter (pymupdf4llm + optional OCR) | ✅ | `ingestion/converters/pdf.py` |
@@ -532,7 +531,7 @@ ipcodex/
 |---|------|---------|-------------|
 | 31 | pgvector HASH partitioning (32 partitions on `tenant_id`) | >2M chunks | `db/migrations/`, schema.sql |
 | 32 | Split cross-tenant search into 2 queries (private + public) and merge in app | with partitioning | `search/service.py` |
-| 33 | Self-hosted embedding model (replace OpenAI dependency) | production readiness | `ingestion/embedder.py`, Docker GPU worker |
+| 33 | Self-hosted embedding model (GPU-accelerated local alternative) | production readiness | `ingestion/embedder.py`, Docker GPU worker |
 | 34 | CDN (CloudFront) for firmware downloads | egress > 1 TB/mo | infrastructure config |
 
 Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scaling)

@@ -265,7 +265,7 @@ Year 3: $200K/mo = $2.4M/year
 | Application servers (3-5 instances) | $500-1,000 |
 | Celery workers (2-4 instances) | $300-600 |
 | S3 storage (100GB) | $5-10 |
-| OpenAI Embeddings API | $200-500 |
+| Gemini Embeddings API | $200-500 |
 | Monitoring (Datadog/Grafana Cloud) | $200-400 |
 | CDN + DNS + SSL | $50-100 |
 | **Total** | **$1,900-4,400** |

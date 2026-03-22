@@ -1,4 +1,4 @@
-"""Embedding abstraction: local (multilingual-e5-large), OpenAI, or Gemini.
+"""Embedding abstraction: local (multilingual-e5-large) or Gemini.
 
 E5 models require prefix instructions:
   - "query: " for search queries
@@ -83,8 +83,6 @@ def embed_texts(texts: list[str], *, is_query: bool = False) -> list[list[float]
     if not texts:
         return []
 
-    if settings.embedding_provider == "openai":
-        return _embed_openai(texts)
     if settings.embedding_provider == "gemini":
         return _embed_gemini(texts, is_query=is_query)
     return _embed_local(texts, is_query=is_query)
@@ -130,32 +128,6 @@ def _embed_local(texts: list[str], *, is_query: bool = False) -> list[list[float
         },
     )
     return adjusted.tolist()
-
-
-def _embed_openai(texts: list[str]) -> list[list[float]]:
-    import openai
-
-    client = openai.OpenAI(api_key=settings.openai_api_key)
-    all_embeddings: list[list[float]] = []
-
-    for i in range(0, len(texts), BATCH_SIZE):
-        batch = texts[i : i + BATCH_SIZE]
-        t0 = time.perf_counter()
-        response = client.embeddings.create(model=settings.embedding_model_openai, input=batch)
-        batch_ms = round((time.perf_counter() - t0) * 1000, 1)
-        for item in response.data:
-            all_embeddings.append(item.embedding)
-
-        logger.debug(
-            "OpenAI embedding batch completed",
-            extra={"texts_count": len(batch), "duration_ms": batch_ms},
-        )
-
-    logger.info(
-        "Embedding completed",
-        extra={"texts_count": len(texts), "provider": "openai", "dims": EMBEDDING_DIMS},
-    )
-    return all_embeddings
 
 
 def _embed_gemini(texts: list[str], *, is_query: bool = False) -> list[list[float]]:

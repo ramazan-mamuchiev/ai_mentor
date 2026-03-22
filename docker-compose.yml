@@ -100,7 +100,6 @@ services:
       EMBEDDING_MODEL_GEMINI: ${EMBEDDING_MODEL_GEMINI:-gemini-embedding-2-preview}
       EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-16384}
@@ -159,7 +158,6 @@ services:
       EMBEDDING_MODEL_GEMINI: ${EMBEDDING_MODEL_GEMINI:-gemini-embedding-2-preview}
       EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs

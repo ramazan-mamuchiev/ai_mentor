@@ -380,7 +380,7 @@ CREATE TABLE chunks (
     heading_level INT NOT NULL,           -- 1, 2, or 3
     content TEXT NOT NULL,
     token_count INT NOT NULL DEFAULT 0,
-    embedding vector(1536),              -- fixed dims (OpenAI native, local zero-padded)
+    embedding vector(1024),              -- Gemini Matryoshka / local E5 native dims
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 );

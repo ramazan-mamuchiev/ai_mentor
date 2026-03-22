@@ -65,7 +65,7 @@ IPCodex превращает хаотичную документацию физ�
 
 **Компоненты Phase 2:**
 - **Chunking Pipeline**: Разбиение Markdown по заголовкам (H1/H2/H3) на семантические фрагменты
-- **Embedding Service**: Векторизация чанков (OpenAI text-embedding-3-small или локальный all-MiniLM-L6-v2)
+- **Embedding Service**: Векторизация чанков (Gemini gemini-embedding-2-preview или локальный multilingual-e5-large)
 - **pgvector**: PostgreSQL extension для хранения и поиска по векторным embeddings
 - **HNSW Index**: Cosine similarity search (работает на любом объёме, не требует минимума строк как IVFFlat)
 - **MCP Server**: Model Context Protocol для интеграции с AI IDE (Cursor, Antigravity, Windsurf)
@@ -180,7 +180,7 @@ ipcodex/
 - VPS 8 vCPU / 16GB RAM — $80-120
 - Managed PostgreSQL — $30-50
 - S3 storage (500GB) — $12
-- OpenAI Embeddings API — $20-50
+- Gemini Embeddings API — $20-50
 - LLM API (AI Chat) — $50-100
 - Monitoring + Backups — $20
 - Подходит для 100 устройств, 10-30 пользователей, AI Chat включён
@@ -189,7 +189,7 @@ ipcodex/
 - Kubernetes cluster (3 nodes) — $300-500
 - Managed PostgreSQL HA — $100-200
 - S3 storage (5TB) — $115
-- OpenAI / local GPU embedding — $100-300
+- Gemini / local GPU embedding — $100-300
 - LLM API (high volume) — $200-500
 - CDN + WAF + Monitoring — $50-100
 - Подходит для 500+ устройств, 50+ пользователей, on-premise опция
@@ -243,7 +243,7 @@ ipcodex/
 | Object Storage | MinIO / AWS S3 |
 | Background Jobs | Celery / BackgroundTasks |
 | OCR | Tesseract / pytesseract |
-| Embedding | OpenAI text-embedding-3-small / all-MiniLM-L6-v2 |
+| Embedding | Gemini gemini-embedding-2-preview / multilingual-e5-large |
 | Vector Search | pgvector (HNSW index, cosine similarity) |
 | AI Chat | LLM (GPT-4 / Claude / self-hosted) |
 | MCP Server | Model Context Protocol (Python SDK) |
@@ -256,7 +256,7 @@ ipcodex/
 
 1. **HNSW vs IVFFlat**: Выбран HNSW для pgvector — работает на любом объёме данных, не требует минимального количества строк (IVFFlat требует sqrt(n) для кластеризации)
 2. **Chunking strategy**: По заголовкам Markdown (H1/H2/H3) — сохраняет семантическую целостность API-секций
-3. **Embedding model**: OpenAI text-embedding-3-small для облака, all-MiniLM-L6-v2 для on-premise (без внешних зависимостей)
+3. **Embedding model**: Gemini gemini-embedding-2-preview для облака (MTEB Multilingual лидер), multilingual-e5-large для on-premise (без внешних зависимостей)
 4. **S3 versioning**: Собственная нумерация v1/v2/v3 вместо S3 native versioning — для удобства UI и diff
 5. **Translation before conversion**: Перевод на английский до Markdown-конвертации, а не после — лучшее качество OCR/парсинга
 6. **Single docker-compose**: Вся платформа запускается одной командой для MVP

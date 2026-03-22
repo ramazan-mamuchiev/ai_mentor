@@ -8,12 +8,10 @@ class Settings(BaseSettings):
 
     api_key: str = "ipx_dev_key_12345"
 
-    embedding_provider: str = "local"  # "local", "openai", or "gemini"
+    embedding_provider: str = "local"  # "local" or "gemini"
     embedding_model_local: str = "intfloat/multilingual-e5-large"
-    embedding_model_openai: str = "text-embedding-3-small"
     embedding_model_gemini: str = "gemini-embedding-2-preview"
     embedding_dims: int = 1024
-    openai_api_key: str = ""
 
     redis_url: str = "redis://localhost:6379/0"
 

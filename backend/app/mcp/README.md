@@ -145,7 +145,7 @@ Cursor / AI IDE                    IPCodex Server
 | API | FastAPI + uvicorn |
 | MCP | FastMCP (Python MCP SDK), Streamable HTTP |
 | Database | PostgreSQL 16 + pgvector (HNSW cosine similarity) |
-| Embeddings | OpenAI text-embedding-3-small / local models |
+| Embeddings | Gemini gemini-embedding-2-preview / local E5 models |
 | Object Storage | MinIO / S3 |
 | Cache | Redis |
 

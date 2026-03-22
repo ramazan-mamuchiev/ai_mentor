@@ -122,24 +122,21 @@ At scale (10x):
 ### 2.5 Embedding API
 
 **Production default: Gemini Embedding 2** — $0.20/1M tokens (gemini-embedding-2-preview)
-**Budget alternative: OpenAI** — $0.02/1M tokens (text-embedding-3-small)
 **Offline: Local** — $0 (intfloat/multilingual-e5-large, CPU-only, ~5.5 sec/chunk)
 
-| Operation | Avg Tokens | Gemini Cost | OpenAI Cost | Monthly Volume | Gemini Monthly | OpenAI Monthly |
-|-----------|:----------:|:-----------:|:-----------:|:--------------:|:--------------:|:--------------:|
-| Search query embedding | 50 tokens | $0.00001 | $0.000001 | 100,000 queries | **$1.00** | **$0.10** |
-| Document ingestion (chunk) | 500 tokens | $0.0001 | $0.00001 | 50,000 chunks | **$5.00** | **$0.50** |
-| Full doc ingestion (200 chunks) | 100K tokens | $0.02 | $0.002 | 500 documents | **$10.00** | **$1.00** |
+| Operation | Avg Tokens | Cost per op | Monthly Volume | Monthly Cost |
+|-----------|:----------:|:-----------:|:--------------:|:------------:|
+| Search query embedding | 50 tokens | $0.00001 | 100,000 queries | **$1.00** |
+| Document ingestion (chunk) | 500 tokens | $0.0001 | 50,000 chunks | **$5.00** |
+| Full doc ingestion (200 chunks) | 100K tokens | $0.02 | 500 documents | **$10.00** |
 
-| Scale | Queries/mo | Ingests/mo | Gemini Monthly | OpenAI Monthly |
-|-------|:----------:|:----------:|:--------------:|:--------------:|
-| Small | 50K | 200 docs | **$5-15** | **$1-3** |
-| Medium | 300K | 1,000 docs | **$30-80** | **$5-15** |
-| Large | 2M | 5,000 docs | **$200-500** | **$30-80** |
+| Scale | Queries/mo | Ingests/mo | Gemini Monthly |
+|-------|:----------:|:----------:|:--------------:|
+| Small | 50K | 200 docs | **$5-15** |
+| Medium | 300K | 1,000 docs | **$30-80** |
+| Large | 2M | 5,000 docs | **$200-500** |
 
-**Key insight**: Gemini Embedding 2 is 10x more expensive than OpenAI but leads MTEB Multilingual benchmarks (68.3 vs 58.9). For a multilingual product, the quality improvement justifies the cost — even at large scale it's < $500/mo.
-
-**Why Gemini over OpenAI**: IPCodex serves users in 100+ countries. Gemini Embedding 2 significantly outperforms OpenAI on non-English retrieval (Russian, Chinese, Arabic, etc.).
+**Why Gemini**: IPCodex serves users in 100+ countries. Gemini Embedding 2 leads MTEB Multilingual benchmarks (68.3) and significantly outperforms alternatives on non-English retrieval (Russian, Chinese, Arabic, etc.). Even at large scale it's < $500/mo.
 
 ### 2.6 LLM API (for RAG Chat)
 
@@ -426,7 +423,7 @@ Year 3 breakdown ($32,695/mo):
 |------|--------|-----------|
 | Viral firmware download (one popular file, millions of downloads) | S3 egress bill spike | CDN caching + rate limiting on downloads |
 | pgvector index doesn't fit in RAM | Search latency spikes, need bigger instance | HASH partitioning by tenant_id (Stage 2), increase shared_buffers |
-| OpenAI price increase | Embedding costs increase | Switch to self-hosted model (already supported) |
+| Gemini Embedding price increase | Embedding costs increase | Switch to local E5 model (already supported: `EMBEDDING_PROVIDER=local`) |
 | Gemini API price increase or quota limits | LLM cost spike or service degradation | Fallback to Ollama (local LLM, already supported: `LLM_PROVIDER=ollama`), or switch to another OpenAI-compatible provider |
 | Google AI Studio free tier rate limits (15 RPM) | Users can't get answers during peak load | Upgrade to paid tier (Vertex AI) or hybrid: Ollama for overflow |
 | Opus 4.6 query volume exceeds projections | LLM cost spike if many Pro users opt into Opus | Per-model billing absorbs cost; adjust Pro Opus quota (100 queries/mo) or overage price |
@@ -535,7 +532,6 @@ REVENUE-TO-INFRA RATIO:       6.7×
 
 - AWS S3 pricing: https://aws.amazon.com/s3/pricing/ (March 2026)
 - AWS EC2 pricing: https://aws.amazon.com/ec2/pricing/ (March 2026)
-- OpenAI Embeddings pricing: https://openai.com/pricing (March 2026)
 - Google AI Studio / Gemini API pricing: https://ai.google.dev/pricing (March 2026)
 - Anthropic Claude pricing: https://www.anthropic.com/pricing (March 2026)
 - Stripe pricing: https://stripe.com/pricing (March 2026)

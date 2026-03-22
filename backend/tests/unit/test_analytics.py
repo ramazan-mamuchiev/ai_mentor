@@ -116,7 +116,7 @@ class TestChatMessageAnalyticsModel:
             context_tokens=1500,
             history_messages=2,
             prompt_messages=4,
-            embedding_model="text-embedding-3-small",
+            embedding_model="gemini-embedding-2-preview",
             doc_context="API Guide",
             auto_product=None,
             detected_doc_context=None,

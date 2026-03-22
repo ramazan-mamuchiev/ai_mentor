@@ -272,13 +272,11 @@ API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-ten
 GEMINI_API_KEY=AIza...                       # single key for LLM + embeddings
 
 # === Embedding ===
-EMBEDDING_PROVIDER=gemini                    # local | openai | gemini
+EMBEDDING_PROVIDER=gemini                    # local | gemini
 EMBEDDING_DIMS=1024                          # vector dimensionality (Matryoshka for Gemini)
 EMBEDDING_MODEL_GEMINI=gemini-embedding-2-preview
 # Local: intfloat/multilingual-e5-large (1024 dims), auto-downloaded on first run
-# OpenAI: text-embedding-3-small (1536 dims) — requires OPENAI_API_KEY
 # Gemini: gemini-embedding-2-preview — uses GEMINI_API_KEY, MTEB Multilingual leader
-OPENAI_API_KEY=sk-...                        # only if EMBEDDING_PROVIDER=openai
 
 # === LLM (RAG Chat) — Tiered Model Strategy ===
 # Default provider for production (Gemini via OpenAI-compatible API):
