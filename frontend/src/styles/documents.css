@@ -42,11 +42,6 @@
   border-left: 2.5px solid var(--accent2);
 }
 
-.nav-item--new-chat {
-  color: var(--accent);
-  font-weight: 600;
-}
-
 .nav-divider {
   height: 1px;
   background: var(--border);

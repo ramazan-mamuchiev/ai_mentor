@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  SquarePen, MessageSquare, FileText, Box, BarChart3, Settings,
+  MessageSquare, FileText, Box, BarChart3, Settings,
   PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -113,11 +113,6 @@ export function Layout({
     }
   }, [sidebarWidth, collapsed])
 
-  const handleNewChat = useCallback(() => {
-    if (!isChat) navigate('/app')
-    onNewSession()
-  }, [isChat, navigate, onNewSession])
-
   const { t } = useTranslation()
 
   const effectiveWidth = collapsed ? COLLAPSED_WIDTH : sidebarWidth
@@ -146,17 +141,6 @@ export function Layout({
         </div>
 
         <nav className="sidebar-nav">
-          <button
-            className="nav-item nav-item--new-chat"
-            onClick={handleNewChat}
-            title={collapsed ? t('sidebar.newChat') : undefined}
-          >
-            <SquarePen size={18} />
-            {!collapsed && t('sidebar.newChat')}
-          </button>
-
-          <div className="nav-divider" />
-
           {NAV_ITEMS.map(item => {
             const Icon = item.icon
             const active = item.path === '/app'

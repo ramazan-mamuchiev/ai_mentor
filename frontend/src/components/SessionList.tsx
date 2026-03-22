@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, SquarePen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 
@@ -11,7 +11,7 @@ interface Props {
   onDelete: (id: number) => void
 }
 
-export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: Props) {
+export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDelete }: Props) {
   const { t } = useTranslation()
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -40,6 +40,10 @@ export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: P
 
   return (
     <div className="session-list">
+      <button className="session-new-chat" onClick={onNew}>
+        <SquarePen size={16} />
+        {t('sidebar.newChat')}
+      </button>
       {sessions.map(s => {
         const isActive = s.id === activeSessionId
         const isMenuOpen = menuOpenId === s.id
