@@ -22,7 +22,6 @@ resumablesha256>=1.0
 psycopg2-binary>=2.9.0
 proto-schema-parser>=2.1.0
 google-genai>=1.0.0
-sentence-transformers>=3.0.0
 # Optional: OCR support (uncomment to enable)
 # easyocr>=1.7.0
 # Optional: headless browser for web page crawling

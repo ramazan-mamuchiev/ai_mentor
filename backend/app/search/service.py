@@ -249,7 +249,7 @@ async def search_documents(
         from app.search.reranker import rerank
 
         t_rerank = time.perf_counter()
-        results = rerank(query, deduped, top_k=limit)
+        results = await rerank(query, deduped, top_k=limit)
         rerank_ms = round((time.perf_counter() - t_rerank) * 1000, 1)
     else:
         results = deduped[:limit]

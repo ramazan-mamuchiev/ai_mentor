@@ -53,6 +53,7 @@ class Settings(BaseSettings):
 
     rerank_enabled: bool = True
     rerank_candidates: int = 20
+    rerank_model: str = "gemini-2.0-flash"
 
     hybrid_search_enabled: bool = True
     hybrid_bm25_weight: float = 0.3
