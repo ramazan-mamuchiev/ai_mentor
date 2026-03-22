@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def _embedding_model_name() -> str:
-    if settings.embedding_provider == "local":
-        return settings.embedding_model_local
     return settings.embedding_model_gemini
 
 
@@ -376,6 +374,7 @@ async def build_rag_prompt(
 
     sources = [
         {
+            "document_id": c.get("document_id"),
             "doc_title": c["doc_title"],
             "heading_path": c["heading_path"],
             "similarity": c["similarity"],

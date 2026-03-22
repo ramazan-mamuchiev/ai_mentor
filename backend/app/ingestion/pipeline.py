@@ -14,12 +14,17 @@ from app.ingestion.converters.proto import convert_proto_file
 from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_file
 from app.ingestion.converters.web import convert_url
 from app.ingestion.embedder import embed_texts
+from app.config import settings as _settings
 from app.ingestion.parsers.markdown import parse_markdown
 from app.ingestion.parsers.swagger import parse_swagger
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
 from app.models import Chunk, Product, Document, FirmwareVersion
 
 logger = logging.getLogger(__name__)
+
+
+def _embedding_model_name() -> str:
+    return _settings.embedding_model_gemini
 
 
 MAX_EMBEDDING_TOKENS = 500
@@ -331,10 +336,28 @@ async def ingest_file(
 
         doc.total_chunks = len(chunks)
         doc.status = "ready"
+
+        token_counts = [c.token_count for c in chunks]
+        doc.total_tokens = sum(token_counts)
+        doc.min_chunk_tokens = min(token_counts)
+        doc.max_chunk_tokens = max(token_counts)
+        doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
+        doc.embedding_tokens = sum(token_counts)
+
         await session.commit()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
         duration = time.perf_counter() - t0
+        doc.ingest_duration_ms = round(duration * 1000, 1)
+        doc.read_ms = read_ms
+        doc.convert_ms = convert_ms
+        doc.parse_ms = parse_ms
+        doc.embed_ms = embed_ms
+        doc.db_ms = db_ms
+        doc.embedding_model = _embedding_model_name()
+        doc.embedding_dims = _settings.embedding_dims
+        await session.commit()
+
         logger.info(
             "Ingestion completed",
             extra={
@@ -497,10 +520,28 @@ async def ingest_url(
 
         doc.total_chunks = len(chunks)
         doc.status = "ready"
+
+        token_counts = [c.token_count for c in chunks]
+        doc.total_tokens = sum(token_counts)
+        doc.min_chunk_tokens = min(token_counts)
+        doc.max_chunk_tokens = max(token_counts)
+        doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
+        doc.embedding_tokens = sum(token_counts)
+
         await session.commit()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
         duration = time.perf_counter() - t0
+        doc.ingest_duration_ms = round(duration * 1000, 1)
+        doc.read_ms = 0
+        doc.convert_ms = convert_ms
+        doc.parse_ms = parse_ms
+        doc.embed_ms = embed_ms
+        doc.db_ms = db_ms
+        doc.embedding_model = _embedding_model_name()
+        doc.embedding_dims = _settings.embedding_dims
+        await session.commit()
+
         logger.info(
             "URL ingestion completed",
             extra={
@@ -659,10 +700,28 @@ def ingest_from_bytes(
 
         document.total_chunks = len(chunks)
         document.status = "ready"
+
+        token_counts = [c.token_count for c in chunks]
+        document.total_tokens = sum(token_counts)
+        document.min_chunk_tokens = min(token_counts)
+        document.max_chunk_tokens = max(token_counts)
+        document.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
+        document.embedding_tokens = sum(token_counts)
+
         session.commit()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 
         duration = time.perf_counter() - t0
+        document.ingest_duration_ms = round(duration * 1000, 1)
+        document.read_ms = read_ms
+        document.convert_ms = convert_ms
+        document.parse_ms = parse_ms
+        document.embed_ms = embed_ms
+        document.db_ms = db_ms
+        document.embedding_model = _embedding_model_name()
+        document.embedding_dims = _settings.embedding_dims
+        session.commit()
+
         logger.info(
             "Worker ingestion completed",
             extra={

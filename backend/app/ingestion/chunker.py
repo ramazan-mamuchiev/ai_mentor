@@ -3,16 +3,11 @@
 Handles splitting large sections (>max_tokens) and merging small ones (<min_tokens).
 Preserves code blocks and tables as atomic units during splitting.
 Adds configurable overlap between split pieces for better retrieval.
-Uses the real E5 tokenizer for accurate token counting when available.
 """
 
 import logging
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from transformers import PreTrainedTokenizerBase
 
 _CODE_BLOCK_RE = re.compile(r"```[\s\S]*?```|```[\s\S]*$", re.MULTILINE)
 _TABLE_RE = re.compile(
@@ -25,33 +20,6 @@ from app.config import settings
 OVERLAP_PARAGRAPHS = settings.chunk_overlap_paragraphs
 
 logger = logging.getLogger(__name__)
-
-_tokenizer: "PreTrainedTokenizerBase | None" = None
-_tokenizer_load_failed: bool = False
-
-
-def _get_tokenizer() -> "PreTrainedTokenizerBase | None":
-    """Lazy-load the real tokenizer for the configured embedding model.
-
-    Falls back to None (heuristic) if transformers is not installed or
-    the model tokenizer can't be loaded.
-    """
-    global _tokenizer, _tokenizer_load_failed
-    if _tokenizer is not None:
-        return _tokenizer
-    if _tokenizer_load_failed:
-        return None
-    try:
-        from transformers import AutoTokenizer
-
-        model_name = settings.embedding_model_local
-        _tokenizer = AutoTokenizer.from_pretrained(model_name)
-        logger.info("Loaded real tokenizer for chunking", extra={"model": model_name})
-        return _tokenizer
-    except Exception:
-        _tokenizer_load_failed = True
-        logger.info("Real tokenizer unavailable, using word-based heuristic for token counting")
-        return None
 
 
 @dataclass
@@ -71,18 +39,10 @@ class ChunkData:
 
 
 def _estimate_tokens(text: str) -> int:
-    """Count tokens using the real model tokenizer, falling back to heuristic.
-
-    When the real tokenizer is available (from transformers), uses it for exact
-    counts. Otherwise falls back to word-based heuristic (len(words) * 1.3).
-    """
+    """Estimate token count using word-based heuristic (words * 1.3)."""
     if not text:
         return 1
-    tokenizer = _get_tokenizer()
-    if tokenizer is not None:
-        return max(1, len(tokenizer.encode(text, add_special_tokens=False)))
-    words = text.split()
-    return max(1, int(len(words) * 1.3))
+    return max(1, int(len(text.split()) * 1.3))
 
 
 def _split_into_blocks(text: str) -> list[str]:

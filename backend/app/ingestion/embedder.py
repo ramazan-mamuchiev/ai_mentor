@@ -1,11 +1,6 @@
-"""Embedding abstraction: local (multilingual-e5-large) or Gemini.
+"""Embedding via Gemini API.
 
-E5 models require prefix instructions:
-  - "query: " for search queries
-  - "passage: " for document passages being indexed
-The model produces 1024-dim vectors natively.
-
-Gemini models use task_type for the same purpose:
+Gemini models use task_type to distinguish queries from documents:
   - "RETRIEVAL_QUERY" for search queries
   - "RETRIEVAL_DOCUMENT" for document passages being indexed
 """
@@ -20,21 +15,22 @@ from app.config import settings
 
 if TYPE_CHECKING:
     from google.genai import Client as GenaiClient
-    from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
-_local_model: "SentenceTransformer | None" = None
 _gemini_client: "GenaiClient | None" = None
 
 EMBEDDING_DIMS = settings.embedding_dims
 BATCH_SIZE = 256
 
-E5_MODEL_PREFIXES = {"intfloat/multilingual-e5-large", "intfloat/multilingual-e5-base", "intfloat/multilingual-e5-small"}
 
+def _embed_config(*, task_type: str, output_dimensionality: int):
+    from google.genai import types
 
-def _is_e5_model() -> bool:
-    return settings.embedding_model_local in E5_MODEL_PREFIXES
+    return types.EmbedContentConfig(
+        task_type=task_type,
+        output_dimensionality=output_dimensionality,
+    )
 
 
 def _get_gemini_client() -> "GenaiClient":
@@ -47,107 +43,10 @@ def _get_gemini_client() -> "GenaiClient":
     return _gemini_client
 
 
-def _get_local_model() -> "SentenceTransformer":
-    global _local_model
-    if _local_model is None:
-        from sentence_transformers import SentenceTransformer
-
-        t0 = time.perf_counter()
-        logger.info(
-            "Loading local embedding model",
-            extra={"model": settings.embedding_model_local},
-        )
-        _local_model = SentenceTransformer(settings.embedding_model_local)
-        native_dims = _local_model.get_sentence_embedding_dimension()
-        duration_sec = round(time.perf_counter() - t0, 2)
-        logger.info(
-            "Local embedding model loaded",
-            extra={
-                "model": settings.embedding_model_local,
-                "native_dims": native_dims,
-                "target_dims": EMBEDDING_DIMS,
-                "is_e5": _is_e5_model(),
-                "duration_sec": duration_sec,
-            },
-        )
-    return _local_model
-
-
-def _adjust_dims(vectors: np.ndarray, target_dims: int) -> np.ndarray:
-    """Pad or truncate vectors to target dimensionality."""
-    if vectors.shape[1] == target_dims:
-        return vectors
-    if vectors.shape[1] > target_dims:
-        return vectors[:, :target_dims]
-    padding = np.zeros((vectors.shape[0], target_dims - vectors.shape[1]), dtype=vectors.dtype)
-    return np.hstack([vectors, padding])
-
-
 def embed_texts(texts: list[str], *, is_query: bool = False) -> list[list[float]]:
-    """Embed a list of texts. Returns list of EMBEDDING_DIMS-dim vectors.
-
-    Args:
-        texts: Raw text strings to embed.
-        is_query: If True, adds "query: " prefix (for search).
-                  If False, adds "passage: " prefix (for indexing).
-                  Prefixes only applied for E5 models.
-    """
+    """Embed a list of texts via Gemini API. Returns list of EMBEDDING_DIMS-dim vectors."""
     if not texts:
         return []
-
-    logger.info(
-        "Embedding dispatch",
-        extra={"provider_setting": settings.embedding_provider, "texts_count": len(texts)},
-    )
-    if settings.embedding_provider == "gemini":
-        return _embed_gemini(texts, is_query=is_query)
-    return _embed_local(texts, is_query=is_query)
-
-
-def _embed_local(texts: list[str], *, is_query: bool = False) -> list[list[float]]:
-    model = _get_local_model()
-
-    if _is_e5_model():
-        prefix = "query: " if is_query else "passage: "
-        texts = [prefix + t for t in texts]
-
-    all_embeddings: list[np.ndarray] = []
-    total_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
-
-    for batch_idx, i in enumerate(range(0, len(texts), BATCH_SIZE)):
-        batch = texts[i : i + BATCH_SIZE]
-        t0 = time.perf_counter()
-        vecs = model.encode(batch, normalize_embeddings=True, show_progress_bar=False)
-        batch_ms = round((time.perf_counter() - t0) * 1000, 1)
-        all_embeddings.append(vecs)
-
-        log_extra = {
-            "batch_index": batch_idx + 1, "total_batches": total_batches,
-            "texts_count": len(batch), "duration_ms": batch_ms,
-        }
-        if batch_ms > 30000:
-            logger.warning("Embedding batch slow", extra=log_extra)
-        else:
-            logger.debug("Embedding batch completed", extra=log_extra)
-
-    combined = np.vstack(all_embeddings) if len(all_embeddings) > 1 else all_embeddings[0]
-    adjusted = _adjust_dims(combined, EMBEDDING_DIMS)
-
-    logger.info(
-        "Embedding completed",
-        extra={
-            "texts_count": len(texts),
-            "provider": "local",
-            "dims": EMBEDDING_DIMS,
-            "is_query": is_query,
-            "is_e5": _is_e5_model(),
-        },
-    )
-    return adjusted.tolist()
-
-
-def _embed_gemini(texts: list[str], *, is_query: bool = False) -> list[list[float]]:
-    from google.genai import types
 
     client = _get_gemini_client()
     task_type = "RETRIEVAL_QUERY" if is_query else "RETRIEVAL_DOCUMENT"
@@ -162,10 +61,7 @@ def _embed_gemini(texts: list[str], *, is_query: bool = False) -> list[list[floa
         result = client.models.embed_content(
             model=settings.embedding_model_gemini,
             contents=batch,
-            config=types.EmbedContentConfig(
-                task_type=task_type,
-                output_dimensionality=target_dims,
-            ),
+            config=_embed_config(task_type=task_type, output_dimensionality=target_dims),
         )
         batch_ms = round((time.perf_counter() - t0) * 1000, 1)
 

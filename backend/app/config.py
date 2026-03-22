@@ -8,8 +8,6 @@ class Settings(BaseSettings):
 
     api_key: str = "ipx_dev_key_12345"
 
-    embedding_provider: str = "local"  # "local" or "gemini"
-    embedding_model_local: str = "intfloat/multilingual-e5-large"
     embedding_model_gemini: str = "gemini-embedding-2-preview"
     embedding_dims: int = 1024
 

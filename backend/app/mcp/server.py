@@ -16,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 def _embedding_model_name() -> str:
-    if settings.embedding_provider == "local":
-        return settings.embedding_model_local
     return settings.embedding_model_gemini
 
 
