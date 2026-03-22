@@ -399,20 +399,17 @@
 }
 
 .docs-th-drag {
-  position: absolute;
-  left: 2px;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   cursor: grab;
   color: var(--text-muted);
-  opacity: 0;
+  opacity: 0.35;
   transition: opacity 0.15s;
+  flex-shrink: 0;
 }
 
 .docs-th:hover .docs-th-drag {
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 .docs-th-label {
