@@ -1592,10 +1592,4 @@
     padding: 8px 12px;
   }
 
-  .sidebar--mobile .sidebar-toggle-btn {
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border) !important;
-    border-radius: 8px;
-  }
 }
