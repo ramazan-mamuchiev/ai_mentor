@@ -235,6 +235,11 @@ export function Layout({
             >
               <Menu size={20} />
             </button>
+            <div className="mobile-topbar-brand">
+              <img src="/logo-on-light.svg" alt="" className="mobile-topbar-logo logo-light" />
+              <img src="/logo-on-dark.svg" alt="" className="mobile-topbar-logo logo-dark" />
+              <span className="mobile-topbar-title">{t('sidebar.title')}</span>
+            </div>
           </div>
         )}
         {children}

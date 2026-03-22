@@ -1495,10 +1495,31 @@
   .mobile-topbar {
     display: flex;
     align-items: center;
+    gap: 12px;
     padding: 8px 12px;
     flex-shrink: 0;
     border-bottom: 1px solid var(--border);
     background: var(--bg);
+  }
+
+  .mobile-topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mobile-topbar-logo {
+    width: 22px;
+    height: 22px;
+  }
+
+  .mobile-topbar-title {
+    font-size: 15px;
+    font-weight: 600;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
   .mobile-menu-btn {
