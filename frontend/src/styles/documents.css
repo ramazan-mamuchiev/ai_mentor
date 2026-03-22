@@ -1171,18 +1171,8 @@ td:has(.docs-actions) {
 }
 
 .docs-debug-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: none;
-  background: none;
-  color: var(--text-muted);
   opacity: 0.5;
   transition: opacity 0.15s, background 0.15s;
-  cursor: pointer;
   border: none;
   background: none;
   padding: 0;

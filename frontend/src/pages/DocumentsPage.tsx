@@ -409,7 +409,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
           <div className="docs-actions">
             {doc.status === 'ready' && (
               <button
-                className={`docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
+                className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
                 onClick={() => toggleDebug(doc.id)}
                 title={t('docs.actions.debug')}
               >
@@ -739,7 +739,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
               <div className="docs-card-actions">
                 {doc.status === 'ready' && (
                   <button
-                    className={`docs-debug-toggle${debugExpandedIds.has(doc.id) ? ' docs-debug-toggle--active' : ''}`}
+                    className={`docs-action-btn docs-debug-toggle${debugExpandedIds.has(doc.id) ? ' docs-debug-toggle--active' : ''}`}
                     onClick={() => toggleDebug(doc.id)}
                     title={t('docs.actions.debug')}
                   >
