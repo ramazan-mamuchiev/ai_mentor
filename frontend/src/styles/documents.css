@@ -858,6 +858,10 @@ td:has(.docs-actions) {
     display: none;
   }
 
+  .docs-col-settings-wrap {
+    display: none;
+  }
+
   .docs-cards {
     display: flex;
   }
@@ -875,7 +879,7 @@ td:has(.docs-actions) {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
   .docs-header {
     padding: 10px 12px;
     flex-wrap: wrap;
@@ -889,10 +893,15 @@ td:has(.docs-actions) {
 
   .docs-search {
     flex: 1;
+    min-width: 0;
   }
 
   .docs-search-input {
     width: 100%;
+  }
+
+  .docs-col-settings-wrap {
+    display: none;
   }
 
   .docs-card {
