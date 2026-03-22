@@ -46,6 +46,10 @@ export interface DebugInfo {
   llm_prompt_tokens: number
   llm_completion_tokens: number
   llm_total_tokens: number
+  rerank_prompt_tokens: number
+  rerank_completion_tokens: number
+  rerank_total_tokens: number
+  rerank_model: string
   status?: 'success' | 'stopped' | 'error'
   status_detail?: string
 }

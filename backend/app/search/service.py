@@ -138,6 +138,7 @@ async def search_documents(
     version: str | None = None,
     doc_context: str | None = None,
     limit: int = 5,
+    metadata: dict | None = None,
 ) -> list[dict]:
     """Hybrid search: vector similarity + BM25 full-text, fused via RRF.
 
@@ -245,12 +246,21 @@ async def search_documents(
     dedup_removed = len(raw_results) - len(deduped)
 
     rerank_ms = 0.0
+    rerank_prompt_tokens = 0
+    rerank_completion_tokens = 0
+    rerank_total_tokens = 0
+    rerank_model = ""
     if settings.rerank_enabled and len(deduped) > 1:
         from app.search.reranker import rerank
 
         t_rerank = time.perf_counter()
-        results = await rerank(query, deduped, top_k=limit)
+        rerank_result = await rerank(query, deduped, top_k=limit)
+        results = rerank_result.results
         rerank_ms = round((time.perf_counter() - t_rerank) * 1000, 1)
+        rerank_prompt_tokens = rerank_result.usage.prompt_tokens
+        rerank_completion_tokens = rerank_result.usage.completion_tokens
+        rerank_total_tokens = rerank_result.usage.total_tokens
+        rerank_model = rerank_result.usage.model
     else:
         results = deduped[:limit]
 
@@ -263,11 +273,23 @@ async def search_documents(
         "result_count": result_count, "top_similarity": top_similarity,
         "duration_ms": duration_ms, "embed_ms": embed_ms, "db_ms": db_ms,
         "bm25_ms": bm25_ms, "rerank_ms": rerank_ms,
+        "rerank_prompt_tokens": rerank_prompt_tokens,
+        "rerank_completion_tokens": rerank_completion_tokens,
+        "rerank_total_tokens": rerank_total_tokens,
         "vector_candidates": len(vector_results),
         "bm25_candidates": len(bm25_results),
         "raw_candidates": len(raw_results), "dedup_removed": dedup_removed,
         "hybrid_enabled": settings.hybrid_search_enabled,
     }
+
+    if metadata is not None:
+        metadata.update({
+            "rerank_ms": rerank_ms,
+            "rerank_prompt_tokens": rerank_prompt_tokens,
+            "rerank_completion_tokens": rerank_completion_tokens,
+            "rerank_total_tokens": rerank_total_tokens,
+            "rerank_model": rerank_model,
+        })
 
     if result_count == 0:
         logger.warning("Search returned 0 results", extra=log_extra)

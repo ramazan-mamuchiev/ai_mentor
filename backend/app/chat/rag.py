@@ -331,6 +331,7 @@ async def build_rag_prompt(
     rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
 
     t_search = time.perf_counter()
+    search_meta: dict = {}
     chunks = await search_documents(
         session=db,
         query=search_query,
@@ -338,6 +339,7 @@ async def build_rag_prompt(
         version=version_filter,
         doc_context=doc_context,
         limit=settings.rag_top_k,
+        metadata=search_meta,
     )
     search_ms = round((time.perf_counter() - t_search) * 1000, 1)
 
@@ -417,6 +419,10 @@ async def build_rag_prompt(
         "detected_doc_context": detected_doc,
         "search_query": search_query if search_query != query else None,
         "no_documents": False,
+        "rerank_prompt_tokens": search_meta.get("rerank_prompt_tokens", 0),
+        "rerank_completion_tokens": search_meta.get("rerank_completion_tokens", 0),
+        "rerank_total_tokens": search_meta.get("rerank_total_tokens", 0),
+        "rerank_model": search_meta.get("rerank_model", ""),
     }
 
     logger.info(

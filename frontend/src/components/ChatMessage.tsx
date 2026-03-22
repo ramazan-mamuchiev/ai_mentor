@@ -56,6 +56,15 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
           <div className="debug-row"><span>{t('debug.llmCompletionTokens')}</span><code>{fmt(debug.llm_completion_tokens)}</code></div>
           <div className="debug-row debug-row-total"><span>{t('debug.llmTotalTokens')}</span><code>{fmt(debug.llm_total_tokens)}</code></div>
         </div>
+        {(debug.rerank_total_tokens ?? 0) > 0 && (
+          <div className="debug-section">
+            <div className="debug-section-title">{t('debug.rerankCost')}</div>
+            <div className="debug-row"><span>{t('debug.rerankPromptTokens')}</span><code>{fmt(debug.rerank_prompt_tokens)}</code></div>
+            <div className="debug-row"><span>{t('debug.rerankCompletionTokens')}</span><code>{fmt(debug.rerank_completion_tokens)}</code></div>
+            <div className="debug-row debug-row-total"><span>{t('debug.rerankTotalTokens')}</span><code>{fmt(debug.rerank_total_tokens)}</code></div>
+            {debug.rerank_model && <div className="debug-row debug-row-config"><span>{t('debug.rerankModel')}</span><code>{debug.rerank_model}</code></div>}
+          </div>
+        )}
         {hasTiming && (
           <div className="debug-section">
             <div className="debug-section-title">{t('debug.timing')}</div>
