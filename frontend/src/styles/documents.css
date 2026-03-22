@@ -48,42 +48,56 @@
   margin: 4px 0;
 }
 
-/* ── Collapsible Secondary Nav ── */
-.sidebar-nav-more {
+/* ── Sidebar Tabs ── */
+.sidebar-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  border-top: 1px solid var(--border);
-  padding: 4px 8px;
 }
 
-.sidebar-nav-more-toggle {
+.sidebar-tab {
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  width: 100%;
-  padding: 6px 10px;
+  padding: 7px 0;
   border: none;
   background: none;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--text-muted);
   cursor: pointer;
   font-family: var(--font-sans);
   transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
 }
 
-.sidebar-nav-more-toggle:hover {
+.sidebar-tab:hover {
   color: var(--text-secondary);
   background: var(--surface-hover);
 }
 
-.sidebar-nav-more-items {
+.sidebar-tab--active {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.sidebar-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-workspace-nav {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-top: 2px;
+  padding: 6px 8px;
 }
 
 /* ── Documents Page ── */

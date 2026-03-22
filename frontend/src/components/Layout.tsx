@@ -2,7 +2,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, FileText, Box, BarChart3, Settings,
-  PanelLeftClose, PanelLeftOpen, ChevronRight, ChevronDown,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
@@ -12,7 +12,6 @@ import { ThemeToggle } from './ThemeToggle'
 
 const WIDTH_KEY = 'ipcodex-sidebar-width'
 const COLLAPSED_KEY = 'ipcodex-sidebar-collapsed'
-const NAV_MORE_KEY = 'ipcodex-nav-more-open'
 const DEFAULT_WIDTH = 280
 const MIN_WIDTH = 180
 const MAX_WIDTH = 600
@@ -33,20 +32,15 @@ function loadCollapsed(): boolean {
   try { return localStorage.getItem(COLLAPSED_KEY) === 'true' } catch { return false }
 }
 
-function loadNavMoreOpen(): boolean {
-  try { return localStorage.getItem(NAV_MORE_KEY) === 'true' } catch { return false }
-}
-
-const PRIMARY_NAV = [
+const ALL_NAV = [
   { path: '/app', icon: MessageSquare, labelKey: 'nav.chat' },
-] as const
-
-const SECONDARY_NAV = [
   { path: '/app/documents', icon: FileText, labelKey: 'nav.documents' },
   { path: '/app/products', icon: Box, labelKey: 'nav.products' },
   { path: '/app/analytics', icon: BarChart3, labelKey: 'nav.analytics' },
   { path: '/app/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const
+
+const WORKSPACE_NAV = ALL_NAV.slice(1)
 
 interface Props {
   sessions: ChatSession[]
@@ -71,7 +65,6 @@ export function Layout({
 }: Props) {
   const [sidebarWidth, setSidebarWidth] = useState(loadWidth)
   const [collapsed, setCollapsed] = useState(loadCollapsed)
-  const [navMoreOpen, setNavMoreOpen] = useState(loadNavMoreOpen)
   const dragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -79,19 +72,12 @@ export function Layout({
   const location = useLocation()
 
   const isChat = location.pathname === '/app' || location.pathname === '/app/'
+  const activeTab: 'chat' | 'workspace' = isChat ? 'chat' : 'workspace'
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed(prev => {
       const next = !prev
       try { localStorage.setItem(COLLAPSED_KEY, String(next)) } catch { /* ignore */ }
-      return next
-    })
-  }, [])
-
-  const toggleNavMore = useCallback(() => {
-    setNavMoreOpen(prev => {
-      const next = !prev
-      try { localStorage.setItem(NAV_MORE_KEY, String(next)) } catch { /* ignore */ }
       return next
     })
   }, [])
@@ -132,24 +118,6 @@ export function Layout({
 
   const effectiveWidth = collapsed ? COLLAPSED_WIDTH : sidebarWidth
 
-  const renderNavItem = (item: typeof PRIMARY_NAV[number] | typeof SECONDARY_NAV[number]) => {
-    const Icon = item.icon
-    const active = item.path === '/app'
-      ? isChat
-      : location.pathname.startsWith(item.path)
-    return (
-      <button
-        key={item.path}
-        className={`nav-item${active ? ' nav-item--active' : ''}`}
-        onClick={() => navigate(item.path)}
-        title={collapsed ? t(item.labelKey) : undefined}
-      >
-        <Icon size={18} />
-        {!collapsed && t(item.labelKey)}
-      </button>
-    )
-  }
-
   return (
     <div className="app-layout">
       <aside
@@ -173,41 +141,74 @@ export function Layout({
           </button>
         </div>
 
-        <nav className="sidebar-nav">
-          {PRIMARY_NAV.map(renderNavItem)}
-        </nav>
-
-        {!collapsed && isChat ? (
-          <SessionList
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            onSelect={onSelectSession}
-            onNew={onNewSession}
-            onDelete={onDeleteSession}
-          />
+        {collapsed ? (
+          <nav className="sidebar-nav">
+            {ALL_NAV.map(item => {
+              const Icon = item.icon
+              const active = item.path === '/app'
+                ? isChat
+                : location.pathname.startsWith(item.path)
+              return (
+                <button
+                  key={item.path}
+                  className={`nav-item${active ? ' nav-item--active' : ''}`}
+                  onClick={() => navigate(item.path)}
+                  title={t(item.labelKey)}
+                >
+                  <Icon size={18} />
+                </button>
+              )
+            })}
+          </nav>
         ) : (
-          <div className="sidebar-spacer" />
-        )}
-
-        <div className="sidebar-nav-more">
-          {!collapsed ? (
-            <>
-              <button className="sidebar-nav-more-toggle" onClick={toggleNavMore}>
-                {navMoreOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                <span>{t('sidebar.more')}</span>
+          <>
+            <div className="sidebar-tabs">
+              <button
+                className={`sidebar-tab${activeTab === 'chat' ? ' sidebar-tab--active' : ''}`}
+                onClick={() => navigate('/app')}
+              >
+                <MessageSquare size={14} />
+                {t('nav.chat')}
               </button>
-              {navMoreOpen && (
-                <div className="sidebar-nav-more-items">
-                  {SECONDARY_NAV.map(renderNavItem)}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="sidebar-nav-more-items">
-              {SECONDARY_NAV.map(renderNavItem)}
+              <button
+                className={`sidebar-tab${activeTab === 'workspace' ? ' sidebar-tab--active' : ''}`}
+                onClick={() => { if (activeTab !== 'workspace') navigate('/app/documents') }}
+              >
+                <FileText size={14} />
+                {t('sidebar.workspace')}
+              </button>
             </div>
-          )}
-        </div>
+
+            <div className="sidebar-tab-content">
+              {activeTab === 'chat' ? (
+                <SessionList
+                  sessions={sessions}
+                  activeSessionId={activeSessionId}
+                  onSelect={onSelectSession}
+                  onNew={onNewSession}
+                  onDelete={onDeleteSession}
+                />
+              ) : (
+                <nav className="sidebar-workspace-nav">
+                  {WORKSPACE_NAV.map(item => {
+                    const Icon = item.icon
+                    const active = location.pathname.startsWith(item.path)
+                    return (
+                      <button
+                        key={item.path}
+                        className={`nav-item${active ? ' nav-item--active' : ''}`}
+                        onClick={() => navigate(item.path)}
+                      >
+                        <Icon size={18} />
+                        {t(item.labelKey)}
+                      </button>
+                    )
+                  })}
+                </nav>
+              )}
+            </div>
+          </>
+        )}
 
         <div className="sidebar-footer">
           <LanguageToggle />
