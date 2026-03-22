@@ -485,19 +485,21 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     "status_code": e.status_code,
                 },
             )
-            yield f"data: {json.dumps({'type': 'error', 'error_code': e.error_code, 'status_code': e.status_code})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'error_code': e.error_code, 'status_code': e.status_code, 'error_type': 'LLMError', 'detail': e.detail})}\n\n"
         except Exception as e:
             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            error_type = type(e).__name__
+            detail = str(e)[:300]
             logger.exception(
                 "Chat stream error",
                 extra={
                     "session_id": session_id,
                     "duration_ms": duration_ms,
                     "token_count": token_count,
-                    "error_type": type(e).__name__,
+                    "error_type": error_type,
                 },
             )
-            yield f"data: {json.dumps({'type': 'error', 'error_code': 'internal_error'})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'error_code': 'internal_error', 'error_type': error_type, 'detail': detail})}\n\n"
 
     return StreamingResponse(
         event_stream(),

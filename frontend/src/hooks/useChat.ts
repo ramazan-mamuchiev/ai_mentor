@@ -148,6 +148,7 @@ export function useChat(): UseChatReturn {
             const errCode = snakeToCamel(event.error_code || 'internal_error')
             const elapsedErr = streamStartRef.current ? Date.now() - streamStartRef.current : 0
             const errServerDebug = partialDebugRef.current ?? {}
+            const errorDetail = [event.error_type, event.detail].filter(Boolean).join(': ') || errCode
             const errorMsg: ChatMessage = {
               id: Date.now() + 1,
               session_id: sessionId,
@@ -159,7 +160,7 @@ export function useChat(): UseChatReturn {
                 ...errServerDebug,
                 total_ms: elapsedErr,
                 status: 'error',
-                status_detail: errCode,
+                status_detail: errorDetail,
               } as DebugInfo,
               created_at: new Date().toISOString(),
             }

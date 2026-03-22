@@ -88,7 +88,7 @@ export type SSEEvent =
   | { type: 'sources'; sources: SourceInfo[] }
   | { type: 'debug_partial'; debug: Partial<DebugInfo> }
   | { type: 'done'; message_id: number; duration_ms: number; debug?: DebugInfo }
-  | { type: 'error'; error_code: string; status_code?: number }
+  | { type: 'error'; error_code: string; status_code?: number; error_type?: string; detail?: string }
 
 export type StreamStatus = 'idle' | 'streaming' | 'error'
 

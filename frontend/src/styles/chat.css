@@ -549,6 +549,15 @@
   font-weight: 600;
 }
 
+.debug-panel .debug-error-badge {
+  word-break: break-word;
+  white-space: normal;
+  font-size: 11px;
+  padding: 3px 8px;
+  display: inline-block;
+  max-width: 100%;
+}
+
 [data-theme="dark"] .debug-error-badge {
   background: rgba(220, 53, 69, 0.15);
   color: #ff6b6b;
