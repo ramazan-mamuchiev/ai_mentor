@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { Upload as UploadIcon, X, CirclePause, CirclePlay, CheckCircle, AlertCircle, FileText } from 'lucide-react'
+import { Upload as UploadIcon, X, Pause, Play, CheckCircle, AlertCircle, FileText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import * as tus from 'tus-js-client'
 
@@ -285,7 +285,7 @@ export function FileUpload({ onComplete, onClose }: FileUploadProps) {
 
             <div className="file-upload-actions">
               <button className="file-upload-btn" onClick={togglePause} title={state.status === 'paused' ? t('upload.resume') : t('upload.pause')}>
-                {state.status === 'paused' ? <CirclePlay size={16} /> : <CirclePause size={16} />}
+                {state.status === 'paused' ? <Play size={16} /> : <Pause size={16} />}
                 {state.status === 'paused' ? t('upload.resume') : t('upload.pause')}
               </button>
               <button className="file-upload-btn file-upload-btn-danger" onClick={cancelUpload}>
