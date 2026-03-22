@@ -82,16 +82,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .docs-page-title svg {
   color: var(--accent);
   flex-shrink: 0;
-  -webkit-text-fill-color: initial;
 }
 
 .docs-upload-btn {
