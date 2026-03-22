@@ -1166,7 +1166,7 @@ td:has(.docs-actions) {
 
 /* Expand row for debug in table */
 .docs-debug-expand-row td {
-  padding: 8px 12px 12px 12px;
+  padding: 8px 12px;
   border-top: none;
 }
 
