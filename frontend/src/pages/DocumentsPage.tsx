@@ -670,8 +670,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                         </td>
                       )
                     }
-                    if (cell.getIsAggregated()) return null
-                    if (cell.getIsPlaceholder()) return <td key={cell.id} />
+                    if (cell.getIsAggregated() || cell.getIsPlaceholder()) return null
                     return (
                       <td key={cell.id} style={{ width: cell.column.getSize() }}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
