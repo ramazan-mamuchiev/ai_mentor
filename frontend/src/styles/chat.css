@@ -1595,12 +1595,7 @@
   .sidebar--mobile .sidebar-toggle-btn {
     width: 36px;
     height: 36px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border) !important;
     border-radius: 8px;
-  }
-
-  .sidebar--mobile .sidebar-toggle-btn svg {
-    width: 20px;
-    height: 20px;
   }
 }
