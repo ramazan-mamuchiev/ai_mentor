@@ -19,11 +19,13 @@ import numpy as np
 from app.config import settings
 
 if TYPE_CHECKING:
+    from google.genai import Client as GenaiClient
     from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
 _local_model: "SentenceTransformer | None" = None
+_gemini_client: "GenaiClient | None" = None
 
 EMBEDDING_DIMS = settings.embedding_dims
 BATCH_SIZE = 256
@@ -33,6 +35,16 @@ E5_MODEL_PREFIXES = {"intfloat/multilingual-e5-large", "intfloat/multilingual-e5
 
 def _is_e5_model() -> bool:
     return settings.embedding_model_local in E5_MODEL_PREFIXES
+
+
+def _get_gemini_client() -> "GenaiClient":
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+
+        _gemini_client = genai.Client(api_key=settings.gemini_api_key)
+        logger.info("Gemini embedding client initialized")
+    return _gemini_client
 
 
 def _get_local_model() -> "SentenceTransformer":
@@ -131,16 +143,16 @@ def _embed_local(texts: list[str], *, is_query: bool = False) -> list[list[float
 
 
 def _embed_gemini(texts: list[str], *, is_query: bool = False) -> list[list[float]]:
-    from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=settings.gemini_api_key)
+    client = _get_gemini_client()
     task_type = "RETRIEVAL_QUERY" if is_query else "RETRIEVAL_DOCUMENT"
     target_dims = EMBEDDING_DIMS
 
-    all_embeddings: list[list[float]] = []
+    all_embeddings: list[np.ndarray] = []
+    total_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
 
-    for i in range(0, len(texts), BATCH_SIZE):
+    for batch_idx, i in enumerate(range(0, len(texts), BATCH_SIZE)):
         batch = texts[i : i + BATCH_SIZE]
         t0 = time.perf_counter()
         result = client.models.embed_content(
@@ -153,17 +165,21 @@ def _embed_gemini(texts: list[str], *, is_query: bool = False) -> list[list[floa
         )
         batch_ms = round((time.perf_counter() - t0) * 1000, 1)
 
-        for emb in result.embeddings:
-            vec = emb.values
-            norm = sum(v * v for v in vec) ** 0.5
-            if norm > 0:
-                vec = [v / norm for v in vec]
-            all_embeddings.append(vec)
+        raw = np.array([emb.values for emb in result.embeddings], dtype=np.float32)
+        norms = np.linalg.norm(raw, axis=1, keepdims=True)
+        norms = np.where(norms > 0, norms, 1.0)
+        all_embeddings.append(raw / norms)
 
-        logger.debug(
-            "Gemini embedding batch completed",
-            extra={"texts_count": len(batch), "duration_ms": batch_ms},
-        )
+        log_extra = {
+            "batch_index": batch_idx + 1, "total_batches": total_batches,
+            "texts_count": len(batch), "duration_ms": batch_ms,
+        }
+        if batch_ms > 30000:
+            logger.warning("Gemini embedding batch slow", extra=log_extra)
+        else:
+            logger.debug("Gemini embedding batch completed", extra=log_extra)
+
+    combined = np.vstack(all_embeddings) if len(all_embeddings) > 1 else all_embeddings[0]
 
     logger.info(
         "Embedding completed",
@@ -175,7 +191,7 @@ def _embed_gemini(texts: list[str], *, is_query: bool = False) -> list[list[floa
             "task_type": task_type,
         },
     )
-    return all_embeddings
+    return combined.tolist()
 
 
 def embed_query(text: str) -> list[float]:
