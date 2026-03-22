@@ -1143,12 +1143,10 @@
   border: 2px dashed var(--border);
   border-radius: 8px;
   text-align: center;
-  cursor: pointer;
   transition: all 0.2s;
   color: var(--text-secondary);
 }
 
-.file-upload-dropzone:hover,
 .file-upload-dropzone.dragover {
   border-color: var(--accent);
   background: var(--surface-hover);
@@ -1156,11 +1154,37 @@
 }
 
 .file-upload-dropzone p {
-  margin: 12px 0 4px;
+  margin: 12px 0 8px;
   font-size: 14px;
 }
 
+.file-upload-browse {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  margin: 8px 0 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.file-upload-browse:hover {
+  background: var(--accent-hover, #1d4ed8);
+  transform: translateY(-1px);
+}
+
+.file-upload-browse:active {
+  transform: translateY(0);
+}
+
 .file-upload-hint {
+  display: block;
   font-size: 12px;
   opacity: 0.7;
 }

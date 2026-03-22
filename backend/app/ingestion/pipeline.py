@@ -33,12 +33,14 @@ def detect_format(file_path: str) -> str:
     """Auto-detect document format by extension and content."""
     ext = os.path.splitext(file_path)[1].lower()
 
-    if ext == ".md":
+    if ext in (".md", ".txt"):
         return "markdown"
     if ext == ".pdf":
         return "pdf"
     if ext == ".proto":
         return "proto"
+    if ext in (".wsdl", ".xml"):
+        return "markdown"
     if ext in (".yaml", ".yml", ".json"):
         if is_swagger_file(file_path):
             return "swagger"

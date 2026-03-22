@@ -89,8 +89,9 @@
 
   "upload.title": "Загрузка документации",
   "upload.close": "Закрыть",
-  "upload.dropzone": "Перетащите файл сюда или нажмите для выбора",
-  "upload.formats": "Поддерживаются: PDF, Markdown, YAML, JSON, Proto, архивы (ZIP, 7z, tar.gz, RAR)",
+  "upload.dropzone": "Перетащите файл сюда, или",
+  "upload.browse": "Выберите файл",
+  "upload.formats": "Поддерживаются: PDF, Markdown, TXT, YAML, JSON, Proto, WSDL, XML, архивы (ZIP, 7z, tar.gz, RAR)",
   "upload.productName": "Название продукта *",
   "upload.productPlaceholder": "напр. HikCentral Professional",
   "upload.version": "Версия",

@@ -179,16 +179,23 @@ export function FileUpload({ onComplete, onClose }: FileUploadProps) {
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onClick={() => fileInputRef.current?.click()}
           >
             <UploadIcon size={32} />
             <p>{t('upload.dropzone')}</p>
+            <button
+              type="button"
+              className="file-upload-browse"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {t('upload.browse')}
+            </button>
             <span className="file-upload-hint">
               {t('upload.formats')}
             </span>
             <input
               ref={fileInputRef}
               type="file"
+              accept=".md,.txt,.pdf,.json,.yaml,.yml,.proto,.wsdl,.xml,.zip,.7z,.tar,.tar.gz,.tgz,.tar.bz2,.tar.xz,.rar"
               style={{ display: 'none' }}
               onChange={e => {
                 const file = e.target.files?.[0]

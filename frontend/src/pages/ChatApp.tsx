@@ -19,6 +19,7 @@ export function ChatApp() {
   const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast } = useChat()
 
   const [showUpload, setShowUpload] = useState(false)
+  const [docsRefreshKey, setDocsRefreshKey] = useState(0)
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -122,7 +123,7 @@ export function ChatApp() {
     >
       <Routes>
         <Route index element={chatContent} />
-        <Route path="documents" element={<DocumentsPage onUploadClick={() => setShowUpload(true)} />} />
+        <Route path="documents" element={<DocumentsPage onUploadClick={() => setShowUpload(true)} refreshKey={docsRefreshKey} />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
@@ -131,7 +132,10 @@ export function ChatApp() {
       {showUpload && (
         <FileUpload
           onClose={() => setShowUpload(false)}
-          onComplete={() => setShowUpload(false)}
+          onComplete={() => {
+            setShowUpload(false)
+            setDocsRefreshKey(k => k + 1)
+          }}
         />
       )}
     </Layout>

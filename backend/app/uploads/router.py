@@ -415,8 +415,12 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
 
     await session.commit()
 
-    from app.celery_app import ingest_document_task
-    ingest_document_task.delay(doc.id)
+    if us.is_archive:
+        from app.celery_app import ingest_archive_task
+        ingest_archive_task.delay(doc.id, us.product_name, us.firmware_version, us.manufacturer, us.force)
+    else:
+        from app.celery_app import ingest_document_task
+        ingest_document_task.delay(doc.id)
 
     return doc.id
 

@@ -48,9 +48,10 @@ function StatusBadge({ status }: { status: DocumentStatusValue }) {
 
 interface Props {
   onUploadClick: () => void
+  refreshKey?: number
 }
 
-export function DocumentsPage({ onUploadClick }: Props) {
+export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const { t } = useTranslation()
   const [documents, setDocuments] = useState<DocumentListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,7 +70,7 @@ export function DocumentsPage({ onUploadClick }: Props) {
 
   useEffect(() => {
     fetchDocs()
-  }, [fetchDocs])
+  }, [fetchDocs, refreshKey])
 
   useEffect(() => {
     const hasPending = documents.some(d => d.status === 'pending' || d.status === 'processing')

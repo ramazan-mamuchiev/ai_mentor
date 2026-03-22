@@ -28,6 +28,8 @@ class Settings(BaseSettings):
 
     tus_max_file_size_gb: int = 5
     tus_upload_ttl_hours: int = 24
+    storage_quota_gb: int = 50
+    product_quota_gb: int = 10
 
     reindex_heartbeat_interval_sec: int = 10
     reindex_stale_timeout_sec: int = 300
