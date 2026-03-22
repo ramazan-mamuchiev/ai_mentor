@@ -22,6 +22,7 @@ import {
   Settings2,
   Eye,
   EyeOff,
+  RotateCcw,
 } from 'lucide-react'
 import {
   useReactTable,
@@ -505,6 +506,17 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
     )
   }, [handleGroupingChange])
 
+  const resetTableSettings = useCallback(() => {
+    setSorting([])
+    setGrouping([])
+    setColumnOrder(defaultColumnOrder)
+    setColumnVisibility({})
+    setColumnSizing({})
+    setExpanded(true)
+    setGlobalFilter('')
+    localStorage.removeItem(STORAGE_KEY)
+  }, [defaultColumnOrder])
+
   const handleColumnResize = useCallback((columnId: string, delta: number, startSize: number) => {
     const col = table.getColumn(columnId)
     const minSize = col?.columnDef.minSize ?? 50
@@ -586,6 +598,11 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                       <span>{flexRender(col.columnDef.header, { table, header: null as never, column: col })}</span>
                     </label>
                   ))}
+                <div className="docs-col-settings-divider" />
+                <button className="docs-col-settings-reset" onClick={() => { resetTableSettings(); setShowColumnSettings(false) }}>
+                  <RotateCcw size={14} />
+                  {t('docs.columns.reset')}
+                </button>
               </div>
             )}
           </div>

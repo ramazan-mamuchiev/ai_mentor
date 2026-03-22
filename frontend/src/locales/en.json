@@ -200,6 +200,7 @@
   "docs.group.label": "Grouped by",
   "docs.group.toggle": "Toggle grouping",
   "docs.columns.settings": "Column settings",
+  "docs.columns.reset": "Reset to defaults",
   "docs.table.name": "Name",
   "docs.table.format": "Format",
   "docs.table.status": "Status",
