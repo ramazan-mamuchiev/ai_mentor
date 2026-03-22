@@ -38,3 +38,6 @@ logs/
 
 # Playwright test artifacts
 frontend/test-results/
+
+# Docker image tarballs
+*.tar

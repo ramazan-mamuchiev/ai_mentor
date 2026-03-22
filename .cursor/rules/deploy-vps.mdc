@@ -1,0 +1,40 @@
+---
+description: VPS deployment procedure for IPCodex
+alwaysApply: true
+---
+
+# Deploy to VPS
+
+When the user asks to publish/deploy changes to VPS (82.38.66.177):
+
+1. **Commit & push** locally (if there are uncommitted changes):
+   ```powershell
+   git add <files>
+   git commit -m "message"
+   git push origin main
+   ```
+
+2. **Pull on VPS**:
+   ```powershell
+   ssh root@82.38.66.177 "cd /opt/ipcodex && git pull origin main"
+   ```
+
+3. **Build changed images on VPS** (Docker layer cache makes this fast):
+   ```powershell
+   ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose build api web"
+   ```
+   - Include `worker` in the build if backend code changed (worker uses the `api` image).
+
+4. **Restart changed services**:
+   ```powershell
+   ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose up -d api worker web"
+   ```
+   - Use `--force-recreate` for services that share an image (e.g. `worker` uses `api` image) if `docker compose up` doesn't recreate them automatically.
+
+## Rules
+
+- **NEVER** copy full Docker images via `docker save` / `scp` / `docker load`. Always build on VPS.
+- **NEVER** use `--no-cache` unless `requirements.txt`, `package.json`, or `Dockerfile` changed.
+- If only frontend changed, build and restart only `web`.
+- If only backend changed, build `api` and restart `api` + `worker`.
+- If both changed, build `api web` and restart `api worker web`.
