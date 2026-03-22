@@ -356,11 +356,10 @@
 }
 
 .docs-table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .docs-table th,
@@ -431,28 +430,6 @@
   opacity: 1;
 }
 
-/* ── Column Resizer ── */
-.docs-th-resizer {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  cursor: col-resize;
-  opacity: 0;
-  background: var(--accent);
-  transition: opacity 0.15s;
-}
-
-.docs-th:hover .docs-th-resizer {
-  opacity: 0.3;
-}
-
-.docs-th-resizer:hover,
-.docs-th-resizer:active {
-  opacity: 1 !important;
-}
-
 .docs-table td {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
@@ -462,6 +439,23 @@
 
 .docs-table tr:hover td {
   background: var(--surface-hover);
+}
+
+.docs-cell-overflow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+
+.docs-name-cell {
+  min-width: 0;
+}
+
+.docs-th--actions,
+td:has(.docs-actions) {
+  width: 1%;
+  white-space: nowrap;
 }
 
 /* ── Grouped rows ── */

@@ -38,7 +38,6 @@ import {
   type GroupingState,
   type ExpandedState,
   type VisibilityState,
-  type ColumnSizingState,
 } from '@tanstack/react-table'
 import {
   DndContext,
@@ -70,7 +69,6 @@ interface TableSettings {
   grouping?: GroupingState
   columnOrder?: ColumnOrderState
   columnVisibility?: VisibilityState
-  columnSizing?: ColumnSizingState
 }
 
 function loadTableSettings(): TableSettings {
@@ -145,52 +143,21 @@ function DraggableHeader({
   canSort,
   isSorted,
   toggleSortingHandler,
-  width,
-  onResize,
   children,
 }: {
   headerId: string
   canSort: boolean
   isSorted: false | 'asc' | 'desc'
   toggleSortingHandler: ((e: unknown) => void) | undefined
-  width: number
-  onResize: (delta: number) => void
   children: React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: headerId })
-  const resizeRef = useRef<{ startX: number; startW: number } | null>(null)
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    width: `${width}px`,
-    minWidth: `${width}px`,
-    maxWidth: `${width}px`,
   }
-
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    resizeRef.current = { startX: e.clientX, startW: width }
-
-    const handleMove = (ev: MouseEvent) => {
-      if (!resizeRef.current) return
-      const delta = ev.clientX - resizeRef.current.startX
-      onResize(delta)
-    }
-    const handleUp = () => {
-      resizeRef.current = null
-      document.removeEventListener('mousemove', handleMove)
-      document.removeEventListener('mouseup', handleUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    document.addEventListener('mousemove', handleMove)
-    document.addEventListener('mouseup', handleUp)
-  }, [width, onResize])
 
   return (
     <th ref={setNodeRef} style={style} className="docs-th">
@@ -205,9 +172,29 @@ function DraggableHeader({
           {children}
           {canSort && <SortIcon direction={isSorted} />}
         </span>
-        <span className="docs-th-resizer" onMouseDown={handleResizeStart} />
       </div>
     </th>
+  )
+}
+
+function OverflowCell({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [truncated, setTruncated] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    setTruncated(el.scrollWidth > el.clientWidth)
+  })
+
+  return (
+    <div
+      ref={ref}
+      className={`docs-cell-overflow${className ? ` ${className}` : ''}`}
+      title={truncated && typeof children === 'string' ? children : undefined}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -240,7 +227,6 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const [expanded, setExpanded] = useState<ExpandedState>(true)
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(saved.columnOrder ?? defaultColumnOrder)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(saved.columnVisibility ?? {})
-  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(saved.columnSizing ?? {})
 
   const persistRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const persist = useCallback((partial: Partial<TableSettings>) => {
@@ -279,14 +265,6 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
     setColumnVisibility(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       persist({ columnVisibility: next })
-      return next
-    })
-  }, [persist])
-
-  const handleColumnSizingChange = useCallback((updater: ColumnSizingState | ((old: ColumnSizingState) => ColumnSizingState)) => {
-    setColumnSizing(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      persist({ columnSizing: next })
       return next
     })
   }, [persist])
@@ -356,14 +334,12 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       accessorFn: row => row.title,
       header: () => t('docs.table.name'),
       cell: ({ row }) => (
-        <div>
-          <div className="docs-name">{row.original.title}</div>
-          <div className="docs-filename">{row.original.original_filename}</div>
+        <div className="docs-name-cell">
+          <OverflowCell className="docs-name">{row.original.title}</OverflowCell>
+          <OverflowCell className="docs-filename">{row.original.original_filename}</OverflowCell>
         </div>
       ),
       enableGrouping: true,
-      size: 280,
-      minSize: 150,
     },
     {
       id: 'format',
@@ -371,8 +347,6 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       header: () => t('docs.table.format'),
       cell: ({ getValue }) => <span className="docs-format">{String(getValue())}</span>,
       enableGrouping: true,
-      size: 110,
-      minSize: 80,
     },
     {
       id: 'status',
@@ -380,8 +354,6 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       header: () => t('docs.table.status'),
       cell: ({ row }) => <StatusBadge status={row.original.status} errorMessage={row.original.error_message} />,
       enableGrouping: true,
-      size: 140,
-      minSize: 100,
     },
     {
       id: 'size',
@@ -390,8 +362,6 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       cell: ({ getValue }) => <span className="docs-size">{formatBytes(Number(getValue()))}</span>,
       enableGrouping: false,
       sortingFn: 'basic',
-      size: 90,
-      minSize: 70,
     },
     {
       id: 'chunks',
@@ -399,17 +369,13 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       header: () => t('docs.table.chunks'),
       cell: ({ getValue }) => <span className="docs-chunks">{Number(getValue()) || '—'}</span>,
       enableGrouping: false,
-      size: 80,
-      minSize: 60,
     },
     {
       id: 'product',
       accessorKey: 'product_name',
       header: () => t('docs.table.product'),
-      cell: ({ getValue }) => <span className="docs-product">{String(getValue() || '—')}</span>,
+      cell: ({ getValue }) => <OverflowCell className="docs-product">{String(getValue() || '—')}</OverflowCell>,
       enableGrouping: true,
-      size: 150,
-      minSize: 80,
     },
     {
       id: 'date',
@@ -418,17 +384,12 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       cell: ({ getValue }) => <span className="docs-date">{formatDate(getValue() as string | null)}</span>,
       enableGrouping: false,
       sortingFn: 'datetime',
-      size: 130,
-      minSize: 90,
     },
     {
       id: 'actions',
       header: () => t('docs.table.actions'),
       enableSorting: false,
       enableGrouping: false,
-      enableResizing: false,
-      size: 120,
-      minSize: 100,
       cell: ({ row }) => {
         const doc = row.original
         return (
@@ -455,22 +416,19 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const table = useReactTable({
     data: documents,
     columns,
-    state: { sorting, globalFilter, columnOrder, grouping, expanded, columnVisibility, columnSizing },
+    state: { sorting, globalFilter, columnOrder, grouping, expanded, columnVisibility },
     onSortingChange: handleSortingChange,
     onGlobalFilterChange: setGlobalFilter,
     onColumnOrderChange: handleColumnOrderChange,
     onGroupingChange: handleGroupingChange,
     onExpandedChange: setExpanded,
     onColumnVisibilityChange: handleColumnVisibilityChange,
-    onColumnSizingChange: handleColumnSizingChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     enableMultiSort: true,
-    enableColumnResizing: true,
-    columnResizeMode: 'onChange',
     getRowId: row => String(row.id),
   })
 
@@ -511,18 +469,10 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
     setGrouping([])
     setColumnOrder(defaultColumnOrder)
     setColumnVisibility({})
-    setColumnSizing({})
     setExpanded(true)
     setGlobalFilter('')
     localStorage.removeItem(STORAGE_KEY)
   }, [defaultColumnOrder])
-
-  const handleColumnResize = useCallback((columnId: string, delta: number, startSize: number) => {
-    const col = table.getColumn(columnId)
-    const minSize = col?.columnDef.minSize ?? 50
-    const newSize = Math.max(minSize, startSize + delta)
-    handleColumnSizingChange(prev => ({ ...prev, [columnId]: newSize }))
-  }, [table, handleColumnSizingChange])
 
   if (loading) {
     return (
@@ -635,7 +585,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       {/* Desktop/Tablet: TanStack Table */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="docs-table-wrap">
-          <table className="docs-table" style={{ width: table.getTotalSize() }}>
+          <table className="docs-table">
             <thead>
               {table.getHeaderGroups().map(headerGroup => (
                 <tr key={headerGroup.id}>
@@ -643,7 +593,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                     {headerGroup.headers.map(header => {
                       if (header.id === 'actions') {
                         return (
-                          <th key={header.id} style={{ width: header.getSize(), minWidth: header.getSize() }}>
+                          <th key={header.id} className="docs-th docs-th--actions">
                             <div className="docs-th-inner">
                               <span className="docs-th-label">
                                 {flexRender(header.column.columnDef.header, header.getContext())}
@@ -659,8 +609,6 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                           canSort={header.column.getCanSort()}
                           isSorted={header.column.getIsSorted()}
                           toggleSortingHandler={header.column.getToggleSortingHandler()}
-                          width={header.getSize()}
-                          onResize={(delta) => handleColumnResize(header.id, delta, header.getSize())}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                         </DraggableHeader>
@@ -689,7 +637,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                     }
                     if (cell.getIsAggregated() || cell.getIsPlaceholder()) return null
                     return (
-                      <td key={cell.id} style={{ width: cell.column.getSize() }}>
+                      <td key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     )
