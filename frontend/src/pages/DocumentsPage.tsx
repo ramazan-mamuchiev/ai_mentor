@@ -11,7 +11,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from 'lucide-react'
-import { listDocuments, downloadDocument, deleteDocument } from '../api/documents'
+import { listDocuments, downloadDocument, deleteDocument, reingestDocument } from '../api/documents'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
 
@@ -31,7 +31,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function StatusBadge({ status }: { status: DocumentStatusValue }) {
+function StatusBadge({ status, errorMessage }: { status: DocumentStatusValue; errorMessage?: string | null }) {
   const { t } = useTranslation()
   const icons: Record<DocumentStatusValue, React.ReactNode> = {
     pending: <Clock size={14} />,
@@ -39,11 +39,27 @@ function StatusBadge({ status }: { status: DocumentStatusValue }) {
     ready: <CheckCircle size={14} />,
     error: <AlertCircle size={14} />,
   }
+
   return (
-    <span className={`docs-status docs-status--${status}`}>
-      {icons[status]}
-      {t(`docs.status.${status}`)}
-    </span>
+    <div className="docs-status-wrap">
+      <span
+        className={`docs-status docs-status--${status}`}
+        title={status === 'error' && errorMessage ? errorMessage : undefined}
+      >
+        {icons[status]}
+        {t(`docs.status.${status}`)}
+      </span>
+      {(status === 'pending' || status === 'processing') && (
+        <div className="docs-progress-bar">
+          <div className={`docs-progress-fill docs-progress-fill--${status}`} />
+        </div>
+      )}
+      {status === 'error' && errorMessage && (
+        <div className="docs-error-hint" title={errorMessage}>
+          {errorMessage.length > 60 ? errorMessage.slice(0, 60) + '…' : errorMessage}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -57,6 +73,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const [documents, setDocuments] = useState<DocumentListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null)
+  const [reingestTarget, setReingestTarget] = useState<DocumentListItem | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchDocs = useCallback(async () => {
@@ -104,6 +121,20 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       setDeleteTarget(null)
     }
   }, [deleteTarget])
+
+  const handleReingestConfirm = useCallback(async () => {
+    if (!reingestTarget) return
+    try {
+      await reingestDocument(reingestTarget.id)
+      setDocuments(prev =>
+        prev.map(d => d.id === reingestTarget.id ? { ...d, status: 'pending' as const, error_message: null, total_chunks: 0 } : d)
+      )
+    } catch {
+      // ignore
+    } finally {
+      setReingestTarget(null)
+    }
+  }, [reingestTarget])
 
   if (loading) {
     return (
@@ -164,7 +195,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                   <div className="docs-filename">{doc.original_filename}</div>
                 </td>
                 <td><span className="docs-format">{doc.format}</span></td>
-                <td><StatusBadge status={doc.status} /></td>
+                <td><StatusBadge status={doc.status} errorMessage={doc.error_message} /></td>
                 <td className="docs-size">{formatBytes(doc.file_size_bytes)}</td>
                 <td className="docs-chunks col-chunks">{doc.total_chunks || '—'}</td>
                 <td className="docs-product col-product">{doc.product_name || '—'}</td>
@@ -180,9 +211,10 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                         <Download size={16} />
                       </button>
                     )}
-                    {doc.status === 'ready' && (
+                    {(doc.status === 'ready' || doc.status === 'error') && (
                       <button
                         className="docs-action-btn"
+                        onClick={() => setReingestTarget(doc)}
                         title={t('docs.actions.reindex')}
                       >
                         <RefreshCw size={16} />
@@ -209,7 +241,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
           <div className="docs-card" key={doc.id}>
             <div className="docs-card-header">
               <div className="docs-card-title">{doc.title}</div>
-              <StatusBadge status={doc.status} />
+              <StatusBadge status={doc.status} errorMessage={doc.error_message} />
             </div>
             <div className="docs-card-meta">
               <span><span className="docs-format">{doc.format}</span></span>
@@ -225,6 +257,15 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                   title={t('docs.actions.download')}
                 >
                   <Download size={16} />
+                </button>
+              )}
+              {(doc.status === 'ready' || doc.status === 'error') && (
+                <button
+                  className="docs-action-btn"
+                  onClick={() => setReingestTarget(doc)}
+                  title={t('docs.actions.reindex')}
+                >
+                  <RefreshCw size={16} />
                 </button>
               )}
               <button
@@ -249,6 +290,19 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
           variant="danger"
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {reingestTarget && (
+        <ConfirmDialog
+          title={t('docs.reingest.title')}
+          message={t('docs.reingest.message')}
+          details={`${reingestTarget.title} (${reingestTarget.original_filename}, ${formatBytes(reingestTarget.file_size_bytes)})`}
+          confirmLabel={t('docs.reingest.confirm')}
+          cancelLabel={t('docs.reingest.cancel')}
+          variant="default"
+          onConfirm={handleReingestConfirm}
+          onCancel={() => setReingestTarget(null)}
         />
       )}
     </div>

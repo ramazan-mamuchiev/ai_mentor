@@ -104,6 +104,7 @@ export interface DocumentListItem {
   total_chunks: number
   product_name: string | null
   firmware_version: string | null
+  error_message: string | null
   ingested_at: string | null
 }
 

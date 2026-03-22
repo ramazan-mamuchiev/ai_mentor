@@ -23,6 +23,10 @@ export async function deleteDocument(id: number): Promise<void> {
   return apiFetch<void>(`/documents/${id}`, { method: 'DELETE' })
 }
 
+export async function reingestDocument(id: number): Promise<{ document_id: number; status: string; task_id: string }> {
+  return apiFetch(`/documents/${id}/reingest`, { method: 'POST' })
+}
+
 export async function listReindexJobs(): Promise<ReindexJobList> {
   return apiFetch<ReindexJobList>('/reindex/jobs')
 }

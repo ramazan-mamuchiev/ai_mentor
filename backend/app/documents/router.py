@@ -329,6 +329,7 @@ async def list_documents():
                 Document.total_chunks,
                 Product.name.label("product_name"),
                 FirmwareVersion.version.label("firmware_version"),
+                Document.error_message,
                 Document.ingested_at,
             )
             .join(Product, Document.product_id == Product.id)
@@ -413,6 +414,47 @@ async def delete_document(document_id: int):
             deleted=True,
             message="Document and all chunks deleted",
         )
+
+
+@router.post("/{document_id}/reingest", status_code=202)
+async def reingest_single_document(document_id: int):
+    """Re-run full ingestion for a single document.
+
+    Resets the document to 'pending', clears existing chunks, and queues
+    a new Celery ingestion task. The original file in S3 is preserved.
+    """
+    from app.celery_app import ingest_document_task
+
+    async with async_session() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        if not doc.s3_key:
+            raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
+
+        chunks = (await session.execute(
+            select(Chunk).where(Chunk.document_id == doc.id)
+        )).scalars().all()
+        for chunk in chunks:
+            await session.delete(chunk)
+
+        doc.status = "pending"
+        doc.total_chunks = 0
+        doc.error_message = None
+        await session.commit()
+
+    task = ingest_document_task.delay(document_id)
+
+    logger.info("Single document reingest queued", extra={
+        "document_id": document_id, "task_id": task.id,
+    })
+    return {
+        "document_id": document_id,
+        "status": "pending",
+        "task_id": task.id,
+        "message": "Document queued for reingestion",
+    }
 
 
 @router.get("/queue-stats")

@@ -40,6 +40,7 @@ class DocumentListItem(BaseModel):
     total_chunks: int
     product_name: str = ""
     firmware_version: str = ""
+    error_message: str | None = None
     ingested_at: datetime
 
     model_config = {"from_attributes": True}
