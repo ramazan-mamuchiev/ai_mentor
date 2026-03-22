@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
+from app.ingestion.chunker import ChunkData
+
 
 def _make_mock_document(doc_id=1, **overrides):
     doc = MagicMock()
@@ -34,8 +36,6 @@ class TestIngestFromBytesAutoDetect:
     @patch("app.ingestion.pipeline.parse_markdown")
     def test_auto_detects_markdown(self, mock_parse, mock_chunk, mock_embed):
         from app.ingestion.pipeline import ingest_from_bytes
-        from collections import namedtuple
-        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
 
         mock_parse.return_value = [{"heading": "Test", "content": "Hello", "level": 1}]
         mock_chunk.return_value = [ChunkData("Test", 1, "Hello", 5)]
@@ -66,8 +66,6 @@ class TestIngestFromBytesMarkdown:
     @patch("app.ingestion.pipeline.parse_markdown")
     def test_successful_markdown_ingestion(self, mock_parse, mock_chunk, mock_embed):
         from app.ingestion.pipeline import ingest_from_bytes
-        from collections import namedtuple
-        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
 
         mock_parse.return_value = [
             {"heading": "API", "content": "Endpoint docs", "level": 1},
@@ -108,8 +106,6 @@ class TestIngestFromBytesPdf:
     @patch("app.ingestion.pipeline.convert_pdf")
     def test_pdf_conversion_called(self, mock_convert_pdf, mock_parse, mock_chunk, mock_embed):
         from app.ingestion.pipeline import ingest_from_bytes
-        from collections import namedtuple
-        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
 
         mock_convert_pdf.return_value = ("# PDF Content\n\nExtracted text", {"total_ms": 100.0})
         mock_parse.return_value = [{"heading": "PDF", "content": "text", "level": 1}]
@@ -164,8 +160,6 @@ class TestIngestFromBytesSwagger:
     @patch("app.ingestion.pipeline.convert_swagger_file")
     def test_swagger_conversion_called(self, mock_convert, mock_parse, mock_chunk, mock_embed):
         from app.ingestion.pipeline import ingest_from_bytes
-        from collections import namedtuple
-        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
 
         mock_convert.return_value = ("# API\n\n## GET /test", {"total_ms": 50.0, "endpoints": 1})
         mock_parse.return_value = [{"heading": "GET /test", "content": "endpoint", "level": 2}]
@@ -218,8 +212,6 @@ class TestIngestFromBytesProto:
     @patch("app.ingestion.pipeline.convert_proto_file")
     def test_proto_passes_original_filename(self, mock_convert_proto, mock_parse, mock_chunk, mock_embed):
         from app.ingestion.pipeline import ingest_from_bytes
-        from collections import namedtuple
-        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
 
         mock_convert_proto.return_value = ("# AcfaService.proto\n\nService content", {"total_ms": 10.0})
         mock_parse.return_value = [{"heading": "AcfaService", "content": "Service content", "level": 1}]
@@ -269,8 +261,6 @@ class TestIngestFromBytesProto:
     def test_auto_detect_uses_original_filename_for_proto(self, mock_parse, mock_chunk, mock_embed):
         """When format=auto, detect_format should use original_filename (not temp path)."""
         from app.ingestion.pipeline import ingest_from_bytes
-        from collections import namedtuple
-        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
 
         mock_parse.return_value = [{"heading": "Test", "content": "data", "level": 1}]
         mock_chunk.return_value = [ChunkData("Test", 1, "data", 5)]
@@ -516,8 +506,6 @@ class TestIngestFromBytesEmbeddingFailure:
     @patch("app.ingestion.pipeline.parse_markdown")
     def test_returns_error_on_embedding_failure(self, mock_parse, mock_chunk, mock_embed):
         from app.ingestion.pipeline import ingest_from_bytes
-        from collections import namedtuple
-        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
 
         mock_parse.return_value = [{"heading": "Test", "content": "data", "level": 1}]
         mock_chunk.return_value = [ChunkData("Test", 1, "data", 5)]
@@ -548,8 +536,6 @@ class TestIngestFromBytesExistingChunks:
     @patch("app.ingestion.pipeline.parse_markdown")
     def test_deletes_old_chunks(self, mock_parse, mock_chunk, mock_embed):
         from app.ingestion.pipeline import ingest_from_bytes
-        from collections import namedtuple
-        ChunkData = namedtuple("ChunkData", ["heading_path", "heading_level", "content", "token_count"])
 
         mock_parse.return_value = [{"heading": "New", "content": "content", "level": 1}]
         mock_chunk.return_value = [ChunkData("New", 1, "content", 5)]

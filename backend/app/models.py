@@ -80,6 +80,7 @@ class Chunk(Base):
     heading_path: Mapped[str] = mapped_column(Text, nullable=False)
     heading_level: Mapped[int] = mapped_column(Integer, default=1)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    parent_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, default=0)
     embedding = mapped_column(Vector(1024))
     created_at: Mapped[datetime] = mapped_column(

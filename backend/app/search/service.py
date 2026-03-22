@@ -1,22 +1,31 @@
-"""Vector search service: pgvector cosine similarity + heading_path exact match."""
+"""Hybrid search service: pgvector cosine + PostgreSQL BM25 + RRF fusion + cross-encoder re-ranking."""
 
+import hashlib
 import logging
 import time
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.ingestion.embedder import embed_query
 
 logger = logging.getLogger(__name__)
 
 
+def _content_hash(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
 def _deduplicate_chunks(results: list[dict], limit: int) -> list[dict]:
-    """Remove near-duplicate chunks (same content from different document uploads)."""
+    """Remove near-duplicate chunks (same content from different document uploads).
+
+    Uses SHA-256 of full content instead of a prefix to avoid false collisions.
+    """
     seen: set[tuple[str, str]] = set()
     unique: list[dict] = []
     for r in results:
-        key = (r["heading_path"], r["content"][:200])
+        key = (r["heading_path"], _content_hash(r["content"]))
         if key in seen:
             continue
         seen.add(key)
@@ -24,6 +33,100 @@ def _deduplicate_chunks(results: list[dict], limit: int) -> list[dict]:
         if len(unique) >= limit:
             break
     return unique
+
+
+def _rrf_fuse(
+    vector_results: list[dict],
+    bm25_results: list[dict],
+    k: int = 60,
+    vector_weight: float = 0.7,
+    bm25_weight: float = 0.3,
+) -> list[dict]:
+    """Reciprocal Rank Fusion: merge vector and BM25 result lists.
+
+    RRF score = w_vec / (k + rank_vec) + w_bm25 / (k + rank_bm25)
+    Chunks appearing in only one list get rank = len(list) + 1 for the missing list.
+    """
+    all_chunks: dict[str, dict] = {}
+    vec_rank: dict[str, int] = {}
+    bm25_rank: dict[str, int] = {}
+
+    for rank, r in enumerate(vector_results, 1):
+        cid = (r["heading_path"], _content_hash(r["content"]))
+        key = f"{cid[0]}||{cid[1]}"
+        all_chunks[key] = r
+        vec_rank[key] = rank
+
+    for rank, r in enumerate(bm25_results, 1):
+        cid = (r["heading_path"], _content_hash(r["content"]))
+        key = f"{cid[0]}||{cid[1]}"
+        if key not in all_chunks:
+            all_chunks[key] = r
+        bm25_rank[key] = rank
+
+    default_vec_rank = len(vector_results) + 1
+    default_bm25_rank = len(bm25_results) + 1
+
+    scored: list[tuple[str, float]] = []
+    for key in all_chunks:
+        vr = vec_rank.get(key, default_vec_rank)
+        br = bm25_rank.get(key, default_bm25_rank)
+        score = vector_weight / (k + vr) + bm25_weight / (k + br)
+        scored.append((key, score))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [all_chunks[key] for key, _ in scored]
+
+
+async def _bm25_search(
+    session: AsyncSession,
+    query: str,
+    where_sql: str,
+    params: dict,
+    fetch_limit: int,
+) -> list[dict]:
+    """Full-text search using PostgreSQL tsvector/tsquery."""
+    bm25_params = {**params, "tsquery": query}
+
+    sql = text(f"""
+        SELECT
+            c.content,
+            c.parent_content,
+            c.heading_path,
+            c.heading_level,
+            c.token_count,
+            d.title AS doc_title,
+            p.name AS product_name,
+            p.manufacturer,
+            fw.version AS firmware_version,
+            ts_rank_cd(c.tsv, plainto_tsquery('simple', :tsquery)) AS bm25_score
+        FROM chunks c
+        JOIN documents d ON c.document_id = d.id
+        JOIN products p ON d.product_id = p.id
+        JOIN firmware_versions fw ON d.firmware_version_id = fw.id
+        WHERE {where_sql}
+          AND c.tsv @@ plainto_tsquery('simple', :tsquery)
+        ORDER BY bm25_score DESC
+        LIMIT :limit
+    """)
+
+    result = await session.execute(sql, bm25_params)
+    rows = result.mappings().all()
+    return [
+        {
+            "content": row["content"],
+            "parent_content": row["parent_content"],
+            "heading_path": row["heading_path"],
+            "heading_level": row["heading_level"],
+            "token_count": row["token_count"],
+            "doc_title": row["doc_title"],
+            "product_name": row["product_name"],
+            "manufacturer": row["manufacturer"],
+            "firmware_version": row["firmware_version"],
+            "similarity": round(float(row["bm25_score"]), 4),
+        }
+        for row in rows
+    ]
 
 
 async def search_documents(
@@ -34,13 +137,10 @@ async def search_documents(
     doc_context: str | None = None,
     limit: int = 5,
 ) -> list[dict]:
-    """Semantic search across all indexed documentation.
+    """Hybrid search: vector similarity + BM25 full-text, fused via RRF.
 
     Returns list of dicts with content, heading_path, similarity, product info.
     Fetches extra candidates and deduplicates to handle multiple uploads of the same doc.
-
-    Args:
-        doc_context: If set, restricts search to documents whose title matches this value.
     """
     t0 = time.perf_counter()
 
@@ -50,7 +150,10 @@ async def search_documents(
 
     embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
 
-    fetch_limit = limit * 3
+    if settings.rerank_enabled:
+        fetch_limit = max(limit * 3, settings.rerank_candidates)
+    else:
+        fetch_limit = limit * 3
 
     where_clauses = ["d.status = 'ready'"]
     params: dict = {"embedding": embedding_str, "limit": fetch_limit}
@@ -67,9 +170,10 @@ async def search_documents(
 
     where_sql = " AND ".join(where_clauses)
 
-    sql = text(f"""
+    vector_sql = text(f"""
         SELECT
             c.content,
+            c.parent_content,
             c.heading_path,
             c.heading_level,
             c.token_count,
@@ -93,13 +197,12 @@ async def search_documents(
     )
 
     t_db = time.perf_counter()
-    result = await session.execute(sql, params)
-    db_ms = round((time.perf_counter() - t_db) * 1000, 1)
-
+    result = await session.execute(vector_sql, params)
     rows = result.mappings().all()
-    raw_results = [
+    vector_results = [
         {
             "content": row["content"],
+            "parent_content": row["parent_content"],
             "heading_path": row["heading_path"],
             "heading_level": row["heading_level"],
             "token_count": row["token_count"],
@@ -112,18 +215,54 @@ async def search_documents(
         for row in rows
     ]
 
-    results = _deduplicate_chunks(raw_results, limit)
+    bm25_results: list[dict] = []
+    bm25_ms = 0.0
+    if settings.hybrid_search_enabled:
+        t_bm25 = time.perf_counter()
+        try:
+            bm25_results = await _bm25_search(session, query, where_sql, params, fetch_limit)
+        except Exception:
+            logger.warning("BM25 search failed, falling back to vector-only", exc_info=True)
+        bm25_ms = round((time.perf_counter() - t_bm25) * 1000, 1)
+
+    db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+    if bm25_results:
+        raw_results = _rrf_fuse(
+            vector_results, bm25_results,
+            k=settings.hybrid_rrf_k,
+            vector_weight=settings.hybrid_vector_weight,
+            bm25_weight=settings.hybrid_bm25_weight,
+        )
+    else:
+        raw_results = vector_results
+
+    deduped = _deduplicate_chunks(raw_results, fetch_limit)
+    dedup_removed = len(raw_results) - len(deduped)
+
+    rerank_ms = 0.0
+    if settings.rerank_enabled and len(deduped) > 1:
+        from app.search.reranker import rerank
+
+        t_rerank = time.perf_counter()
+        results = rerank(query, deduped, top_k=limit)
+        rerank_ms = round((time.perf_counter() - t_rerank) * 1000, 1)
+    else:
+        results = deduped[:limit]
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     result_count = len(results)
-    dedup_removed = len(raw_results) - result_count
     top_similarity = results[0]["similarity"] if results else 0.0
 
     log_extra = {
         "query": query, "product": product, "version": version,
         "result_count": result_count, "top_similarity": top_similarity,
         "duration_ms": duration_ms, "embed_ms": embed_ms, "db_ms": db_ms,
+        "bm25_ms": bm25_ms, "rerank_ms": rerank_ms,
+        "vector_candidates": len(vector_results),
+        "bm25_candidates": len(bm25_results),
         "raw_candidates": len(raw_results), "dedup_removed": dedup_removed,
+        "hybrid_enabled": settings.hybrid_search_enabled,
     }
 
     if result_count == 0:

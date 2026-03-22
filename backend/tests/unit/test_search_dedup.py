@@ -65,11 +65,22 @@ class TestDeduplicateChunks:
         result = _deduplicate_chunks(chunks, limit=5)
         assert len(result) == 2
 
-    def test_dedup_uses_first_200_chars_of_content(self):
+    def test_dedup_uses_full_content_hash(self):
+        """After switching to SHA-256 of full content, chunks with same prefix but
+        different suffixes are NOT treated as duplicates."""
         base = "A" * 200
         chunks = [
             _make_chunk("H1", base + " extra1", 0.95),
             _make_chunk("H1", base + " extra2", 0.90),
+        ]
+        result = _deduplicate_chunks(chunks, limit=5)
+        assert len(result) == 2
+
+    def test_truly_identical_content_deduped(self):
+        same_content = "A" * 200 + " same_suffix"
+        chunks = [
+            _make_chunk("H1", same_content, 0.95, "Doc v1"),
+            _make_chunk("H1", same_content, 0.90, "Doc v2"),
         ]
         result = _deduplicate_chunks(chunks, limit=5)
         assert len(result) == 1

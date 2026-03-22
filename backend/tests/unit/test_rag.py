@@ -55,6 +55,51 @@ class TestFormatContext:
         result = _format_context(chunks)
         assert "Product:" not in result
 
+    def test_parent_content_used_when_available(self):
+        chunks = [{
+            "doc_title": "API Guide",
+            "heading_path": "Auth (part 1)",
+            "product_name": "",
+            "firmware_version": "",
+            "similarity": 0.9,
+            "content": "Part 1 of auth.",
+            "parent_content": "Full auth section with all details.",
+        }]
+        result = _format_context(chunks)
+        assert "Full auth section" in result
+        assert "Part 1 of auth" not in result
+
+    def test_parent_content_deduplication(self):
+        parent = "Full section content about doors."
+        chunks = [
+            {
+                "doc_title": "Doc", "heading_path": "Doors (part 1)",
+                "product_name": "", "firmware_version": "",
+                "similarity": 0.9, "content": "Part 1",
+                "parent_content": parent,
+            },
+            {
+                "doc_title": "Doc", "heading_path": "Doors (part 2)",
+                "product_name": "", "firmware_version": "",
+                "similarity": 0.8, "content": "Part 2",
+                "parent_content": parent,
+            },
+        ]
+        result = _format_context(chunks)
+        assert result.count("Full section content") == 1
+
+    def test_falls_back_to_content_without_parent(self):
+        chunks = [{
+            "doc_title": "Doc",
+            "heading_path": "Section",
+            "product_name": "",
+            "firmware_version": "",
+            "similarity": 0.8,
+            "content": "Regular content.",
+        }]
+        result = _format_context(chunks)
+        assert "Regular content." in result
+
 
 class TestBuildHistoryMessages:
     def test_empty_history(self):

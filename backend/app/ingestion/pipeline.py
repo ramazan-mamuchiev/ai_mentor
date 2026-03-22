@@ -8,7 +8,7 @@ import time
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ingestion.chunker import chunk_sections
+from app.ingestion.chunker import ChunkData, chunk_sections
 from app.ingestion.converters.pdf import convert_pdf
 from app.ingestion.converters.proto import convert_proto_file
 from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_file
@@ -16,9 +16,72 @@ from app.ingestion.converters.web import convert_url
 from app.ingestion.embedder import embed_texts
 from app.ingestion.parsers.markdown import parse_markdown
 from app.ingestion.parsers.swagger import parse_swagger
+from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
 from app.models import Chunk, Product, Document, FirmwareVersion
 
 logger = logging.getLogger(__name__)
+
+
+MAX_EMBEDDING_TOKENS = 500
+
+def enrich_for_embedding(chunks: list[ChunkData]) -> list[str]:
+    """Clean Markdown artifacts and prepend heading_path for better embeddings.
+
+    Two-step enrichment:
+    1. Strip Markdown formatting noise (bold, links, images, HTML) so the
+       embedding model sees clean semantic text.
+    2. Prepend the heading hierarchy so the model knows *what* the chunk
+       describes (e.g. "API Reference > GET /doors > Parameters").
+
+    Warns and truncates if enriched text exceeds model max_seq_length.
+    """
+    from app.ingestion.chunker import _estimate_tokens
+
+    enriched: list[str] = []
+    for c in chunks:
+        cleaned = _clean_md(c.content)
+        if c.heading_path and c.heading_path not in ("Document", "Preamble"):
+            text = f"[{c.heading_path}]\n{cleaned}"
+        else:
+            text = cleaned
+
+        token_count = _estimate_tokens(text)
+        if token_count > MAX_EMBEDDING_TOKENS:
+            logger.warning(
+                "Enriched text exceeds embedding model limit, truncating",
+                extra={
+                    "heading_path": c.heading_path,
+                    "token_count": token_count,
+                    "max_tokens": MAX_EMBEDDING_TOKENS,
+                },
+            )
+            words = text.split()
+            approx_word_limit = int(MAX_EMBEDDING_TOKENS / 1.3)
+            text = " ".join(words[:approx_word_limit])
+
+        enriched.append(text)
+    return enriched
+
+
+def _log_chunk_stats(chunks: list[ChunkData], file_path: str) -> None:
+    """Log distribution metrics for chunk quality monitoring."""
+    if not chunks:
+        return
+    token_counts = [c.token_count for c in chunks]
+    with_parent = sum(1 for c in chunks if c.parent_content is not None)
+    logger.info(
+        "Chunk quality stats",
+        extra={
+            "file": os.path.basename(file_path),
+            "total_chunks": len(chunks),
+            "min_tokens": min(token_counts),
+            "max_tokens": max(token_counts),
+            "avg_tokens": round(sum(token_counts) / len(token_counts), 1),
+            "median_tokens": sorted(token_counts)[len(token_counts) // 2],
+            "chunks_with_parent": with_parent,
+            "chunks_without_parent": len(chunks) - with_parent,
+        },
+    )
 
 
 def _file_hash(path: str) -> str:
@@ -221,6 +284,8 @@ async def ingest_file(
             )
             return {"status": "error", "error": "No content extracted", "document_id": doc.id}
 
+        _log_chunk_stats(chunks, file_path)
+
         logger.debug(
             "Parsing completed",
             extra={
@@ -230,8 +295,8 @@ async def ingest_file(
         )
 
         t_embed = time.perf_counter()
-        contents = [c.content for c in chunks]
-        embeddings = embed_texts(contents)
+        enriched = enrich_for_embedding(chunks)
+        embeddings = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
         t_db = time.perf_counter()
@@ -242,6 +307,7 @@ async def ingest_file(
                 heading_path=chunk_data.heading_path,
                 heading_level=chunk_data.heading_level,
                 content=chunk_data.content,
+                parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
             )
@@ -390,9 +456,11 @@ async def ingest_url(
             )
             return {"status": "error", "error": "No content extracted", "document_id": doc.id}
 
+        _log_chunk_stats(chunks, url)
+
         t_embed = time.perf_counter()
-        contents = [c.content for c in chunks]
-        embeddings = embed_texts(contents)
+        enriched = enrich_for_embedding(chunks)
+        embeddings = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
         t_db = time.perf_counter()
@@ -403,6 +471,7 @@ async def ingest_url(
                 heading_path=chunk_data.heading_path,
                 heading_level=chunk_data.heading_level,
                 content=chunk_data.content,
+                parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
             )
@@ -538,9 +607,11 @@ def ingest_from_bytes(
             session.commit()
             return {"status": "error", "error": "No content extracted", "document_id": document.id}
 
+        _log_chunk_stats(chunks, file_path)
+
         t_embed = time.perf_counter()
-        contents = [c.content for c in chunks]
-        embeddings = embed_texts(contents)
+        enriched = enrich_for_embedding(chunks)
+        embeddings = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
         t_db = time.perf_counter()
@@ -559,6 +630,7 @@ def ingest_from_bytes(
                 heading_path=chunk_data.heading_path,
                 heading_level=chunk_data.heading_level,
                 content=chunk_data.content,
+                parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
             )

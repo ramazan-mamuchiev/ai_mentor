@@ -1,5 +1,6 @@
 """RAG (Retrieval Augmented Generation) service for chat."""
 
+import hashlib
 import logging
 import time
 
@@ -103,12 +104,18 @@ async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None
 
 
 def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) -> str:
-    """Format retrieved chunks into a context string for the LLM."""
+    """Format retrieved chunks into a context string for the LLM.
+
+    Uses parent_content (full section) when available for richer context,
+    falling back to the chunk content itself.  Deduplicates parent_content
+    when multiple child chunks from the same section are retrieved.
+    """
     if no_documents_at_all:
         return "The knowledge base is completely empty — no documents have been uploaded yet."
     if not chunks:
         return "No relevant documentation found for this query."
 
+    seen_parents: set[str] = set()
     parts = []
     for i, chunk in enumerate(chunks, 1):
         source = f"[{chunk['doc_title']}] {chunk['heading_path']}"
@@ -117,7 +124,18 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
             if chunk.get("firmware_version"):
                 source += f", FW: {chunk['firmware_version']}"
             source += ")"
-        parts.append(f"--- Source {i}: {source} (similarity: {chunk['similarity']}) ---\n{chunk['content']}")
+
+        parent = chunk.get("parent_content")
+        if parent:
+            parent_key = hashlib.sha256(parent.encode("utf-8")).hexdigest()
+            if parent_key in seen_parents:
+                continue
+            seen_parents.add(parent_key)
+            body = parent
+        else:
+            body = chunk["content"]
+
+        parts.append(f"--- Source {i}: {source} (similarity: {chunk['similarity']}) ---\n{body}")
 
     return "\n\n".join(parts)
 

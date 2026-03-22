@@ -54,6 +54,18 @@ class Settings(BaseSettings):
     rag_history_messages: int = 6
     rag_history_max_tokens: int = 8000
 
+    rerank_enabled: bool = True
+    rerank_candidates: int = 20
+
+    hybrid_search_enabled: bool = True
+    hybrid_bm25_weight: float = 0.3
+    hybrid_vector_weight: float = 0.7
+    hybrid_rrf_k: int = 60
+
+    chunk_max_tokens: int = 380
+    chunk_min_tokens: int = 30
+    chunk_overlap_paragraphs: int = 2
+
     ocr_enabled: bool = False
     ocr_languages: str = "en"
 

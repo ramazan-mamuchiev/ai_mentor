@@ -46,11 +46,33 @@ CREATE TABLE IF NOT EXISTS chunks (
     heading_path TEXT NOT NULL,
     heading_level INT NOT NULL DEFAULT 1,
     content TEXT NOT NULL,
+    parent_content TEXT,
     token_count INT NOT NULL DEFAULT 0,
     embedding vector(1024),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 );
+
+-- Full-text search column (BM25 via tsvector for hybrid search)
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
+
+CREATE OR REPLACE FUNCTION chunks_tsv_trigger() RETURNS trigger AS $$
+BEGIN
+    NEW.tsv := to_tsvector('simple', COALESCE(NEW.heading_path, '') || ' ' || COALESCE(NEW.content, ''));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_chunks_tsv ON chunks;
+CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, heading_path ON chunks
+    FOR EACH ROW EXECUTE FUNCTION chunks_tsv_trigger();
+
+-- Backfill existing rows
+UPDATE chunks SET tsv = to_tsvector('simple', COALESCE(heading_path, '') || ' ' || COALESCE(content, ''))
+    WHERE tsv IS NULL;
+
+-- GIN index for full-text search
+CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON chunks USING gin(tsv);
 
 -- HNSW vector index (cosine similarity)
 CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks

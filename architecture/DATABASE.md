@@ -56,9 +56,10 @@ CREATE TABLE chunks (
     chunk_index INT NOT NULL,
     heading_path TEXT NOT NULL,               -- "Chapter 4 > Access Control > Door Control"
     heading_level INT NOT NULL DEFAULT 1,
-    content TEXT NOT NULL,
+    content TEXT NOT NULL,                    -- chunk text (used for display)
+    parent_content TEXT,                      -- full section text before splitting (small-to-big retrieval)
     token_count INT NOT NULL DEFAULT 0,
-    embedding vector(1024),                   -- E5 local: 1024 dims
+    embedding vector(1024),                   -- E5 local: 1024 dims, enriched with heading_path context
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 );
