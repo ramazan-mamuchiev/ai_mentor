@@ -74,3 +74,41 @@ class ArchiveIngestResponse(BaseModel):
     skipped: int
     errors: int
     files: list[ArchiveFileResult]
+
+
+class DocumentDebugInfo(BaseModel):
+    document_id: int
+    title: str
+    original_filename: str
+    format: str
+    status: str
+    source_hash: str
+
+    file_size_bytes: int
+    ingested_at: datetime
+
+    ingest_duration_ms: float | None = None
+    read_ms: float | None = None
+    convert_ms: float | None = None
+    parse_ms: float | None = None
+    embed_ms: float | None = None
+    db_ms: float | None = None
+
+    total_chunks: int = 0
+    total_tokens: int = 0
+    min_chunk_tokens: int | None = None
+    max_chunk_tokens: int | None = None
+    avg_chunk_tokens: float | None = None
+
+    embedding_model: str | None = None
+    embedding_dims: int | None = None
+    embedding_tokens: int = 0
+
+    rag_hit_count: int = 0
+    rag_avg_similarity: float | None = None
+    rag_last_used_at: datetime | None = None
+
+    product_name: str = ""
+    firmware_version: str = ""
+
+    model_config = {"from_attributes": True}

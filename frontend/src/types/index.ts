@@ -108,6 +108,42 @@ export interface DocumentListItem {
   ingested_at: string | null
 }
 
+export interface DocumentDebugInfo {
+  document_id: number
+  title: string
+  original_filename: string
+  format: string
+  status: string
+  source_hash: string
+
+  file_size_bytes: number
+  ingested_at: string
+
+  ingest_duration_ms: number | null
+  read_ms: number | null
+  convert_ms: number | null
+  parse_ms: number | null
+  embed_ms: number | null
+  db_ms: number | null
+
+  total_chunks: number
+  total_tokens: number
+  min_chunk_tokens: number | null
+  max_chunk_tokens: number | null
+  avg_chunk_tokens: number | null
+
+  embedding_model: string | null
+  embedding_dims: number | null
+  embedding_tokens: number
+
+  rag_hit_count: number
+  rag_avg_similarity: number | null
+  rag_last_used_at: string | null
+
+  product_name: string
+  firmware_version: string
+}
+
 export interface DocumentDownload {
   document_id: number
   original_filename: string

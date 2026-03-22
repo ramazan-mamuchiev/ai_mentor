@@ -90,6 +90,7 @@ async def _bm25_search(
 
     sql = text(f"""
         SELECT
+            c.document_id,
             c.content,
             c.parent_content,
             c.heading_path,
@@ -114,6 +115,7 @@ async def _bm25_search(
     rows = result.mappings().all()
     return [
         {
+            "document_id": row["document_id"],
             "content": row["content"],
             "parent_content": row["parent_content"],
             "heading_path": row["heading_path"],
@@ -172,6 +174,7 @@ async def search_documents(
 
     vector_sql = text(f"""
         SELECT
+            c.document_id,
             c.content,
             c.parent_content,
             c.heading_path,
@@ -201,6 +204,7 @@ async def search_documents(
     rows = result.mappings().all()
     vector_results = [
         {
+            "document_id": row["document_id"],
             "content": row["content"],
             "parent_content": row["parent_content"],
             "heading_path": row["heading_path"],
@@ -270,7 +274,41 @@ async def search_documents(
     else:
         logger.info("Search completed", extra=log_extra)
 
+    if results:
+        try:
+            await _update_rag_hit_counts(session, results)
+        except Exception:
+            logger.warning("Failed to update RAG hit counts", exc_info=True)
+
     return results
+
+
+async def _update_rag_hit_counts(session: AsyncSession, results: list[dict]) -> None:
+    """Increment rag_hit_count and update rag_avg_similarity for documents used in search results."""
+    from collections import defaultdict
+    doc_sims: dict[int, list[float]] = defaultdict(list)
+    for r in results:
+        doc_id = r.get("document_id")
+        if doc_id:
+            doc_sims[doc_id].append(r["similarity"])
+
+    if not doc_sims:
+        return
+
+    for doc_id, sims in doc_sims.items():
+        avg_sim = round(sum(sims) / len(sims), 4)
+        await session.execute(text("""
+            UPDATE documents
+            SET rag_hit_count = rag_hit_count + :hits,
+                rag_avg_similarity = CASE
+                    WHEN rag_hit_count = 0 THEN :avg_sim
+                    ELSE ROUND(CAST((rag_avg_similarity * rag_hit_count + :sum_sim) / (rag_hit_count + :hits) AS NUMERIC), 4)
+                END,
+                rag_last_used_at = NOW()
+            WHERE id = :doc_id
+        """), {"doc_id": doc_id, "hits": len(sims), "avg_sim": avg_sim, "sum_sim": sum(sims)})
+
+    await session.commit()
 
 
 async def search_endpoint(

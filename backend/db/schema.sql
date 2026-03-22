@@ -38,6 +38,24 @@ CREATE TABLE IF NOT EXISTS documents (
     ingested_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Document indexing metrics (added for debug panel)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ingest_duration_ms FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS read_ms FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS convert_ms FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS parse_ms FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS embed_ms FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS db_ms FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS min_chunk_tokens INT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS max_chunk_tokens INT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS avg_chunk_tokens FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS embedding_model TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS embedding_dims INT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS embedding_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_hit_count INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_avg_similarity FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_last_used_at TIMESTAMPTZ;
+
 -- Chunks (semantic search units with vector embeddings)
 CREATE TABLE IF NOT EXISTS chunks (
     id BIGSERIAL PRIMARY KEY,

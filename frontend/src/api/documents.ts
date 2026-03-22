@@ -1,6 +1,7 @@
 import { apiFetch } from './client'
 import type {
   DocumentListItem,
+  DocumentDebugInfo,
   DocumentDownload,
   ReindexJob,
   ReindexJobList,
@@ -13,6 +14,10 @@ export async function listDocuments(): Promise<DocumentListItem[]> {
 
 export async function getDocumentStatus(id: number): Promise<DocumentListItem> {
   return apiFetch<DocumentListItem>(`/documents/${id}/status`)
+}
+
+export async function getDocumentDebug(id: number): Promise<DocumentDebugInfo> {
+  return apiFetch<DocumentDebugInfo>(`/documents/${id}/debug`)
 }
 
 export async function downloadDocument(id: number): Promise<DocumentDownload> {

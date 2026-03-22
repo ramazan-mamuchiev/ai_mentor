@@ -13,6 +13,7 @@ from app.documents.schemas import (
     ArchiveFileResult,
     ArchiveIngestResponse,
     DeleteResponse,
+    DocumentDebugInfo,
     DocumentDownload,
     DocumentListItem,
     DocumentStatus,
@@ -364,6 +365,50 @@ async def get_document(document_id: int):
 async def get_document_status(document_id: int):
     """Poll document ingestion status (alias for GET /{id})."""
     return await get_document(document_id)
+
+
+@router.get("/{document_id}/debug", response_model=DocumentDebugInfo)
+async def get_document_debug(document_id: int):
+    """Get detailed debug/analytics info for a document (indexing timings, token stats, RAG usage)."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(
+                Document.id.label("document_id"),
+                Document.title,
+                Document.original_filename,
+                Document.format,
+                Document.status,
+                Document.source_hash,
+                Document.file_size_bytes,
+                Document.ingested_at,
+                Document.ingest_duration_ms,
+                Document.read_ms,
+                Document.convert_ms,
+                Document.parse_ms,
+                Document.embed_ms,
+                Document.db_ms,
+                Document.total_chunks,
+                Document.total_tokens,
+                Document.min_chunk_tokens,
+                Document.max_chunk_tokens,
+                Document.avg_chunk_tokens,
+                Document.embedding_model,
+                Document.embedding_dims,
+                Document.embedding_tokens,
+                Document.rag_hit_count,
+                Document.rag_avg_similarity,
+                Document.rag_last_used_at,
+                Product.name.label("product_name"),
+                FirmwareVersion.version.label("firmware_version"),
+            )
+            .join(Product, Document.product_id == Product.id)
+            .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
+            .where(Document.id == document_id)
+        )
+        row = result.one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return DocumentDebugInfo(**dict(row._mapping))
 
 
 @router.get("/{document_id}/download", response_model=DocumentDownload)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   FileText,
@@ -23,6 +23,7 @@ import {
   Eye,
   EyeOff,
   RotateCcw,
+  Bug,
 } from 'lucide-react'
 import {
   useReactTable,
@@ -59,6 +60,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { listDocuments, downloadDocument, deleteDocument, reingestDocument } from '../api/documents'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DocumentDebugPanel } from '../components/DocumentDebugPanel'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
 
 const POLL_INTERVAL = 5000
@@ -212,6 +214,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const [globalFilter, setGlobalFilter] = useState('')
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const colSettingsRef = useRef<HTMLDivElement>(null)
@@ -328,6 +331,15 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
     finally { setReingestTarget(null) }
   }, [reingestTarget])
 
+  const toggleDebug = useCallback((docId: number) => {
+    setDebugExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(docId)) next.delete(docId)
+      else next.add(docId)
+      return next
+    })
+  }, [])
+
   const columns = useMemo<ColumnDef<DocumentListItem, unknown>[]>(() => [
     {
       id: 'title',
@@ -392,8 +404,18 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       enableGrouping: false,
       cell: ({ row }) => {
         const doc = row.original
+        const isDebugOpen = debugExpandedIds.has(doc.id)
         return (
           <div className="docs-actions">
+            {doc.status === 'ready' && (
+              <button
+                className={`docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
+                onClick={() => toggleDebug(doc.id)}
+                title={t('docs.actions.debug')}
+              >
+                <Bug size={14} />
+              </button>
+            )}
             {doc.status === 'ready' && (
               <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} title={t('docs.actions.download')}>
                 <Download size={16} />
@@ -411,7 +433,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
         )
       },
     },
-  ], [t, handleDownload])
+  ], [t, handleDownload, debugExpandedIds, toggleDebug])
 
   const table = useReactTable({
     data: documents,
@@ -619,31 +641,44 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map(row => (
-                <tr key={row.id} className={row.getIsGrouped() ? 'docs-row-group' : undefined}>
-                  {row.getVisibleCells().map(cell => {
-                    if (cell.getIsGrouped()) {
-                      return (
-                        <td key={cell.id} colSpan={row.getVisibleCells().length} className="docs-group-cell">
-                          <button className="docs-group-toggle" onClick={row.getToggleExpandedHandler()}>
-                            {row.getIsExpanded() ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                            <span className="docs-group-value">
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </span>
-                            <span className="docs-group-count">({row.subRows.length})</span>
-                          </button>
+              {table.getRowModel().rows.map(row => {
+                const docId = row.original?.id
+                const showDebug = docId != null && debugExpandedIds.has(docId)
+                return (
+                  <Fragment key={row.id}>
+                    <tr className={row.getIsGrouped() ? 'docs-row-group' : undefined}>
+                      {row.getVisibleCells().map(cell => {
+                        if (cell.getIsGrouped()) {
+                          return (
+                            <td key={cell.id} colSpan={row.getVisibleCells().length} className="docs-group-cell">
+                              <button className="docs-group-toggle" onClick={row.getToggleExpandedHandler()}>
+                                {row.getIsExpanded() ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                <span className="docs-group-value">
+                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </span>
+                                <span className="docs-group-count">({row.subRows.length})</span>
+                              </button>
+                            </td>
+                          )
+                        }
+                        if (cell.getIsAggregated() || cell.getIsPlaceholder()) return null
+                        return (
+                          <td key={cell.id}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                    {showDebug && (
+                      <tr className="docs-debug-expand-row">
+                        <td colSpan={row.getVisibleCells().length}>
+                          <DocumentDebugPanel documentId={docId} />
                         </td>
-                      )
-                    }
-                    if (cell.getIsAggregated() || cell.getIsPlaceholder()) return null
-                    return (
-                      <td key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -703,6 +738,15 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
               </div>
               <div className="docs-card-actions">
                 {doc.status === 'ready' && (
+                  <button
+                    className={`docs-debug-toggle${debugExpandedIds.has(doc.id) ? ' docs-debug-toggle--active' : ''}`}
+                    onClick={() => toggleDebug(doc.id)}
+                    title={t('docs.actions.debug')}
+                  >
+                    <Bug size={14} />
+                  </button>
+                )}
+                {doc.status === 'ready' && (
                   <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} title={t('docs.actions.download')}>
                     <Download size={16} />
                   </button>
@@ -716,6 +760,11 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                   <Trash2 size={16} />
                 </button>
               </div>
+              {debugExpandedIds.has(doc.id) && (
+                <div style={{ marginTop: 8 }}>
+                  <DocumentDebugPanel documentId={doc.id} />
+                </div>
+              )}
             </div>
           ))}
       </div>

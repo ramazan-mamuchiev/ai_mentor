@@ -68,6 +68,26 @@ class Document(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    ingest_duration_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    read_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    convert_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    parse_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    embed_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    db_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    min_chunk_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_chunk_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    avg_chunk_tokens: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    embedding_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding_dims: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    embedding_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    rag_hit_count: Mapped[int] = mapped_column(Integer, default=0)
+    rag_avg_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rag_last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 
