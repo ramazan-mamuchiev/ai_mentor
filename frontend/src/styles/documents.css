@@ -445,7 +445,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 0;
 }
 
 .docs-name-cell {
@@ -516,19 +515,12 @@ td:has(.docs-actions) {
 
 .docs-name {
   font-weight: 500;
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .docs-filename {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .docs-format {
