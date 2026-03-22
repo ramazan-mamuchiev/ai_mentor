@@ -98,6 +98,7 @@ async def _apply_schema():
     await _migrate_doc_context()
     await _migrate_source_hash_index()
     await _migrate_upload_sessions()
+    await _migrate_chunks_parent_content()
 
 
 async def _migrate_devices_to_products():
@@ -341,6 +342,23 @@ async def _migrate_upload_sessions():
             "CREATE INDEX IF NOT EXISTS idx_upload_sessions_expires ON upload_sessions(expires_at)"
         )
         logger.info("Created upload_sessions table")
+
+
+async def _migrate_chunks_parent_content():
+    """Add parent_content column to chunks if it doesn't exist."""
+    from app.database import engine
+
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        drv = raw.driver_connection
+        row = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'chunks' AND column_name = 'parent_content'"
+        )
+        if row:
+            return
+        await drv.execute("ALTER TABLE chunks ADD COLUMN parent_content TEXT")
+        logger.info("Added parent_content column to chunks")
 
 
 @contextlib.asynccontextmanager
