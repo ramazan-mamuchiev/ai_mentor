@@ -42,7 +42,7 @@ services:
       DATABASE_URL_SYNC: postgresql://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT: http://minio:9000
-      EMBEDDING_PROVIDER: local
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-gemini}
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OLLAMA_URL: http://ollama:11434
       LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
@@ -268,10 +268,16 @@ S3_BUCKET=ipcodex-storage
 # === Auth ===
 API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-tenancy yet)
 
+# === Gemini API ===
+GEMINI_API_KEY=AIza...                       # single key for LLM + embeddings
+
 # === Embedding ===
-EMBEDDING_PROVIDER=local                     # local | openai
-# Local: intfloat/multilingual-e5-small (1024 dims), auto-downloaded on first run
-# OpenAI: text-embedding-3-small (1536 dims)
+EMBEDDING_PROVIDER=gemini                    # local | openai | gemini
+EMBEDDING_DIMS=1024                          # vector dimensionality (Matryoshka for Gemini)
+EMBEDDING_MODEL_GEMINI=gemini-embedding-2-preview
+# Local: intfloat/multilingual-e5-large (1024 dims), auto-downloaded on first run
+# OpenAI: text-embedding-3-small (1536 dims) — requires OPENAI_API_KEY
+# Gemini: gemini-embedding-2-preview — uses GEMINI_API_KEY, MTEB Multilingual leader
 OPENAI_API_KEY=sk-...                        # only if EMBEDDING_PROVIDER=openai
 
 # === LLM (RAG Chat) — Tiered Model Strategy ===
@@ -284,7 +290,6 @@ LLM_REASONING_EFFORT=none                    # none | low | medium | high — Ge
 
 # Gemini Flash — default for Free & Pro tiers ($0.30/$2.50 per 1M tokens)
 OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-GEMINI_API_KEY=...
 OPENAI_LLM_MODEL=gemini-2.5-flash
 
 # Ollama — development fallback only ($0 cost):

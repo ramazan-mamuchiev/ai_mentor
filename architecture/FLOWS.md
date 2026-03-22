@@ -88,6 +88,7 @@ Celery Worker: ingest_document(document_id)
   10. Embed all enriched chunks in batch (embedder.py)
      - Local: multilingual-e5-large (1024-dim), "passage:" prefix
      - OpenAI: text-embedding-3-small, up to 256 texts per batch
+     - Gemini: gemini-embedding-2-preview (google-genai SDK), task_type=RETRIEVAL_DOCUMENT, Matryoshka dims
   11. INSERT chunks (content, content_clean, parent_content, embedding) into pgvector
      - `content_clean` — Markdown-stripped text for BM25 full-text indexing
      - PostgreSQL trigger builds tsvector from `COALESCE(content_clean, content)`

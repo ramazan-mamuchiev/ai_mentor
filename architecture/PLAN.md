@@ -222,11 +222,13 @@ Opus 4.6 serves as a premium **anchor product** — its superior quality drives 
 - Full details: [MONITORING.md](MONITORING.md)
 
 ### Embedding Strategy
-- **OpenAI `text-embedding-3-small`** (1536 dims) for cloud — best quality
-- **`intfloat/multilingual-e5-small`** (1024 dims) for local / offline — default for development
-- Provider selected via `EMBEDDING_PROVIDER` env variable (`local` | `openai`)
-- Fixed `vector(1024)` column in pgvector for local; `vector(1536)` for OpenAI
-- E5 models use instruction-prefixed queries (`query:` / `passage:`) for better retrieval
+- **Gemini `gemini-embedding-2-preview`** — production default, MTEB Multilingual leader (68.3), 100+ languages, Matryoshka dims (128–3072), $0.20/1M tokens
+- **OpenAI `text-embedding-3-small`** (1536 dims) — budget cloud alternative
+- **`intfloat/multilingual-e5-large`** (1024 dims) for local / offline — default for development
+- Provider selected via `EMBEDDING_PROVIDER` env variable (`local` | `openai` | `gemini`)
+- Configurable dimensions via `EMBEDDING_DIMS` (default 1024); Gemini uses `output_dimensionality`, local uses zero-padding
+- E5 models use instruction-prefixed queries (`query:` / `passage:`); Gemini uses `task_type` (`RETRIEVAL_QUERY` / `RETRIEVAL_DOCUMENT`)
+- `GEMINI_API_KEY` — single key shared between LLM (chat) and embeddings
 
 ### Supported Document Formats
 

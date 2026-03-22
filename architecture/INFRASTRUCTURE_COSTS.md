@@ -26,8 +26,8 @@
             │                   │              │
  ┌──────────▼───────────────────▼──────────────▼───────────────┐
  │                   EXTERNAL SERVICES                         │
- │  OpenAI API     │  LLM API    │  Stripe     │  SendGrid    │
- │  (embeddings)   │  (Gemini /  │  (billing)  │  (email)     │
+│  Gemini API     │  LLM API    │  Stripe     │  SendGrid    │
+│  (embeddings)   │  (Gemini /  │  (billing)  │  (email)     │
  │                 │  Opus 4.6)  │             │              │
  │                 │             │             │              │
  │                 │  ClamAV     │             │              │
@@ -119,25 +119,27 @@ At scale (10x):
 
 **Optimization**: CloudFront/CDN caching for popular firmware → reduces egress 50-70%.
 
-### 2.5 OpenAI Embedding API
+### 2.5 Embedding API
 
-Pricing: **$0.02 per 1M tokens** (text-embedding-3-small, as of March 2026)
+**Production default: Gemini Embedding 2** — $0.20/1M tokens (gemini-embedding-2-preview)
+**Budget alternative: OpenAI** — $0.02/1M tokens (text-embedding-3-small)
+**Offline: Local** — $0 (intfloat/multilingual-e5-large, CPU-only, ~5.5 sec/chunk)
 
-| Operation | Avg Tokens | Cost per Call | Monthly Volume | Monthly Cost |
-|-----------|:----------:|:-------------:|:--------------:|:------------:|
-| Search query embedding | 50 tokens | $0.000001 | 100,000 queries | **$0.10** |
-| Document ingestion (chunk) | 500 tokens | $0.00001 | 50,000 chunks | **$0.50** |
-| Full doc ingestion (200 chunks) | 100K tokens | $0.002 | 500 documents | **$1.00** |
+| Operation | Avg Tokens | Gemini Cost | OpenAI Cost | Monthly Volume | Gemini Monthly | OpenAI Monthly |
+|-----------|:----------:|:-----------:|:-----------:|:--------------:|:--------------:|:--------------:|
+| Search query embedding | 50 tokens | $0.00001 | $0.000001 | 100,000 queries | **$1.00** | **$0.10** |
+| Document ingestion (chunk) | 500 tokens | $0.0001 | $0.00001 | 50,000 chunks | **$5.00** | **$0.50** |
+| Full doc ingestion (200 chunks) | 100K tokens | $0.02 | $0.002 | 500 documents | **$10.00** | **$1.00** |
 
-| Scale | Queries/mo | Ingests/mo | Monthly API Cost |
-|-------|:----------:|:----------:|:----------------:|
-| Small | 50K | 200 docs | **$1-3** |
-| Medium | 300K | 1,000 docs | **$5-15** |
-| Large | 2M | 5,000 docs | **$30-80** |
+| Scale | Queries/mo | Ingests/mo | Gemini Monthly | OpenAI Monthly |
+|-------|:----------:|:----------:|:--------------:|:--------------:|
+| Small | 50K | 200 docs | **$5-15** | **$1-3** |
+| Medium | 300K | 1,000 docs | **$30-80** | **$5-15** |
+| Large | 2M | 5,000 docs | **$200-500** | **$30-80** |
 
-**Key insight**: OpenAI Embedding API is extremely cheap. Even at large scale, it's < $100/mo. This is NOT a cost concern.
+**Key insight**: Gemini Embedding 2 is 10x more expensive than OpenAI but leads MTEB Multilingual benchmarks (68.3 vs 58.9). For a multilingual product, the quality improvement justifies the cost — even at large scale it's < $500/mo.
 
-**Alternative**: self-hosted `all-MiniLM-L6-v2` eliminates API cost entirely (GPU instance ~$100-200/mo, but also handles other tasks).
+**Why Gemini over OpenAI**: IPCodex serves users in 100+ countries. Gemini Embedding 2 significantly outperforms OpenAI on non-English retrieval (Russian, Chinese, Arabic, etc.).
 
 ### 2.6 LLM API (for RAG Chat)
 
@@ -291,13 +293,13 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | Redis | $30 |
 | S3 storage (50 GB) | $2 |
 | S3 egress | $30 |
-| OpenAI Embeddings | $3 |
+| Gemini Embeddings | $10 |
 | LLM API (Gemini Flash) | $185 |
 | Stripe fees | $100 |
 | Monitoring | $50 |
 | Email | $0 |
 | Domain + SSL | $15 |
-| **Total** | **$1,115/mo** |
+| **Total** | **$1,122/mo** |
 
 **Revenue (Year 1)**: ~$3,500/mo (see MARKET_RESEARCH.md)
 **Gross margin**: 68%
@@ -311,7 +313,7 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | Redis | $80 |
 | S3 storage (500 GB) | $12 |
 | S3 egress | $120 |
-| OpenAI Embeddings | $10 |
+| Gemini Embeddings | $50 |
 | LLM API — Gemini Flash (225K queries) | $830 |
 | LLM API — Opus 4.6 (75K queries) | $2,600 |
 | CDN (CloudFront) | $50 |
@@ -319,7 +321,7 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | Monitoring | $150 |
 | Email | $20 |
 | Domain + SSL | $15 |
-| **Total** | **$6,190/mo** |
+| **Total** | **$6,227/mo** |
 
 **Revenue (Year 2)**: ~$42K/mo
 **Gross margin**: 85%
@@ -333,7 +335,7 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | Redis (managed HA) | $250 |
 | S3 storage (5 TB) | $115 |
 | S3 egress + CDN | $600 |
-| OpenAI Embeddings (or self-hosted) | $60 |
+| Gemini Embeddings | $300 |
 | LLM API — Gemini Flash (1.5M queries) | $5,550 |
 | LLM API — Opus 4.6 (500K queries) | $17,500 |
 | CDN (CloudFront) | $150 |
@@ -341,7 +343,7 @@ ClamAV is open-source and runs as a sidecar container. Scanning ~500 MB firmware
 | Monitoring (Datadog) | $400 |
 | Email (SES) | $30 |
 | Domain + SSL + WAF | $50 |
-| **Total** | **$32,695/mo** |
+| **Total** | **$33,145/mo** |
 
 **Revenue (Year 3)**: ~$218K/mo + Platinum revenue ~$100K/mo (20 x $5K)
 **Gross margin**: 90%
