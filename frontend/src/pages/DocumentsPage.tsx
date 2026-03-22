@@ -413,7 +413,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                 onClick={() => toggleDebug(doc.id)}
                 title={t('docs.actions.debug')}
               >
-                <Bug size={14} />
+                <Bug size={16} />
               </button>
             )}
             {doc.status === 'ready' && (
@@ -743,7 +743,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                     onClick={() => toggleDebug(doc.id)}
                     title={t('docs.actions.debug')}
                   >
-                    <Bug size={14} />
+                    <Bug size={16} />
                   </button>
                 )}
                 {doc.status === 'ready' && (
