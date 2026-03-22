@@ -12,6 +12,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { listDocuments, downloadDocument, deleteDocument } from '../api/documents'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
 
 const POLL_INTERVAL = 5000
@@ -55,6 +56,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const { t } = useTranslation()
   const [documents, setDocuments] = useState<DocumentListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchDocs = useCallback(async () => {
@@ -91,15 +93,17 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
     }
   }, [])
 
-  const handleDelete = useCallback(async (id: number) => {
-    if (!confirm(t('docs.actions.confirmDelete'))) return
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return
     try {
-      await deleteDocument(id)
-      setDocuments(prev => prev.filter(d => d.id !== id))
+      await deleteDocument(deleteTarget.id)
+      setDocuments(prev => prev.filter(d => d.id !== deleteTarget.id))
     } catch {
       // ignore
+    } finally {
+      setDeleteTarget(null)
     }
-  }, [t])
+  }, [deleteTarget])
 
   if (loading) {
     return (
@@ -186,7 +190,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                     )}
                     <button
                       className="docs-action-btn docs-action-btn--danger"
-                      onClick={() => handleDelete(doc.id)}
+                      onClick={() => setDeleteTarget(doc)}
                       title={t('docs.actions.delete')}
                     >
                       <Trash2 size={16} />
@@ -225,7 +229,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
               )}
               <button
                 className="docs-action-btn docs-action-btn--danger"
-                onClick={() => handleDelete(doc.id)}
+                onClick={() => setDeleteTarget(doc)}
                 title={t('docs.actions.delete')}
               >
                 <Trash2 size={16} />
@@ -234,6 +238,19 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
           </div>
         ))}
       </div>
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title={t('docs.delete.title')}
+          message={t('docs.delete.message')}
+          details={`${deleteTarget.title} (${deleteTarget.original_filename}, ${formatBytes(deleteTarget.file_size_bytes)})`}
+          confirmLabel={t('docs.delete.confirm')}
+          cancelLabel={t('docs.delete.cancel')}
+          variant="danger"
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   )
 }
