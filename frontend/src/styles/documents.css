@@ -367,23 +367,26 @@
 .docs-th-inner {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   padding: 10px 14px;
   position: relative;
 }
 
 .docs-th-drag {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   cursor: grab;
   color: var(--text-muted);
-  opacity: 0.35;
+  opacity: 0;
   transition: opacity 0.15s;
-  flex-shrink: 0;
 }
 
 .docs-th:hover .docs-th-drag {
-  opacity: 0.7;
+  opacity: 0.5;
 }
 
 .docs-th-label {
