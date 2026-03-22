@@ -2,13 +2,28 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, FileText, Box, BarChart3, Settings,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, Menu,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 import { LanguageToggle } from './LanguageToggle'
 import { SessionList } from './SessionList'
 import { ThemeToggle } from './ThemeToggle'
+
+const MOBILE_BP = 768
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BP,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${MOBILE_BP - 1}px)`)
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return mobile
+}
 
 const WIDTH_KEY = 'ipcodex-sidebar-width'
 const COLLAPSED_KEY = 'ipcodex-sidebar-collapsed'
@@ -63,6 +78,8 @@ export function Layout({
 }: Props) {
   const [sidebarWidth, setSidebarWidth] = useState(loadWidth)
   const [collapsed, setCollapsed] = useState(loadCollapsed)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const isMobile = useIsMobile()
   const dragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -70,6 +87,9 @@ export function Layout({
   const location = useLocation()
 
   const isChat = location.pathname === '/app' || location.pathname === '/app/'
+
+  useEffect(() => { if (!isMobile) setMobileOpen(false) }, [isMobile])
+  useEffect(() => { setMobileOpen(false) }, [location.pathname])
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed(prev => {
@@ -115,27 +135,48 @@ export function Layout({
 
   const effectiveWidth = collapsed ? COLLAPSED_WIDTH : sidebarWidth
 
+  const sidebarCls = [
+    'sidebar',
+    collapsed && !isMobile ? 'sidebar--collapsed' : '',
+    isMobile ? 'sidebar--mobile' : '',
+    isMobile && mobileOpen ? 'sidebar--mobile-open' : '',
+  ].filter(Boolean).join(' ')
+
+  const sidebarStyle = isMobile
+    ? { width: DEFAULT_WIDTH, minWidth: DEFAULT_WIDTH }
+    : { width: effectiveWidth, minWidth: effectiveWidth }
+
   return (
     <div className="app-layout">
-      <aside
-        className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}
-        style={{ width: effectiveWidth, minWidth: effectiveWidth }}
-      >
+      {isMobile && mobileOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />
+      )}
+      <aside className={sidebarCls} style={sidebarStyle}>
         <div className="sidebar-header">
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <div className="sidebar-header-left">
               <img src="/logo-on-light.svg" alt={t('sidebar.title')} className="sidebar-icon logo-light" />
               <img src="/logo-on-dark.svg" alt={t('sidebar.title')} className="sidebar-icon logo-dark" />
               <span className="sidebar-title">{t('sidebar.title')}</span>
             </div>
           )}
-          <button
-            className="sidebar-toggle-btn"
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-          >
-            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          </button>
+          {isMobile ? (
+            <button
+              className="sidebar-toggle-btn"
+              onClick={() => setMobileOpen(false)}
+              aria-label={t('sidebar.collapse')}
+            >
+              <PanelLeftClose size={18} />
+            </button>
+          ) : (
+            <button
+              className="sidebar-toggle-btn"
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+            >
+              {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            </button>
+          )}
         </div>
 
         <nav className="sidebar-nav">
@@ -149,16 +190,16 @@ export function Layout({
                 key={item.path}
                 className={`nav-item${active ? ' nav-item--active' : ''}`}
                 onClick={() => navigate(item.path)}
-                title={collapsed ? t(item.labelKey) : undefined}
+                title={collapsed && !isMobile ? t(item.labelKey) : undefined}
               >
                 <Icon size={18} />
-                {!collapsed && t(item.labelKey)}
+                {(!collapsed || isMobile) && t(item.labelKey)}
               </button>
             )
           })}
         </nav>
 
-        {!collapsed && isChat ? (
+        {(!collapsed || isMobile) && isChat ? (
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -175,7 +216,7 @@ export function Layout({
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </aside>
-      {!collapsed && (
+      {!isMobile && !collapsed && (
         <div
           className="splitter"
           onPointerDown={onPointerDown}
@@ -183,6 +224,15 @@ export function Layout({
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         />
+      )}
+      {isMobile && (
+        <button
+          className="mobile-menu-btn"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Menu"
+        >
+          <Menu size={20} />
+        </button>
       )}
       {children}
     </div>
