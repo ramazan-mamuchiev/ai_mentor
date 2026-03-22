@@ -48,58 +48,6 @@
   margin: 4px 0;
 }
 
-/* ── Sidebar Tabs ── */
-.sidebar-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.sidebar-tab {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 0;
-  border: none;
-  background: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-family: var(--font-sans);
-  transition: color 0.15s, background 0.15s;
-  white-space: nowrap;
-}
-
-.sidebar-tab:hover {
-  color: var(--text-secondary);
-  background: var(--surface-hover);
-}
-
-.sidebar-tab--active {
-  color: var(--text);
-  background: var(--surface-hover);
-}
-
-.sidebar-tab-content {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-workspace-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 8px;
-}
-
 /* ── Documents Page ── */
 .docs-page {
   flex: 1;

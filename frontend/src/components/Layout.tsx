@@ -32,15 +32,13 @@ function loadCollapsed(): boolean {
   try { return localStorage.getItem(COLLAPSED_KEY) === 'true' } catch { return false }
 }
 
-const ALL_NAV = [
+const NAV_ITEMS = [
   { path: '/app', icon: MessageSquare, labelKey: 'nav.chat' },
   { path: '/app/documents', icon: FileText, labelKey: 'nav.documents' },
   { path: '/app/products', icon: Box, labelKey: 'nav.products' },
   { path: '/app/analytics', icon: BarChart3, labelKey: 'nav.analytics' },
   { path: '/app/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const
-
-const WORKSPACE_NAV = ALL_NAV.slice(1)
 
 interface Props {
   sessions: ChatSession[]
@@ -72,7 +70,6 @@ export function Layout({
   const location = useLocation()
 
   const isChat = location.pathname === '/app' || location.pathname === '/app/'
-  const activeTab: 'chat' | 'workspace' = isChat ? 'chat' : 'workspace'
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed(prev => {
@@ -141,73 +138,36 @@ export function Layout({
           </button>
         </div>
 
-        {collapsed ? (
-          <nav className="sidebar-nav">
-            {ALL_NAV.map(item => {
-              const Icon = item.icon
-              const active = item.path === '/app'
-                ? isChat
-                : location.pathname.startsWith(item.path)
-              return (
-                <button
-                  key={item.path}
-                  className={`nav-item${active ? ' nav-item--active' : ''}`}
-                  onClick={() => navigate(item.path)}
-                  title={t(item.labelKey)}
-                >
-                  <Icon size={18} />
-                </button>
-              )
-            })}
-          </nav>
-        ) : (
-          <>
-            <div className="sidebar-tabs">
+        <nav className="sidebar-nav">
+          {NAV_ITEMS.map(item => {
+            const Icon = item.icon
+            const active = item.path === '/app'
+              ? isChat
+              : location.pathname.startsWith(item.path)
+            return (
               <button
-                className={`sidebar-tab${activeTab === 'chat' ? ' sidebar-tab--active' : ''}`}
-                onClick={() => navigate('/app')}
+                key={item.path}
+                className={`nav-item${active ? ' nav-item--active' : ''}`}
+                onClick={() => navigate(item.path)}
+                title={collapsed ? t(item.labelKey) : undefined}
               >
-                <MessageSquare size={14} />
-                {t('nav.chat')}
+                <Icon size={18} />
+                {!collapsed && t(item.labelKey)}
               </button>
-              <button
-                className={`sidebar-tab${activeTab === 'workspace' ? ' sidebar-tab--active' : ''}`}
-                onClick={() => { if (activeTab !== 'workspace') navigate('/app/documents') }}
-              >
-                <FileText size={14} />
-                {t('sidebar.workspace')}
-              </button>
-            </div>
+            )
+          })}
+        </nav>
 
-            <div className="sidebar-tab-content">
-              {activeTab === 'chat' ? (
-                <SessionList
-                  sessions={sessions}
-                  activeSessionId={activeSessionId}
-                  onSelect={onSelectSession}
-                  onNew={onNewSession}
-                  onDelete={onDeleteSession}
-                />
-              ) : (
-                <nav className="sidebar-workspace-nav">
-                  {WORKSPACE_NAV.map(item => {
-                    const Icon = item.icon
-                    const active = location.pathname.startsWith(item.path)
-                    return (
-                      <button
-                        key={item.path}
-                        className={`nav-item${active ? ' nav-item--active' : ''}`}
-                        onClick={() => navigate(item.path)}
-                      >
-                        <Icon size={18} />
-                        {t(item.labelKey)}
-                      </button>
-                    )
-                  })}
-                </nav>
-              )}
-            </div>
-          </>
+        {!collapsed && isChat ? (
+          <SessionList
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelect={onSelectSession}
+            onNew={onNewSession}
+            onDelete={onDeleteSession}
+          />
+        ) : (
+          <div className="sidebar-spacer" />
         )}
 
         <div className="sidebar-footer">
