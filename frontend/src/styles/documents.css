@@ -1420,21 +1420,20 @@ td:has(.docs-actions) {
 
 .doc-debug-collapse-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--bg);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s;
   z-index: 1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .doc-debug-collapse-btn:hover {
