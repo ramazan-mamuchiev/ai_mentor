@@ -2,13 +2,19 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, FileText, Box, BarChart3, Settings,
-  PanelLeftClose, PanelLeftOpen, PanelLeftDashed, X,
+  PanelLeftClose, PanelLeftOpen, X,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 import { LanguageToggle } from './LanguageToggle'
 import { SessionList } from './SessionList'
 import { ThemeToggle } from './ThemeToggle'
+
+const ChatGptSidebarIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 8C3 7.44772 3.44772 7 4 7H20C20.5523 7 21 7.44772 21 8C21 8.55228 20.5523 9 20 9H4C3.44772 9 3 8.55228 3 8ZM3 16C3 15.4477 3.44772 15 4 15H14C14.5523 15 15 15.4477 15 16C15 16.5523 14.5523 17 14 17H4C3.44772 17 3 16.5523 3 16Z" />
+  </svg>
+)
 
 const MOBILE_BP = 768
 
@@ -233,7 +239,7 @@ export function Layout({
               onClick={() => setMobileOpen(true)}
               aria-label="Menu"
             >
-              <PanelLeftDashed size={20} />
+              <ChatGptSidebarIcon size={20} />
             </button>
             <div className="mobile-topbar-brand">
               <img src="/logo-on-light.svg" alt="" className="mobile-topbar-logo logo-light" />
