@@ -122,21 +122,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s;
-  opacity: 0.5;
 }
 
 .docs-col-settings-btn:hover {
-  opacity: 1;
   background: var(--surface-hover);
-  color: var(--text);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .docs-col-settings-dropdown {
@@ -1419,25 +1418,27 @@ td:has(.docs-actions) {
 
 .doc-debug-collapse-btn {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 8px;
+  right: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.15s;
   z-index: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .doc-debug-collapse-btn:hover {
-  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
-  color: var(--text);
+  background: var(--error-bg, #fef2f2);
+  color: var(--error-text, #ef4444);
+  border-color: var(--error-text, #ef4444);
 }
 
 .doc-debug-loading {
