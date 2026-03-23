@@ -181,7 +181,7 @@ async def _stream_openai_compatible(
         "stream_options": {"include_usage": True},
     }
 
-    if settings.llm_reasoning_effort and settings.llm_reasoning_effort != "high":
+    if settings.llm_reasoning_effort:
         payload["reasoning_effort"] = settings.llm_reasoning_effort
 
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
