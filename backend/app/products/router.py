@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import case, func, select
 
 from app.database import async_session
-from app.models import Document, FirmwareVersion, Product
+from app.models import Chunk, Document, FirmwareVersion, Product
 from app.products.schemas import (
     FormatCount,
     ProductDebugInfo,
@@ -19,6 +19,19 @@ from app.products.schemas import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/products", tags=["products"])
+
+
+async def _get_product_by_slugs(session, manufacturer_slug: str, product_slug: str) -> Product:
+    result = await session.execute(
+        select(Product).where(
+            Product.manufacturer_slug == manufacturer_slug,
+            Product.slug == product_slug,
+        )
+    )
+    product = result.scalar_one_or_none()
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
 
 
 @router.get("", response_model=list[ProductListItem])
@@ -60,6 +73,8 @@ async def list_products():
                 Product.manufacturer,
                 Product.model,
                 Product.category,
+                Product.slug,
+                Product.manufacturer_slug,
                 Product.created_at,
                 func.coalesce(agg.c.total_documents, 0).label("total_documents"),
                 func.coalesce(agg.c.pending_documents, 0).label("pending_documents"),
@@ -110,6 +125,8 @@ async def list_products():
                 manufacturer=p.manufacturer,
                 model=p.model,
                 category=p.category,
+                slug=p.slug,
+                manufacturer_slug=p.manufacturer_slug,
                 created_at=p.created_at,
                 total_documents=total,
                 pending_documents=pending,
@@ -128,17 +145,15 @@ async def list_products():
         return items
 
 
-@router.get("/{product_id}", response_model=ProductDetail)
-async def get_product(product_id: int):
+@router.get("/{manufacturer_slug}/{product_slug}", response_model=ProductDetail)
+async def get_product(manufacturer_slug: str, product_slug: str):
     """Get product details including firmware versions."""
     async with async_session() as session:
-        product = await session.get(Product, product_id)
-        if product is None:
-            raise HTTPException(status_code=404, detail="Product not found")
+        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
 
         fw_result = await session.execute(
             select(FirmwareVersion.version)
-            .where(FirmwareVersion.product_id == product_id)
+            .where(FirmwareVersion.product_id == product.id)
             .order_by(FirmwareVersion.version)
         )
         versions = [row[0] for row in fw_result.all()]
@@ -149,23 +164,27 @@ async def get_product(product_id: int):
             manufacturer=product.manufacturer,
             model=product.model,
             category=product.category,
+            slug=product.slug,
+            manufacturer_slug=product.manufacturer_slug,
             created_at=product.created_at,
             firmware_versions=versions,
         )
 
 
-@router.patch("/{product_id}", response_model=ProductDetail)
-async def update_product(product_id: int, body: ProductUpdate):
-    """Update product properties."""
+@router.patch("/{manufacturer_slug}/{product_slug}", response_model=ProductDetail)
+async def update_product(manufacturer_slug: str, product_slug: str, body: ProductUpdate):
+    """Update product properties (slug is regenerated if name/manufacturer changes)."""
+    from app.slugify import slugify
+
     async with async_session() as session:
-        product = await session.get(Product, product_id)
-        if product is None:
-            raise HTTPException(status_code=404, detail="Product not found")
+        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
 
         if body.name is not None:
             product.name = body.name
+            product.slug = slugify(body.name)
         if body.manufacturer is not None:
             product.manufacturer = body.manufacturer
+            product.manufacturer_slug = slugify(body.manufacturer) if body.manufacturer else "default"
         if body.model is not None:
             product.model = body.model
         if body.category is not None:
@@ -176,7 +195,7 @@ async def update_product(product_id: int, body: ProductUpdate):
 
         fw_result = await session.execute(
             select(FirmwareVersion.version)
-            .where(FirmwareVersion.product_id == product_id)
+            .where(FirmwareVersion.product_id == product.id)
             .order_by(FirmwareVersion.version)
         )
         versions = [row[0] for row in fw_result.all()]
@@ -187,20 +206,21 @@ async def update_product(product_id: int, body: ProductUpdate):
             manufacturer=product.manufacturer,
             model=product.model,
             category=product.category,
+            slug=product.slug,
+            manufacturer_slug=product.manufacturer_slug,
             created_at=product.created_at,
             firmware_versions=versions,
         )
 
 
-@router.delete("/{product_id}")
-async def delete_product(product_id: int):
+@router.delete("/{manufacturer_slug}/{product_slug}")
+async def delete_product(manufacturer_slug: str, product_slug: str):
     """Delete a product and all its documents (cascade)."""
     from app.s3 import delete_file
 
     async with async_session() as session:
-        product = await session.get(Product, product_id)
-        if product is None:
-            raise HTTPException(status_code=404, detail="Product not found")
+        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
+        product_id = product.id
 
         docs_result = await session.execute(
             select(Document).where(Document.product_id == product_id)
@@ -224,13 +244,60 @@ async def delete_product(product_id: int):
         }
 
 
-@router.get("/{product_id}/debug", response_model=ProductDebugInfo)
-async def get_product_debug(product_id: int):
+@router.post("/{manufacturer_slug}/{product_slug}/reingest", status_code=202)
+async def reingest_product(manufacturer_slug: str, product_slug: str):
+    """Re-run full ingestion for all documents of a product."""
+    from app.celery_app import ingest_document_task
+
+    async with async_session() as session:
+        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
+        product_id = product.id
+
+        docs_result = await session.execute(
+            select(Document).where(Document.product_id == product_id)
+        )
+        docs = docs_result.scalars().all()
+        if not docs:
+            raise HTTPException(status_code=400, detail="Product has no documents")
+
+        queued = 0
+        for doc in docs:
+            if doc.status in ("ready", "error"):
+                chunks = (await session.execute(
+                    select(Chunk).where(Chunk.document_id == doc.id)
+                )).scalars().all()
+                for chunk in chunks:
+                    await session.delete(chunk)
+
+                doc.status = "pending"
+                doc.total_chunks = 0
+                doc.error_message = None
+
+            queued += 1
+
+        await session.commit()
+
+    for doc in docs:
+        ingest_document_task.delay(doc.id)
+
+    logger.info(
+        "Product reingest queued",
+        extra={"product_id": product_id, "product_name": product.name, "documents_queued": queued},
+    )
+    return {
+        "product_id": product_id,
+        "product_name": product.name,
+        "status": "accepted",
+        "documents_queued": queued,
+    }
+
+
+@router.get("/{manufacturer_slug}/{product_slug}/debug", response_model=ProductDebugInfo)
+async def get_product_debug(manufacturer_slug: str, product_slug: str):
     """Get aggregated debug/analytics info for all documents of a product."""
     async with async_session() as session:
-        product = await session.get(Product, product_id)
-        if product is None:
-            raise HTTPException(status_code=404, detail="Product not found")
+        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
+        product_id = product.id
 
         agg_result = await session.execute(
             select(

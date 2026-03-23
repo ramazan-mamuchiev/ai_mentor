@@ -29,7 +29,7 @@ import {
   type SortingState,
   type ColumnFiltersState,
 } from '@tanstack/react-table'
-import { listProducts, deleteProduct } from '../api/products'
+import { listProducts, deleteProduct, reingestProduct } from '../api/products'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ProductDebugPanel } from '../components/ProductDebugPanel'
 import { ProductEditDialog } from '../components/ProductEditDialog'
@@ -120,6 +120,7 @@ export function ProductsPage({ onUploadClick }: Props) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [deleteTarget, setDeleteTarget] = useState<ProductListItem | null>(null)
   const [editTarget, setEditTarget] = useState<ProductListItem | null>(null)
+  const [reingestTarget, setReingestTarget] = useState<ProductListItem | null>(null)
   const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
@@ -152,6 +153,15 @@ export function ProductsPage({ onUploadClick }: Props) {
     } catch { /* ignore */ }
     finally { setDeleteTarget(null) }
   }, [deleteTarget])
+
+  const handleReingestConfirm = useCallback(async () => {
+    if (!reingestTarget) return
+    try {
+      await reingestProduct(reingestTarget.id)
+      fetchProducts()
+    } catch { /* ignore */ }
+    finally { setReingestTarget(null) }
+  }, [reingestTarget, fetchProducts])
 
   const toggleDebug = useCallback((id: number) => {
     setDebugExpandedIds(prev => {
@@ -293,6 +303,13 @@ export function ProductsPage({ onUploadClick }: Props) {
               title={t('products.actions.debug')}
             >
               <Bug size={16} />
+            </button>
+            <button
+              className="docs-action-btn"
+              onClick={() => setReingestTarget(p)}
+              title={t('products.actions.reindex')}
+            >
+              <RefreshCw size={16} />
             </button>
             <button
               className="docs-action-btn"
@@ -489,6 +506,19 @@ export function ProductsPage({ onUploadClick }: Props) {
           variant="danger"
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {reingestTarget && (
+        <ConfirmDialog
+          title={t('products.reingest.title')}
+          message={t('products.reingest.message')}
+          details={`${reingestTarget.name} (${reingestTarget.total_documents} documents)`}
+          confirmLabel={t('products.reingest.confirm')}
+          cancelLabel={t('products.delete.cancel')}
+          variant="default"
+          onConfirm={handleReingestConfirm}
+          onCancel={() => setReingestTarget(null)}
         />
       )}
 

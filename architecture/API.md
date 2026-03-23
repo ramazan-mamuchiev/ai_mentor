@@ -77,6 +77,27 @@
 | POST | `/api/v1/documents/reindex` | Reindex all documents | API Key |
 | POST | `/api/v1/documents/reingest` | Re-ingest documents (optional product/format filter) | API Key |
 
+**Products:** ✅
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| GET | `/api/v1/products` | List products with aggregated document stats | API Key |
+| GET | `/api/v1/products/{id}` | Product details + firmware versions | API Key |
+| PATCH | `/api/v1/products/{id}` | Update product properties (name, manufacturer, etc.) | API Key |
+| DELETE | `/api/v1/products/{id}` | Delete product + cascade documents + S3 cleanup | API Key |
+| POST | `/api/v1/products/{id}/reingest` | Re-ingest all documents of a product (also re-queues stuck pending) | API Key |
+| GET | `/api/v1/products/{id}/debug` | Aggregated debug/analytics info for product | API Key |
+
+**Reindex Jobs:** ✅
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/api/v1/reindex/jobs` | Start a new reindex job (reingest or reembed mode) | API Key |
+| GET | `/api/v1/reindex/jobs` | List reindex jobs with optional status filter | API Key |
+| GET | `/api/v1/reindex/jobs/{id}` | Get reindex job status and progress | API Key |
+| POST | `/api/v1/reindex/jobs/{id}/cancel` | Cancel a running or pending reindex job | API Key |
+| GET | `/api/v1/reindex/jobs/{id}/errors` | Get per-document errors for a reindex job | API Key |
+
 **Chat (RAG):** ✅
 
 | Method | Path | Description | Auth |

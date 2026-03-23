@@ -16,6 +16,8 @@ class ProductListItem(BaseModel):
     manufacturer: str = ""
     model: str = ""
     category: str = ""
+    slug: str = ""
+    manufacturer_slug: str = ""
     created_at: datetime
 
     total_documents: int = 0
@@ -43,6 +45,8 @@ class ProductDetail(BaseModel):
     manufacturer: str = ""
     model: str = ""
     category: str = ""
+    slug: str = ""
+    manufacturer_slug: str = ""
     created_at: datetime
     firmware_versions: list[str] = []
 

@@ -314,9 +314,13 @@ ipcodex/
         client.py            # stream_chat_completion (Ollama / OpenAI-compatible), health check
 
       documents/
-        router.py            # Upload file/URL/archive, list, status, download, delete, reindex
+        router.py            # Upload file/URL/archive, list, status, download, delete, reindex, requeue-pending
         archive.py           # ✅ Archive extraction: ZIP, 7z, tar, tar.gz, tar.bz2, tar.xz, RAR
         schemas.py           # Pydantic: IngestResponse, DocumentStatus, DocumentListItem
+
+      products/              # ✅ Product management
+        router.py            # CRUD, reingest all product docs (re-queues stuck pending), debug
+        schemas.py           # Pydantic: ProductListItem, ProductDetail, ProductDebugInfo
 
       uploads/               # ✅ TUS resumable upload
         router.py            # TUS v1.0.0: POST/HEAD/PATCH/DELETE, multipart S3 upload
@@ -388,10 +392,10 @@ ipcodex/
 
   frontend/
     src/
-      pages/                 # ✅ LandingPage, ChatApp (route-level components)
-      components/            # ChatWindow, FileUpload, SessionList, Layout, etc.
+      pages/                 # ✅ LandingPage, ChatApp, ProductsPage, DocumentsPage, ProductDetailPage
+      components/            # ChatWindow, FileUpload, SessionList, Layout, ConfirmDialog, etc.
       hooks/                 # useChat (SSE streaming), useTheme
-      api/                   # HTTP client, chat API
+      api/                   # HTTP client, chat API, documents API, products API
       locales/               # en.json, ru.json (i18n)
       styles/                # globals.css, chat.css, landing.css
       App.tsx                # Router (react-router-dom Routes)

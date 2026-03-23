@@ -464,6 +464,54 @@ Server: save assistant message + sources to chat_messages table
 
 ---
 
+## Reindex / Reingest Flow
+
+```
+Trigger: User clicks "Reindex" button on ProductsPage
+  → ConfirmDialog → POST /api/v1/products/{id}/reingest
+        │
+        ▼
+Server (products/router.py):
+  1. Load all documents for product
+  2. For each document:
+     - If status = "ready" or "error":
+       → delete existing chunks
+       → reset status to "pending", clear error_message
+     - If status = "pending" (stuck/lost task):
+       → keep as-is (re-queue only)
+     - If status = "processing":
+       → re-queue (worker will handle dedup)
+  3. Commit DB changes
+  4. For EVERY document: ingest_document_task.delay(doc.id)
+     → re-queues stuck pending + re-processes ready/error
+        │
+        ▼
+Celery Worker: normal ingestion pipeline
+  (download S3 → convert → chunk → embed → store)
+        │
+        ▼
+Frontend: polls product list (5s interval when pending/processing)
+  → status badge updates in real-time
+```
+
+**Single document reingest** (`POST /documents/{id}/reingest`):
+- Same logic but for one document
+- Clears chunks, resets to pending, queues Celery task
+- Works for any status (ready, error, pending, processing)
+
+**Requeue pending** (`POST /documents/requeue-pending`):
+- Re-queues ALL documents with status "pending" globally
+- Use when Celery tasks were lost (e.g. worker crash/restart)
+- Does NOT reset status or clear chunks — only re-dispatches tasks
+
+**Reindex jobs** (`POST /reindex/jobs`):
+- Async background job for bulk reindex operations
+- Two modes: `reingest` (full re-processing) or `reembed` (only re-generate embeddings)
+- Optional filters: product_name, format_filter
+- Progress tracking via heartbeat, stale detection via Celery Beat
+
+---
+
 ## Frontend Routing Flow
 
 ```
@@ -482,8 +530,9 @@ App.tsx: react-router-dom <Routes> resolves path:
   │────────────────────┼────────────────┼───────────────────────────│
   │ /                  │ LandingPage    │ Public marketing page     │
   │ /app               │ ChatApp        │ Chat application (Layout) │
-  │ /app/documents     │ DocumentsPage  │ Document management (TBD) │
-  │ /app/products      │ ProductsPage   │ Products (TBD)            │
+  │ /app/documents     │ DocumentsPage  │ Document management       │
+  │ /app/products      │ ProductsPage   │ Product list + reingest   │
+  │ /app/products/:id  │ ProductDetail  │ Product detail + docs     │
   │ /app/analytics     │ AnalyticsPage  │ Analytics (TBD)           │
   │ /app/settings      │ SettingsPage   │ Settings (TBD)            │
   │ *                  │ Navigate to /  │ Fallback redirect         │
@@ -511,5 +560,8 @@ ChatApp (/app):
 - `frontend/src/App.tsx` — `Routes` definition
 - `frontend/src/pages/LandingPage.tsx` — marketing landing page
 - `frontend/src/pages/ChatApp.tsx` — chat application (extracted from original `App.tsx`)
+- `frontend/src/pages/ProductsPage.tsx` — product list with reindex, edit, delete, debug
+- `frontend/src/pages/DocumentsPage.tsx` — document list with reingest, download, delete
+- `frontend/src/pages/ProductDetailPage.tsx` — product detail with embedded documents list
 - `frontend/src/styles/landing.css` — landing page styles (responsive)
 - `frontend/nginx.conf` — `try_files` SPA fallback, `/api/` proxy to `api:8000`

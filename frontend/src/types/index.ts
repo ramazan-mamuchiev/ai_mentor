@@ -178,6 +178,8 @@ export interface ProductListItem {
   manufacturer: string
   model: string
   category: string
+  slug: string
+  manufacturer_slug: string
   created_at: string
   total_documents: number
   pending_documents: number
@@ -199,6 +201,8 @@ export interface ProductDetail {
   manufacturer: string
   model: string
   category: string
+  slug: string
+  manufacturer_slug: string
   created_at: string
   firmware_versions: string[]
 }

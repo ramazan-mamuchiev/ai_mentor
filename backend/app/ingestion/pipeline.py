@@ -814,14 +814,25 @@ def ingest_from_bytes(
 
 
 async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str) -> Product:
+    from app.slugify import slugify
+
     result = await session.execute(
         select(Product).where(Product.name == name)
     )
     product = result.scalar_one_or_none()
     if product:
+        if not product.slug:
+            product.slug = slugify(name)
+            product.manufacturer_slug = slugify(manufacturer) if manufacturer else "default"
+            await session.flush()
         return product
 
-    product = Product(name=name, manufacturer=manufacturer)
+    product = Product(
+        name=name,
+        manufacturer=manufacturer,
+        slug=slugify(name),
+        manufacturer_slug=slugify(manufacturer) if manufacturer else "default",
+    )
     session.add(product)
     await session.flush()
     return product

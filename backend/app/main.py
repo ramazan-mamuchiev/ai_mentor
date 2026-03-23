@@ -101,6 +101,7 @@ async def _apply_schema():
     await _migrate_upload_sessions()
     await _migrate_chunks_parent_content()
     await _migrate_ingested_at_to_uploaded_at()
+    await _migrate_product_slugs()
 
 
 async def _migrate_devices_to_products():
@@ -389,6 +390,31 @@ async def _migrate_ingested_at_to_uploaded_at():
                 "UPDATE documents SET indexed_at = uploaded_at WHERE status = 'ready' AND indexed_at IS NULL"
             )
             logger.info("Added indexed_at column and backfilled from uploaded_at for ready documents")
+
+
+async def _migrate_product_slugs():
+    """Populate slug and manufacturer_slug for products that don't have them yet."""
+    from app.database import engine
+    from app.slugify import slugify
+
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        drv = raw.driver_connection
+
+        rows = await drv.fetch(
+            "SELECT id, name, manufacturer FROM products WHERE slug = '' OR manufacturer_slug = ''"
+        )
+        if not rows:
+            return
+
+        for row in rows:
+            s = slugify(row["name"])
+            ms = slugify(row["manufacturer"]) if row["manufacturer"] else "default"
+            await drv.execute(
+                "UPDATE products SET slug = $1, manufacturer_slug = $2 WHERE id = $3",
+                s, ms, row["id"],
+            )
+        logger.info("Backfilled product slugs", extra={"count": len(rows)})
 
 
 @contextlib.asynccontextmanager

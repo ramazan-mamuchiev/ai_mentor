@@ -127,7 +127,7 @@ export function ChatApp() {
         <Route index element={chatContent} />
         <Route path="documents" element={<DocumentsPage onUploadClick={() => setShowUpload(true)} refreshKey={docsRefreshKey} />} />
         <Route path="products" element={<ProductsPage onUploadClick={() => setShowUpload(true)} />} />
-        <Route path="products/:id" element={<ProductDetailPage onUploadClick={() => setShowUpload(true)} />} />
+        <Route path="products/:manufacturer/:product" element={<ProductDetailPage onUploadClick={() => setShowUpload(true)} />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />

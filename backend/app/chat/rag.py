@@ -343,8 +343,24 @@ async def build_rag_prompt(
     )
     search_ms = round((time.perf_counter() - t_search) * 1000, 1)
 
+    all_chunks_before_filter = chunks
     if settings.rag_min_similarity > 0:
         chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
+
+    if not chunks and all_chunks_before_filter and (product_filter or auto_product):
+        fallback_threshold = settings.rag_min_similarity * 0.5
+        chunks = [c for c in all_chunks_before_filter if c["similarity"] >= fallback_threshold]
+        if chunks:
+            logger.info(
+                "Similarity fallback: product detected but all chunks below threshold, "
+                "using relaxed threshold",
+                extra={
+                    "product": product_filter or auto_product,
+                    "original_threshold": settings.rag_min_similarity,
+                    "fallback_threshold": fallback_threshold,
+                    "chunks_recovered": len(chunks),
+                },
+            )
 
     detected_product = auto_product or product_filter
     detected_doc = doc_context

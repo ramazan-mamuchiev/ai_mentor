@@ -22,6 +22,8 @@ class Product(Base):
     manufacturer: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(Text, default="")
+    slug: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    manufacturer_slug: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -30,7 +32,11 @@ class Product(Base):
         back_populates="product", cascade="all, delete-orphan"
     )
 
-    __table_args__ = (UniqueConstraint("manufacturer", "model"),)
+    __table_args__ = (
+        UniqueConstraint("manufacturer", "model"),
+        UniqueConstraint("manufacturer_slug", "slug"),
+        Index("idx_products_slug", "manufacturer_slug", "slug"),
+    )
 
 
 class FirmwareVersion(Base):

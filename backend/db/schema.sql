@@ -11,6 +11,11 @@ CREATE TABLE IF NOT EXISTS products (
     UNIQUE(manufacturer, model)
 );
 
+-- Product slugs for human-readable URLs
+ALTER TABLE products ADD COLUMN IF NOT EXISTS slug TEXT NOT NULL DEFAULT '';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS manufacturer_slug TEXT NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_slug ON products(manufacturer_slug, slug) WHERE slug != '';
+
 -- Firmware / API versions per product
 CREATE TABLE IF NOT EXISTS firmware_versions (
     id SERIAL PRIMARY KEY,
