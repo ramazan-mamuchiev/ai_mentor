@@ -42,6 +42,8 @@ class DocumentListItem(BaseModel):
     firmware_version: str = ""
     error_message: str | None = None
     ingested_at: datetime
+    progress_percent: int = 0
+    progress_stage: str = ""
 
     model_config = {"from_attributes": True}
 

@@ -581,6 +581,13 @@ async def ingest_url(
         return {"status": "error", "error": str(e), "document_id": doc.id}
 
 
+def _update_progress(session, document: "Document", percent: int, stage: str) -> None:
+    """Persist ingestion progress so the UI can poll it."""
+    document.progress_percent = percent
+    document.progress_stage = stage
+    session.commit()
+
+
 def ingest_from_bytes(
     session,
     document: "Document",
@@ -607,6 +614,8 @@ def ingest_from_bytes(
         },
     )
 
+    _update_progress(session, document, 0, "converting")
+
     convert_ms = 0.0
     convert_metadata: dict = {}
 
@@ -618,6 +627,8 @@ def ingest_from_bytes(
         except Exception as e:
             document.status = "error"
             document.error_message = f"PDF conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
             session.commit()
             return {"status": "error", "error": str(e)}
         fmt_effective = "markdown"
@@ -628,6 +639,8 @@ def ingest_from_bytes(
         except Exception as e:
             document.status = "error"
             document.error_message = f"Swagger conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
             session.commit()
             return {"status": "error", "error": str(e)}
         fmt_effective = "markdown"
@@ -638,6 +651,8 @@ def ingest_from_bytes(
         except Exception as e:
             document.status = "error"
             document.error_message = f"Proto conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
             session.commit()
             return {"status": "error", "error": str(e)}
         fmt_effective = "markdown"
@@ -648,11 +663,15 @@ def ingest_from_bytes(
         except Exception as e:
             document.status = "error"
             document.error_message = f"Failed to read file: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
             session.commit()
             return {"status": "error", "error": str(e)}
         fmt_effective = fmt
 
     read_ms = round((time.perf_counter() - t_read) * 1000, 1)
+
+    _update_progress(session, document, 40, "chunking")
 
     try:
         t_parse = time.perf_counter()
@@ -665,15 +684,26 @@ def ingest_from_bytes(
         if not chunks:
             document.status = "error"
             document.error_message = "No content extracted"
+            document.progress_percent = 0
+            document.progress_stage = ""
             session.commit()
             return {"status": "error", "error": "No content extracted", "document_id": document.id}
 
         _log_chunk_stats(chunks, file_path)
 
+        _update_progress(session, document, 50, "embedding")
+
         t_embed = time.perf_counter()
         enriched = enrich_for_embedding(chunks)
-        embeddings = embed_texts(enriched)
+        embeddings = embed_texts(
+            enriched,
+            progress_callback=lambda pct: _update_progress(
+                session, document, 50 + int(pct * 0.4), "embedding",
+            ),
+        )
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
+
+        _update_progress(session, document, 92, "storing")
 
         t_db = time.perf_counter()
         from sqlalchemy import select as sa_select
@@ -700,6 +730,8 @@ def ingest_from_bytes(
 
         document.total_chunks = len(chunks)
         document.status = "ready"
+        document.progress_percent = 100
+        document.progress_stage = ""
 
         token_counts = [c.token_count for c in chunks]
         document.total_tokens = sum(token_counts)
@@ -752,6 +784,8 @@ def ingest_from_bytes(
     except Exception as e:
         document.status = "error"
         document.error_message = str(e)[:2000]
+        document.progress_percent = 0
+        document.progress_stage = ""
         session.commit()
         return {"status": "error", "error": str(e), "document_id": document.id}
 

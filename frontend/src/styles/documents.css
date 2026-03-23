@@ -606,6 +606,7 @@ td:has(.docs-actions) {
   width: 100%;
   background: var(--accent);
   animation: progress-indeterminate 1.5s ease-in-out infinite;
+  transition: width 0.5s ease;
 }
 
 @keyframes progress-pulse {
@@ -616,6 +617,28 @@ td:has(.docs-actions) {
 @keyframes progress-indeterminate {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+.docs-progress-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+}
+
+.docs-progress-pct {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  min-width: 28px;
+}
+
+.docs-progress-stage {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .docs-error-hint {

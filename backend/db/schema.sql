@@ -56,6 +56,10 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_hit_count INT NOT NULL DEFAUL
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_avg_similarity FLOAT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_last_used_at TIMESTAMPTZ;
 
+-- Progress tracking for real-time ingestion feedback
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_percent INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_stage TEXT NOT NULL DEFAULT '';
+
 -- Chunks (semantic search units with vector embeddings)
 CREATE TABLE IF NOT EXISTS chunks (
     id BIGSERIAL PRIMARY KEY,

@@ -332,6 +332,8 @@ async def list_documents():
                 FirmwareVersion.version.label("firmware_version"),
                 Document.error_message,
                 Document.ingested_at,
+                Document.progress_percent,
+                Document.progress_stage,
             )
             .join(Product, Document.product_id == Product.id)
             .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)

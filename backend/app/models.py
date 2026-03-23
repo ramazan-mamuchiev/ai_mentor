@@ -88,6 +88,9 @@ class Document(Base):
     rag_avg_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
     rag_last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    progress_percent: Mapped[int] = mapped_column(Integer, default=0)
+    progress_stage: Mapped[str] = mapped_column(Text, default="")
+
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 

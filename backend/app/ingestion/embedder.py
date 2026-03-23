@@ -7,7 +7,7 @@ Gemini models use task_type to distinguish queries from documents:
 
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 
@@ -44,8 +44,17 @@ def _get_gemini_client() -> "GenaiClient":
     return _gemini_client
 
 
-def embed_texts(texts: list[str], *, is_query: bool = False) -> list[list[float]]:
-    """Embed a list of texts via Gemini API. Returns list of EMBEDDING_DIMS-dim vectors."""
+def embed_texts(
+    texts: list[str],
+    *,
+    is_query: bool = False,
+    progress_callback: Callable[[float], None] | None = None,
+) -> list[list[float]]:
+    """Embed a list of texts via Gemini API. Returns list of EMBEDDING_DIMS-dim vectors.
+
+    Args:
+        progress_callback: optional fn(fraction) called after each batch, fraction in [0..1].
+    """
     if not texts:
         return []
 
@@ -79,6 +88,9 @@ def embed_texts(texts: list[str], *, is_query: bool = False) -> list[list[float]
             logger.warning("Gemini embedding batch slow", extra=log_extra)
         else:
             logger.debug("Gemini embedding batch completed", extra=log_extra)
+
+        if progress_callback is not None:
+            progress_callback((batch_idx + 1) / total_batches)
 
     combined = np.vstack(all_embeddings) if len(all_embeddings) > 1 else all_embeddings[0]
 

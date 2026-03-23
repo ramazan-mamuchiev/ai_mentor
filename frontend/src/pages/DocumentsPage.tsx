@@ -102,7 +102,17 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function StatusBadge({ status, errorMessage }: { status: DocumentStatusValue; errorMessage?: string | null }) {
+function StatusBadge({
+  status,
+  errorMessage,
+  progressPercent = 0,
+  progressStage = '',
+}: {
+  status: DocumentStatusValue
+  errorMessage?: string | null
+  progressPercent?: number
+  progressStage?: string
+}) {
   const { t } = useTranslation()
   const icons: Record<DocumentStatusValue, React.ReactNode> = {
     pending: <Clock size={14} />,
@@ -110,6 +120,9 @@ function StatusBadge({ status, errorMessage }: { status: DocumentStatusValue; er
     ready: <CheckCircle size={14} />,
     error: <AlertCircle size={14} />,
   }
+
+  const stageLabel = progressStage ? t(`docs.stage.${progressStage}`, progressStage) : ''
+  const pct = status === 'processing' ? Math.max(0, Math.min(100, progressPercent)) : 0
 
   return (
     <div className="docs-status-wrap">
@@ -120,9 +133,25 @@ function StatusBadge({ status, errorMessage }: { status: DocumentStatusValue; er
         {icons[status]}
         {t(`docs.status.${status}`)}
       </span>
-      {(status === 'pending' || status === 'processing') && (
+      {status === 'processing' && (
+        <>
+          <div className="docs-progress-bar">
+            <div
+              className="docs-progress-fill docs-progress-fill--processing"
+              style={pct > 0 ? { width: `${pct}%`, animation: 'none' } : undefined}
+            />
+          </div>
+          {(pct > 0 || stageLabel) && (
+            <div className="docs-progress-info">
+              {pct > 0 && <span className="docs-progress-pct">{pct}%</span>}
+              {stageLabel && <span className="docs-progress-stage">{stageLabel}</span>}
+            </div>
+          )}
+        </>
+      )}
+      {status === 'pending' && (
         <div className="docs-progress-bar">
-          <div className={`docs-progress-fill docs-progress-fill--${status}`} />
+          <div className="docs-progress-fill docs-progress-fill--pending" />
         </div>
       )}
       {status === 'error' && errorMessage && (
@@ -325,7 +354,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
     try {
       await reingestDocument(reingestTarget.id)
       setDocuments(prev =>
-        prev.map(d => d.id === reingestTarget.id ? { ...d, status: 'pending' as const, error_message: null, total_chunks: 0 } : d)
+        prev.map(d => d.id === reingestTarget.id ? { ...d, status: 'pending' as const, error_message: null, total_chunks: 0, progress_percent: 0, progress_stage: '' } : d)
       )
     } catch { /* ignore */ }
     finally { setReingestTarget(null) }
@@ -364,7 +393,14 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       id: 'status',
       accessorKey: 'status',
       header: () => t('docs.table.status'),
-      cell: ({ row }) => <StatusBadge status={row.original.status} errorMessage={row.original.error_message} />,
+      cell: ({ row }) => (
+        <StatusBadge
+          status={row.original.status}
+          errorMessage={row.original.error_message}
+          progressPercent={row.original.progress_percent}
+          progressStage={row.original.progress_stage}
+        />
+      ),
       enableGrouping: true,
     },
     {
@@ -728,7 +764,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
             <div className="docs-card" key={doc.id}>
               <div className="docs-card-header">
                 <div className="docs-card-title">{doc.title}</div>
-                <StatusBadge status={doc.status} errorMessage={doc.error_message} />
+                <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} />
               </div>
               <div className="docs-card-meta">
                 <span><span className="docs-format">{doc.format}</span></span>

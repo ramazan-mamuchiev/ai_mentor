@@ -110,6 +110,8 @@ export interface DocumentListItem {
   firmware_version: string | null
   error_message: string | null
   ingested_at: string | null
+  progress_percent: number
+  progress_stage: string
 }
 
 export interface DocumentDebugInfo {
