@@ -53,17 +53,19 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
   const total = values.reduce((a, b) => a + b, 0)
   if (total === 0) return null
 
+  const MIN_PCT = 3
+
   return (
     <div className="doc-debug-timing-bar">
       {stages.map((s, i) => {
-        const pct = total > 0 ? ((s.ms ?? 0) / total) * 100 : 0
-        if (pct < 1) return null
+        const rawPct = total > 0 ? ((s.ms ?? 0) / total) * 100 : 0
+        const pct = Math.max(MIN_PCT, rawPct)
         return (
           <div
             key={i}
             className="doc-debug-timing-segment"
-            style={{ width: `${pct}%`, background: s.color }}
-            title={`${s.label}: ${fmtMs(s.ms)} (${pct.toFixed(0)}%)`}
+            style={{ width: `${pct}%`, background: s.color, opacity: rawPct < 1 ? 0.45 : 1 }}
+            title={`${s.label}: ${fmtMs(s.ms)} (${rawPct.toFixed(1)}%)`}
           />
         )
       })}
