@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Pencil,
   Trash2,
-  StopCircle,
   Ban,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
@@ -52,7 +51,7 @@ function getProductStatus(p: ProductListItem): DocumentStatusValue {
   return 'ready'
 }
 
-function ProductStatusBadge({ product }: { product: ProductListItem }) {
+function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; onCancel?: () => void }) {
   const { t } = useTranslation()
   const status = getProductStatus(product)
 
@@ -67,13 +66,25 @@ function ProductStatusBadge({ product }: { product: ProductListItem }) {
   const pct = status === 'processing' || status === 'pending'
     ? Math.max(0, Math.min(100, product.progress_percent))
     : 0
+  const canCancel = onCancel && (status === 'processing' || status === 'pending')
 
   return (
     <div className="docs-status-wrap">
-      <span className={`docs-status docs-status--${status}`}>
-        {icons[status]}
-        {t(`docs.status.${status}`)}
-      </span>
+      <div className="docs-status-row">
+        <span className={`docs-status docs-status--${status}`}>
+          {icons[status]}
+          {t(`docs.status.${status}`)}
+        </span>
+        {canCancel && (
+          <button
+            className="docs-status-cancel"
+            onClick={e => { e.stopPropagation(); onCancel() }}
+            title={t('products.actions.cancelIngestion')}
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
       {(status === 'processing' || status === 'pending') && (
         <>
           <div className="docs-progress-bar">
@@ -258,7 +269,7 @@ export function ProductsPage({ onUploadClick }: Props) {
       id: 'status',
       accessorFn: row => getProductStatus(row),
       header: () => t('products.table.status'),
-      cell: ({ row }) => <ProductStatusBadge product={row.original} />,
+      cell: ({ row }) => <ProductStatusBadge product={row.original} onCancel={() => setCancelTarget(row.original)} />,
       enableGrouping: true,
       filterFn: (row, _columnId, filterValue: Set<string>) =>
         filterValue.size === 0 || filterValue.has(getProductStatus(row.original)),
@@ -318,15 +329,6 @@ export function ProductsPage({ onUploadClick }: Props) {
             >
               <RefreshCw size={16} />
             </button>
-            {(p.pending_documents > 0 || p.processing_documents > 0) && (
-              <button
-                className="docs-action-btn docs-action-btn--warning"
-                onClick={() => setCancelTarget(p)}
-                title={t('products.actions.cancelIngestion')}
-              >
-                <StopCircle size={16} />
-              </button>
-            )}
             <button
               className="docs-action-btn"
               onClick={() => setEditTarget(p)}

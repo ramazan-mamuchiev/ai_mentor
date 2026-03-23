@@ -716,6 +716,44 @@ td:has(.docs-actions) {
 
 /* ── Status progress & error ── */
 
+.docs-status-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.docs-status-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.docs-status-wrap:hover .docs-status-cancel,
+.docs-status-cancel:focus-visible {
+  opacity: 1;
+}
+
+.docs-status-cancel:hover {
+  background: rgba(229, 62, 62, 0.12);
+  color: #e53e3e;
+}
+
+[data-theme='dark'] .docs-status-cancel:hover {
+  background: rgba(252, 129, 129, 0.15);
+  color: #fc8181;
+}
+
 .docs-status-wrap {
   display: flex;
   flex-direction: column;

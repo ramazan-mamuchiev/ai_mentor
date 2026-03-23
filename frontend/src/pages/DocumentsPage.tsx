@@ -14,7 +14,6 @@ import {
   X,
   Bug,
   Ban,
-  StopCircle,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listDocuments, downloadDocument, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
@@ -48,11 +47,13 @@ function StatusBadge({
   errorMessage,
   progressPercent = 0,
   progressStage = '',
+  onCancel,
 }: {
   status: DocumentStatusValue
   errorMessage?: string | null
   progressPercent?: number
   progressStage?: string
+  onCancel?: () => void
 }) {
   const { t } = useTranslation()
   const icons: Record<DocumentStatusValue, React.ReactNode> = {
@@ -65,16 +66,28 @@ function StatusBadge({
 
   const stageLabel = progressStage ? t(`docs.stage.${progressStage}`, progressStage) : ''
   const pct = status === 'processing' ? Math.max(0, Math.min(100, progressPercent)) : 0
+  const canCancel = onCancel && (status === 'pending' || status === 'processing')
 
   return (
     <div className="docs-status-wrap">
-      <span
-        className={`docs-status docs-status--${status}`}
-        title={status === 'error' && errorMessage ? errorMessage : undefined}
-      >
-        {icons[status]}
-        {t(`docs.status.${status}`)}
-      </span>
+      <div className="docs-status-row">
+        <span
+          className={`docs-status docs-status--${status}`}
+          title={status === 'error' && errorMessage ? errorMessage : undefined}
+        >
+          {icons[status]}
+          {t(`docs.status.${status}`)}
+        </span>
+        {canCancel && (
+          <button
+            className="docs-status-cancel"
+            onClick={e => { e.stopPropagation(); onCancel() }}
+            title={t('docs.actions.cancel')}
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
       {status === 'processing' && (
         <>
           <div className="docs-progress-bar">
@@ -295,6 +308,7 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
           errorMessage={row.original.error_message}
           progressPercent={row.original.progress_percent}
           progressStage={row.original.progress_stage}
+          onCancel={() => setCancelTarget(row.original)}
         />
       ),
       enableGrouping: true,
@@ -366,11 +380,6 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
             {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
               <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} title={t('docs.actions.reindex')}>
                 <RefreshCw size={16} />
-              </button>
-            )}
-            {(doc.status === 'pending' || doc.status === 'processing') && (
-              <button className="docs-action-btn docs-action-btn--warning" onClick={() => setCancelTarget(doc)} title={t('docs.actions.cancel')}>
-                <StopCircle size={16} />
               </button>
             )}
             <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} title={t('docs.actions.delete')}>
@@ -544,7 +553,7 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
             <div className="docs-card" key={doc.id}>
               <div className="docs-card-header">
                 <div className="docs-card-title">{doc.title}</div>
-                <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} />
+                <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} onCancel={() => setCancelTarget(doc)} />
               </div>
               <div className="docs-card-meta">
                 <span>
@@ -573,11 +582,6 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
                 {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
                   <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} title={t('docs.actions.reindex')}>
                     <RefreshCw size={16} />
-                  </button>
-                )}
-                {(doc.status === 'pending' || doc.status === 'processing') && (
-                  <button className="docs-action-btn docs-action-btn--warning" onClick={() => setCancelTarget(doc)} title={t('docs.actions.cancel')}>
-                    <StopCircle size={16} />
                   </button>
                 )}
                 <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} title={t('docs.actions.delete')}>
