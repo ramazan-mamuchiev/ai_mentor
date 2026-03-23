@@ -50,6 +50,13 @@ export interface DebugInfo {
   rerank_completion_tokens: number
   rerank_total_tokens: number
   rerank_model: string
+  query_type?: string
+  classify_model?: string
+  classify_ms?: number
+  classify_prompt_tokens?: number
+  classify_completion_tokens?: number
+  classify_total_tokens?: number
+  classify_raw?: string
   status?: 'success' | 'stopped' | 'error'
   status_detail?: string
 }
@@ -114,6 +121,7 @@ export interface DocumentListItem {
   progress_percent: number
   progress_stage: string
   detected_language: string | null
+  source_container: string | null
 }
 
 export interface DocumentDebugInfo {

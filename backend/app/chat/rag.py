@@ -401,6 +401,8 @@ async def build_rag_prompt(
         )
         product_filter = auto_product
 
+    query_type, classify_meta = await _classify_query(query)
+
     t_rewrite = time.perf_counter()
     search_query = await _rewrite_query(query, history) if history else query
     rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
@@ -450,8 +452,10 @@ async def build_rag_prompt(
         context_header += f"Product: {detected_product}\n\n"
     context_block = f"{context_header}{context}\n</documentation_context>"
 
+    system_prompt = _build_system_prompt(query_type)
+
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": context_block},
         {"role": "assistant", "content": "Understood. I will use the documentation context above to answer questions. If the sources contain relevant information, I will summarize it."},
     ]
@@ -488,7 +492,7 @@ async def build_rag_prompt(
         history, settings.rag_history_messages, settings.rag_history_max_tokens,
     ) if history else []
     history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
-    system_prompt_tokens = _estimate_tokens(SYSTEM_PROMPT) + _estimate_tokens(context_block)
+    system_prompt_tokens = _estimate_tokens(system_prompt) + _estimate_tokens(context_block)
 
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     top_sim = round(chunks[0]["similarity"], 4) if chunks else 0
@@ -519,6 +523,7 @@ async def build_rag_prompt(
         "rerank_completion_tokens": search_meta.get("rerank_completion_tokens", 0),
         "rerank_total_tokens": search_meta.get("rerank_total_tokens", 0),
         "rerank_model": search_meta.get("rerank_model", ""),
+        **classify_meta,
     }
 
     logger.info(
@@ -528,6 +533,7 @@ async def build_rag_prompt(
             "search_query": search_query[:200] if search_query != query else None,
             "rewrite_ms": rewrite_ms if history else 0,
             "product_filter": product_filter,
+            "query_type": query_type,
             **rag_debug,
         },
     )

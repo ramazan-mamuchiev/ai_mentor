@@ -65,6 +65,21 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
             {debug.rerank_model && <div className="debug-row debug-row-config"><span>{t('debug.rerankModel')}</span><code>{debug.rerank_model}</code></div>}
           </div>
         )}
+        {debug.query_type && (
+          <div className="debug-section">
+            <div className="debug-section-title">{t('debug.classifyCost')}</div>
+            <div className="debug-row"><span>{t('debug.queryType')}</span><code>{debug.query_type}</code></div>
+            {(debug.classify_total_tokens ?? 0) > 0 && (
+              <>
+                <div className="debug-row"><span>{t('debug.classifyPromptTokens')}</span><code>{fmt(debug.classify_prompt_tokens)}</code></div>
+                <div className="debug-row"><span>{t('debug.classifyCompletionTokens')}</span><code>{fmt(debug.classify_completion_tokens)}</code></div>
+                <div className="debug-row debug-row-total"><span>{t('debug.classifyTotalTokens')}</span><code>{fmt(debug.classify_total_tokens)}</code></div>
+              </>
+            )}
+            {debug.classify_model && <div className="debug-row debug-row-config"><span>{t('debug.classifyModel')}</span><code>{debug.classify_model}</code></div>}
+            {debug.classify_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.classifyTime')}</span><code>{(debug.classify_ms / 1000).toFixed(2)}s</code></div>}
+          </div>
+        )}
         {hasTiming && (
           <div className="debug-section">
             <div className="debug-section-title">{t('debug.timing')}</div>

@@ -450,6 +450,22 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     llm_ms=llm_ms,
                 )
 
+                classify_prompt_tokens = rag_debug.get("classify_prompt_tokens", 0)
+                classify_completion_tokens = rag_debug.get("classify_completion_tokens", 0)
+                if classify_prompt_tokens > 0 or classify_completion_tokens > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="query_classify",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=rag_debug.get("classify_model", ""),
+                        prompt_tokens=classify_prompt_tokens,
+                        completion_tokens=classify_completion_tokens,
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=rag_debug.get("classify_ms", 0),
+                    )
+
                 logger.info(
                     "Chat message completed",
                     extra={
