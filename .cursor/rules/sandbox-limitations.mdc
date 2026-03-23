@@ -1,0 +1,27 @@
+---
+description: Sandbox network restrictions — do not attempt blocked commands
+alwaysApply: true
+---
+
+# Sandbox Limitations
+
+The Cursor agent shell runs inside a **sandbox** that blocks outbound network access.
+
+## Blocked operations (NEVER attempt these)
+
+- `ssh` — any SSH commands, including deploy to VPS
+- `scp`, `rsync` over SSH
+- `git push`, `git pull`, `git fetch` — any remote git operations
+- `docker` commands that pull/push images from registries
+- `curl`, `wget`, `Invoke-WebRequest` to external hosts
+- Any command that requires network connectivity to external servers
+
+## What to do instead
+
+- **Deploy to VPS**: Tell the user the exact commands to run manually in their own terminal. Format them as a ready-to-copy code block.
+- **Git push/pull**: Same — provide the commands for the user to execute.
+- **Docker pull**: Provide the command for the user.
+
+## Key rule
+
+Do NOT try a network command "just to check" — it will always fail in sandbox. Go straight to providing the user with commands to run manually.
