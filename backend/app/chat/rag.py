@@ -405,7 +405,14 @@ async def build_rag_prompt(
             history, settings.rag_history_messages, settings.rag_history_max_tokens,
         ))
 
-    messages.append({"role": "user", "content": f"Based on the documentation above, answer the following question:\n\n{query}"})
+    if chunks:
+        hint = (
+            f"Note: {len(chunks)} relevant source chunks were found in the documentation. "
+            "Use them to answer the question.\n\n"
+        )
+    else:
+        hint = ""
+    messages.append({"role": "user", "content": f"{hint}Based on the documentation above, answer the following question:\n\n{query}"})
 
     sources = [
         {
