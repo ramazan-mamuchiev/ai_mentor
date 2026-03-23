@@ -26,7 +26,7 @@ class TestDocumentDebugInfoSchema:
             status="ready",
             source_hash="abc123def456",
             file_size_bytes=102400,
-            ingested_at=now,
+            uploaded_at=now,
             ingest_duration_ms=5200.5,
             read_ms=100.0,
             convert_ms=0.0,
@@ -62,7 +62,7 @@ class TestDocumentDebugInfoSchema:
             status="pending",
             source_hash="abc",
             file_size_bytes=0,
-            ingested_at=now,
+            uploaded_at=now,
         )
         assert info.ingest_duration_ms is None
         assert info.read_ms is None
@@ -108,7 +108,8 @@ class TestGetDocumentDebugEndpoint:
             "status": "ready",
             "source_hash": "abc123",
             "file_size_bytes": 50000,
-            "ingested_at": now,
+            "uploaded_at": now,
+            "indexed_at": now,
             "ingest_duration_ms": 3000.0,
             "read_ms": 50.0,
             "convert_ms": 1500.0,

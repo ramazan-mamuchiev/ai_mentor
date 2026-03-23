@@ -4,6 +4,7 @@ import hashlib
 import logging
 import os
 import time
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -147,7 +148,7 @@ async def ingest_file(
     manufacturer: str = "",
     fmt: str = "auto",
     ocr_mode: str = "auto",
-    ocr_languages: str = "en",
+    ocr_languages: str = "en,ru",
 ) -> dict:
     """Full ingestion pipeline: file -> convert -> parse -> chunk -> embed -> DB.
 
@@ -625,7 +626,7 @@ def ingest_from_bytes(
             text, convert_metadata = convert_pdf(
                 file_path,
                 ocr_mode="auto",
-                ocr_languages="en",
+                ocr_languages=_settings.ocr_languages,
                 progress_callback=lambda frac: _update_progress(
                     session, document, int(frac * 40), "converting",
                 ),
@@ -739,6 +740,7 @@ def ingest_from_bytes(
         document.status = "ready"
         document.progress_percent = 100
         document.progress_stage = ""
+        document.indexed_at = datetime.now(timezone.utc)
 
         token_counts = [c.token_count for c in chunks]
         document.total_tokens = sum(token_counts)

@@ -316,10 +316,10 @@ async def ingest_archive(
 
 
 @router.get("", response_model=list[DocumentListItem])
-async def list_documents():
-    """List all documents with their status."""
+async def list_documents(product_id: int | None = None):
+    """List all documents with their status. Optionally filter by product_id."""
     async with async_session() as session:
-        result = await session.execute(
+        query = (
             select(
                 Document.id,
                 Document.title,
@@ -331,16 +331,59 @@ async def list_documents():
                 Product.name.label("product_name"),
                 FirmwareVersion.version.label("firmware_version"),
                 Document.error_message,
-                Document.ingested_at,
+                Document.uploaded_at,
+                Document.indexed_at,
                 Document.progress_percent,
                 Document.progress_stage,
+                Document.detected_language,
             )
             .join(Product, Document.product_id == Product.id)
             .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
-            .order_by(Document.ingested_at.desc())
+            .order_by(Document.uploaded_at.desc())
         )
+        if product_id is not None:
+            query = query.where(Document.product_id == product_id)
+        result = await session.execute(query)
         rows = result.all()
         return [DocumentListItem(**dict(row._mapping)) for row in rows]
+
+
+@router.patch("/{document_id}", response_model=DocumentStatus)
+async def update_document(document_id: int, title: str | None = None, product_id: int | None = None, firmware_version_id: int | None = None):
+    """Update document properties (title, product, firmware version)."""
+    async with async_session() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        if title is not None:
+            doc.title = title
+        if product_id is not None:
+            product = await session.get(Product, product_id)
+            if product is None:
+                raise HTTPException(status_code=400, detail="Target product not found")
+            doc.product_id = product_id
+        if firmware_version_id is not None:
+            fw = await session.get(FirmwareVersion, firmware_version_id)
+            if fw is None:
+                raise HTTPException(status_code=400, detail="Firmware version not found")
+            doc.firmware_version_id = firmware_version_id
+
+        await session.commit()
+        await session.refresh(doc)
+
+        return DocumentStatus(
+            document_id=doc.id,
+            status=doc.status,
+            title=doc.title,
+            format=doc.format,
+            original_filename=doc.original_filename,
+            file_size_bytes=doc.file_size_bytes,
+            total_chunks=doc.total_chunks,
+            error_message=doc.error_message,
+            uploaded_at=doc.uploaded_at,
+            indexed_at=doc.indexed_at,
+        )
 
 
 @router.get("/{document_id}", response_model=DocumentStatus)
@@ -359,7 +402,8 @@ async def get_document(document_id: int):
             file_size_bytes=doc.file_size_bytes,
             total_chunks=doc.total_chunks,
             error_message=doc.error_message,
-            ingested_at=doc.ingested_at,
+            uploaded_at=doc.uploaded_at,
+            indexed_at=doc.indexed_at,
         )
 
 
@@ -382,7 +426,8 @@ async def get_document_debug(document_id: int):
                 Document.status,
                 Document.source_hash,
                 Document.file_size_bytes,
-                Document.ingested_at,
+                Document.uploaded_at,
+                Document.indexed_at,
                 Document.ingest_duration_ms,
                 Document.read_ms,
                 Document.convert_ms,
@@ -400,6 +445,12 @@ async def get_document_debug(document_id: int):
                 Document.rag_hit_count,
                 Document.rag_avg_similarity,
                 Document.rag_last_used_at,
+                Document.ocr_ms,
+                Document.ocr_images_total,
+                Document.ocr_images_success,
+                Document.ocr_images_empty,
+                Document.ocr_images_failed,
+                Document.detected_language,
                 Product.name.label("product_name"),
                 FirmwareVersion.version.label("firmware_version"),
             )

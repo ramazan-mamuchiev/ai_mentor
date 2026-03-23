@@ -417,7 +417,7 @@ async def build_rag_prompt(
         "doc_context": doc_context,
         "auto_product": auto_product,
         "detected_doc_context": detected_doc,
-        "search_query": search_query if search_query != query else None,
+        "search_query": search_query,
         "no_documents": False,
         "rerank_prompt_tokens": search_meta.get("rerank_prompt_tokens", 0),
         "rerank_completion_tokens": search_meta.get("rerank_completion_tokens", 0),

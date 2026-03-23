@@ -115,7 +115,7 @@ def _print_table(docs: list[dict]):
 
     for d in docs:
         icon = _status_icon(d["status"])
-        age = _age(d.get("ingested_at", ""))
+        age = _age(d.get("uploaded_at", ""))
         size = _human_size(d.get("file_size_bytes", 0))
         print(
             f"  {d['id']:>5}  {icon} {d['status']:<5}  {d.get('total_chunks', 0):>6}  "
@@ -131,7 +131,9 @@ def _print_single(doc: dict):
     print(f"Status:       {_status_icon(doc['status'])} {doc['status']}")
     print(f"Size:         {_human_size(doc.get('file_size_bytes', 0))}")
     print(f"Chunks:       {doc['total_chunks']}")
-    print(f"Ingested at:  {doc['ingested_at']}  ({_age(doc['ingested_at'])})")
+    print(f"Uploaded at:  {doc.get('uploaded_at', '—')}  ({_age(doc.get('uploaded_at', ''))})")
+    if doc.get("indexed_at"):
+        print(f"Indexed at:   {doc['indexed_at']}  ({_age(doc['indexed_at'])})")
     if doc.get("error_message"):
         print(f"Error:        {doc['error_message']}")
 

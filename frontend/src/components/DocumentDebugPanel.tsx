@@ -113,6 +113,7 @@ export function DocumentDebugPanel({ documentId }: Props) {
   const timingStages = [
     { label: t('docDebug.readTime'), ms: debug.read_ms, color: 'var(--doc-debug-read, #4dabf7)' },
     { label: t('docDebug.convertTime'), ms: debug.convert_ms, color: 'var(--doc-debug-convert, #69db7c)' },
+    { label: t('docDebug.ocrTime'), ms: debug.ocr_ms, color: 'var(--doc-debug-ocr, #ff6b6b)' },
     { label: t('docDebug.parseTime'), ms: debug.parse_ms, color: 'var(--doc-debug-parse, #ffd43b)' },
     { label: t('docDebug.embedTime'), ms: debug.embed_ms, color: 'var(--doc-debug-embed, #ff922b)' },
     { label: t('docDebug.dbTime'), ms: debug.db_ms, color: 'var(--doc-debug-db, #da77f2)' },
@@ -126,8 +127,12 @@ export function DocumentDebugPanel({ documentId }: Props) {
           <div className="doc-debug-row"><span>{t('docDebug.format')}</span><code>{debug.format}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.size')}</span><code>{fmtBytes(debug.file_size_bytes)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.hash')}</span><code className="doc-debug-hash">{debug.source_hash.slice(0, 12)}...</code></div>
-          <div className="doc-debug-row"><span>{t('docDebug.ingestedAt')}</span><code>{fmtDate(debug.ingested_at)}</code></div>
+          <div className="doc-debug-row"><span>{t('docDebug.uploadedAt')}</span><code>{fmtDate(debug.uploaded_at)}</code></div>
+          <div className="doc-debug-row"><span>{t('docDebug.indexedAt')}</span><code>{fmtDate(debug.indexed_at)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.status')}</span><code>{debug.status}</code></div>
+          {debug.detected_language && (
+            <div className="doc-debug-row"><span>{t('docDebug.detectedLanguage')}</span><code>{debug.detected_language}</code></div>
+          )}
         </div>
 
         <div className="doc-debug-section">
@@ -135,11 +140,22 @@ export function DocumentDebugPanel({ documentId }: Props) {
           <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.totalTime')}</span><code>{fmtMs(debug.ingest_duration_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.readTime')}</span><code>{fmtMs(debug.read_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.convertTime')}</span><code>{fmtMs(debug.convert_ms)}</code></div>
+          <div className="doc-debug-row"><span>{t('docDebug.ocrTime')}</span><code>{fmtMs(debug.ocr_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.parseTime')}</span><code>{fmtMs(debug.parse_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.embedTime')}</span><code>{fmtMs(debug.embed_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.dbTime')}</span><code>{fmtMs(debug.db_ms)}</code></div>
           <TimingBar stages={timingStages} />
         </div>
+
+        {debug.ocr_images_total != null && (
+          <div className="doc-debug-section">
+            <div className="doc-debug-section-title">{t('docDebug.ocr')}</div>
+            <div className="doc-debug-row"><span>{t('docDebug.ocrTotal')}</span><code>{fmt(debug.ocr_images_total)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.ocrSuccess')}</span><code>{fmt(debug.ocr_images_success)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.ocrEmpty')}</span><code>{fmt(debug.ocr_images_empty)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.ocrFailed')}</span><code>{fmt(debug.ocr_images_failed)}</code></div>
+          </div>
+        )}
 
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.chunks')}</div>

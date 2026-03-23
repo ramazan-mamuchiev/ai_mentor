@@ -55,7 +55,7 @@ class TestDocumentStatusSchema:
         s = DocumentStatus(
             document_id=1, status="ready", title="Manual", format="pdf",
             original_filename="manual.pdf", file_size_bytes=1024,
-            total_chunks=10, ingested_at=now,
+            total_chunks=10, uploaded_at=now,
         )
         assert s.total_chunks == 10
         assert s.error_message is None
@@ -65,7 +65,7 @@ class TestDocumentStatusSchema:
         s = DocumentStatus(
             document_id=1, status="error", title="Bad", format="pdf",
             original_filename="bad.pdf", file_size_bytes=0, total_chunks=0,
-            error_message="Parse failed", ingested_at=now,
+            error_message="Parse failed", uploaded_at=now,
         )
         assert s.error_message == "Parse failed"
 
@@ -76,7 +76,7 @@ class TestDocumentListItemSchema:
         item = DocumentListItem(
             id=1, title="Test", format="markdown", status="ready",
             original_filename="test.md", file_size_bytes=512, total_chunks=5,
-            product_name="Camera", firmware_version="1.0", ingested_at=now,
+            product_name="Camera", firmware_version="1.0", uploaded_at=now,
         )
         assert item.product_name == "Camera"
 
@@ -122,7 +122,8 @@ def _make_mock_document(doc_id=1, **overrides):
     doc.total_chunks = overrides.get("total_chunks", 0)
     doc.error_message = overrides.get("error_message", None)
     doc.s3_key = overrides.get("s3_key", "documents/1/source.md")
-    doc.ingested_at = overrides.get("ingested_at", datetime.now(timezone.utc))
+    doc.uploaded_at = overrides.get("uploaded_at", datetime.now(timezone.utc))
+    doc.indexed_at = overrides.get("indexed_at", None)
     doc.source_hash = overrides.get("source_hash", "abc123")
     doc.product_id = overrides.get("product_id", 1)
     doc.firmware_version_id = overrides.get("firmware_version_id", 1)

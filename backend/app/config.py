@@ -64,8 +64,9 @@ class Settings(BaseSettings):
     chunk_min_tokens: int = 30
     chunk_overlap_paragraphs: int = 2
 
-    ocr_enabled: bool = False
-    ocr_languages: str = "en"
+    ocr_enabled: bool = True
+    ocr_languages: str = "en,ru"
+    ocr_lang_detect_model: str = "gemini-2.5-flash"
 
     app_env: str = "development"
     app_log_level: str = "INFO"

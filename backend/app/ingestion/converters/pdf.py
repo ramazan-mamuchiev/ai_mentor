@@ -1,7 +1,10 @@
 """PDF -> Markdown converter with optional OCR (EasyOCR).
 
-OCR is optional: if easyocr is not installed, PDF conversion works
-without OCR (text-only extraction via pymupdf4llm).
+Two-pass pipeline:
+  Pass 1: pymupdf4llm.to_markdown() -- text layer extraction (parallel, chunked)
+  Pass 2: _enrich_markdown_with_ocr() -- OCR images via EasyOCR with auto-detected language
+
+Language detection uses Gemini (same API key as embeddings) between passes.
 """
 
 import logging
@@ -27,6 +30,70 @@ _IMG_REF_RE = re.compile(r"!\[([^\]]*)\]\(((?:[^()]*|\([^()]*\))*)\)")
 
 _ocr_reader = None
 _ocr_reader_langs: list[str] = []
+
+_LANG_MAP = {
+    "zh": "ch_sim", "chinese": "ch_sim", "zh-cn": "ch_sim", "zh-hans": "ch_sim",
+    "zh-tw": "ch_tra", "zh-hant": "ch_tra",
+    "en": "en", "ru": "ru", "de": "de", "fr": "fr", "es": "es",
+    "pt": "pt", "it": "it", "ar": "ar", "hi": "hi", "th": "th",
+    "vi": "vi", "ja": "ja", "ko": "ko", "nl": "nl", "pl": "pl",
+    "tr": "tr", "uk": "uk", "cs": "cs", "sv": "sv", "id": "id",
+}
+
+
+def _detect_language_via_gemini(md_text: str) -> list[str]:
+    """Detect document language(s) from extracted text using Gemini.
+
+    Returns EasyOCR-compatible language codes (e.g. ["en", "ru"]).
+    Falls back to ["en"] on any error.
+    """
+    from app.config import settings
+
+    if not settings.gemini_api_key:
+        logger.warning("No Gemini API key, falling back to default OCR languages")
+        return [l.strip() for l in settings.ocr_languages.split(",") if l.strip()]
+
+    sample = md_text[:3000].strip()
+    if not sample:
+        return ["en"]
+
+    try:
+        from app.ingestion.embedder import _get_gemini_client
+        client = _get_gemini_client()
+
+        prompt = (
+            "Determine the language(s) of this text. "
+            "Return ONLY ISO 639-1 language codes separated by commas, nothing else. "
+            "Examples: en  |  ru  |  en,ru  |  zh  |  de,en\n\n"
+            f"Text:\n{sample}"
+        )
+
+        response = client.models.generate_content(
+            model=settings.ocr_lang_detect_model,
+            contents=prompt,
+        )
+        raw = response.text.strip().lower().replace(" ", "")
+        codes = [c.strip() for c in raw.split(",") if c.strip()]
+
+        easyocr_langs = []
+        for code in codes:
+            mapped = _LANG_MAP.get(code, code)
+            if mapped not in easyocr_langs:
+                easyocr_langs.append(mapped)
+
+        if not easyocr_langs:
+            easyocr_langs = ["en"]
+
+        logger.info("Language detected via Gemini", extra={
+            "raw_response": raw, "easyocr_langs": easyocr_langs,
+        })
+        return easyocr_langs
+
+    except Exception as exc:
+        logger.warning("Language detection failed, using fallback", extra={
+            "error_type": type(exc).__name__, "error": str(exc)[:200],
+        })
+        return [l.strip() for l in settings.ocr_languages.split(",") if l.strip()]
 
 
 def _ocr_available() -> bool:
@@ -194,7 +261,7 @@ def _split_page_ranges(page_count: int, pages_per_chunk: int = PAGES_PER_CHUNK) 
 def convert_pdf(
     file_path: str,
     ocr_mode: str = "auto",
-    ocr_languages: str = "en",
+    ocr_languages: str = "en,ru",
     progress_callback: Callable[[float], None] | None = None,
 ) -> tuple[str, dict]:
     """Convert PDF to Markdown text with optional parallel page processing.

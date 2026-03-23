@@ -109,9 +109,11 @@ export interface DocumentListItem {
   product_name: string | null
   firmware_version: string | null
   error_message: string | null
-  ingested_at: string | null
+  uploaded_at: string | null
+  indexed_at: string | null
   progress_percent: number
   progress_stage: string
+  detected_language: string | null
 }
 
 export interface DocumentDebugInfo {
@@ -123,7 +125,8 @@ export interface DocumentDebugInfo {
   source_hash: string
 
   file_size_bytes: number
-  ingested_at: string
+  uploaded_at: string
+  indexed_at: string | null
 
   ingest_duration_ms: number | null
   read_ms: number | null
@@ -146,6 +149,13 @@ export interface DocumentDebugInfo {
   rag_avg_similarity: number | null
   rag_last_used_at: string | null
 
+  ocr_ms: number | null
+  ocr_images_total: number | null
+  ocr_images_success: number | null
+  ocr_images_empty: number | null
+  ocr_images_failed: number | null
+  detected_language: string | null
+
   product_name: string
   firmware_version: string
 }
@@ -155,6 +165,77 @@ export interface DocumentDownload {
   original_filename: string
   download_url: string
   expires_in_seconds: number
+}
+
+export interface FormatCount {
+  format: string
+  count: number
+}
+
+export interface ProductListItem {
+  id: number
+  name: string
+  manufacturer: string
+  model: string
+  category: string
+  created_at: string
+  total_documents: number
+  pending_documents: number
+  processing_documents: number
+  ready_documents: number
+  error_documents: number
+  total_file_size_bytes: number
+  total_chunks: number
+  formats: FormatCount[]
+  uploaded_at: string | null
+  indexed_at: string | null
+  progress_percent: number
+  progress_detail: string
+}
+
+export interface ProductDetail {
+  id: number
+  name: string
+  manufacturer: string
+  model: string
+  category: string
+  created_at: string
+  firmware_versions: string[]
+}
+
+export interface ProductDocumentSummary {
+  id: number
+  title: string
+  format: string
+  file_size_bytes: number
+  total_chunks: number
+  status: string
+}
+
+export interface ProductDebugInfo {
+  product_id: number
+  product_name: string
+  total_documents: number
+  firmware_version_count: number
+  total_file_size_bytes: number
+  sum_ingest_duration_ms: number | null
+  avg_ingest_duration_ms: number | null
+  sum_read_ms: number | null
+  sum_convert_ms: number | null
+  sum_parse_ms: number | null
+  sum_embed_ms: number | null
+  sum_db_ms: number | null
+  total_chunks: number
+  total_tokens: number
+  min_chunk_tokens: number | null
+  max_chunk_tokens: number | null
+  avg_chunk_tokens: number | null
+  embedding_model: string | null
+  total_embedding_tokens: number
+  total_rag_hit_count: number
+  avg_rag_similarity: number | null
+  last_rag_used_at: string | null
+  documents: ProductDocumentSummary[]
 }
 
 export type ReindexMode = 'reingest' | 'reembed'

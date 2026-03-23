@@ -25,7 +25,8 @@ class DocumentStatus(BaseModel):
     file_size_bytes: int
     total_chunks: int
     error_message: str | None = None
-    ingested_at: datetime
+    uploaded_at: datetime
+    indexed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -41,9 +42,11 @@ class DocumentListItem(BaseModel):
     product_name: str = ""
     firmware_version: str = ""
     error_message: str | None = None
-    ingested_at: datetime
+    uploaded_at: datetime
+    indexed_at: datetime | None = None
     progress_percent: int = 0
     progress_stage: str = ""
+    detected_language: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -87,7 +90,8 @@ class DocumentDebugInfo(BaseModel):
     source_hash: str
 
     file_size_bytes: int
-    ingested_at: datetime
+    uploaded_at: datetime
+    indexed_at: datetime | None = None
 
     ingest_duration_ms: float | None = None
     read_ms: float | None = None
@@ -109,6 +113,13 @@ class DocumentDebugInfo(BaseModel):
     rag_hit_count: int = 0
     rag_avg_similarity: float | None = None
     rag_last_used_at: datetime | None = None
+
+    ocr_ms: float | None = None
+    ocr_images_total: int | None = None
+    ocr_images_success: int | None = None
+    ocr_images_empty: int | None = None
+    ocr_images_failed: int | None = None
+    detected_language: str | None = None
 
     product_name: str = ""
     firmware_version: str = ""

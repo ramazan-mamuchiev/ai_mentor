@@ -67,7 +67,7 @@ def convert_single_file(
     output_path: str,
     *,
     ocr_mode: str = "auto",
-    ocr_languages: str = "en",
+    ocr_languages: str = "en,ru",
 ) -> bool:
     """Convert one file to Markdown and write the result to *output_path*.
 
@@ -115,7 +115,7 @@ def process_archive(
     output_dir: str | None,
     *,
     ocr_mode: str = "auto",
-    ocr_languages: str = "en",
+    ocr_languages: str = "en,ru",
 ):
     """Extract an archive and convert every inner file."""
     print(f"\nArchive: {archive_path}")
@@ -170,7 +170,7 @@ def process_path(
     *,
     recursive: bool = False,
     ocr_mode: str = "auto",
-    ocr_languages: str = "en",
+    ocr_languages: str = "en,ru",
 ):
     if os.path.isdir(path):
         if not recursive:
@@ -231,8 +231,8 @@ def main():
         help="OCR mode for PDF files (default: auto)",
     )
     parser.add_argument(
-        "--ocr-languages", default="en",
-        help="Comma-separated OCR language codes, e.g. 'en,ru' (default: en)",
+        "--ocr-languages", default="en,ru",
+        help="Comma-separated OCR language codes, e.g. 'en,ru,ch_sim' (default: en,ru)",
     )
     args = parser.parse_args()
 

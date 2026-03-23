@@ -35,8 +35,18 @@ CREATE TABLE IF NOT EXISTS documents (
     total_chunks INT NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
     error_message TEXT,
-    ingested_at TIMESTAMPTZ DEFAULT NOW()
+    uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+    indexed_at TIMESTAMPTZ
 );
+
+-- Migration: rename ingested_at -> uploaded_at, add indexed_at
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='documents' AND column_name='ingested_at') THEN
+        ALTER TABLE documents RENAME COLUMN ingested_at TO uploaded_at;
+    END IF;
+END $$;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS indexed_at TIMESTAMPTZ;
+UPDATE documents SET indexed_at = uploaded_at WHERE status = 'ready' AND indexed_at IS NULL;
 
 -- Document indexing metrics (added for debug panel)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ingest_duration_ms FLOAT;
@@ -59,6 +69,14 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_last_used_at TIMESTAMPTZ;
 -- Progress tracking for real-time ingestion feedback
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_percent INT NOT NULL DEFAULT 0;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_stage TEXT NOT NULL DEFAULT '';
+
+-- OCR metrics and language detection
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_ms FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_total INT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_success INT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_empty INT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_failed INT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS detected_language TEXT;
 
 -- Chunks (semantic search units with vector embeddings)
 CREATE TABLE IF NOT EXISTS chunks (

@@ -96,10 +96,12 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
 }
 
-function formatDate(iso: string | null): string {
+function formatDateTime(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return `${date}\n${time}`
 }
 
 function StatusBadge({
@@ -232,9 +234,10 @@ function OverflowCell({ children, className }: { children: React.ReactNode; clas
 interface Props {
   onUploadClick: () => void
   refreshKey?: number
+  productId?: number
 }
 
-export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
+export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
   const { t } = useTranslation()
   const [documents, setDocuments] = useState<DocumentListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -249,7 +252,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
   const colSettingsRef = useRef<HTMLDivElement>(null)
 
   const defaultColumnOrder: string[] = useMemo(
-    () => ['title', 'format', 'status', 'size', 'chunks', 'product', 'date', 'actions'],
+    () => ['title', 'format', 'status', 'size', 'chunks', 'product', 'uploaded', 'indexed', 'actions'],
     [],
   )
 
@@ -314,14 +317,14 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
 
   const fetchDocs = useCallback(async () => {
     try {
-      const docs = await listDocuments()
+      const docs = await listDocuments(productId)
       setDocuments(docs)
     } catch {
       // keep previous state
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [productId])
 
   useEffect(() => { fetchDocs() }, [fetchDocs, refreshKey])
 
@@ -426,10 +429,18 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
       enableGrouping: true,
     },
     {
-      id: 'date',
-      accessorFn: row => row.ingested_at,
-      header: () => t('docs.table.date'),
-      cell: ({ getValue }) => <span className="docs-date">{formatDate(getValue() as string | null)}</span>,
+      id: 'uploaded',
+      accessorFn: row => row.uploaded_at,
+      header: () => t('docs.table.uploaded'),
+      cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      enableGrouping: false,
+      sortingFn: 'datetime',
+    },
+    {
+      id: 'indexed',
+      accessorFn: row => row.indexed_at,
+      header: () => t('docs.table.indexed'),
+      cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
       enableGrouping: false,
       sortingFn: 'datetime',
     },
@@ -770,7 +781,7 @@ export function DocumentsPage({ onUploadClick, refreshKey }: Props) {
                 <span><span className="docs-format">{doc.format}</span></span>
                 <span>{formatBytes(doc.file_size_bytes)}</span>
                 {doc.product_name && <span>{doc.product_name}</span>}
-                <span>{formatDate(doc.ingested_at)}</span>
+                <span>{formatDateTime(doc.uploaded_at)}</span>
               </div>
               <div className="docs-card-actions">
                 {doc.status === 'ready' && (

@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from app.config import settings
 from app.chat.router import router as chat_router
 from app.documents.router import router as documents_router
+from app.products.router import router as products_router
 from app.reindex.router import router as reindex_router
 from app.uploads.router import router as uploads_router
 from app.logging_config import setup_logging, active_requests_count
@@ -99,6 +100,7 @@ async def _apply_schema():
     await _migrate_source_hash_index()
     await _migrate_upload_sessions()
     await _migrate_chunks_parent_content()
+    await _migrate_ingested_at_to_uploaded_at()
 
 
 async def _migrate_devices_to_products():
@@ -361,6 +363,34 @@ async def _migrate_chunks_parent_content():
         logger.info("Added parent_content column to chunks")
 
 
+async def _migrate_ingested_at_to_uploaded_at():
+    """Rename ingested_at -> uploaded_at and add indexed_at column."""
+    from app.database import engine
+
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        drv = raw.driver_connection
+
+        has_ingested_at = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'documents' AND column_name = 'ingested_at'"
+        )
+        if has_ingested_at:
+            await drv.execute("ALTER TABLE documents RENAME COLUMN ingested_at TO uploaded_at")
+            logger.info("Renamed documents.ingested_at -> uploaded_at")
+
+        has_indexed_at = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'documents' AND column_name = 'indexed_at'"
+        )
+        if not has_indexed_at:
+            await drv.execute("ALTER TABLE documents ADD COLUMN indexed_at TIMESTAMPTZ")
+            await drv.execute(
+                "UPDATE documents SET indexed_at = uploaded_at WHERE status = 'ready' AND indexed_at IS NULL"
+            )
+            logger.info("Added indexed_at column and backfilled from uploaded_at for ready documents")
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global _start_time
@@ -399,6 +429,7 @@ app = FastAPI(
 
 app.add_middleware(RequestLoggingMiddleware)
 app.include_router(documents_router, prefix="/api/v1")
+app.include_router(products_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(reindex_router, prefix="/api/v1")
 app.include_router(uploads_router, prefix="/api/v1")

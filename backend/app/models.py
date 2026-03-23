@@ -64,9 +64,10 @@ class Document(Base):
     total_chunks: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(Text, default="pending")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ingested_at: Mapped[datetime] = mapped_column(
+    uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     ingest_duration_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     read_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -90,6 +91,13 @@ class Document(Base):
 
     progress_percent: Mapped[int] = mapped_column(Integer, default=0)
     progress_stage: Mapped[str] = mapped_column(Text, default="")
+
+    ocr_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ocr_images_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ocr_images_success: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ocr_images_empty: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ocr_images_failed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    detected_language: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 

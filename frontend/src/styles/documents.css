@@ -709,6 +709,132 @@ td:has(.docs-actions) {
   font-size: 12px;
 }
 
+.docs-date--twoline {
+  white-space: pre-line;
+  line-height: 1.4;
+}
+
+/* ── Format badges ── */
+.docs-format-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.docs-format-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+}
+
+.docs-format-count {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* ── Product edit dialog ── */
+.product-edit-dialog {
+  max-width: 440px;
+}
+
+.product-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.product-edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.product-edit-input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.product-edit-input:focus {
+  border-color: var(--accent);
+}
+
+/* ── Product detail header ── */
+.product-detail-header {
+  padding: 0 0 8px;
+}
+
+.product-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.product-back-btn:hover {
+  background: var(--bg-secondary);
+}
+
+.product-manufacturer {
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-size: 0.85em;
+}
+
+.product-versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+/* ── Product debug docs table ── */
+.doc-debug-docs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.doc-debug-docs-table th {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.doc-debug-docs-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-light, var(--border));
+}
+
+.doc-debug-section--wide {
+  grid-column: 1 / -1;
+}
+
 /* ── Empty State ── */
 .docs-empty {
   flex: 1;

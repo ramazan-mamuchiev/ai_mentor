@@ -9,6 +9,7 @@ import { useTheme } from '../hooks/useTheme'
 import type { ChatSession } from '../types'
 import { DocumentsPage } from './DocumentsPage'
 import { ProductsPage } from './ProductsPage'
+import { ProductDetailPage } from './ProductDetailPage'
 import { AnalyticsPage } from './AnalyticsPage'
 import { SettingsPage } from './SettingsPage'
 
@@ -125,7 +126,8 @@ export function ChatApp() {
       <Routes>
         <Route index element={chatContent} />
         <Route path="documents" element={<DocumentsPage onUploadClick={() => setShowUpload(true)} refreshKey={docsRefreshKey} />} />
-        <Route path="products" element={<ProductsPage />} />
+        <Route path="products" element={<ProductsPage onUploadClick={() => setShowUpload(true)} />} />
+        <Route path="products/:id" element={<ProductDetailPage onUploadClick={() => setShowUpload(true)} />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
