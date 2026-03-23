@@ -8,25 +8,7 @@ import type { ChatSession } from '../types'
 import { LanguageToggle } from './LanguageToggle'
 import { SessionList } from './SessionList'
 import { ThemeToggle } from './ThemeToggle'
-
-const ChatGptSidebarIcon = ({ size = 20 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-    <path d="M3 8C3 7.44772 3.44772 7 4 7H20C20.5523 7 21 7.44772 21 8C21 8.55228 20.5523 9 20 9H4C3.44772 9 3 8.55228 3 8ZM3 16C3 15.4477 3.44772 15 4 15H14C14.5523 15 15 15.4477 15 16C15 16.5523 14.5523 17 14 17H4C3.44772 17 3 16.5523 3 16Z" />
-  </svg>
-)
-
-const ChatGptCollapseIcon = ({ size = 18 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-    <path d="M19 6a1 1 0 0 0-1-1h-8v14h8a1 1 0 0 0 1-1V6ZM5 18a1 1 0 0 0 1 1h2V5H6a1 1 0 0 0-1 1v12Zm16 0a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12Z" />
-    <path d="M14.37 9.225a1 1 0 0 1 1.405 1.406l-.068.076L14.414 12l1.293 1.293.068.076a1 1 0 0 1-1.406 1.406l-.076-.068-2-2a1 1 0 0 1 0-1.414l2-2 .076-.068Z" />
-  </svg>
-)
-
-const ChatGptExpandIcon = ({ size = 18 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-    <path fillRule="evenodd" clipRule="evenodd" d="M10 5V19H18C18.5523 19 19 18.5523 19 18V6C19 5.44772 18.5523 5 18 5H10ZM3 6C3 4.34315 4.34315 3 6 3H18C19.6569 3 21 4.34315 21 6V18C21 19.6569 19.6569 21 18 21H6C4.34315 21 3 19.6569 3 18V6Z" />
-  </svg>
-)
+import { SidebarMenuIcon, SidebarCollapseIcon, SidebarExpandIcon } from './icons'
 
 const MOBILE_BP = 768
 
@@ -192,7 +174,7 @@ export function Layout({
               onClick={toggleCollapsed}
               aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
             >
-              {collapsed ? <ChatGptExpandIcon size={18} /> : <ChatGptCollapseIcon size={18} />}
+              {collapsed ? <SidebarExpandIcon size={18} /> : <SidebarCollapseIcon size={18} />}
             </button>
           )}
         </div>
@@ -251,7 +233,7 @@ export function Layout({
               onClick={() => setMobileOpen(true)}
               aria-label="Menu"
             >
-              <ChatGptSidebarIcon size={20} />
+              <SidebarMenuIcon size={20} />
             </button>
             <div className="mobile-topbar-brand">
               <img src="/logo-on-light.svg" alt="" className="mobile-topbar-logo logo-light" />
