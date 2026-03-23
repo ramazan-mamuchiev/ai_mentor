@@ -63,6 +63,7 @@ interface Props {
   onNewSession: () => void
   onDeleteSession: (id: number) => void
   onToggleTheme: () => void
+  onLogoClick?: () => void
   children: ReactNode
 }
 
@@ -74,6 +75,7 @@ export function Layout({
   onNewSession,
   onDeleteSession,
   onToggleTheme,
+  onLogoClick,
   children,
 }: Props) {
   const [sidebarWidth, setSidebarWidth] = useState(loadWidth)
@@ -154,7 +156,7 @@ export function Layout({
       <aside className={sidebarCls} style={sidebarStyle}>
         <div className="sidebar-header">
           {(!collapsed || isMobile) && (
-            <div className="sidebar-header-left" onClick={() => navigate('/app')} role="button" style={{ cursor: 'pointer' }}>
+            <div className="sidebar-header-left" onClick={() => { onLogoClick?.(); navigate('/app') }} role="button" style={{ cursor: 'pointer' }}>
               <img src="/logo-on-light.svg" alt={t('sidebar.title')} className="sidebar-icon logo-light" />
               <img src="/logo-on-dark.svg" alt={t('sidebar.title')} className="sidebar-icon logo-dark" />
               <span className="sidebar-title">{t('sidebar.title')}</span>
@@ -235,7 +237,7 @@ export function Layout({
             >
               <SidebarMenuIcon size={20} />
             </button>
-            <div className="mobile-topbar-brand" onClick={() => navigate('/app')} role="button" style={{ cursor: 'pointer' }}>
+            <div className="mobile-topbar-brand" onClick={() => { onLogoClick?.(); navigate('/app') }} role="button" style={{ cursor: 'pointer' }}>
               <img src="/logo-on-light.svg" alt="" className="mobile-topbar-logo logo-light" />
               <img src="/logo-on-dark.svg" alt="" className="mobile-topbar-logo logo-dark" />
               <span className="mobile-topbar-title">{t('sidebar.title')}</span>

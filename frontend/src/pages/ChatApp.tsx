@@ -120,6 +120,7 @@ export function ChatApp() {
       onNewSession={handleNewSession}
       onDeleteSession={handleDeleteSession}
       onToggleTheme={toggleTheme}
+      onLogoClick={() => { reset(); setActiveSessionId(null) }}
     >
       <Routes>
         <Route index element={chatContent} />
