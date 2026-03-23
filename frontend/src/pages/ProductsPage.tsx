@@ -4,38 +4,28 @@ import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Upload,
-  Download,
-  RefreshCw,
-  Trash2,
-  Clock,
   Loader2,
+  Clock,
   CheckCircle,
   AlertCircle,
   Search,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
   X,
   Bug,
+  RefreshCw,
   Pencil,
+  Trash2,
 } from 'lucide-react'
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
-  flexRender,
-  type ColumnDef,
-  type SortingState,
-  type ColumnFiltersState,
-} from '@tanstack/react-table'
+import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listProducts, deleteProduct, reingestProduct } from '../api/products'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ProductDebugPanel } from '../components/ProductDebugPanel'
 import { ProductEditDialog } from '../components/ProductEditDialog'
+import { DataTable } from '../components/DataTable'
+import { useDataTable } from '../hooks/useDataTable'
 import type { ProductListItem, DocumentStatusValue } from '../types'
 
 const POLL_INTERVAL = 5000
+const STORAGE_KEY = 'ipcodex-products-table'
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -101,15 +91,11 @@ function ProductStatusBadge({ product }: { product: ProductListItem }) {
   )
 }
 
-function SortIcon({ direction }: { direction: false | 'asc' | 'desc' }) {
-  if (direction === 'asc') return <ArrowUp size={14} className="docs-sort-icon docs-sort-icon--active" />
-  if (direction === 'desc') return <ArrowDown size={14} className="docs-sort-icon docs-sort-icon--active" />
-  return <ArrowUpDown size={14} className="docs-sort-icon" />
-}
-
 interface Props {
   onUploadClick?: () => void
 }
+
+const DEFAULT_COLUMN_ORDER = ['name', 'documents', 'format', 'status', 'size', 'chunks', 'uploaded', 'indexed', 'actions']
 
 export function ProductsPage({ onUploadClick }: Props) {
   const { t } = useTranslation()
@@ -117,7 +103,6 @@ export function ProductsPage({ onUploadClick }: Props) {
   const [products, setProducts] = useState<ProductListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
   const [deleteTarget, setDeleteTarget] = useState<ProductListItem | null>(null)
   const [editTarget, setEditTarget] = useState<ProductListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<ProductListItem | null>(null)
@@ -230,12 +215,14 @@ export function ProductsPage({ onUploadClick }: Props) {
           )}
         </div>
       ),
+      enableGrouping: true,
     },
     {
       id: 'documents',
       accessorKey: 'total_documents',
       header: () => t('products.table.documents'),
       cell: ({ getValue }) => <span className="docs-chunks">{Number(getValue()) || '—'}</span>,
+      enableGrouping: false,
     },
     {
       id: 'format',
@@ -250,6 +237,7 @@ export function ProductsPage({ onUploadClick }: Props) {
           ))}
         </div>
       ),
+      enableGrouping: true,
       filterFn: (row, _columnId, filterValue: Set<string>) =>
         filterValue.size === 0 || row.original.formats.some(f => filterValue.has(f.format)),
     },
@@ -258,6 +246,7 @@ export function ProductsPage({ onUploadClick }: Props) {
       accessorFn: row => getProductStatus(row),
       header: () => t('products.table.status'),
       cell: ({ row }) => <ProductStatusBadge product={row.original} />,
+      enableGrouping: true,
       filterFn: (row, _columnId, filterValue: Set<string>) =>
         filterValue.size === 0 || filterValue.has(getProductStatus(row.original)),
     },
@@ -266,6 +255,7 @@ export function ProductsPage({ onUploadClick }: Props) {
       accessorKey: 'total_file_size_bytes',
       header: () => t('products.table.size'),
       cell: ({ getValue }) => <span className="docs-size">{formatBytes(Number(getValue()))}</span>,
+      enableGrouping: false,
       sortingFn: 'basic',
     },
     {
@@ -273,12 +263,14 @@ export function ProductsPage({ onUploadClick }: Props) {
       accessorKey: 'total_chunks',
       header: () => t('products.table.chunks'),
       cell: ({ getValue }) => <span className="docs-chunks">{Number(getValue()) || '—'}</span>,
+      enableGrouping: false,
     },
     {
       id: 'uploaded',
       accessorFn: row => row.uploaded_at,
       header: () => t('products.table.uploaded'),
       cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      enableGrouping: false,
       sortingFn: 'datetime',
     },
     {
@@ -286,12 +278,14 @@ export function ProductsPage({ onUploadClick }: Props) {
       accessorFn: row => row.indexed_at,
       header: () => t('products.table.indexed'),
       cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      enableGrouping: false,
       sortingFn: 'datetime',
     },
     {
       id: 'actions',
       header: () => t('products.table.actions'),
       enableSorting: false,
+      enableGrouping: false,
       cell: ({ row }) => {
         const p = row.original
         const isDebugOpen = debugExpandedIds.has(p.id)
@@ -331,17 +325,31 @@ export function ProductsPage({ onUploadClick }: Props) {
     },
   ], [t, navigate, debugExpandedIds, toggleDebug])
 
-  const table = useReactTable({
+  const {
+    table,
+    columnOrder,
+    grouping,
+    handleColumnOrderChange,
+    removeGrouping,
+    toggleGrouping,
+    resetSettings,
+  } = useDataTable({
     data: products,
     columns,
-    state: { sorting, globalFilter, columnFilters },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    storageKey: STORAGE_KEY,
+    defaultColumnOrder: DEFAULT_COLUMN_ORDER,
     getRowId: row => String(row.id),
+    columnFilters,
+    globalFilter,
+    onGlobalFilterChange: setGlobalFilter,
   })
+
+  const handleResetAll = useCallback(() => {
+    resetSettings()
+    setGlobalFilter('')
+    setFormatFilter(new Set())
+    setStatusFilter(new Set())
+  }, [resetSettings])
 
   if (loading) {
     return (
@@ -449,52 +457,26 @@ export function ProductsPage({ onUploadClick }: Props) {
         </div>
       )}
 
-      <div className="docs-table-wrap">
-        <table className="docs-table">
-          <thead>
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <th key={header.id} className="docs-th">
-                    <div className="docs-th-inner">
-                      <span
-                        className={header.column.getCanSort() ? 'docs-th-label docs-th-label--sortable' : 'docs-th-label'}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() && <SortIcon direction={header.column.getIsSorted()} />}
-                      </span>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map(row => {
-              const showDebug = debugExpandedIds.has(row.original.id)
-              return (
-                <Fragment key={row.id}>
-                  <tr>
-                    {row.getVisibleCells().map(cell => (
-                      <td key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                  {showDebug && (
-                    <tr className="docs-debug-expand-row">
-                      <td colSpan={row.getVisibleCells().length}>
-                        <ProductDebugPanel manufacturerSlug={row.original.manufacturer_slug} productSlug={row.original.slug} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        table={table}
+        columnOrder={columnOrder}
+        grouping={grouping}
+        onColumnOrderChange={handleColumnOrderChange}
+        removeGrouping={removeGrouping}
+        toggleGrouping={toggleGrouping}
+        resetSettings={handleResetAll}
+        renderExpandedRow={(row) => {
+          const p = row.original
+          if (!debugExpandedIds.has(p.id)) return null
+          return (
+            <ProductDebugPanel
+              manufacturerSlug={p.manufacturer_slug}
+              productSlug={p.slug}
+              onCollapse={() => toggleDebug(p.id)}
+            />
+          )
+        }}
+      />
 
       {deleteTarget && (
         <ConfirmDialog

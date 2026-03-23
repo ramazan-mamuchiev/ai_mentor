@@ -337,7 +337,75 @@ transition: width 0.3s ease;
 - Tooltip (`title`) показывает точное значение: `{label}: {ms}ms ({rawPct.toFixed(1)}%)`
 - Все 5 этапов всегда видны в полоске
 
-### 6.5 Таблица
+### 6.5 Таблица (DataTable)
+
+Все таблицы в проекте используют **единый универсальный компонент** `DataTable` + хук `useDataTable`.
+
+#### Файлы
+
+| Файл | Назначение |
+|------|-----------|
+| `frontend/src/hooks/useDataTable.ts` | Хук: TanStack Table + localStorage persistence |
+| `frontend/src/components/DataTable.tsx` | Компонент: рендеринг таблицы с DnD, группировкой, настройками колонок |
+
+#### Функционал (одинаковый для всех таблиц)
+
+| Функция | Описание |
+|---------|----------|
+| **Сортировка** | Multi-sort по клику на заголовок (TanStack `getSortedRowModel`) |
+| **Перетаскивание колонок** | Drag-and-drop заголовков (`@dnd-kit/core` + `@dnd-kit/sortable`) |
+| **Группировка** | По колонкам с `enableGrouping: true` (кнопки внизу таблицы) |
+| **Видимость колонок** | Шестерёнка (⚙) — dropdown с чекбоксами |
+| **Сохранение состояния** | `localStorage` с debounce 300ms (sorting, grouping, columnOrder, columnVisibility) |
+| **Сброс настроек** | Кнопка "Reset to defaults" в dropdown настроек |
+| **Expandable rows** | Через `renderExpandedRow` callback (debug-панели) |
+
+#### Использование
+
+```tsx
+import { DataTable } from '../components/DataTable'
+import { useDataTable } from '../hooks/useDataTable'
+
+const DEFAULT_COLUMN_ORDER = ['name', 'status', 'size', 'actions']
+const STORAGE_KEY = 'ipcodex-my-table'
+
+// В компоненте:
+const { table, columnOrder, grouping, handleColumnOrderChange,
+        removeGrouping, toggleGrouping, resetSettings } = useDataTable({
+  data,
+  columns,
+  storageKey: STORAGE_KEY,
+  defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+  getRowId: row => String(row.id),
+  columnFilters,
+  globalFilter,
+  onGlobalFilterChange: setGlobalFilter,
+})
+
+<DataTable
+  table={table}
+  columnOrder={columnOrder}
+  grouping={grouping}
+  onColumnOrderChange={handleColumnOrderChange}
+  removeGrouping={removeGrouping}
+  toggleGrouping={toggleGrouping}
+  resetSettings={resetSettings}
+  renderExpandedRow={(row) => /* debug panel or null */}
+/>
+```
+
+#### Таблицы в проекте
+
+| Страница | `storageKey` | Колонки |
+|----------|-------------|---------|
+| `DocumentsPage` | `ipcodex-docs-table` | title, format, status, size, chunks, product, uploaded, indexed, actions |
+| `ProductsPage` | `ipcodex-products-table` | name, documents, format, status, size, chunks, uploaded, indexed, actions |
+
+#### Правило
+
+**Любая новая таблица в проекте ОБЯЗАНА использовать `useDataTable` + `DataTable`.** Это гарантирует единообразный UX: сортировку, DnD колонок, группировку, настройки видимости и persistence в localStorage.
+
+#### Базовые стили
 
 ```css
 width: 100%;
@@ -370,6 +438,25 @@ tr:hover td {
   background: var(--surface-hover);
 }
 ```
+
+#### CSS-классы таблицы
+
+| Класс | Назначение |
+|-------|-----------|
+| `.docs-table-wrap` | Контейнер с overflow: auto |
+| `.docs-table` | Элемент `<table>` |
+| `.docs-th` | Заголовок колонки |
+| `.docs-th-inner` | Flex-контейнер внутри th (drag handle + label) |
+| `.docs-th-drag` | Иконка GripVertical для перетаскивания |
+| `.docs-th-label--sortable` | Кликабельный заголовок для сортировки |
+| `.docs-sort-icon--active` | Активная иконка сортировки (accent) |
+| `.docs-drag-overlay` | Overlay при перетаскивании колонки |
+| `.docs-table-toolbar` | Тулбар над таблицей (кнопка настроек) |
+| `.docs-col-settings-*` | Dropdown настроек колонок |
+| `.docs-group-bar` | Полоска активных группировок |
+| `.docs-group-actions` | Кнопки группировки под таблицей |
+| `.docs-row-group` | Строка-группа (bg-secondary) |
+| `.docs-group-cell` | Ячейка с toggle expand/collapse |
 
 ### 6.6 Модалка (overlay)
 
@@ -733,11 +820,15 @@ frontend/src/styles/
 
 ```
 frontend/src/
+  hooks/
+    useDataTable.ts    — ✅ Универсальный хук для таблиц (TanStack + DnD + localStorage)
+  components/
+    DataTable.tsx      — ✅ Универсальный компонент таблицы (DnD, группировка, настройки колонок)
   pages/
     LandingPage.tsx    — Публичный лендинг
     ChatApp.tsx        — Основное приложение (бывший App.tsx)
-    DocumentsPage.tsx  — ✅ Управление документами (таблица, статусы, действия, empty state)
-    ProductsPage.tsx   — ✅ Заглушка (Coming Soon)
+    DocumentsPage.tsx  — ✅ Управление документами (использует DataTable)
+    ProductsPage.tsx   — ✅ Управление продуктами (использует DataTable)
     AnalyticsPage.tsx  — ✅ Заглушка (Coming Soon)
     SettingsPage.tsx   — ✅ Заглушка (Coming Soon)
   App.tsx              — Роутер (Routes)

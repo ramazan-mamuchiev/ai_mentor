@@ -289,6 +289,7 @@
   "docDebug.ragHitCount": "Попаданий в ответы",
   "docDebug.ragAvgSimilarity": "Средний similarity",
   "docDebug.ragLastUsed": "Последнее использование",
+  "docDebug.collapse": "Свернуть",
 
   "docDebug.identifiers": "Идентификаторы",
   "docDebug.documentId": "ID документа",

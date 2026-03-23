@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getProductDebug } from '../api/products'
 import type { ProductDebugInfo } from '../types'
+
+type SortKey = 'title' | 'format' | 'file_size_bytes' | 'total_chunks' | 'status' | 'indexed_at'
+type SortDir = 'asc' | 'desc'
 
 function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
@@ -26,15 +29,12 @@ function fmtBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
 }
 
-function fmtDate(iso: string | null): string {
+function formatDateTime(iso: string | null): string {
   if (!iso) return '—'
-  try {
-    const m = iso.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/)
-    if (!m) return iso
-    return `${m[1]} ${m[2]}`
-  } catch {
-    return iso
-  }
+  const d = new Date(iso)
+  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return `${date}\n${time}`
 }
 
 function TimingBar({ stages }: { stages: { label: string; ms: number | null; color: string }[] }) {
@@ -67,17 +67,98 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
   )
 }
 
+function DocSortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) return <ArrowUpDown size={12} className="docs-sort-icon" />
+  if (dir === 'asc') return <ArrowUp size={12} className="docs-sort-icon docs-sort-icon--active" />
+  return <ArrowDown size={12} className="docs-sort-icon docs-sort-icon--active" />
+}
+
+function DocsSortableTable({
+  documents,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  documents: ProductDebugInfo['documents']
+  sortKey: SortKey | null
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
+}) {
+  const { t } = useTranslation()
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return documents
+    const list = [...documents]
+    const dir = sortDir === 'asc' ? 1 : -1
+    list.sort((a, b) => {
+      const av = a[sortKey]
+      const bv = b[sortKey]
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
+      return String(av).localeCompare(String(bv)) * dir
+    })
+    return list
+  }, [documents, sortKey, sortDir])
+
+  const cols: { key: SortKey; label: string }[] = [
+    { key: 'title', label: 'Title' },
+    { key: 'format', label: 'Format' },
+    { key: 'file_size_bytes', label: 'Size' },
+    { key: 'total_chunks', label: 'Chunks' },
+    { key: 'status', label: 'Status' },
+    { key: 'indexed_at', label: t('docs.table.indexed') },
+  ]
+
+  return (
+    <table className="doc-debug-docs-table">
+      <thead>
+        <tr>
+          {cols.map(col => (
+            <th
+              key={col.key}
+              className="doc-debug-th--sortable"
+              onClick={() => onSort(col.key)}
+            >
+              <span className="doc-debug-th-label">
+                {col.label}
+                <DocSortIcon active={sortKey === col.key} dir={sortDir} />
+              </span>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map(doc => (
+          <tr key={doc.id}>
+            <td>{doc.title}</td>
+            <td><span className="docs-format">{doc.format}</span></td>
+            <td>{fmtBytes(doc.file_size_bytes)}</td>
+            <td>{fmt(doc.total_chunks)}</td>
+            <td><span className={`docs-status docs-status--${doc.status}`}>{doc.status}</span></td>
+            <td><span className="docs-date docs-date--twoline">{formatDateTime(doc.indexed_at)}</span></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 interface Props {
   manufacturerSlug: string
   productSlug: string
+  onCollapse?: () => void
 }
 
-export function ProductDebugPanel({ manufacturerSlug, productSlug }: Props) {
+export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }: Props) {
   const { t } = useTranslation()
   const [debug, setDebug] = useState<ProductDebugInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [docsExpanded, setDocsExpanded] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   useEffect(() => {
     let cancelled = false
@@ -116,6 +197,11 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug }: Props) {
 
   return (
     <div className="doc-debug-panel">
+      {onCollapse && (
+        <button className="doc-debug-collapse-btn" onClick={onCollapse} title={t('docDebug.collapse')}>
+          <X size={14} />
+        </button>
+      )}
       <div className="doc-debug-grid">
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">Product Summary</div>
@@ -156,7 +242,7 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug }: Props) {
           <div className="doc-debug-section-title">{t('docDebug.ragUsage')}</div>
           <div className="doc-debug-row"><span>{t('docDebug.ragHitCount')}</span><code>{fmt(debug.total_rag_hit_count)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.ragAvgSimilarity')}</span><code>{fmtPct(debug.avg_rag_similarity)}</code></div>
-          <div className="doc-debug-row"><span>{t('docDebug.ragLastUsed')}</span><code>{fmtDate(debug.last_rag_used_at)}</code></div>
+          <div className="doc-debug-row"><span>{t('docDebug.ragLastUsed')}</span><code>{debug.last_rag_used_at ? new Date(debug.last_rag_used_at).toLocaleString() : '—'}</code></div>
         </div>
 
         {debug.documents.length > 0 && (
@@ -169,30 +255,19 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug }: Props) {
               <span className="doc-debug-section-title">Documents ({debug.documents.length})</span>
             </button>
             {docsExpanded && (
-              <table className="doc-debug-docs-table">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Format</th>
-                    <th>Size</th>
-                    <th>Chunks</th>
-                    <th>Status</th>
-                    <th>{t('docs.table.indexed')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {debug.documents.map(doc => (
-                    <tr key={doc.id}>
-                      <td>{doc.title}</td>
-                      <td><span className="docs-format">{doc.format}</span></td>
-                      <td>{fmtBytes(doc.file_size_bytes)}</td>
-                      <td>{fmt(doc.total_chunks)}</td>
-                      <td><span className={`docs-status docs-status--${doc.status}`}>{doc.status}</span></td>
-                      <td>{fmtDate(doc.indexed_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <DocsSortableTable
+                documents={debug.documents}
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={(key) => {
+                  if (sortKey === key) {
+                    setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
+                  } else {
+                    setSortKey(key)
+                    setSortDir('asc')
+                  }
+                }}
+              />
             )}
           </div>
         )}

@@ -319,12 +319,13 @@ async def build_rag_prompt(
 
         return messages, [], rag_debug
 
-    auto_product = None
-    if not product_filter and not doc_context:
-        auto_product = await _detect_product_from_query(db, query)
-        if auto_product:
-            product_filter = auto_product
-            logger.info("Auto-detected product from query", extra={"product": auto_product, "query": query[:100]})
+    auto_product = await _detect_product_from_query(db, query)
+    if auto_product and auto_product != product_filter:
+        logger.info(
+            "Auto-detected product from query (overriding session filter)",
+            extra={"product": auto_product, "previous": product_filter, "query": query[:100]},
+        )
+        product_filter = auto_product
 
     t_rewrite = time.perf_counter()
     search_query = await _rewrite_query(query, history) if history else query
@@ -348,19 +349,17 @@ async def build_rag_prompt(
         chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
 
     if not chunks and all_chunks_before_filter and (product_filter or auto_product):
-        fallback_threshold = settings.rag_min_similarity * 0.5
-        chunks = [c for c in all_chunks_before_filter if c["similarity"] >= fallback_threshold]
-        if chunks:
-            logger.info(
-                "Similarity fallback: product detected but all chunks below threshold, "
-                "using relaxed threshold",
-                extra={
-                    "product": product_filter or auto_product,
-                    "original_threshold": settings.rag_min_similarity,
-                    "fallback_threshold": fallback_threshold,
-                    "chunks_recovered": len(chunks),
-                },
-            )
+        chunks = all_chunks_before_filter[:settings.rag_top_k]
+        logger.info(
+            "Similarity fallback: product detected but all chunks below threshold, "
+            "returning top chunks without threshold",
+            extra={
+                "product": product_filter or auto_product,
+                "original_threshold": settings.rag_min_similarity,
+                "chunks_recovered": len(chunks),
+                "top_similarity": chunks[0]["similarity"] if chunks else 0,
+            },
+        )
 
     detected_product = auto_product or product_filter
     detected_doc = doc_context

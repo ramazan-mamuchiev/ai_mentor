@@ -242,10 +242,9 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 )
                 rag_ms = round((time.perf_counter() - t_rag) * 1000, 1)
 
-                if not chat_session.product_filter:
-                    auto_prod = rag_debug.get("auto_product")
-                    if auto_prod:
-                        chat_session.product_filter = auto_prod
+                auto_prod = rag_debug.get("auto_product")
+                if auto_prod and chat_session.product_filter != auto_prod:
+                    chat_session.product_filter = auto_prod
                 if not chat_session.doc_context:
                     detected = rag_debug.get("detected_doc_context")
                     if detected:

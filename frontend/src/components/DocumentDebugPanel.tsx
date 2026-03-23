@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getDocumentDebug } from '../api/documents'
 import type { DocumentDebugInfo } from '../types'
@@ -81,9 +81,10 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
 
 interface Props {
   documentId: number
+  onCollapse?: () => void
 }
 
-export function DocumentDebugPanel({ documentId }: Props) {
+export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
   const { t } = useTranslation()
   const [debug, setDebug] = useState<DocumentDebugInfo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -127,6 +128,11 @@ export function DocumentDebugPanel({ documentId }: Props) {
 
   return (
     <div className="doc-debug-panel">
+      {onCollapse && (
+        <button className="doc-debug-collapse-btn" onClick={onCollapse} title={t('docDebug.collapse')}>
+          <X size={14} />
+        </button>
+      )}
       <div className="doc-debug-grid">
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.file')}</div>

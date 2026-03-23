@@ -111,6 +111,13 @@
   gap: 10px;
 }
 
+/* ── Table Toolbar (column settings inline) ── */
+.docs-table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 24px 0;
+}
+
 /* ── Column Settings ── */
 .docs-col-settings-wrap {
   position: relative;
@@ -961,6 +968,21 @@ td:has(.docs-actions) {
   font-weight: 600;
 }
 
+.doc-debug-th--sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.doc-debug-th--sortable:hover {
+  color: var(--text);
+}
+
+.doc-debug-th-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .doc-debug-docs-table td {
   padding: 4px 8px;
   border-bottom: 1px solid var(--border-light, var(--border));
@@ -1148,7 +1170,8 @@ td:has(.docs-actions) {
 
   .docs-filter-bar,
   .docs-group-bar,
-  .docs-group-actions {
+  .docs-group-actions,
+  .docs-table-toolbar {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -1176,6 +1199,10 @@ td:has(.docs-actions) {
   }
 
   .docs-col-settings-wrap {
+    display: none;
+  }
+
+  .docs-table-toolbar {
     display: none;
   }
 
@@ -1388,6 +1415,7 @@ td:has(.docs-actions) {
 /* ── Document Debug Panel ── */
 
 .doc-debug-panel {
+  position: relative;
   padding: 10px 12px;
   background: var(--surface);
   border: 1px dashed var(--border);
@@ -1395,6 +1423,29 @@ td:has(.docs-actions) {
   font-size: 11px;
   font-family: 'SF Mono', 'Fira Code', monospace;
   line-height: 1.6;
+}
+
+.doc-debug-collapse-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  z-index: 1;
+}
+
+.doc-debug-collapse-btn:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+  color: var(--text);
 }
 
 .doc-debug-loading {
