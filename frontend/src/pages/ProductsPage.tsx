@@ -148,7 +148,7 @@ export function ProductsPage({ onUploadClick }: Props) {
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return
     try {
-      await deleteProduct(deleteTarget.id)
+      await deleteProduct(deleteTarget.manufacturer_slug, deleteTarget.slug)
       setProducts(prev => prev.filter(p => p.id !== deleteTarget.id))
     } catch { /* ignore */ }
     finally { setDeleteTarget(null) }
@@ -157,7 +157,7 @@ export function ProductsPage({ onUploadClick }: Props) {
   const handleReingestConfirm = useCallback(async () => {
     if (!reingestTarget) return
     try {
-      await reingestProduct(reingestTarget.id)
+      await reingestProduct(reingestTarget.manufacturer_slug, reingestTarget.slug)
       fetchProducts()
     } catch { /* ignore */ }
     finally { setReingestTarget(null) }
@@ -222,7 +222,7 @@ export function ProductsPage({ onUploadClick }: Props) {
         <div
           className="docs-name-cell"
           style={{ cursor: 'pointer' }}
-          onClick={() => navigate(`/app/products/${row.original.id}`)}
+          onClick={() => navigate(`/app/products/${row.original.manufacturer_slug}/${row.original.slug}`)}
         >
           <span className="docs-name">{row.original.name}</span>
           {row.original.manufacturer && (
@@ -485,7 +485,7 @@ export function ProductsPage({ onUploadClick }: Props) {
                   {showDebug && (
                     <tr className="docs-debug-expand-row">
                       <td colSpan={row.getVisibleCells().length}>
-                        <ProductDebugPanel productId={row.original.id} />
+                        <ProductDebugPanel manufacturerSlug={row.original.manufacturer_slug} productSlug={row.original.slug} />
                       </td>
                     </tr>
                   )}

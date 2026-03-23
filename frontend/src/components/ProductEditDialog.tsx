@@ -31,7 +31,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await updateProduct(product.id, { name, manufacturer, model, category })
+      await updateProduct(product.manufacturer_slug, product.slug, { name, manufacturer, model, category })
       onSave()
     } catch { /* ignore */ }
     finally { setSaving(false) }

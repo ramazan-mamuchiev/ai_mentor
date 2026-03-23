@@ -1,27 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { getProduct } from '../api/products'
-import { listDocuments } from '../api/documents'
 import { DocumentsPage } from './DocumentsPage'
 import type { ProductDetail } from '../types'
 
 export function ProductDetailPage({ onUploadClick }: { onUploadClick: () => void }) {
   const { t } = useTranslation()
-  const { id } = useParams<{ id: string }>()
+  const { manufacturer, product: productSlug } = useParams<{ manufacturer: string; product: string }>()
   const navigate = useNavigate()
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!id) return
+    if (!manufacturer || !productSlug) return
     setLoading(true)
-    getProduct(Number(id))
+    getProduct(manufacturer, productSlug)
       .then(setProduct)
       .catch(() => navigate('/app/products'))
       .finally(() => setLoading(false))
-  }, [id, navigate])
+  }, [manufacturer, productSlug, navigate])
 
   if (loading) {
     return (
@@ -54,7 +53,7 @@ export function ProductDetailPage({ onUploadClick }: { onUploadClick: () => void
           </div>
         )}
       </div>
-      <DocumentsPage onUploadClick={onUploadClick} productId={Number(id)} />
+      <DocumentsPage onUploadClick={onUploadClick} productId={product.id} />
     </div>
   )
 }

@@ -68,10 +68,11 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
 }
 
 interface Props {
-  productId: number
+  manufacturerSlug: string
+  productSlug: string
 }
 
-export function ProductDebugPanel({ productId }: Props) {
+export function ProductDebugPanel({ manufacturerSlug, productSlug }: Props) {
   const { t } = useTranslation()
   const [debug, setDebug] = useState<ProductDebugInfo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -82,12 +83,12 @@ export function ProductDebugPanel({ productId }: Props) {
     let cancelled = false
     setLoading(true)
     setError(null)
-    getProductDebug(productId)
+    getProductDebug(manufacturerSlug, productSlug)
       .then(data => { if (!cancelled) setDebug(data) })
       .catch(e => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [productId])
+  }, [manufacturerSlug, productSlug])
 
   if (loading) {
     return (
