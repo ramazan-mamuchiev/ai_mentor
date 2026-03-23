@@ -292,6 +292,60 @@ async def reingest_product(manufacturer_slug: str, product_slug: str):
     }
 
 
+@router.post("/{manufacturer_slug}/{product_slug}/cancel-ingestion", status_code=200)
+async def cancel_product_ingestion(manufacturer_slug: str, product_slug: str):
+    """Cancel ingestion for all pending/processing documents of a product."""
+    async with async_session() as session:
+        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
+        product_id = product.id
+
+        docs_result = await session.execute(
+            select(Document).where(
+                Document.product_id == product_id,
+                Document.status.in_(["pending", "processing"]),
+            )
+        )
+        docs = docs_result.scalars().all()
+        if not docs:
+            raise HTTPException(status_code=400, detail="No pending or processing documents to cancel")
+
+        task_ids: list[str] = []
+        for doc in docs:
+            if doc.celery_task_id:
+                task_ids.append(doc.celery_task_id)
+            doc.status = "cancelled"
+            doc.progress_percent = 0
+            doc.progress_stage = ""
+            doc.error_message = None
+
+            chunks = (await session.execute(
+                select(Chunk).where(Chunk.document_id == doc.id)
+            )).scalars().all()
+            for chunk in chunks:
+                await session.delete(chunk)
+            doc.total_chunks = 0
+
+        await session.commit()
+
+    if task_ids:
+        try:
+            from app.celery_app import celery
+            for tid in task_ids:
+                celery.control.revoke(tid, terminate=True)
+        except Exception:
+            logger.warning("Failed to revoke Celery tasks", extra={"task_ids": task_ids, "product_id": product_id})
+
+    logger.info(
+        "Product ingestion cancelled",
+        extra={"product_id": product_id, "documents_cancelled": len(docs), "tasks_revoked": len(task_ids)},
+    )
+    return {
+        "product_id": product_id,
+        "status": "cancelled",
+        "documents_cancelled": len(docs),
+    }
+
+
 @router.get("/{manufacturer_slug}/{product_slug}/debug", response_model=ProductDebugInfo)
 async def get_product_debug(manufacturer_slug: str, product_slug: str):
     """Get aggregated debug/analytics info for all documents of a product."""

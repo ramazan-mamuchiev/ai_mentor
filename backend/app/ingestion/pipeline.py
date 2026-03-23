@@ -24,6 +24,10 @@ from app.models import Chunk, Product, Document, FirmwareVersion
 logger = logging.getLogger(__name__)
 
 
+class IngestionCancelled(Exception):
+    """Raised when a document's ingestion is cancelled mid-flight."""
+
+
 def _embedding_model_name() -> str:
     return _settings.embedding_model_gemini
 
@@ -592,6 +596,15 @@ def _update_progress(session, document: "Document", percent: int, stage: str) ->
     session.commit()
 
 
+def _check_cancelled(session, document: "Document") -> None:
+    """Re-read document status from DB; raise IngestionCancelled if cancelled."""
+    session.expire(document, ["status"])
+    session.refresh(document, ["status"])
+    if document.status == "cancelled":
+        logger.info("Ingestion cancelled", extra={"document_id": document.id})
+        raise IngestionCancelled(f"Document {document.id} cancelled")
+
+
 def ingest_from_bytes(
     session,
     document: "Document",
@@ -618,7 +631,8 @@ def ingest_from_bytes(
         },
     )
 
-    _update_progress(session, document, 0, "converting")
+    _check_cancelled(session, document)
+    _update_progress(session, document, 5, "converting")
 
     convert_ms = 0.0
     convert_metadata: dict = {}
@@ -628,7 +642,7 @@ def ingest_from_bytes(
         try:
 
             def _pdf_convert_progress(frac: float, stage: str) -> None:
-                _update_progress(session, document, int(frac * 40), stage)
+                _update_progress(session, document, 5 + int(frac * 40), stage)
 
             text, convert_metadata = convert_pdf(
                 file_path,
@@ -682,7 +696,8 @@ def ingest_from_bytes(
 
     read_ms = round((time.perf_counter() - t_read) * 1000, 1)
 
-    _update_progress(session, document, 40, "chunking")
+    _check_cancelled(session, document)
+    _update_progress(session, document, 45, "chunking")
 
     try:
         t_parse = time.perf_counter()
@@ -702,18 +717,20 @@ def ingest_from_bytes(
 
         _log_chunk_stats(chunks, file_path)
 
-        _update_progress(session, document, 50, "embedding")
+        _check_cancelled(session, document)
+        _update_progress(session, document, 55, "embedding")
 
         t_embed = time.perf_counter()
         enriched = enrich_for_embedding(chunks)
         embeddings = embed_texts(
             enriched,
             progress_callback=lambda pct: _update_progress(
-                session, document, 50 + int(pct * 40), "embedding",
+                session, document, 55 + int(pct * 37), "embedding",
             ),
         )
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
+        _check_cancelled(session, document)
         _update_progress(session, document, 92, "storing")
 
         t_db = time.perf_counter()

@@ -96,7 +96,7 @@ export type SSEEvent =
 
 export type StreamStatus = 'idle' | 'streaming' | 'error'
 
-export type DocumentStatusValue = 'pending' | 'processing' | 'ready' | 'error'
+export type DocumentStatusValue = 'pending' | 'processing' | 'ready' | 'error' | 'cancelled'
 
 export interface DocumentListItem {
   id: number

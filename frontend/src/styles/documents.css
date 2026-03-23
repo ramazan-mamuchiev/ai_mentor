@@ -701,6 +701,15 @@ td:has(.docs-actions) {
   color: #fc8181;
 }
 
+.docs-status--cancelled {
+  background: rgba(160, 160, 160, 0.12);
+  color: #888;
+}
+
+[data-theme='dark'] .docs-status--cancelled {
+  color: #aaa;
+}
+
 .docs-status .spin-icon {
   animation: spin 1s linear infinite;
 }
@@ -814,6 +823,16 @@ td:has(.docs-actions) {
 .docs-action-btn--danger:hover {
   background: rgba(229, 62, 62, 0.1);
   color: #e53e3e;
+}
+
+.docs-action-btn--warning:hover {
+  background: rgba(214, 158, 46, 0.12);
+  color: #b7791f;
+}
+
+[data-theme='dark'] .docs-action-btn--warning:hover {
+  background: rgba(236, 201, 75, 0.12);
+  color: #ecc94b;
 }
 
 .docs-size {

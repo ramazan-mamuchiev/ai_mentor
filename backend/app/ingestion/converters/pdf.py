@@ -302,7 +302,11 @@ def convert_pdf(
     page_count = doc.page_count
     doc.close()
 
-    has_ocr_images = len(_find_ocr_pages(file_path)) > 0
+    if progress_callback is not None:
+        progress_callback(0.0, "analyzing")
+
+    ocr_pages = _find_ocr_pages(file_path)
+    has_ocr_images = len(ocr_pages) > 0
     will_ocr = has_ocr_images and _ocr_available()
 
     if progress_callback is not None:
@@ -355,20 +359,25 @@ def convert_pdf(
 
         md_text = "\n\n".join(results[i] for i in range(len(page_ranges)))
     else:
-        for attempt in range(1, MAX_RETRIES + 2):
-            try:
-                md_text = pymupdf4llm.to_markdown(file_path)
-                break
-            except Exception as exc:
-                if attempt > MAX_RETRIES:
-                    raise
-                logger.warning(
-                    "PDF conversion failed, retrying",
-                    extra={"attempt": attempt, "error": str(exc)[:200]},
-                )
-                time.sleep(attempt)
-        if _convert_cb is not None:
-            _convert_cb(1.0)
+        page_ranges = _split_page_ranges(page_count, pages_per_chunk=1)
+        page_results: dict[int, str] = {}
+        for idx, pr in enumerate(page_ranges):
+            for attempt in range(1, MAX_RETRIES + 2):
+                try:
+                    page_results[idx] = pymupdf4llm.to_markdown(file_path, pages=pr)
+                    break
+                except Exception as exc:
+                    if attempt > MAX_RETRIES:
+                        raise
+                    logger.warning(
+                        "PDF page conversion failed, retrying",
+                        extra={"page": pr[0], "attempt": attempt, "error": str(exc)[:200]},
+                    )
+                    time.sleep(attempt)
+            if _convert_cb is not None:
+                _convert_cb((idx + 1) / len(page_ranges))
+
+        md_text = "\n\n".join(page_results[i] for i in range(len(page_ranges)))
 
     convert_ms = round((time.perf_counter() - t0) * 1000, 1)
 

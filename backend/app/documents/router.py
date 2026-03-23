@@ -140,6 +140,9 @@ async def ingest_document(
         from app.celery_app import ingest_document_task
         task = ingest_document_task.delay(doc.id)
 
+        doc.celery_task_id = task.id
+        await session.commit()
+
         logger.info(
             "Document ingestion queued",
             extra={
@@ -483,6 +486,47 @@ async def download_document(document_id: int):
         )
 
 
+@router.post("/{document_id}/cancel", status_code=200)
+async def cancel_document(document_id: int):
+    """Cancel ingestion of a pending or processing document.
+
+    Sets status to 'cancelled', revokes the Celery task, and cleans up any partial chunks.
+    """
+    async with async_session() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        if doc.status not in ("pending", "processing"):
+            raise HTTPException(status_code=400, detail=f"Cannot cancel document with status '{doc.status}'")
+
+        celery_task_id = doc.celery_task_id
+
+        doc.status = "cancelled"
+        doc.progress_percent = 0
+        doc.progress_stage = ""
+        doc.error_message = None
+
+        chunks = (await session.execute(
+            select(Chunk).where(Chunk.document_id == doc.id)
+        )).scalars().all()
+        for chunk in chunks:
+            await session.delete(chunk)
+        doc.total_chunks = 0
+
+        await session.commit()
+
+    if celery_task_id:
+        try:
+            from app.celery_app import celery
+            celery.control.revoke(celery_task_id, terminate=True)
+        except Exception:
+            logger.warning("Failed to revoke Celery task", extra={"task_id": celery_task_id, "document_id": document_id})
+
+    logger.info("Document ingestion cancelled", extra={"document_id": document_id, "celery_task_id": celery_task_id})
+    return {"document_id": document_id, "status": "cancelled", "message": "Ingestion cancelled"}
+
+
 @router.delete("/{document_id}", response_model=DeleteResponse)
 async def delete_document(document_id: int):
     """Delete a document and all its chunks. Also removes the file from S3."""
@@ -540,9 +584,13 @@ async def reingest_single_document(document_id: int):
         doc.status = "pending"
         doc.total_chunks = 0
         doc.error_message = None
-        await session.commit()
+        doc.progress_percent = 0
+        doc.progress_stage = ""
+        await session.flush()
 
-    task = ingest_document_task.delay(document_id)
+        task = ingest_document_task.delay(document_id)
+        doc.celery_task_id = task.id
+        await session.commit()
 
     logger.info("Single document reingest queued", extra={
         "document_id": document_id, "task_id": task.id,

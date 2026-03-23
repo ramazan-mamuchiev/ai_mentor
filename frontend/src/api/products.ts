@@ -28,6 +28,10 @@ export async function reingestProduct(manufacturerSlug: string, productSlug: str
   return apiFetch(`/products/${manufacturerSlug}/${productSlug}/reingest`, { method: 'POST' })
 }
 
+export async function cancelProductIngestion(manufacturerSlug: string, productSlug: string): Promise<void> {
+  return apiFetch<void>(`/products/${manufacturerSlug}/${productSlug}/cancel-ingestion`, { method: 'POST' })
+}
+
 export async function getProductDebug(manufacturerSlug: string, productSlug: string): Promise<ProductDebugInfo> {
   return apiFetch<ProductDebugInfo>(`/products/${manufacturerSlug}/${productSlug}/debug`)
 }

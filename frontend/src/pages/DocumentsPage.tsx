@@ -13,16 +13,18 @@ import {
   Search,
   X,
   Bug,
+  Ban,
+  StopCircle,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
-import { listDocuments, downloadDocument, deleteDocument, reingestDocument } from '../api/documents'
+import { listDocuments, downloadDocument, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DocumentDebugPanel } from '../components/DocumentDebugPanel'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
 
-const POLL_INTERVAL = 5000
+const POLL_INTERVAL = 2000
 const STORAGE_KEY = 'ipcodex-docs-table'
 
 function formatBytes(bytes: number): string {
@@ -58,6 +60,7 @@ function StatusBadge({
     processing: <Loader2 size={14} className="spin-icon" />,
     ready: <CheckCircle size={14} />,
     error: <AlertCircle size={14} />,
+    cancelled: <Ban size={14} />,
   }
 
   const stageLabel = progressStage ? t(`docs.stage.${progressStage}`, progressStage) : ''
@@ -137,6 +140,7 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<DocumentListItem | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<DocumentListItem | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
   const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
@@ -191,6 +195,17 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
     } catch { /* ignore */ }
     finally { setReingestTarget(null) }
   }, [reingestTarget])
+
+  const handleCancelConfirm = useCallback(async () => {
+    if (!cancelTarget) return
+    try {
+      await cancelDocument(cancelTarget.id)
+      setDocuments(prev =>
+        prev.map(d => d.id === cancelTarget.id ? { ...d, status: 'cancelled' as const, progress_percent: 0, progress_stage: '', error_message: null } : d)
+      )
+    } catch { /* ignore */ }
+    finally { setCancelTarget(null) }
+  }, [cancelTarget])
 
   const toggleDebug = useCallback((docId: number) => {
     setDebugExpandedIds(prev => {
@@ -348,9 +363,14 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
                 <Download size={16} />
               </button>
             )}
-            {(doc.status === 'ready' || doc.status === 'error') && (
+            {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
               <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} title={t('docs.actions.reindex')}>
                 <RefreshCw size={16} />
+              </button>
+            )}
+            {(doc.status === 'pending' || doc.status === 'processing') && (
+              <button className="docs-action-btn docs-action-btn--warning" onClick={() => setCancelTarget(doc)} title={t('docs.actions.cancel')}>
+                <StopCircle size={16} />
               </button>
             )}
             <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} title={t('docs.actions.delete')}>
@@ -550,9 +570,14 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
                     <Download size={16} />
                   </button>
                 )}
-                {(doc.status === 'ready' || doc.status === 'error') && (
+                {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
                   <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} title={t('docs.actions.reindex')}>
                     <RefreshCw size={16} />
+                  </button>
+                )}
+                {(doc.status === 'pending' || doc.status === 'processing') && (
+                  <button className="docs-action-btn docs-action-btn--warning" onClick={() => setCancelTarget(doc)} title={t('docs.actions.cancel')}>
+                    <StopCircle size={16} />
                   </button>
                 )}
                 <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} title={t('docs.actions.delete')}>
@@ -591,6 +616,19 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
           variant="default"
           onConfirm={handleReingestConfirm}
           onCancel={() => setReingestTarget(null)}
+        />
+      )}
+
+      {cancelTarget && (
+        <ConfirmDialog
+          title={t('docs.cancel.title')}
+          message={t('docs.cancel.message')}
+          details={`${cancelTarget.title} (${cancelTarget.original_filename}, ${formatBytes(cancelTarget.file_size_bytes)})`}
+          confirmLabel={t('docs.cancel.confirm')}
+          cancelLabel={t('docs.cancel.dismiss')}
+          variant="danger"
+          onConfirm={handleCancelConfirm}
+          onCancel={() => setCancelTarget(null)}
         />
       )}
     </div>

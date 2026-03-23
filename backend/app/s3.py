@@ -1,7 +1,9 @@
 """S3/MinIO client for storing original document files."""
+from __future__ import annotations
 
 import logging
 from io import BytesIO
+from typing import Callable
 
 import boto3
 from botocore.exceptions import ClientError
@@ -57,6 +59,39 @@ def download_file(key: str) -> bytes:
     data = response["Body"].read()
     logger.debug("S3 download", extra={"key": key, "size": len(data)})
     return data
+
+
+def download_file_to_path(
+    key: str,
+    dest_path: str,
+    progress_callback: Callable[[float], None] | None = None,
+) -> int:
+    """Stream-download file from S3 directly to disk with progress callback.
+
+    Returns the total number of bytes written.
+    progress_callback receives a fraction in [0..1].
+    """
+    client = _get_client()
+    head = client.head_object(Bucket=settings.s3_bucket, Key=key)
+    total_size = head["ContentLength"]
+
+    response = client.get_object(Bucket=settings.s3_bucket, Key=key)
+    body = response["Body"]
+
+    downloaded = 0
+    chunk_size = 4 * 1024 * 1024  # 4 MB
+    with open(dest_path, "wb") as f:
+        while True:
+            chunk = body.read(chunk_size)
+            if not chunk:
+                break
+            f.write(chunk)
+            downloaded += len(chunk)
+            if progress_callback is not None and total_size > 0:
+                progress_callback(min(downloaded / total_size, 1.0))
+
+    logger.debug("S3 stream download", extra={"key": key, "size": downloaded})
+    return downloaded
 
 
 def generate_presigned_url(key: str, expires_in: int = 900) -> str:

@@ -202,8 +202,8 @@ def _get_sync_engine():
 def ingest_document_task(self, document_id: int):
     """Background task: download file from S3, run ingestion pipeline, update DB."""
     from app.models import Base, Chunk, Product, Document, FirmwareVersion
-    from app.s3 import download_file
-    from app.ingestion.pipeline import ingest_from_bytes
+    from app.s3 import download_file_to_path
+    from app.ingestion.pipeline import ingest_from_bytes, _update_progress, IngestionCancelled
 
     t0 = time.perf_counter()
     logger.info("Celery ingest_document_task started", extra={"document_id": document_id, "task_id": self.request.id})
@@ -220,24 +220,35 @@ def ingest_document_task(self, document_id: int):
             logger.warning("Document already processed", extra={"document_id": document_id})
             return {"status": "skipped", "message": "Already processed"}
 
-        doc.status = "processing"
-        session.commit()
+        if doc.status == "cancelled":
+            logger.info("Document was cancelled before task started", extra={"document_id": document_id})
+            return {"status": "cancelled", "message": "Cancelled before processing"}
 
-        try:
-            file_data = download_file(doc.s3_key)
-        except Exception as exc:
-            doc.status = "error"
-            doc.error_message = f"S3 download failed: {exc}"
-            session.commit()
-            logger.error("S3 download failed", extra={"document_id": document_id, "s3_key": doc.s3_key, "error_type": type(exc).__name__}, exc_info=True)
-            raise self.retry(exc=exc)
+        doc.status = "processing"
+        doc.celery_task_id = self.request.id
+        session.commit()
 
         ext = os.path.splitext(doc.original_filename)[1].lower() or ".bin"
         tmp_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-                tmp.write(file_data)
                 tmp_path = tmp.name
+
+            _update_progress(session, doc, 0, "preparing")
+
+            def _download_progress(frac: float) -> None:
+                _update_progress(session, doc, max(1, int(frac * 5)), "preparing")
+
+            try:
+                download_file_to_path(doc.s3_key, tmp_path, progress_callback=_download_progress)
+            except Exception as exc:
+                doc.status = "error"
+                doc.error_message = f"S3 download failed: {exc}"
+                doc.progress_percent = 0
+                doc.progress_stage = ""
+                session.commit()
+                logger.error("S3 download failed", extra={"document_id": document_id, "s3_key": doc.s3_key, "error_type": type(exc).__name__}, exc_info=True)
+                raise self.retry(exc=exc)
 
             result = ingest_from_bytes(
                 session=session,
@@ -258,6 +269,10 @@ def ingest_document_task(self, document_id: int):
                 },
             )
             return result
+
+        except IngestionCancelled:
+            logger.info("Ingestion cancelled mid-flight", extra={"document_id": document_id, "task_id": self.request.id})
+            return {"status": "cancelled", "document_id": document_id}
 
         except Exception as exc:
             doc.status = "error"

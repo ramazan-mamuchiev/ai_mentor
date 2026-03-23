@@ -75,6 +75,9 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_last_used_at TIMESTAMPTZ;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_percent INT NOT NULL DEFAULT 0;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_stage TEXT NOT NULL DEFAULT '';
 
+-- Celery task ID for cancellation support
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS celery_task_id TEXT;
+
 -- OCR metrics and language detection
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_ms FLOAT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_total INT;

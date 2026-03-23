@@ -98,6 +98,8 @@ class Document(Base):
     progress_percent: Mapped[int] = mapped_column(Integer, default=0)
     progress_stage: Mapped[str] = mapped_column(Text, default="")
 
+    celery_task_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     ocr_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     ocr_images_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ocr_images_success: Mapped[int | None] = mapped_column(Integer, nullable=True)

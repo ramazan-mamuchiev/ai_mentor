@@ -14,9 +14,11 @@ import {
   RefreshCw,
   Pencil,
   Trash2,
+  StopCircle,
+  Ban,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
-import { listProducts, deleteProduct, reingestProduct } from '../api/products'
+import { listProducts, deleteProduct, reingestProduct, cancelProductIngestion } from '../api/products'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ProductDebugPanel } from '../components/ProductDebugPanel'
 import { ProductEditDialog } from '../components/ProductEditDialog'
@@ -24,7 +26,7 @@ import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { ProductListItem, DocumentStatusValue } from '../types'
 
-const POLL_INTERVAL = 5000
+const POLL_INTERVAL = 2000
 const STORAGE_KEY = 'ipcodex-products-table'
 
 function formatBytes(bytes: number): string {
@@ -59,6 +61,7 @@ function ProductStatusBadge({ product }: { product: ProductListItem }) {
     processing: <Loader2 size={14} className="spin-icon" />,
     ready: <CheckCircle size={14} />,
     error: <AlertCircle size={14} />,
+    cancelled: <Ban size={14} />,
   }
 
   const pct = status === 'processing' || status === 'pending'
@@ -106,6 +109,7 @@ export function ProductsPage({ onUploadClick }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<ProductListItem | null>(null)
   const [editTarget, setEditTarget] = useState<ProductListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<ProductListItem | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<ProductListItem | null>(null)
   const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
@@ -147,6 +151,15 @@ export function ProductsPage({ onUploadClick }: Props) {
     } catch { /* ignore */ }
     finally { setReingestTarget(null) }
   }, [reingestTarget, fetchProducts])
+
+  const handleCancelConfirm = useCallback(async () => {
+    if (!cancelTarget) return
+    try {
+      await cancelProductIngestion(cancelTarget.manufacturer_slug, cancelTarget.slug)
+      fetchProducts()
+    } catch { /* ignore */ }
+    finally { setCancelTarget(null) }
+  }, [cancelTarget, fetchProducts])
 
   const toggleDebug = useCallback((id: number) => {
     setDebugExpandedIds(prev => {
@@ -305,6 +318,15 @@ export function ProductsPage({ onUploadClick }: Props) {
             >
               <RefreshCw size={16} />
             </button>
+            {(p.pending_documents > 0 || p.processing_documents > 0) && (
+              <button
+                className="docs-action-btn docs-action-btn--warning"
+                onClick={() => setCancelTarget(p)}
+                title={t('products.actions.cancelIngestion')}
+              >
+                <StopCircle size={16} />
+              </button>
+            )}
             <button
               className="docs-action-btn"
               onClick={() => setEditTarget(p)}
@@ -501,6 +523,19 @@ export function ProductsPage({ onUploadClick }: Props) {
           variant="default"
           onConfirm={handleReingestConfirm}
           onCancel={() => setReingestTarget(null)}
+        />
+      )}
+
+      {cancelTarget && (
+        <ConfirmDialog
+          title={t('products.cancelIngestion.title')}
+          message={t('products.cancelIngestion.message')}
+          details={`${cancelTarget.name} (${cancelTarget.pending_documents + cancelTarget.processing_documents} ${t('products.cancelIngestion.documentsLabel')})`}
+          confirmLabel={t('products.cancelIngestion.confirm')}
+          cancelLabel={t('products.delete.cancel')}
+          variant="danger"
+          onConfirm={handleCancelConfirm}
+          onCancel={() => setCancelTarget(null)}
         />
       )}
 
