@@ -143,7 +143,7 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
-    environment:
+    environment: &worker-env
       DATABASE_URL: postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
       DATABASE_URL_SYNC: postgresql://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
       REDIS_URL: redis://redis:6379/0
@@ -159,7 +159,22 @@ services:
       LOG_DIR: /app/logs
     volumes:
       - ${LOG_DIR:-./logs}:/app/logs
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=2 -Q celery,monitoring -B
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring
+
+  beat:
+    build: ./backend
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment: *worker-env
+    command: celery -A app.celery_app beat --loglevel=info
 
   web:
     build: ./frontend

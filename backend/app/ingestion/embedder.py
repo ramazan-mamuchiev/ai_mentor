@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 _gemini_client: "GenaiClient | None" = None
 
 EMBEDDING_DIMS = settings.embedding_dims
-BATCH_SIZE = 256
+# Gemini BatchEmbedContents API allows at most 100 items per request
+BATCH_SIZE = 100
 
 
 def _embed_config(*, task_type: str, output_dimensionality: int):

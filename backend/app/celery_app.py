@@ -194,7 +194,7 @@ _sync_engine = None
 def _get_sync_engine():
     global _sync_engine
     if _sync_engine is None:
-        _sync_engine = create_engine(settings.database_url_sync, pool_size=5, max_overflow=2)
+        _sync_engine = create_engine(settings.database_url_sync, pool_size=8, max_overflow=4)
     return _sync_engine
 
 
