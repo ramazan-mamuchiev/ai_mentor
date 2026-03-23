@@ -64,7 +64,14 @@ services:
     depends_on: [postgres, redis, minio]
     environment:
       # same as api (DATABASE_URL, REDIS_URL, S3_*, EMBEDDING_PROVIDER, HF_HOME)
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=3 -Q celery,monitoring -B
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring
+
+  beat:
+    build: ./backend
+    depends_on: [postgres, redis]
+    environment:
+      # same as api (DATABASE_URL, REDIS_URL)
+    command: celery -A app.celery_app beat --loglevel=info
 
   web:
     build: ./frontend
@@ -168,13 +175,15 @@ Current staging environment for testing and demos.
 
 ### Running Services
 
-| Service | Status |
-|---------|:------:|
-| web (nginx + React SPA) | ✅ |
-| api (FastAPI + uvicorn) | ✅ |
-| postgres (pgvector) | ✅ |
-| redis | ✅ |
-| minio | ✅ |
+| Service | Status | Notes |
+|---------|:------:|-------|
+| web (nginx + React SPA) | ✅ | |
+| api (FastAPI + uvicorn) | ✅ | |
+| worker (Celery, concurrency=4) | ✅ | DB pool: pool_size=8, max_overflow=4 |
+| beat (Celery Beat, separate container) | ✅ | Periodic tasks only |
+| postgres (pgvector) | ✅ | |
+| redis | ✅ | |
+| minio | ✅ | |
 
 Monitoring stack (Loki, Promtail, Grafana) and Ollama are not deployed on staging VPS.
 
@@ -183,7 +192,7 @@ Monitoring stack (Loki, Promtail, Grafana) and Ollama are not deployed on stagin
 **Full stack rebuild (backend + frontend):**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api web && docker compose up -d api worker web"
+ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api web && docker compose up -d api worker beat web"
 ```
 
 **Frontend only:**
@@ -195,7 +204,7 @@ ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build web &
 **Backend only:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api && docker compose up -d api worker"
+ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api && docker compose up -d api worker beat"
 ```
 
 **View logs:**
@@ -411,7 +420,7 @@ SENDGRID_API_KEY=SG....
 
 ### Currently Implemented
 
-The worker runs with `-B` flag (Beat embedded), processing queues `celery` and `monitoring`:
+Beat runs as a **separate container** (`beat` service) — no longer embedded in the worker via `-B` flag. This frees all 4 worker slots for ingestion tasks. Worker processes queues `celery` and `monitoring`:
 
 ```python
 # celery_app.py — current beat_schedule

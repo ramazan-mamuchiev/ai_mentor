@@ -51,6 +51,20 @@ All application logs are JSON, written to stdout (for Promtail) and rotated file
 
 File rotation: `SizeAwareTimedRotatingFileHandler` — rotates by size (`log_max_size_mb`, default 50 MB) and daily. Retention: `log_retention_days` (default 30).
 
+### Ingestion Progress Logging
+
+The ingestion pipeline emits structured log events at each stage, enabling monitoring of progress and performance:
+
+```json
+{"event": "PDF conversion started", "pages": 250, "parallel": true, "workers": 4, "total_chunks": 5, "pages_per_chunk": 50}
+{"event": "PDF page range conversion failed, retrying", "pages": "0-49", "attempt": 1, "max_retries": 2}
+{"event": "Parallel PDF conversion", "workers": 4, "total_chunks": 5, "pages_per_chunk": 50}
+{"event": "Gemini embedding batch completed", "batch_index": 3, "total_batches": 5, "texts_count": 100, "duration_ms": 2340}
+{"event": "Worker ingestion completed", "document_id": 42, "chunks": 180, "duration_sec": 45.2, "convert_ms": 12000, "embed_ms": 28000}
+```
+
+Key fields for monitoring: `parallel`, `workers`, `total_chunks`, `batch_index`, `total_batches`, `convert_ms`, `embed_ms`, `db_ms`.
+
 ### Request Logging Middleware
 
 `RequestLoggingMiddleware` runs on every HTTP request:
@@ -111,9 +125,9 @@ Extracted labels (`level`, `logger`) enable efficient Loki queries like:
 |-----------|------|------------|
 | **Overview** | `ipcodex-overview.json` | Request rate, error rate, avg response time, uptime, traffic by status code, latency percentiles, top endpoints, live logs |
 | **System Health** | `ipcodex-system.json` | Uptime, DB pool usage, active requests, errors/min, embedding duration, log volume by level/logger |
-| **Ingestion Pipeline** | `ipcodex-ingestion.json` | Ingestion count, chunks created, timing, format breakdown (PDF/Swagger/Markdown/Proto), queue depth, upload size, converter details |
+| **Ingestion Pipeline** | `ipcodex-ingestion.json` | Ingestion count, chunks created, timing (5 stages: read/convert/parse/embed/db), format breakdown (PDF/Swagger/Markdown/Proto), queue depth, upload size, converter details, parallel PDF workers, progress tracking |
 | **Document Audit** | `ipcodex-doc-audit.json` | Uploads over time, ingestion timing, embedding speed, search latency, similarity score distribution |
-| **Queue Monitor** | `ipcodex-queue.json` | Celery pending/processing, queue depth, wait time, task lifecycle, worker health, task runtime |
+| **Queue Monitor** | `ipcodex-queue.json` | Celery pending/processing (4 workers), queue depth, wait time, task lifecycle, worker health, task runtime, Beat heartbeat |
 | **AI Chat** | `ipcodex-ai-chat.json` | Chat requests, errors, response time, tokens/sec, RAG context build time, Ollama health, error log |
 | **Search Quality** | `ipcodex-search.json` | Total/empty searches, avg similarity, avg results per query, search duration, low-similarity searches |
 | **MCP Tools** | `ipcodex-mcp-tools.json` | Tool calls by instrument, duration, errors, live tool logs |

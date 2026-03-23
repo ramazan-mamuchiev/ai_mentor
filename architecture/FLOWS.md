@@ -20,19 +20,28 @@ FastAPI: validate auth → detect format (auto or explicit)
          → enqueue Celery task
         │
         ▼
-Celery Worker: ingest_document(document_id)
+Celery Worker (×4, concurrency=4): ingest_document(document_id)
+  0. **Progress: 0% — "converting"** (persisted to documents.progress_percent/progress_stage)
   1. Download original from S3
-  2. Route to format-specific parser:
-     ┌─────────────────────────────────────────────────────────────────┐
-     │ FORMAT         │ CONVERTER / PARSER          │ CHUNKING STRATEGY      │
-     │────────────────┼─────────────────────────────┼────────────────────────│
-     │ markdown       │ parsers/markdown.py         │ H1–H6 headers          │
-     │ swagger/openapi│ converters/swagger.py       │ 1 chunk per endpoint   │
-     │ pdf (text)     │ converters/pdf.py           │ pymupdf4llm → headers  │
-     │ pdf (OCR)      │ converters/pdf.py + EasyOCR │ OCR → text → headers   │
-     │ web (URL)      │ converters/web.py           │ Scrape → clean → H1–6  │
-     │ protobuf       │ converters/proto.py         │ service/method/message  │
-     └─────────────────────────────────────────────────────────────────┘
+  2. Route to format-specific converter:
+     ┌─────────────────────────────────────────────────────────────────────────────┐
+     │ FORMAT         │ CONVERTER / PARSER          │ CHUNKING STRATEGY            │
+     │────────────────┼─────────────────────────────┼──────────────────────────────│
+     │ markdown       │ parsers/markdown.py         │ H1–H6 headers                │
+     │ swagger/openapi│ converters/swagger.py       │ 1 chunk per endpoint         │
+     │ pdf (text)     │ converters/pdf.py           │ pymupdf4llm → parallel → hdr │
+     │ pdf (OCR)      │ converters/pdf.py + EasyOCR │ OCR → text → headers         │
+     │ web (URL)      │ converters/web.py           │ Scrape → clean → H1–6        │
+     │ protobuf       │ converters/proto.py         │ service/method/message        │
+     └─────────────────────────────────────────────────────────────────────────────┘
+
+     **PDF parallel conversion** (>10 pages):
+     - Pages split into fixed-size chunks of 50 pages (`PAGES_PER_CHUNK=50`)
+     - Processed in parallel via `ThreadPoolExecutor(max_workers=4)`
+       (`ProcessPoolExecutor` not used — Celery workers are daemon processes)
+     - Each chunk retried up to 2 times with linear backoff (`MAX_RETRIES=2`)
+     - Progress callback reports conversion fraction (0→1) after each chunk completes
+     - **Progress: 0%→40% — "converting"** (incremental for PDF, instant for other formats)
   3. Unicode normalization (NFKC) on raw text input
      - Collapses fullwidth Latin, ligatures, non-breaking spaces
      - Ensures byte-identical text for deduplication and embedding
@@ -85,14 +94,18 @@ Celery Worker: ingest_document(document_id)
   9. **Chunk quality logging** (pipeline.py):
      - After chunking, log min/max/avg/median token counts, parent_content stats
      - Enables production monitoring of chunk size distribution
-  10. Embed all enriched chunks in batch (embedder.py)
-     - Local: multilingual-e5-large (1024-dim), "passage:" prefix
+     - **Progress: 40%→50% — "chunking"**
+  10. Embed all enriched chunks in batches (embedder.py)
      - Gemini: gemini-embedding-2-preview (google-genai SDK), task_type=RETRIEVAL_DOCUMENT, Matryoshka dims
-  11. INSERT chunks (content, content_clean, parent_content, embedding) into pgvector
+     - **Batch size**: 100 texts per API call (`BATCH_SIZE=100`, Gemini API limit)
+     - **Incremental progress**: callback after each batch → `50% + (batch/total) * 40%`
+     - **Progress: 50%→90% — "embedding"**
+  11. **Progress: 92% — "storing"**
+     INSERT chunks (content, content_clean, parent_content, embedding) into pgvector
      - `content_clean` — Markdown-stripped text for BM25 full-text indexing
      - PostgreSQL trigger builds tsvector from `COALESCE(content_clean, content)`
        with **'english' stemmer** (stemming + stop-word removal)
-  12. UPDATE document SET status='ready', total_chunks=N
+  12. UPDATE document SET status='ready', total_chunks=N, **progress_percent=100, progress_stage=''**
   13. Log usage (billable_units, tokens consumed, duration)
 ```
 
@@ -102,10 +115,35 @@ Celery Worker: ingest_document(document_id)
 - `heading_path` = endpoint path (e.g., `"POST /acs/v1/door/doControl"`)
 - Enables exact path matching in `get_api_endpoint()` tool (not just vector similarity)
 
+**PDF parallel conversion & fault tolerance** (`converters/pdf.py`):
+- **Parallel threshold**: PDFs with >10 pages are processed in parallel
+- **Chunk size**: fixed 50-page chunks (`PAGES_PER_CHUNK=50`) for granular progress
+- **Workers**: `ThreadPoolExecutor(max_workers=4)` — uses threads (not processes) because Celery daemon workers cannot spawn child processes
+- **Retry**: each 50-page chunk retried up to 2 times (`MAX_RETRIES=2`) with linear backoff (`time.sleep(attempt)`)
+- **Progress callback**: `progress_callback(completed_chunks / total_chunks)` called after each chunk
+- Small PDFs (≤10 pages): single `pymupdf4llm.to_markdown()` call with same retry logic
+
 **PDF OCR detection:**
 - First attempt text extraction (PyMuPDF)
 - If extracted text < 100 chars per page → auto-switch to OCR pipeline
 - Billable units upgraded from 2 to 5, client notified in job status
+
+**Ingestion progress tracking** (`pipeline.py` → `documents` table):
+- `progress_percent` (INT, 0–100) and `progress_stage` (TEXT) persisted to DB after each stage
+- Frontend polls `GET /api/v1/documents/` and displays real-time progress bar with stage label
+- Progress stages and percentages:
+
+| Stage | Percent Range | Description |
+|-------|:---:|---|
+| `converting` | 0%→40% | Format conversion (PDF: incremental per chunk, others: instant) |
+| `chunking` | 40%→50% | Parse → section split → chunk → merge |
+| `embedding` | 50%→90% | Gemini API batches (100 texts/batch), incremental per batch |
+| `storing` | 92% | INSERT chunks + UPDATE document in PostgreSQL |
+| *(complete)* | 100% | `status='ready'`, `progress_stage=''` |
+
+- On error: `progress_percent=0`, `progress_stage=''`, `status='error'`
+- UI: `StatusBadge` component shows animated progress bar + localized stage label
+- Debug panel: `TimingBar` shows all 5 timing stages (Read, Convert, Parse, Embed, DB Write) with `MIN_PCT=3` minimum width even for 0ms stages
 
 ---
 
@@ -118,7 +156,7 @@ All formats are normalized to **chunks** in pgvector. The original file is prese
 | Markdown | `.md` | H1–H6 header chunking, code/table protection | **1** | ~$0.001 | Cheapest, base format |
 | Swagger / OpenAPI 2.0/3.x | `.json`, `.yaml` | Structural: 1 chunk per endpoint | **1** | ~$0.001 | Highest value — structured endpoints, exact match possible |
 | Postman Collection v2.1 | `.json` | Convert requests → endpoint docs | **1** | ~$0.001 | Preserves request/response examples |
-| PDF (text-based) | `.pdf` | PyMuPDF text extract → chunking | **2** | ~$0.005 | 2x cost — text extraction overhead |
+| PDF (text-based) | `.pdf` | PyMuPDF → parallel ThreadPoolExecutor (50-page chunks) → chunking | **2** | ~$0.005 | 2x cost — parallel conversion with retry |
 | PDF (scanned / OCR) | `.pdf` | EasyOCR → text → chunking | **5** | ~$0.02 | 5x cost — GPU-intensive OCR, lowest quality |
 | Web page | URL | httpx + BeautifulSoup → cleaning → chunking | **2** | ~$0.003 | 2x cost — scraping + HTML cleanup |
 | Protobuf | `.proto` | proto-schema-parser → Markdown → chunking | **1** | ~$0.001 | Extracts services, methods, messages, enums |

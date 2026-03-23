@@ -68,8 +68,13 @@
 └────────────────────────┘                     │
         │                                      ▼
         │                       ┌──────────────────────────┐
-        │                       │  Celery Worker + Beat    │
+        │                       │  Celery Worker (×4)      │
         │                       │  ingest: chunk → embed   │
+        │                       │  parallel PDF conversion │
+        │                       │  progress tracking       │
+        │                       └──────────────┬───────────┘
+        │                       ┌──────────────┴───────────┐
+        │                       │  Celery Beat (separate)  │
         │                       │  cleanup: expired uploads│
         │                       │  monitoring: health      │
         │                       └──────────────┬───────────┘
@@ -116,6 +121,12 @@
 - Chunking + embedding is CPU/memory intensive → offloaded to Celery workers
 - API returns immediately with `job_id` for status polling
 - Workers are horizontally scalable (N workers for throughput)
+- **Concurrency**: 4 Celery worker processes (`--concurrency=4`), DB pool `pool_size=8, max_overflow=4`
+- **Celery Beat** runs as a **separate container** (`beat` service) — no longer embedded in worker, freeing all worker slots for ingestion tasks
+- **Real-time progress tracking**: `progress_percent` (0–100) and `progress_stage` (converting / chunking / embedding / storing) persisted in `documents` table, polled by frontend
+- **Parallel PDF conversion**: large PDFs (>10 pages) split into 50-page chunks, processed in parallel via `ThreadPoolExecutor` (up to 4 workers). `ProcessPoolExecutor` not used because Celery workers are daemon processes
+- **Fault-tolerant conversion**: each page-range chunk retried up to 2 times with linear backoff on failure
+- **Embedding batch size**: 100 texts per Gemini API call (API limit), with incremental progress callback after each batch
 - Multi-format pipeline: [FLOWS.md — Ingestion Pipeline](FLOWS.md#ingestion-pipeline-async-via-celery-multi-format)
 
 ### Dual Auth: Tenants vs Vendors
@@ -227,6 +238,7 @@ Opus 4.6 serves as a premium **anchor product** — its superior quality drives 
 - Provider selected via `EMBEDDING_PROVIDER` env variable (`local` | `gemini`)
 - Configurable dimensions via `EMBEDDING_DIMS` (default 1024); Gemini uses `output_dimensionality`, local uses zero-padding
 - E5 models use instruction-prefixed queries (`query:` / `passage:`); Gemini uses `task_type` (`RETRIEVAL_QUERY` / `RETRIEVAL_DOCUMENT`)
+- **Batch embedding**: up to 100 texts per Gemini API call (`BATCH_SIZE=100`, API limit). Larger documents are split into multiple batches with incremental progress reporting
 - `GEMINI_API_KEY` — single key shared between LLM (chat) and embeddings
 
 ### Supported Document Formats
@@ -238,8 +250,8 @@ All formats are normalized to **chunks** in pgvector. The original file is prese
 | Markdown | `.md` | Direct H1/H2/H3 chunking | **1** | ~$0.001 |
 | Swagger / OpenAPI 2.0/3.x | `.json`, `.yaml` | Structural: 1 chunk per endpoint | **1** | ~$0.001 |
 | Postman Collection v2.1 | `.json` | Convert requests → endpoint docs | **1** | ~$0.001 |
-| PDF (text-based) | `.pdf` | PyMuPDF text extract → chunking | **2** | ~$0.005 |
-| PDF (scanned / OCR) | `.pdf` | EasyOCR → text → chunking | **5** | ~$0.02 |
+| PDF (text-based) | `.pdf` | PyMuPDF text extract → parallel chunking (ThreadPoolExecutor) | **2** | ~$0.005 |
+| PDF (scanned / OCR) | `.pdf` | EasyOCR → text → parallel chunking (ThreadPoolExecutor) | **5** | ~$0.02 |
 | Web page | URL | httpx + BeautifulSoup → cleaning → chunking | **2** | ~$0.003 |
 | Protobuf | `.proto` | Service/method/message extraction → Markdown | **1** | ~$0.001 |
 
@@ -285,9 +297,9 @@ ipcodex/
     app/
       main.py                # FastAPI app + FastMCP registration + lifespan
       config.py              # Settings via pydantic-settings (env vars)
-      models.py              # SQLAlchemy ORM models (all tables)
+      models.py              # SQLAlchemy ORM models (all tables, incl. progress_percent/progress_stage)
       database.py            # Async engine, session factory, connection pool
-      celery_app.py          # Celery configuration (Redis broker) + beat_schedule
+      celery_app.py          # Celery configuration (Redis broker), pool_size=8, max_overflow=4
       s3.py                  # S3/MinIO client (upload, download, presigned URLs)
       logging_config.py      # structlog setup, JSON + file handlers, rotation
 
@@ -327,10 +339,10 @@ ipcodex/
 
       ingestion/
         chunker.py           # Chunking logic (split/merge/overlap by token count)
-        embedder.py          # Embedding abstraction (E5 local + Gemini)
-        pipeline.py          # Orchestration: detect format → convert → parse → chunk → embed → store
+        embedder.py          # Embedding abstraction (Gemini, BATCH_SIZE=100, progress callback)
+        pipeline.py          # Orchestration: detect format → convert → parse → chunk → embed → store + progress tracking
         converters/
-          pdf.py             # PDF → Markdown (pymupdf4llm + optional EasyOCR)
+          pdf.py             # PDF → Markdown (pymupdf4llm + optional EasyOCR, parallel ThreadPoolExecutor, retry)
           swagger.py         # Swagger/OpenAPI → Markdown (structured endpoints)
           web.py             # URL → Markdown (Swagger UI detection, Crawl4AI fallback)
           proto.py           # ✅ Protobuf → Markdown (services, methods, messages)

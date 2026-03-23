@@ -46,6 +46,8 @@ CREATE TABLE documents (
     total_chunks INT NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',   -- pending | processing | ready | error
     error_message TEXT,
+    progress_percent INT NOT NULL DEFAULT 0,  -- 0-100, real-time ingestion progress
+    progress_stage TEXT NOT NULL DEFAULT '',   -- converting | chunking | embedding | storing | ''
     ingested_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -362,6 +364,8 @@ CREATE TABLE documents (
     billable_units INT NOT NULL DEFAULT 1,  -- 1 (md/swagger/postman), 2 (pdf/web), 5 (ocr)
     status TEXT NOT NULL DEFAULT 'pending',  -- pending | processing | ready | error
     error_message TEXT,
+    progress_percent INT NOT NULL DEFAULT 0,  -- 0-100, real-time ingestion progress
+    progress_stage TEXT NOT NULL DEFAULT '',   -- converting | chunking | embedding | storing | ''
     -- Download control
     is_downloadable BOOLEAN NOT NULL DEFAULT TRUE,
     download_policy TEXT NOT NULL DEFAULT 'public', -- public | search_only | pro_only

@@ -276,7 +276,9 @@ font-weight: 600;
 
 В тёмной теме — те же цвета, фон автоматически контрастен.
 
-### 6.4 Прогресс-бар
+### 6.4 Прогресс-бар индексации
+
+Прогресс-бар встроен в `StatusBadge` компонент и отображается при `status='processing'`:
 
 ```css
 /* Container */
@@ -285,12 +287,47 @@ background: var(--bg-secondary);
 border-radius: 3px;
 overflow: hidden;
 
-/* Bar */
+/* Bar fill */
 height: 100%;
 background: var(--accent);
 border-radius: 3px;
 transition: width 0.3s ease;
 ```
+
+**Прогресс-информация** (под бейджем):
+- Процент: `font-size: 11px; font-weight: 600; color: var(--accent)` (`.docs-progress-pct`)
+- Этап: `font-size: 10px; color: var(--text-muted)` (`.docs-progress-stage`)
+- Контейнер: `.docs-progress-info` — `display: flex; gap: 6px; align-items: center`
+
+**Этапы прогресса** (локализованы через i18n):
+
+| Ключ | EN | RU | Диапазон % |
+|------|----|----|:---:|
+| `docs.stage.converting` | Converting to MD | Конвертация в MD | 0%→40% |
+| `docs.stage.chunking` | Chunking | Разбиение на чанки | 40%→50% |
+| `docs.stage.embedding` | Embedding | Эмбеддинг | 50%→90% |
+| `docs.stage.storing` | Saving to DB | Сохранение в БД | 92% |
+
+При `progress_percent > 0` — анимация `pulse-bg` заменяется на реальную ширину бара.
+При `progress_percent === 0` и `status === 'processing'` — индетерминированная анимация.
+
+### 6.4.1 Debug Timing Bar (DocumentDebugPanel)
+
+Компонент `TimingBar` в debug-панели отображает 5 этапов индексации:
+
+| Этап | Цвет | Поле |
+|------|------|------|
+| Read | `#60a5fa` (blue) | `read_ms` |
+| Convert | `#f59e0b` (amber) | `convert_ms` |
+| Parse | `#a78bfa` (violet) | `parse_ms` |
+| Embed | `#34d399` (emerald) | `embed_ms` |
+| DB Write | `#f472b6` (pink) | `db_ms` |
+
+**Правила отображения:**
+- Минимальная ширина сегмента: `MIN_PCT = 3%` (даже для 0ms этапов)
+- Этапы с `rawPct < 1%` отображаются с `opacity: 0.45`
+- Tooltip (`title`) показывает точное значение: `{label}: {ms}ms ({rawPct.toFixed(1)}%)`
+- Все 5 этапов всегда видны в полоске
 
 ### 6.5 Таблица
 

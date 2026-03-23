@@ -67,9 +67,9 @@
 |--------|------|-------------|------|
 | POST | `/api/v1/documents/ingest` | Upload file (any format) + trigger indexing | API Key |
 | POST | `/api/v1/documents/ingest-archive` | Upload archive (ZIP/7z/tar/RAR) + ingest all files | API Key |
-| GET | `/api/v1/documents` | List documents with status | API Key |
-| GET | `/api/v1/documents/{id}` | Document details + chunk count | API Key |
-| GET | `/api/v1/documents/{id}/status` | Ingestion job status | API Key |
+| GET | `/api/v1/documents` | List documents with status, progress_percent, progress_stage | API Key |
+| GET | `/api/v1/documents/{id}` | Document details + chunk count + progress | API Key |
+| GET | `/api/v1/documents/{id}/status` | Ingestion job status + progress | API Key |
 | GET | `/api/v1/documents/{id}/download` | Presigned S3 URL (15 min TTL) | API Key |
 | DELETE | `/api/v1/documents/{id}` | Delete document + chunks | API Key |
 | GET | `/api/v1/documents/queue-stats` | Celery queue statistics | API Key |
