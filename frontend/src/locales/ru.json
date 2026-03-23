@@ -220,7 +220,7 @@
   "docs.status.error": "Ошибка",
   "docs.stage.converting": "Конвертация в MD",
   "docs.stage.chunking": "Разбиение на чанки",
-  "docs.stage.embedding": "Эмбеддинг (Gemini)",
+  "docs.stage.embedding": "Эмбеддинг",
   "docs.stage.storing": "Сохранение в БД",
   "docs.actions.download": "Скачать",
   "docs.actions.reindex": "Переиндексировать",

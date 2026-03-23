@@ -220,7 +220,7 @@
   "docs.status.error": "Error",
   "docs.stage.converting": "Converting to MD",
   "docs.stage.chunking": "Splitting into chunks",
-  "docs.stage.embedding": "Embedding (Gemini)",
+  "docs.stage.embedding": "Embedding",
   "docs.stage.storing": "Saving to DB",
   "docs.actions.download": "Download",
   "docs.actions.reindex": "Reindex",
