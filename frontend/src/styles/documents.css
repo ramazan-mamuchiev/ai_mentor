@@ -270,8 +270,8 @@
 .docs-filter-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 24px;
+  gap: 6px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
@@ -279,16 +279,23 @@
 .docs-filter-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+}
+
+.docs-filter-group + .docs-filter-group {
+  margin-left: 4px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
 }
 
 .docs-filter-label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
   white-space: nowrap;
+  margin-right: 2px;
 }
 
 .docs-filter-chips {
@@ -306,11 +313,11 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: transparent;
-  color: var(--text-secondary);
+  border-radius: 14px;
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.03));
+  color: var(--text);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -321,39 +328,51 @@
 .docs-filter-chip:hover {
   border-color: var(--accent);
   color: var(--accent);
-  background: rgba(37, 99, 235, 0.04);
+  background: rgba(37, 99, 235, 0.06);
 }
 
 .docs-filter-chip--active {
   border-color: var(--accent);
-  background: rgba(37, 99, 235, 0.1);
-  color: var(--accent);
+  background: var(--accent);
+  color: #fff;
   font-weight: 600;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+}
+
+.docs-filter-chip--active:hover {
+  background: var(--accent-hover, #1d4ed8);
+  border-color: var(--accent-hover, #1d4ed8);
+  color: #fff;
+}
+
+.docs-filter-chip--active .docs-filter-chip-count {
+  opacity: 0.85;
 }
 
 .docs-filter-chip-count {
   font-size: 10px;
-  opacity: 0.7;
+  font-weight: 600;
+  opacity: 0.5;
 }
 
 .docs-filter-clear {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 14px;
   background: rgba(239, 68, 68, 0.08);
   color: var(--danger, #ef4444);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   margin-left: auto;
 }
 
 .docs-filter-clear:hover {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.18);
 }
 
 .docs-group-bar {
