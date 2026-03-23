@@ -123,9 +123,11 @@
 - Workers are horizontally scalable (N workers for throughput)
 - **Concurrency**: 4 Celery worker processes (`--concurrency=4`), DB pool `pool_size=8, max_overflow=4`
 - **Celery Beat** runs as a **separate container** (`beat` service) — no longer embedded in worker, freeing all worker slots for ingestion tasks
-- **Real-time progress tracking**: `progress_percent` (0–100) and `progress_stage` (converting / chunking / embedding / storing) persisted in `documents` table, polled by frontend
+- **Real-time progress tracking**: `progress_percent` (0–100) and `progress_stage` (converting / ocr / chunking / embedding / storing) persisted in `documents` table, polled by frontend
 - **Parallel PDF conversion**: large PDFs (>10 pages) split into 50-page chunks, processed in parallel via `ThreadPoolExecutor` (up to 4 workers). `ProcessPoolExecutor` not used because Celery workers are daemon processes
 - **Fault-tolerant conversion**: each page-range chunk retried up to 2 times with linear backoff on failure
+- **PDF OCR pipeline** (two-pass): Pass 1 extracts text via pymupdf4llm; language detected via Gemini; Pass 2 runs EasyOCR with auto-detected language. Each image processed in try/except — failures don't break the pipeline. OCR metrics (total/success/empty/failed) saved to DB
+- **Dependencies**: CPU-only PyTorch + EasyOCR + `libgl1-mesa-glx` / `libglib2.0-0` in Dockerfile
 - **Embedding batch size**: 100 texts per Gemini API call (API limit), with incremental progress callback after each batch
 - Multi-format pipeline: [FLOWS.md — Ingestion Pipeline](FLOWS.md#ingestion-pipeline-async-via-celery-multi-format)
 
@@ -251,7 +253,7 @@ All formats are normalized to **chunks** in pgvector. The original file is prese
 | Swagger / OpenAPI 2.0/3.x | `.json`, `.yaml` | Structural: 1 chunk per endpoint | **1** | ~$0.001 |
 | Postman Collection v2.1 | `.json` | Convert requests → endpoint docs | **1** | ~$0.001 |
 | PDF (text-based) | `.pdf` | PyMuPDF text extract → parallel chunking (ThreadPoolExecutor) | **2** | ~$0.005 |
-| PDF (scanned / OCR) | `.pdf` | EasyOCR → text → parallel chunking (ThreadPoolExecutor) | **5** | ~$0.02 |
+| PDF (with OCR) | `.pdf` | PyMuPDF + Gemini lang detect + EasyOCR (CPU) → parallel chunking | **5** | ~$0.02 |
 | Web page | URL | httpx + BeautifulSoup → cleaning → chunking | **2** | ~$0.003 |
 | Protobuf | `.proto` | Service/method/message extraction → Markdown | **1** | ~$0.001 |
 
@@ -342,7 +344,7 @@ ipcodex/
         embedder.py          # Embedding abstraction (Gemini, BATCH_SIZE=100, progress callback)
         pipeline.py          # Orchestration: detect format → convert → parse → chunk → embed → store + progress tracking
         converters/
-          pdf.py             # PDF → Markdown (pymupdf4llm + optional EasyOCR, parallel ThreadPoolExecutor, retry)
+          pdf.py             # PDF → Markdown (pymupdf4llm + Gemini lang detect + EasyOCR, parallel ThreadPoolExecutor, retry, fault-tolerant OCR)
           swagger.py         # Swagger/OpenAPI → Markdown (structured endpoints)
           web.py             # URL → Markdown (Swagger UI detection, Crawl4AI fallback)
           proto.py           # ✅ Protobuf → Markdown (services, methods, messages)

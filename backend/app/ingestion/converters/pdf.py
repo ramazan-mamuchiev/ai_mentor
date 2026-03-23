@@ -50,8 +50,8 @@ def _detect_language_via_gemini(md_text: str) -> list[str]:
     from app.config import settings
 
     if not settings.gemini_api_key:
-        logger.warning("No Gemini API key, falling back to default OCR languages")
-        return [l.strip() for l in settings.ocr_languages.split(",") if l.strip()]
+        logger.warning("No Gemini API key, falling back to default OCR language")
+        return ["en"]
 
     sample = md_text[:3000].strip()
     if not sample:
@@ -93,7 +93,7 @@ def _detect_language_via_gemini(md_text: str) -> list[str]:
         logger.warning("Language detection failed, using fallback", extra={
             "error_type": type(exc).__name__, "error": str(exc)[:200],
         })
-        return [l.strip() for l in settings.ocr_languages.split(",") if l.strip()]
+        return ["en"]
 
 
 def _ocr_available() -> bool:
@@ -161,51 +161,64 @@ def _find_ocr_pages(pdf_path: str) -> list[int]:
 def _enrich_markdown_with_ocr(
     md_text: str,
     languages: list[str] | None = None,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> tuple[str, dict]:
     """Replace image references in Markdown with OCR-extracted text.
 
-    Returns (enriched_markdown, ocr_stats).
+    Each image is processed in a try/except so a single failure never
+    breaks the whole pipeline. Returns (enriched_markdown, ocr_stats).
     """
     matches = list(_IMG_REF_RE.finditer(md_text))
     stats: dict = {
-        "images_total": 0,
-        "images_ocr_ok": 0,
-        "images_ocr_empty": 0,
-        "images_ocr_error": 0,
-        "images_missing": 0,
-        "images_skipped_small": 0,
+        "ocr_images_total": 0,
+        "ocr_images_success": 0,
+        "ocr_images_empty": 0,
+        "ocr_images_failed": 0,
     }
 
     if not matches:
         return md_text, stats
 
     _get_ocr_reader(languages)
+    total_images = len(matches)
+    processed = 0
 
     def _process_image(img_path: str) -> str:
-        stats["images_total"] += 1
-        if not os.path.isfile(img_path):
-            stats["images_missing"] += 1
-            return ""
+        nonlocal processed
+        stats["ocr_images_total"] += 1
+        result = ""
         try:
-            from PIL import Image
-            with Image.open(img_path) as pil_img:
-                w, h = pil_img.size
-            if w * h < _OCR_IMAGE_MIN_AREA:
-                stats["images_skipped_small"] += 1
+            if not os.path.isfile(img_path):
+                stats["ocr_images_failed"] += 1
+                logger.debug("OCR image file missing", extra={"image": img_path})
                 return ""
-        except Exception:
-            pass
-        try:
+            try:
+                from PIL import Image
+                with Image.open(img_path) as pil_img:
+                    w, h = pil_img.size
+                if w * h < _OCR_IMAGE_MIN_AREA:
+                    stats["ocr_images_empty"] += 1
+                    return ""
+            except Exception:
+                pass
+
             ocr_text = _ocr_image_file(img_path, languages)
+            if not ocr_text.strip():
+                stats["ocr_images_empty"] += 1
+                return ""
+            stats["ocr_images_success"] += 1
+            result = ocr_text.strip()
         except Exception as exc:
-            stats["images_ocr_error"] += 1
-            logger.debug("OCR failed for image", extra={"image": img_path, "error_type": type(exc).__name__})
-            return ""
-        if not ocr_text.strip():
-            stats["images_ocr_empty"] += 1
-            return ""
-        stats["images_ocr_ok"] += 1
-        return ocr_text.strip()
+            stats["ocr_images_failed"] += 1
+            logger.warning("OCR failed for image, continuing", extra={
+                "image": img_path, "error_type": type(exc).__name__,
+                "error": str(exc)[:200],
+            })
+        finally:
+            processed += 1
+            if progress_callback is not None:
+                progress_callback(processed / total_images)
+        return result
 
     parts: list[str] = []
     last_end = 0
@@ -260,17 +273,25 @@ def _split_page_ranges(page_count: int, pages_per_chunk: int = PAGES_PER_CHUNK) 
 
 def convert_pdf(
     file_path: str,
-    ocr_mode: str = "auto",
-    ocr_languages: str = "en,ru",
-    progress_callback: Callable[[float], None] | None = None,
+    progress_callback: Callable[[float, str], None] | None = None,
 ) -> tuple[str, dict]:
-    """Convert PDF to Markdown text with optional parallel page processing.
+    """Convert PDF to Markdown text with parallel page processing and OCR.
+
+    Two-pass pipeline:
+      Pass 1: pymupdf4llm text extraction (parallel for large PDFs)
+      Pass 2: OCR all images with auto-detected language via Gemini + EasyOCR
+
+    Language is detected automatically via Gemini after Pass 1.
+    Falls back to English if detection fails.
+
+    Progress is reported via callback: progress_callback(fraction, stage)
+    where fraction is in [0..1] and stage is "converting" or "ocr".
+    If images found: converting = 0→0.625, OCR = 0.625→1.0.
+    If no images: converting = full 0→1.0 range.
 
     Args:
         file_path: Path to the PDF file.
-        ocr_mode: "auto" (OCR pages with large images), "always", or "off".
-        ocr_languages: Comma-separated language codes (e.g. "en,ru").
-        progress_callback: optional fn(fraction) called as conversion progresses, fraction in [0..1].
+        progress_callback: fn(fraction, stage) called as conversion progresses.
 
     Returns:
         (markdown_text, metadata) where metadata includes conversion stats.
@@ -281,12 +302,27 @@ def convert_pdf(
     page_count = doc.page_count
     doc.close()
 
+    has_ocr_images = len(_find_ocr_pages(file_path)) > 0
+    will_ocr = has_ocr_images and _ocr_available()
+
+    if progress_callback is not None:
+        if will_ocr:
+            _convert_cb = lambda frac: progress_callback(frac * 0.625, "converting")
+            _ocr_cb = lambda frac: progress_callback(0.625 + frac * 0.375, "ocr")
+        else:
+            _convert_cb = lambda frac: progress_callback(frac, "converting")
+            _ocr_cb = None
+    else:
+        _convert_cb = None
+        _ocr_cb = None
+
     logger.info(
         "PDF conversion started",
         extra={
             "file": os.path.basename(file_path), "pages": page_count,
-            "file_size_bytes": file_size, "ocr_mode": ocr_mode,
+            "file_size_bytes": file_size,
             "parallel": page_count > PARALLEL_THRESHOLD,
+            "will_ocr": will_ocr,
         },
     )
 
@@ -314,8 +350,8 @@ def convert_pdf(
                 idx = future_to_idx[future]
                 results[idx] = future.result()
                 completed_count += 1
-                if progress_callback is not None:
-                    progress_callback(completed_count / len(page_ranges))
+                if _convert_cb is not None:
+                    _convert_cb(completed_count / len(page_ranges))
 
         md_text = "\n\n".join(results[i] for i in range(len(page_ranges)))
     else:
@@ -331,8 +367,8 @@ def convert_pdf(
                     extra={"attempt": attempt, "error": str(exc)[:200]},
                 )
                 time.sleep(attempt)
-        if progress_callback is not None:
-            progress_callback(1.0)
+        if _convert_cb is not None:
+            _convert_cb(1.0)
 
     convert_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -344,34 +380,30 @@ def convert_pdf(
         "parallel_workers": min(MAX_PDF_WORKERS, page_count) if page_count > PARALLEL_THRESHOLD else 1,
     }
 
-    should_ocr = False
-    if ocr_mode == "always":
-        should_ocr = True
-    elif ocr_mode == "auto":
-        ocr_pages = _find_ocr_pages(file_path)
-        should_ocr = len(ocr_pages) > 0
-        if should_ocr:
-            logger.debug("OCR pages detected", extra={"ocr_pages_count": len(ocr_pages)})
+    if will_ocr:
+        detected_langs = _detect_language_via_gemini(md_text)
+        metadata["detected_languages"] = detected_langs
+        metadata["detected_languages_str"] = ",".join(detected_langs)
 
-    if should_ocr:
-        if not _ocr_available():
-            logger.warning("OCR requested but easyocr not installed, skipping OCR")
-        else:
-            langs = [l.strip() for l in ocr_languages.split(",") if l.strip()]
-            t_ocr = time.perf_counter()
-            md_text, ocr_stats = _enrich_markdown_with_ocr(md_text, languages=langs)
-            ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
-            metadata["ocr_applied"] = True
-            metadata["ocr_ms"] = ocr_ms
-            metadata["ocr_stats"] = ocr_stats
-            logger.info(
-                "OCR completed",
-                extra={
-                    "ocr_ms": ocr_ms,
-                    "images_total": ocr_stats["images_total"],
-                    "images_ocr_ok": ocr_stats["images_ocr_ok"],
-                },
-            )
+        t_ocr = time.perf_counter()
+        md_text, ocr_stats = _enrich_markdown_with_ocr(
+            md_text, languages=detected_langs,
+            progress_callback=_ocr_cb,
+        )
+        ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
+        metadata["ocr_applied"] = True
+        metadata["ocr_ms"] = ocr_ms
+        metadata["ocr_stats"] = ocr_stats
+        logger.info(
+            "OCR completed",
+            extra={
+                "ocr_ms": ocr_ms,
+                "detected_languages": detected_langs,
+                "ocr_images_total": ocr_stats["ocr_images_total"],
+                "ocr_images_success": ocr_stats["ocr_images_success"],
+                "ocr_images_failed": ocr_stats["ocr_images_failed"],
+            },
+        )
 
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     metadata["total_ms"] = total_ms

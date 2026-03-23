@@ -339,24 +339,23 @@ class TestEnrichMarkdownWithOcr:
 
 class TestConvertPdf:
     def test_text_pdf_conversion(self, sample_text_pdf):
-        md_text, meta = convert_pdf(str(sample_text_pdf), ocr_mode="off")
+        md_text, meta = convert_pdf(str(sample_text_pdf))
         assert "Chapter 1" in md_text or "Introduction" in md_text
         assert meta["pages"] == 2
-        assert meta["ocr_applied"] is False
         assert meta["total_ms"] > 0
 
     def test_metadata_fields(self, sample_text_pdf):
-        _, meta = convert_pdf(str(sample_text_pdf), ocr_mode="off")
+        _, meta = convert_pdf(str(sample_text_pdf))
         assert "pages" in meta
         assert "file_size_bytes" in meta
         assert "convert_ms" in meta
         assert "total_ms" in meta
 
-    def test_ocr_mode_auto_no_images(self, sample_text_pdf):
-        md_text, meta = convert_pdf(str(sample_text_pdf), ocr_mode="auto")
+    def test_no_ocr_when_no_images(self, sample_text_pdf):
+        md_text, meta = convert_pdf(str(sample_text_pdf))
         assert meta["ocr_applied"] is False
 
-    def test_ocr_mode_always_without_easyocr(self, sample_image_pdf):
+    def test_no_ocr_when_easyocr_unavailable(self, sample_image_pdf):
         with patch("app.ingestion.converters.pdf._ocr_available", return_value=False):
-            md_text, meta = convert_pdf(str(sample_image_pdf), ocr_mode="always")
+            md_text, meta = convert_pdf(str(sample_image_pdf))
         assert meta["ocr_applied"] is False

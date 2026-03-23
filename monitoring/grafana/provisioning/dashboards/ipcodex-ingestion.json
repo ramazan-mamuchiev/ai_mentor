@@ -462,8 +462,7 @@
               "parse_ms": true,
               "embed_ms": true,
               "db_ms": true,
-              "detection": true,
-              "ocr_mode": true
+              "detection": true
             },
             "indexByName": {
               "Time": 0,

@@ -147,14 +147,8 @@ async def ingest_file(
     firmware_version: str = "1.0",
     manufacturer: str = "",
     fmt: str = "auto",
-    ocr_mode: str = "auto",
-    ocr_languages: str = "en,ru",
 ) -> dict:
     """Full ingestion pipeline: file -> convert -> parse -> chunk -> embed -> DB.
-
-    Args:
-        ocr_mode: "auto" (OCR pages with large images), "always", or "off".
-        ocr_languages: Comma-separated language codes for OCR (e.g. "en,ru").
 
     Returns dict with status, document_id, chunks count, duration, stage timings.
     """
@@ -182,7 +176,7 @@ async def ingest_file(
         extra={
             "file_path": file_path, "format": fmt,
             "product": product_name, "firmware_version": firmware_version,
-            "file_size_bytes": file_size, "ocr_mode": ocr_mode,
+            "file_size_bytes": file_size,
         },
     )
 
@@ -192,10 +186,8 @@ async def ingest_file(
     t_read = time.perf_counter()
     if fmt == "pdf":
         try:
-            text, convert_metadata = convert_pdf(
-                file_path, ocr_mode=ocr_mode, ocr_languages=ocr_languages,
-            )
-            convert_ms = convert_metadata.get("total_ms", 0.0)
+            text, convert_metadata = convert_pdf(file_path)
+            convert_ms = convert_metadata.get("convert_ms", 0.0)
         except Exception as e:
             logger.error(
                 "PDF conversion failed",
@@ -357,6 +349,16 @@ async def ingest_file(
         doc.db_ms = db_ms
         doc.embedding_model = _embedding_model_name()
         doc.embedding_dims = _settings.embedding_dims
+
+        if convert_metadata.get("ocr_applied"):
+            doc.ocr_ms = convert_metadata.get("ocr_ms")
+            doc.detected_language = convert_metadata.get("detected_languages_str")
+            ocr_stats = convert_metadata.get("ocr_stats", {})
+            doc.ocr_images_total = ocr_stats.get("ocr_images_total")
+            doc.ocr_images_success = ocr_stats.get("ocr_images_success")
+            doc.ocr_images_empty = ocr_stats.get("ocr_images_empty")
+            doc.ocr_images_failed = ocr_stats.get("ocr_images_failed")
+
         await session.commit()
 
         logger.info(
@@ -368,6 +370,7 @@ async def ingest_file(
                 "parse_ms": parse_ms, "embed_ms": embed_ms, "db_ms": db_ms,
                 "product": product_name, "format": fmt,
                 "file_size_bytes": file_size,
+                "ocr_applied": convert_metadata.get("ocr_applied", False),
             },
         )
         result = {
@@ -623,15 +626,15 @@ def ingest_from_bytes(
     t_read = time.perf_counter()
     if fmt == "pdf":
         try:
+
+            def _pdf_convert_progress(frac: float, stage: str) -> None:
+                _update_progress(session, document, int(frac * 40), stage)
+
             text, convert_metadata = convert_pdf(
                 file_path,
-                ocr_mode="auto",
-                ocr_languages=_settings.ocr_languages,
-                progress_callback=lambda frac: _update_progress(
-                    session, document, int(frac * 40), "converting",
-                ),
+                progress_callback=_pdf_convert_progress,
             )
-            convert_ms = convert_metadata.get("total_ms", 0.0)
+            convert_ms = convert_metadata.get("convert_ms", 0.0)
         except Exception as e:
             document.status = "error"
             document.error_message = f"PDF conversion failed: {e}"
@@ -761,6 +764,16 @@ def ingest_from_bytes(
         document.db_ms = db_ms
         document.embedding_model = _embedding_model_name()
         document.embedding_dims = _settings.embedding_dims
+
+        if convert_metadata.get("ocr_applied"):
+            document.ocr_ms = convert_metadata.get("ocr_ms")
+            document.detected_language = convert_metadata.get("detected_languages_str")
+            ocr_stats = convert_metadata.get("ocr_stats", {})
+            document.ocr_images_total = ocr_stats.get("ocr_images_total")
+            document.ocr_images_success = ocr_stats.get("ocr_images_success")
+            document.ocr_images_empty = ocr_stats.get("ocr_images_empty")
+            document.ocr_images_failed = ocr_stats.get("ocr_images_failed")
+
         session.commit()
 
         logger.info(
@@ -777,6 +790,7 @@ def ingest_from_bytes(
                 "db_ms": db_ms,
                 "format": fmt,
                 "file_size_bytes": document.file_size_bytes,
+                "ocr_applied": convert_metadata.get("ocr_applied", False),
             },
         )
         result = {

@@ -58,12 +58,14 @@ The ingestion pipeline emits structured log events at each stage, enabling monit
 ```json
 {"event": "PDF conversion started", "pages": 250, "parallel": true, "workers": 4, "total_chunks": 5, "pages_per_chunk": 50}
 {"event": "PDF page range conversion failed, retrying", "pages": "0-49", "attempt": 1, "max_retries": 2}
-{"event": "Parallel PDF conversion", "workers": 4, "total_chunks": 5, "pages_per_chunk": 50}
+{"event": "Language detected via Gemini", "raw_response": "en,ru", "easyocr_langs": ["en", "ru"]}
+{"event": "OCR completed", "ocr_ms": 8500, "detected_languages": ["en", "ru"], "ocr_images_total": 12, "ocr_images_success": 9, "ocr_images_failed": 1}
+{"event": "OCR failed for image, continuing", "image": "/tmp/img_042.png", "error_type": "RuntimeError"}
 {"event": "Gemini embedding batch completed", "batch_index": 3, "total_batches": 5, "texts_count": 100, "duration_ms": 2340}
-{"event": "Worker ingestion completed", "document_id": 42, "chunks": 180, "duration_sec": 45.2, "convert_ms": 12000, "embed_ms": 28000}
+{"event": "Worker ingestion completed", "document_id": 42, "chunks": 180, "duration_sec": 45.2, "convert_ms": 12000, "embed_ms": 28000, "ocr_applied": true}
 ```
 
-Key fields for monitoring: `parallel`, `workers`, `total_chunks`, `batch_index`, `total_batches`, `convert_ms`, `embed_ms`, `db_ms`.
+Key fields for monitoring: `parallel`, `workers`, `total_chunks`, `batch_index`, `total_batches`, `convert_ms`, `ocr_ms`, `ocr_images_total`, `ocr_images_failed`, `detected_languages`, `embed_ms`, `db_ms`.
 
 ### Request Logging Middleware
 

@@ -303,25 +303,33 @@ transition: width 0.3s ease;
 
 | Ключ | EN | RU | Диапазон % |
 |------|----|----|:---:|
-| `docs.stage.converting` | Converting to MD | Конвертация в MD | 0%→40% |
+| `docs.stage.converting` | Converting to MD | Конвертация в MD | 0%→25% |
+| `docs.stage.ocr` | OCR (image recognition) | OCR (распознавание изображений) | 25%→40% |
 | `docs.stage.chunking` | Chunking | Разбиение на чанки | 40%→50% |
 | `docs.stage.embedding` | Embedding | Эмбеддинг | 50%→90% |
 | `docs.stage.storing` | Saving to DB | Сохранение в БД | 92% |
+
+Для не-PDF или PDF без изображений: `converting` прыгает с 25% на 40% (этап OCR пропускается).
 
 При `progress_percent > 0` — анимация `pulse-bg` заменяется на реальную ширину бара.
 При `progress_percent === 0` и `status === 'processing'` — индетерминированная анимация.
 
 ### 6.4.1 Debug Timing Bar (DocumentDebugPanel)
 
-Компонент `TimingBar` в debug-панели отображает 5 этапов индексации:
+Компонент `TimingBar` в debug-панели отображает 6 этапов индексации:
 
 | Этап | Цвет | Поле |
 |------|------|------|
-| Read | `#60a5fa` (blue) | `read_ms` |
-| Convert | `#f59e0b` (amber) | `convert_ms` |
-| Parse | `#a78bfa` (violet) | `parse_ms` |
-| Embed | `#34d399` (emerald) | `embed_ms` |
-| DB Write | `#f472b6` (pink) | `db_ms` |
+| Read | `#4dabf7` (blue) | `read_ms` |
+| Convert | `#69db7c` (green) | `convert_ms` |
+| OCR | `#ff6b6b` (red) | `ocr_ms` |
+| Parse | `#ffd43b` (yellow) | `parse_ms` |
+| Embed | `#ff922b` (orange) | `embed_ms` |
+| DB Write | `#da77f2` (purple) | `db_ms` |
+
+**Дополнительные секции debug-панели:**
+- **OCR** (показывается только если `ocr_images_total != null`): Images found, Recognized, Empty result, Failed
+- **File** секция: добавлено поле `detected_language` (показывается если не null)
 
 **Правила отображения:**
 - Минимальная ширина сегмента: `MIN_PCT = 3%` (даже для 0ms этапов)

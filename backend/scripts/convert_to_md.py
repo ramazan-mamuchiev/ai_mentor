@@ -17,7 +17,7 @@ Usage examples:
     python convert_to_md.py spec.yaml proto.proto readme.md
     python convert_to_md.py archive.zip --output-dir ./converted
     python convert_to_md.py docs/ --recursive
-    python convert_to_md.py document.pdf --ocr-mode always --ocr-languages en,ru
+    python convert_to_md.py document.pdf --ocr-languages en,ru
 """
 
 from __future__ import annotations
@@ -65,9 +65,6 @@ def detect_format(file_path: str) -> str:
 def convert_single_file(
     file_path: str,
     output_path: str,
-    *,
-    ocr_mode: str = "auto",
-    ocr_languages: str = "en,ru",
 ) -> bool:
     """Convert one file to Markdown and write the result to *output_path*.
 
@@ -77,7 +74,7 @@ def convert_single_file(
 
     try:
         if fmt == "pdf":
-            text, meta = convert_pdf(file_path, ocr_mode=ocr_mode, ocr_languages=ocr_languages)
+            text, meta = convert_pdf(file_path)
             extra = f"pages={meta.get('pages')}, ocr={meta.get('ocr_applied')}"
         elif fmt == "swagger":
             text, meta = convert_swagger_file(file_path)
@@ -113,9 +110,6 @@ def _output_md_path(source_path: str, output_dir: str | None) -> str:
 def process_archive(
     archive_path: str,
     output_dir: str | None,
-    *,
-    ocr_mode: str = "auto",
-    ocr_languages: str = "en,ru",
 ):
     """Extract an archive and convert every inner file."""
     print(f"\nArchive: {archive_path}")
@@ -156,9 +150,7 @@ def process_archive(
 
         try:
             print(f"  [{arc_name}]")
-            ok = convert_single_file(
-                tmp_path, out_path, ocr_mode=ocr_mode, ocr_languages=ocr_languages,
-            )
+            ok = convert_single_file(tmp_path, out_path)
             _COUNTS["ok" if ok else "error"] += 1
         finally:
             os.unlink(tmp_path)
@@ -169,8 +161,6 @@ def process_path(
     output_dir: str | None,
     *,
     recursive: bool = False,
-    ocr_mode: str = "auto",
-    ocr_languages: str = "en,ru",
 ):
     if os.path.isdir(path):
         if not recursive:
@@ -180,15 +170,12 @@ def process_path(
         for root, _dirs, files in os.walk(path):
             for fname in sorted(files):
                 full = os.path.join(root, fname)
-                process_path(
-                    full, output_dir,
-                    recursive=False, ocr_mode=ocr_mode, ocr_languages=ocr_languages,
-                )
+                process_path(full, output_dir, recursive=False)
         return
 
     ext = _archive_ext(path)
     if ext in SUPPORTED_ARCHIVE_EXTENSIONS:
-        process_archive(path, output_dir, ocr_mode=ocr_mode, ocr_languages=ocr_languages)
+        process_archive(path, output_dir)
         return
 
     file_ext = os.path.splitext(path)[1].lower()
@@ -204,7 +191,7 @@ def process_path(
         return
 
     print(f"\nFile: {path}")
-    ok = convert_single_file(path, out, ocr_mode=ocr_mode, ocr_languages=ocr_languages)
+    ok = convert_single_file(path, out)
     _COUNTS["ok" if ok else "error"] += 1
 
 
@@ -226,14 +213,6 @@ def main():
         "--recursive", "-r", action="store_true",
         help="Recurse into directories",
     )
-    parser.add_argument(
-        "--ocr-mode", default="auto", choices=["auto", "always", "off"],
-        help="OCR mode for PDF files (default: auto)",
-    )
-    parser.add_argument(
-        "--ocr-languages", default="en,ru",
-        help="Comma-separated OCR language codes, e.g. 'en,ru,ch_sim' (default: en,ru)",
-    )
     args = parser.parse_args()
 
     if args.output_dir:
@@ -247,12 +226,7 @@ def main():
             print(f"ERROR: not found: {p}", file=sys.stderr)
             _COUNTS["error"] += 1
             continue
-        process_path(
-            p, args.output_dir,
-            recursive=args.recursive,
-            ocr_mode=args.ocr_mode,
-            ocr_languages=args.ocr_languages,
-        )
+        process_path(p, args.output_dir, recursive=args.recursive)
 
     elapsed = round(time.time() - t0, 1)
     total = _COUNTS["ok"] + _COUNTS["error"] + _COUNTS["skip"]

@@ -47,7 +47,14 @@ CREATE TABLE documents (
     status TEXT NOT NULL DEFAULT 'pending',   -- pending | processing | ready | error
     error_message TEXT,
     progress_percent INT NOT NULL DEFAULT 0,  -- 0-100, real-time ingestion progress
-    progress_stage TEXT NOT NULL DEFAULT '',   -- converting | chunking | embedding | storing | ''
+    progress_stage TEXT NOT NULL DEFAULT '',   -- converting | ocr | chunking | embedding | storing | ''
+    -- OCR metrics (PDF only, NULL for other formats)
+    ocr_ms FLOAT,                             -- OCR processing time
+    ocr_images_total INT,                     -- total images found in MD
+    ocr_images_success INT,                   -- successfully recognized
+    ocr_images_empty INT,                     -- recognition returned empty text
+    ocr_images_failed INT,                    -- recognition error
+    detected_language TEXT,                    -- auto-detected language (e.g. "en,ru")
     ingested_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -365,7 +372,14 @@ CREATE TABLE documents (
     status TEXT NOT NULL DEFAULT 'pending',  -- pending | processing | ready | error
     error_message TEXT,
     progress_percent INT NOT NULL DEFAULT 0,  -- 0-100, real-time ingestion progress
-    progress_stage TEXT NOT NULL DEFAULT '',   -- converting | chunking | embedding | storing | ''
+    progress_stage TEXT NOT NULL DEFAULT '',   -- converting | ocr | chunking | embedding | storing | ''
+    -- OCR metrics (PDF only, NULL for other formats)
+    ocr_ms FLOAT,
+    ocr_images_total INT,
+    ocr_images_success INT,
+    ocr_images_empty INT,
+    ocr_images_failed INT,
+    detected_language TEXT,
     -- Download control
     is_downloadable BOOLEAN NOT NULL DEFAULT TRUE,
     download_policy TEXT NOT NULL DEFAULT 'public', -- public | search_only | pro_only

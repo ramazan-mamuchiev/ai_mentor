@@ -41,7 +41,16 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
        (`ProcessPoolExecutor` not used — Celery workers are daemon processes)
      - Each chunk retried up to 2 times with linear backoff (`MAX_RETRIES=2`)
      - Progress callback reports conversion fraction (0→1) after each chunk completes
-     - **Progress: 0%→40% — "converting"** (incremental for PDF, instant for other formats)
+     - **Progress: 0%→25% — "converting"** (incremental for PDF, instant for other formats)
+
+     **PDF OCR with auto language detection** (pass 2, if images detected):
+     - After text extraction, language detected via Gemini (`generate_content`)
+       using first ~3000 chars of extracted text
+     - Gemini returns ISO 639-1 codes, mapped to EasyOCR codes (e.g. zh→ch_sim)
+     - EasyOCR initialized with detected language(s), CPU-only PyTorch
+     - Each image processed in try/except — failures don't break the pipeline
+     - OCR metrics collected: total/success/empty/failed image counts
+     - **Progress: 25%→40% — "ocr"** (incremental per image)
   3. Unicode normalization (NFKC) on raw text input
      - Collapses fullwidth Latin, ligatures, non-breaking spaces
      - Ensures byte-identical text for deduplication and embedding
@@ -120,13 +129,26 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
 - **Chunk size**: fixed 50-page chunks (`PAGES_PER_CHUNK=50`) for granular progress
 - **Workers**: `ThreadPoolExecutor(max_workers=4)` — uses threads (not processes) because Celery daemon workers cannot spawn child processes
 - **Retry**: each 50-page chunk retried up to 2 times (`MAX_RETRIES=2`) with linear backoff (`time.sleep(attempt)`)
-- **Progress callback**: `progress_callback(completed_chunks / total_chunks)` called after each chunk
+- **Progress callback**: `progress_callback(fraction, stage)` called after each chunk; fraction scaled by `convert_pdf` based on whether OCR will follow
 - Small PDFs (≤10 pages): single `pymupdf4llm.to_markdown()` call with same retry logic
 
-**PDF OCR detection:**
-- First attempt text extraction (PyMuPDF)
-- If extracted text < 100 chars per page → auto-switch to OCR pipeline
-- Billable units upgraded from 2 to 5, client notified in job status
+**PDF OCR pipeline** (two-pass, `converters/pdf.py`):
+- **Pass 1**: `pymupdf4llm.to_markdown()` — text layer extraction (parallel for >10 pages)
+- **Language detection**: Gemini `generate_content` on first ~3000 chars of extracted MD text
+  - Model: `gemini-2.5-flash` (configurable via `ocr_lang_detect_model`)
+  - Returns ISO 639-1 codes, mapped to EasyOCR codes (`_LANG_MAP`: zh→ch_sim, zh-tw→ch_tra, etc.)
+  - Fallback: `["en"]` on any error (no Gemini API key, API failure, empty text)
+  - Detected language saved to `documents.detected_language`
+- **Pass 2**: `_enrich_markdown_with_ocr()` — OCR images with auto-detected language
+  - EasyOCR initialized with detected language(s), CPU-only PyTorch
+  - Each image processed in try/except — failures logged but don't break the pipeline
+  - Images below `_OCR_IMAGE_MIN_AREA` (100K pixels) skipped
+  - Progress callback: `ocr_progress_callback(processed / total_images)`
+- **OCR metrics** saved to `documents` table:
+  - `ocr_ms` — total OCR time
+  - `ocr_images_total` / `ocr_images_success` / `ocr_images_empty` / `ocr_images_failed`
+- **Dependencies**: `torch` (CPU-only), `torchvision`, `easyocr>=1.7.0`
+- **Dockerfile**: `libgl1-mesa-glx`, `libglib2.0-0` added for OpenCV (EasyOCR dependency)
 
 **Ingestion progress tracking** (`pipeline.py` → `documents` table):
 - `progress_percent` (INT, 0–100) and `progress_stage` (TEXT) persisted to DB after each stage
@@ -135,15 +157,19 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
 
 | Stage | Percent Range | Description |
 |-------|:---:|---|
-| `converting` | 0%→40% | Format conversion (PDF: incremental per chunk, others: instant) |
+| `converting` | 0%→25% (with OCR) or 0%→40% (no OCR) | Format conversion (PDF: incremental per chunk, others: instant to 40%) |
+| `ocr` | 25%→40% | OCR image recognition (PDF only, if images detected; includes language detection) |
 | `chunking` | 40%→50% | Parse → section split → chunk → merge |
 | `embedding` | 50%→90% | Gemini API batches (100 texts/batch), incremental per batch |
 | `storing` | 92% | INSERT chunks + UPDATE document in PostgreSQL |
 | *(complete)* | 100% | `status='ready'`, `progress_stage=''` |
 
+- For non-PDF or PDF without images: `converting` jumps from 25% to 40% (no OCR stage)
 - On error: `progress_percent=0`, `progress_stage=''`, `status='error'`
 - UI: `StatusBadge` component shows animated progress bar + localized stage label
-- Debug panel: `TimingBar` shows all 5 timing stages (Read, Convert, Parse, Embed, DB Write) with `MIN_PCT=3` minimum width even for 0ms stages
+- Debug panel: `TimingBar` shows all 6 timing stages (Read, Convert, **OCR**, Parse, Embed, DB Write) with `MIN_PCT=3` minimum width even for 0ms stages
+- Debug panel: separate **OCR section** shows image metrics (total/success/empty/failed) when `ocr_images_total` is not null
+- Debug panel: **detected_language** shown in File section
 
 ---
 

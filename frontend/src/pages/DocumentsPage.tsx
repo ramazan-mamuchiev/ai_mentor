@@ -389,7 +389,15 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
       id: 'format',
       accessorKey: 'format',
       header: () => t('docs.table.format'),
-      cell: ({ getValue }) => <span className="docs-format">{String(getValue())}</span>,
+      cell: ({ getValue, row }) => {
+        const lang = row.original.detected_language
+        return (
+          <span className="docs-format">
+            {String(getValue())}
+            {lang && <span className="docs-lang-badge" title={lang}>{lang}</span>}
+          </span>
+        )
+      },
       enableGrouping: true,
     },
     {
@@ -778,7 +786,10 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
                 <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} />
               </div>
               <div className="docs-card-meta">
-                <span><span className="docs-format">{doc.format}</span></span>
+                <span>
+                  <span className="docs-format">{doc.format}</span>
+                  {doc.detected_language && <span className="docs-lang-badge" title={doc.detected_language}>{doc.detected_language}</span>}
+                </span>
                 <span>{formatBytes(doc.file_size_bytes)}</span>
                 {doc.product_name && <span>{doc.product_name}</span>}
                 <span>{formatDateTime(doc.uploaded_at)}</span>
