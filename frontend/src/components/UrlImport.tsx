@@ -2,20 +2,23 @@ import { useCallback, useState } from 'react'
 import { Globe, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ingestUrl } from '../api/documents'
+import type { ProductContext } from './FileUpload'
 
 interface UrlImportProps {
   onComplete?: () => void
   onClose?: () => void
+  productContext?: ProductContext
 }
 
 type ImportStatus = 'idle' | 'submitting' | 'completed' | 'error'
 
-export function UrlImport({ onComplete, onClose }: UrlImportProps) {
+export function UrlImport({ onComplete, onClose, productContext }: UrlImportProps) {
   const { t } = useTranslation()
   const [url, setUrl] = useState('')
-  const [productName, setProductName] = useState('')
+  const [productName, setProductName] = useState(productContext?.name ?? '')
   const [firmwareVersion, setFirmwareVersion] = useState('1.0')
-  const [manufacturer, setManufacturer] = useState('')
+  const [manufacturer, setManufacturer] = useState(productContext?.manufacturer ?? '')
+  const hasProductContext = !!productContext?.name
   const [status, setStatus] = useState<ImportStatus>('idle')
   const [error, setError] = useState('')
   const [resultMessage, setResultMessage] = useState('')
@@ -101,6 +104,8 @@ export function UrlImport({ onComplete, onClose }: UrlImportProps) {
                   value={productName}
                   onChange={e => setProductName(e.target.value)}
                   placeholder={t('upload.productPlaceholder')}
+                  readOnly={hasProductContext}
+                  className={hasProductContext ? 'input-readonly' : ''}
                 />
               </label>
 
@@ -121,6 +126,8 @@ export function UrlImport({ onComplete, onClose }: UrlImportProps) {
                     value={manufacturer}
                     onChange={e => setManufacturer(e.target.value)}
                     placeholder={t('upload.manufacturerPlaceholder')}
+                    readOnly={hasProductContext && !!productContext?.manufacturer}
+                    className={hasProductContext && !!productContext?.manufacturer ? 'input-readonly' : ''}
                   />
                 </label>
               </div>

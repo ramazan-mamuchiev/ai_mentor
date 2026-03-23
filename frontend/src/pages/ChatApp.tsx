@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { createSession, deleteSession, getSession, listSessions } from '../api/chat'
 import { ChatWindow } from '../components/ChatWindow'
-import { FileUpload } from '../components/FileUpload'
+import { FileUpload, type ProductContext } from '../components/FileUpload'
 import { UrlImport } from '../components/UrlImport'
 import { Layout } from '../components/Layout'
 import { useChat } from '../hooks/useChat'
@@ -23,6 +23,7 @@ export function ChatApp() {
   const [showUpload, setShowUpload] = useState(false)
   const [showUrlImport, setShowUrlImport] = useState(false)
   const [docsRefreshKey, setDocsRefreshKey] = useState(0)
+  const productContextRef = useRef<ProductContext | undefined>(undefined)
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -127,9 +128,14 @@ export function ChatApp() {
     >
       <Routes>
         <Route index element={chatContent} />
-        <Route path="documents" element={<DocumentsPage onUploadClick={() => setShowUpload(true)} onUrlImportClick={() => setShowUrlImport(true)} refreshKey={docsRefreshKey} />} />
-        <Route path="products" element={<ProductsPage onUploadClick={() => setShowUpload(true)} onUrlImportClick={() => setShowUrlImport(true)} />} />
-        <Route path="products/:manufacturer/:product" element={<ProductDetailPage onUploadClick={() => setShowUpload(true)} onUrlImportClick={() => setShowUrlImport(true)} />} />
+        <Route path="documents" element={<DocumentsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
+        <Route path="products" element={<ProductsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} />} />
+        <Route path="products/:manufacturer/:product" element={
+          <ProductDetailPage
+            onUploadClick={(ctx) => { productContextRef.current = ctx; setShowUpload(true) }}
+            onUrlImportClick={(ctx) => { productContextRef.current = ctx; setShowUrlImport(true) }}
+          />
+        } />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
@@ -141,6 +147,7 @@ export function ChatApp() {
             setShowUpload(false)
             setDocsRefreshKey(k => k + 1)
           }}
+          productContext={productContextRef.current}
         />
       )}
       {showUrlImport && (
@@ -150,6 +157,7 @@ export function ChatApp() {
             setShowUrlImport(false)
             setDocsRefreshKey(k => k + 1)
           }}
+          productContext={productContextRef.current}
         />
       )}
     </Layout>

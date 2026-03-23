@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { getProduct } from '../api/products'
 import { DocumentsPage } from './DocumentsPage'
 import type { ProductDetail } from '../types'
+import type { ProductContext } from '../components/FileUpload'
 
-export function ProductDetailPage({ onUploadClick, onUrlImportClick }: { onUploadClick: () => void; onUrlImportClick?: () => void }) {
+interface ProductDetailPageProps {
+  onUploadClick: (ctx?: ProductContext) => void
+  onUrlImportClick?: (ctx?: ProductContext) => void
+}
+
+export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDetailPageProps) {
   const { t } = useTranslation()
   const { manufacturer, product: productSlug } = useParams<{ manufacturer: string; product: string }>()
   const navigate = useNavigate()
@@ -32,6 +38,19 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: { onUploa
     )
   }
 
+  const productCtx = useMemo<ProductContext | undefined>(() =>
+    product ? { name: product.name, manufacturer: product.manufacturer || undefined } : undefined,
+    [product?.name, product?.manufacturer],
+  )
+
+  const handleUploadClick = useCallback(() => {
+    onUploadClick(productCtx)
+  }, [onUploadClick, productCtx])
+
+  const handleUrlImportClick = useCallback(() => {
+    onUrlImportClick?.(productCtx)
+  }, [onUrlImportClick, productCtx])
+
   if (!product) return null
 
   return (
@@ -53,7 +72,7 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: { onUploa
           </div>
         )}
       </div>
-      <DocumentsPage onUploadClick={onUploadClick} onUrlImportClick={onUrlImportClick} productId={product.id} />
+      <DocumentsPage onUploadClick={handleUploadClick} onUrlImportClick={handleUrlImportClick} productId={product.id} />
     </div>
   )
 }

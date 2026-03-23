@@ -3,9 +3,15 @@ import { Upload as UploadIcon, X, Pause, Play, CheckCircle, AlertCircle, FileTex
 import { useTranslation } from 'react-i18next'
 import * as tus from 'tus-js-client'
 
+export interface ProductContext {
+  name: string
+  manufacturer?: string
+}
+
 interface FileUploadProps {
   onComplete?: (documentId: number, filename: string) => void
   onClose?: () => void
+  productContext?: ProductContext
 }
 
 interface UploadState {
@@ -20,7 +26,7 @@ interface UploadState {
 
 const CHUNK_SIZE = 10 * 1024 * 1024 // 10 MB
 
-export function FileUpload({ onComplete, onClose }: FileUploadProps) {
+export function FileUpload({ onComplete, onClose, productContext }: FileUploadProps) {
   const { t } = useTranslation()
   const [state, setState] = useState<UploadState>({
     file: null,
@@ -31,9 +37,10 @@ export function FileUpload({ onComplete, onClose }: FileUploadProps) {
     documentId: null,
     uploadInstance: null,
   })
-  const [productName, setProductName] = useState('')
+  const [productName, setProductName] = useState(productContext?.name ?? '')
   const [firmwareVersion, setFirmwareVersion] = useState('1.0')
-  const [manufacturer, setManufacturer] = useState('')
+  const [manufacturer, setManufacturer] = useState(productContext?.manufacturer ?? '')
+  const hasProductContext = !!productContext?.name
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const startTimeRef = useRef<number>(0)
@@ -227,7 +234,9 @@ export function FileUpload({ onComplete, onClose }: FileUploadProps) {
                   value={productName}
                   onChange={e => setProductName(e.target.value)}
                   placeholder={t('upload.productPlaceholder')}
-                  autoFocus
+                  readOnly={hasProductContext}
+                  className={hasProductContext ? 'input-readonly' : ''}
+                  autoFocus={!hasProductContext}
                 />
               </label>
               <div className="file-upload-row">
@@ -238,6 +247,7 @@ export function FileUpload({ onComplete, onClose }: FileUploadProps) {
                     value={firmwareVersion}
                     onChange={e => setFirmwareVersion(e.target.value)}
                     placeholder={t('upload.versionPlaceholder')}
+                    autoFocus={hasProductContext}
                   />
                 </label>
                 <label>
@@ -247,6 +257,8 @@ export function FileUpload({ onComplete, onClose }: FileUploadProps) {
                     value={manufacturer}
                     onChange={e => setManufacturer(e.target.value)}
                     placeholder={t('upload.manufacturerPlaceholder')}
+                    readOnly={hasProductContext && !!productContext?.manufacturer}
+                    className={hasProductContext && !!productContext?.manufacturer ? 'input-readonly' : ''}
                   />
                 </label>
               </div>
