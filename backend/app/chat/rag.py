@@ -4,6 +4,7 @@ import hashlib
 import logging
 import re
 import time
+from pathlib import Path
 
 import httpx
 from sqlalchemy import text
@@ -15,6 +16,29 @@ from app.models import ChatMessage
 from app.search.service import search_documents
 
 logger = logging.getLogger(__name__)
+
+_PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+QUERY_TYPES = ("overview", "technical", "code", "comparison", "troubleshooting", "chitchat")
+
+
+def _load_prompt_file(name: str) -> str:
+    path = _PROMPTS_DIR / f"{name}.md"
+    if path.exists():
+        return path.read_text(encoding="utf-8").strip()
+    logger.warning("Prompt file not found: %s", path)
+    return ""
+
+
+_BASE_PROMPT = _load_prompt_file("base")
+_TYPE_PROMPTS: dict[str, str] = {qt: _load_prompt_file(qt) for qt in QUERY_TYPES}
+
+
+def _build_system_prompt(query_type: str) -> str:
+    type_block = _TYPE_PROMPTS.get(query_type, "")
+    if type_block:
+        return f"{_BASE_PROMPT}\n\n{type_block}"
+    return _BASE_PROMPT
 
 
 def _embedding_model_name() -> str:
@@ -39,45 +63,77 @@ The knowledge base is currently EMPTY — no documentation has been uploaded yet
 - Keep the response concise and helpful.
 </instructions>"""
 
-SYSTEM_PROMPT = """\
-<role>
-You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.
-You are a strictly grounded assistant limited to the information provided in the Documentation Context.
-</role>
+_CLASSIFY_PROMPT = """\
+Classify the user question into exactly ONE category. Return ONLY the category name, nothing else.
 
-<constraints>
-1. In your answers, rely ONLY on the facts directly mentioned in the Documentation Context.
-2. You must NOT access or utilize your own knowledge for FACTS (endpoints, parameters, URLs, protocols). You MAY use general programming knowledge to write code examples that use the APIs described in the context.
-3. Do not assume or infer beyond the provided facts. You may synthesize and summarize information from multiple sources.
-4. Treat the provided context as the absolute limit of truth for API details; any endpoints, parameters, or URLs not in the context must be considered unsupported.
-5. If the context contains NO relevant information at all, say so briefly in the user's language.
-6. CRITICAL: Do NOT say "I don't have information" or "no information available" if the sources contain text about the topic. You MUST read ALL source chunks before concluding. If even ONE chunk mentions the topic, product, or subject — use it.
-7. When the user asks about a product and the sources contain ANY documentation related to that product (specifications, requirements, architecture, API descriptions, task descriptions, etc.), you MUST summarize the available information. Do NOT dismiss it just because it is not a "product description" — any related documentation is relevant.
-8. NEVER mix up different systems. If asked about system A, do NOT use docs from system B.
-9. NEVER fabricate API endpoints, parameters, or URLs not in the context. You MAY generate code examples in any programming language using the API details from the context.
-10. NEVER guess API details by analogy with other systems.
-</constraints>
+Categories:
+- overview: general question about a product, system, or technology ("what is X", "tell me about X", "describe X", "расскажи про X")
+- technical: specific API/protocol/configuration question ("how to get cameras list", "what endpoint for events", "какой формат ответа")
+- code: request to write or generate code ("write Python example", "show curl command", "напиши пример на Go")
+- comparison: comparing products, versions, or features ("difference between v1 and v2", "чем отличается X от Y")
+- troubleshooting: error, problem, or debugging question ("why 403 error", "connection refused", "не работает авторизация")
+- chitchat: greeting, off-topic, or meta-question ("hello", "what can you do", "привет")
 
-<instructions>
-- CRITICAL: ALWAYS respond in the same language as the user's question. If the user writes in Russian, your ENTIRE response must be in Russian. If in English — respond in English.
-- For overview/general questions, provide a comprehensive summary covering all relevant information from the sources.
-- For specific technical questions, be concise and direct.
-- Do NOT cite source references in the text (no "[Document, Source N]" or similar). The UI already shows sources separately.
-- Use markdown: `##` headers, code blocks with language tags, tables, **bold** for key terms.
-- Parameter tables: ALWAYS use GFM syntax with separator row (`|---|---|`).
-- For proto/gRPC: show the proto definition in a code block, then a table with fields and descriptions.
-- IMPORTANT: When the user asks for a code example in ANY programming language (Go, Python, Java, C#, curl, etc.), you MUST generate it. Use the API details (endpoints, methods, parameters, JSON structures) from the context as the basis. Apply your general programming knowledge for language syntax, HTTP clients, and boilerplate. If no language is specified, use Python or curl.
-- Code examples must use real endpoints and parameters from the documentation — never invent API details, but DO write the surrounding code.
-</instructions>
+Question: {query}
+Category:"""
 
-<output_format>
-- Verbosity: Medium. Be informative but avoid filler text.
-- Structure: Overview → Key methods/parameters → Code example → Notes.
-- If the context contains relevant information, give it directly without preamble.
-- Only say "no information" if NONE of the source chunks relate to the question at all. If sources are about the same product/topic, summarize what IS available.
-- Avoid unnecessary repetition — do not duplicate the same table, code block, or section.
-- For overview/general questions, end your answer with a short summary section (2-3 sentences) that highlights the key takeaways. The section header must be in the same language as the rest of the answer.
-</output_format>"""
+
+async def _classify_query(query: str) -> tuple[str, dict]:
+    """Classify user query into a query type using a lightweight LLM call.
+
+    Returns (query_type, usage_meta) where usage_meta contains token counts.
+    """
+    if not settings.classifier_enabled:
+        return "overview", {}
+
+    prompt = _CLASSIFY_PROMPT.format(query=query)
+    messages = [{"role": "user", "content": prompt}]
+
+    try:
+        t0 = time.perf_counter()
+        url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+        payload = {
+            "model": settings.classifier_model,
+            "messages": messages,
+            "temperature": 0,
+            "max_tokens": 20,
+            "reasoning_effort": "none",
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {settings.gemini_api_key}",
+        }
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+
+        classify_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        raw = data["choices"][0]["message"]["content"].strip().lower()
+        usage = data.get("usage", {})
+
+        query_type = raw if raw in QUERY_TYPES else "overview"
+
+        meta = {
+            "classify_model": settings.classifier_model,
+            "classify_ms": classify_ms,
+            "classify_prompt_tokens": usage.get("prompt_tokens", 0),
+            "classify_completion_tokens": usage.get("completion_tokens", 0),
+            "classify_total_tokens": usage.get("total_tokens", 0),
+            "query_type": query_type,
+            "classify_raw": raw,
+        }
+
+        logger.info(
+            "Query classified",
+            extra={"query": query[:100], "query_type": query_type, "raw": raw, "ms": classify_ms},
+        )
+        return query_type, meta
+
+    except Exception:
+        logger.warning("Query classification failed, defaulting to overview", exc_info=True)
+        return "overview", {"query_type": "overview", "classify_model": settings.classifier_model}
 
 
 async def _has_any_documents(db: AsyncSession) -> bool:

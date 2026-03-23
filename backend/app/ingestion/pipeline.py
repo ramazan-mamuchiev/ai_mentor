@@ -589,15 +589,38 @@ async def ingest_url(
         return {"status": "error", "error": str(e), "document_id": doc.id}
 
 
+class _ProgressThrottle:
+    """Throttle DB commits for progress updates to at most once per second."""
+    __slots__ = ("_last_commit", "_last_stage")
+
+    def __init__(self) -> None:
+        self._last_commit = 0.0
+        self._last_stage = ""
+
+    def should_commit(self, stage: str) -> bool:
+        now = time.perf_counter()
+        if stage != self._last_stage or (now - self._last_commit) >= 1.0:
+            self._last_commit = now
+            self._last_stage = stage
+            return True
+        return False
+
+_progress_throttle = _ProgressThrottle()
+
 def _update_progress(session, document: "Document", percent: int, stage: str) -> None:
-    """Persist ingestion progress so the UI can poll it."""
+    """Persist ingestion progress so the UI can poll it.
+
+    Throttled to commit at most once per second, unless the stage changes.
+    """
     document.progress_percent = percent
     document.progress_stage = stage
-    session.commit()
+    if _progress_throttle.should_commit(stage):
+        session.commit()
 
 
 def _check_cancelled(session, document: "Document") -> None:
     """Re-read document status from DB; raise IngestionCancelled if cancelled."""
+    session.commit()
     session.expire(document, ["status"])
     session.refresh(document, ["status"])
     if document.status == "cancelled":

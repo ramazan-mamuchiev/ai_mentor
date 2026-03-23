@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 PARALLEL_THRESHOLD = 10
 MAX_PDF_WORKERS = 4
 MAX_RETRIES = 2
-PAGES_PER_CHUNK = 10
+PAGES_PER_CHUNK = 2
 
 _OCR_IMAGE_MIN_AREA = 100_000
 _IMG_REF_RE = re.compile(r"!\[([^\]]*)\]\(((?:[^()]*|\([^()]*\))*)\)")
@@ -340,9 +340,11 @@ def convert_pdf(
         },
     )
 
+    page_ranges = _split_page_ranges(page_count, pages_per_chunk=PAGES_PER_CHUNK)
+    total_ranges = len(page_ranges)
+
     if page_count > PARALLEL_THRESHOLD:
         num_workers = min(MAX_PDF_WORKERS, page_count)
-        page_ranges = _split_page_ranges(page_count)
         results: dict[int, str] = {}
         completed_count = 0
 
@@ -350,7 +352,7 @@ def convert_pdf(
             "Parallel PDF conversion",
             extra={
                 "workers": num_workers,
-                "total_chunks": len(page_ranges),
+                "total_chunks": total_ranges,
                 "pages_per_chunk": PAGES_PER_CHUNK,
             },
         )
@@ -365,11 +367,10 @@ def convert_pdf(
                 results[idx] = future.result()
                 completed_count += 1
                 if _convert_cb is not None:
-                    _convert_cb(completed_count / len(page_ranges))
+                    _convert_cb(completed_count / total_ranges)
 
-        md_text = "\n\n".join(results[i] for i in range(len(page_ranges)))
+        md_text = "\n\n".join(results[i] for i in range(total_ranges))
     else:
-        page_ranges = _split_page_ranges(page_count, pages_per_chunk=1)
         page_results: dict[int, str] = {}
         for idx, pr in enumerate(page_ranges):
             for attempt in range(1, MAX_RETRIES + 2):
@@ -385,9 +386,9 @@ def convert_pdf(
                     )
                     time.sleep(attempt)
             if _convert_cb is not None:
-                _convert_cb((idx + 1) / len(page_ranges))
+                _convert_cb((idx + 1) / total_ranges)
 
-        md_text = "\n\n".join(page_results[i] for i in range(len(page_ranges)))
+        md_text = "\n\n".join(page_results[i] for i in range(total_ranges))
 
     convert_ms = round((time.perf_counter() - t0) * 1000, 1)
 

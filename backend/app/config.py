@@ -46,6 +46,9 @@ class Settings(BaseSettings):
 
     llm_reasoning_effort: str = "none"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 
+    classifier_enabled: bool = True
+    classifier_model: str = "gemini-2.0-flash"
+
     rag_top_k: int = 10
     rag_min_similarity: float = 0.35
     rag_history_messages: int = 6
