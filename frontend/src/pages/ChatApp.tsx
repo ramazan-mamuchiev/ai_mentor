@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { createSession, deleteSession, getSession, listSessions } from '../api/chat'
 import { ChatWindow } from '../components/ChatWindow'
 import { FileUpload } from '../components/FileUpload'
+import { UrlImport } from '../components/UrlImport'
 import { Layout } from '../components/Layout'
 import { useChat } from '../hooks/useChat'
 import { useTheme } from '../hooks/useTheme'
@@ -20,6 +21,7 @@ export function ChatApp() {
   const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast } = useChat()
 
   const [showUpload, setShowUpload] = useState(false)
+  const [showUrlImport, setShowUrlImport] = useState(false)
   const [docsRefreshKey, setDocsRefreshKey] = useState(0)
 
   const refreshSessions = useCallback(async () => {
@@ -125,9 +127,9 @@ export function ChatApp() {
     >
       <Routes>
         <Route index element={chatContent} />
-        <Route path="documents" element={<DocumentsPage onUploadClick={() => setShowUpload(true)} refreshKey={docsRefreshKey} />} />
-        <Route path="products" element={<ProductsPage onUploadClick={() => setShowUpload(true)} />} />
-        <Route path="products/:manufacturer/:product" element={<ProductDetailPage onUploadClick={() => setShowUpload(true)} />} />
+        <Route path="documents" element={<DocumentsPage onUploadClick={() => setShowUpload(true)} onUrlImportClick={() => setShowUrlImport(true)} refreshKey={docsRefreshKey} />} />
+        <Route path="products" element={<ProductsPage onUploadClick={() => setShowUpload(true)} onUrlImportClick={() => setShowUrlImport(true)} />} />
+        <Route path="products/:manufacturer/:product" element={<ProductDetailPage onUploadClick={() => setShowUpload(true)} onUrlImportClick={() => setShowUrlImport(true)} />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
@@ -137,6 +139,15 @@ export function ChatApp() {
           onClose={() => setShowUpload(false)}
           onComplete={() => {
             setShowUpload(false)
+            setDocsRefreshKey(k => k + 1)
+          }}
+        />
+      )}
+      {showUrlImport && (
+        <UrlImport
+          onClose={() => setShowUrlImport(false)}
+          onComplete={() => {
+            setShowUrlImport(false)
             setDocsRefreshKey(k => k + 1)
           }}
         />

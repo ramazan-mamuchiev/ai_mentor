@@ -18,6 +18,8 @@ from app.documents.schemas import (
     DocumentListItem,
     DocumentStatus,
     IngestResponse,
+    UrlIngestRequest,
+    UrlIngestResponse,
 )
 from app.models import Chunk, Product, Document, FirmwareVersion
 from app.s3 import delete_file, generate_presigned_url, s3_key_for_document, upload_file
@@ -160,6 +162,75 @@ async def ingest_document(
             message="Document uploaded and queued for processing",
             task_id=task.id,
         )
+
+
+@router.post("/ingest-url", response_model=UrlIngestResponse)
+async def ingest_url(request: Request, body: UrlIngestRequest):
+    """Import documentation from a web URL.
+
+    Supports Confluence page trees (auto-detected by URL pattern) and
+    single web pages. For Confluence, recursively crawls all child pages
+    and ingests each as a separate document.
+
+    Processing runs in background via Celery.
+    """
+    from app.ingestion.converters.confluence import parse_confluence_url
+
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+
+    logger.info("URL ingest request received", extra={
+        "url": url,
+        "product_name": body.product_name,
+        "client_ip": client_ip,
+    })
+
+    is_confluence = False
+    try:
+        parse_confluence_url(url)
+        is_confluence = True
+    except ValueError:
+        pass
+
+    if is_confluence:
+        from app.celery_app import ingest_confluence_task
+        task = ingest_confluence_task.delay(
+            url=url,
+            product_name=body.product_name,
+            firmware_version=body.firmware_version,
+            manufacturer=body.manufacturer,
+        )
+        logger.info("Confluence crawl task queued", extra={
+            "url": url, "task_id": task.id, "client_ip": client_ip,
+        })
+        return UrlIngestResponse(
+            status="pending",
+            message="Confluence documentation crawl queued for processing",
+            url=url,
+            product_name=body.product_name,
+            task_id=task.id,
+        )
+
+    from app.celery_app import ingest_single_url_task
+    task = ingest_single_url_task.delay(
+        url=url,
+        product_name=body.product_name,
+        firmware_version=body.firmware_version,
+        manufacturer=body.manufacturer,
+    )
+    logger.info("Single URL ingest task queued", extra={
+        "url": url, "task_id": task.id, "client_ip": client_ip,
+    })
+    return UrlIngestResponse(
+        status="pending",
+        message="Web page queued for processing",
+        url=url,
+        product_name=body.product_name,
+        task_id=task.id,
+    )
 
 
 from app.documents.archive import (

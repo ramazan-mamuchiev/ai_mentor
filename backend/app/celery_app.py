@@ -573,6 +573,385 @@ def ingest_archive_from_s3_task(
         }
 
 
+@celery.task(name="ingest_single_url", bind=True, max_retries=2, default_retry_delay=30)
+def ingest_single_url_task(
+    self,
+    url: str,
+    product_name: str,
+    firmware_version: str = "1.0",
+    manufacturer: str = "",
+):
+    """Background task: fetch a single web page, convert to Markdown, and ingest."""
+    import asyncio
+    from app.models import Document, Product, FirmwareVersion, Chunk
+    from app.ingestion.converters.web import convert_url
+    from app.ingestion.pipeline import (
+        enrich_for_embedding, _replace_generic_headings,
+    )
+    from app.ingestion.parsers.markdown import parse_markdown
+    from app.ingestion.chunker import chunk_sections
+    from app.ingestion.embedder import embed_texts
+    from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
+    from app.config import settings as _settings
+    from app.slugify import slugify
+    from datetime import datetime, timezone
+
+    t0 = time.perf_counter()
+    logger.info("Celery ingest_single_url_task started", extra={
+        "url": url, "product_name": product_name, "task_id": self.request.id,
+    })
+
+    try:
+        try:
+            loop = asyncio.get_event_loop()
+            text, convert_metadata = loop.run_until_complete(convert_url(url))
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                text, convert_metadata = loop.run_until_complete(convert_url(url))
+            finally:
+                loop.close()
+    except Exception as exc:
+        logger.error("URL conversion failed", extra={
+            "url": url, "error_type": type(exc).__name__,
+        }, exc_info=True)
+        raise self.retry(exc=exc)
+
+    if not text or not text.strip():
+        logger.error("URL conversion produced empty content", extra={"url": url})
+        return {"status": "error", "error": "Empty content", "url": url}
+
+    source_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        existing = session.execute(
+            sa_select(Document).where(Document.source_hash == source_hash).limit(1)
+        ).scalar_one_or_none()
+        if existing is not None:
+            logger.info("URL content already ingested", extra={
+                "url": url, "existing_id": existing.id,
+            })
+            return {"status": "skipped", "document_id": existing.id, "url": url}
+
+        product_row = session.execute(
+            sa_select(Product).where(Product.name == product_name)
+        ).scalar_one_or_none()
+        if product_row is None:
+            product_row = Product(
+                name=product_name,
+                manufacturer=manufacturer,
+                slug=slugify(product_name),
+                manufacturer_slug=slugify(manufacturer) if manufacturer else "default",
+            )
+            session.add(product_row)
+            session.flush()
+
+        fw_row = session.execute(
+            sa_select(FirmwareVersion).where(
+                FirmwareVersion.product_id == product_row.id,
+                FirmwareVersion.version == firmware_version,
+            )
+        ).scalar_one_or_none()
+        if fw_row is None:
+            fw_row = FirmwareVersion(product_id=product_row.id, version=firmware_version)
+            session.add(fw_row)
+            session.flush()
+
+        page_title = convert_metadata.get("page_title") or convert_metadata.get("api_title") or url
+        doc = Document(
+            product_id=product_row.id,
+            firmware_version_id=fw_row.id,
+            format="url",
+            original_filename=f"{page_title[:100]}.md",
+            file_size_bytes=len(text.encode("utf-8")),
+            title=page_title,
+            status="processing",
+            source_hash=source_hash,
+            source_container=url,
+            source_path=url,
+        )
+        session.add(doc)
+        session.flush()
+
+        try:
+            t_parse = time.perf_counter()
+            sections = parse_markdown(text)
+            _replace_generic_headings(sections, page_title)
+            chunks = chunk_sections(sections)
+            parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
+
+            if not chunks:
+                doc.status = "error"
+                doc.error_message = "No content extracted"
+                session.commit()
+                return {"status": "error", "error": "No content extracted", "url": url}
+
+            t_embed = time.perf_counter()
+            enriched = enrich_for_embedding(chunks)
+            embeddings = embed_texts(enriched)
+            embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
+
+            t_db = time.perf_counter()
+            for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+                db_chunk = Chunk(
+                    document_id=doc.id,
+                    chunk_index=i,
+                    heading_path=chunk_data.heading_path,
+                    heading_level=chunk_data.heading_level,
+                    content=chunk_data.content,
+                    content_clean=_clean_md(chunk_data.content),
+                    parent_content=chunk_data.parent_content,
+                    token_count=chunk_data.token_count,
+                    embedding=embedding,
+                )
+                session.add(db_chunk)
+
+            doc.total_chunks = len(chunks)
+            doc.status = "ready"
+            doc.indexed_at = datetime.now(timezone.utc)
+
+            token_counts = [c.token_count for c in chunks]
+            doc.total_tokens = sum(token_counts)
+            doc.min_chunk_tokens = min(token_counts)
+            doc.max_chunk_tokens = max(token_counts)
+            doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
+            doc.embedding_tokens = sum(token_counts)
+
+            db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+            duration = time.perf_counter() - t0
+            doc.ingest_duration_ms = round(duration * 1000, 1)
+            doc.convert_ms = convert_metadata.get("total_ms", 0.0)
+            doc.parse_ms = parse_ms
+            doc.embed_ms = embed_ms
+            doc.db_ms = db_ms
+            doc.embedding_model = _settings.embedding_model_gemini
+            doc.embedding_dims = _settings.embedding_dims
+
+            session.commit()
+
+            logger.info("Single URL ingestion completed", extra={
+                "url": url, "document_id": doc.id,
+                "chunks": len(chunks), "duration_ms": round(duration * 1000, 1),
+            })
+            return {
+                "status": "ok",
+                "document_id": doc.id,
+                "url": url,
+                "chunks": len(chunks),
+                "duration_ms": round(duration * 1000, 1),
+            }
+
+        except Exception as exc:
+            doc.status = "error"
+            doc.error_message = str(exc)[:2000]
+            session.commit()
+            logger.error("Single URL ingestion failed", extra={
+                "url": url, "document_id": doc.id,
+                "error_type": type(exc).__name__,
+            }, exc_info=True)
+            return {"status": "error", "error": str(exc), "url": url}
+
+
+@celery.task(name="ingest_confluence", bind=True, max_retries=1, default_retry_delay=60)
+def ingest_confluence_task(
+    self,
+    url: str,
+    product_name: str,
+    firmware_version: str = "1.0",
+    manufacturer: str = "",
+):
+    """Background task: crawl Confluence page tree and ingest each page as a Document."""
+    import asyncio
+    from app.models import Document, Product, FirmwareVersion, Chunk
+    from app.ingestion.converters.confluence import crawl_confluence
+    from app.ingestion.pipeline import (
+        ingest_from_bytes, _update_progress, enrich_for_embedding,
+        _text_hash, _replace_generic_headings,
+    )
+    from app.ingestion.parsers.markdown import parse_markdown
+    from app.ingestion.chunker import chunk_sections
+    from app.ingestion.embedder import embed_texts
+    from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
+    from app.config import settings as _settings
+    from app.slugify import slugify
+    from datetime import datetime, timezone
+
+    t0 = time.perf_counter()
+    logger.info("Celery ingest_confluence_task started", extra={
+        "url": url, "product_name": product_name, "task_id": self.request.id,
+    })
+
+    engine = _get_sync_engine()
+
+    try:
+        result = asyncio.get_event_loop().run_until_complete(
+            crawl_confluence(url, max_pages=500)
+        )
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                crawl_confluence(url, max_pages=500)
+            )
+        finally:
+            loop.close()
+
+    if not result.pages:
+        logger.error("Confluence crawl returned no pages", extra={"url": url})
+        return {"status": "error", "error": "No pages found", "url": url}
+
+    with Session(engine) as session:
+        product_row = session.execute(
+            sa_select(Product).where(Product.name == product_name)
+        ).scalar_one_or_none()
+        if product_row is None:
+            product_row = Product(
+                name=product_name,
+                manufacturer=manufacturer,
+                slug=slugify(product_name),
+                manufacturer_slug=slugify(manufacturer) if manufacturer else "default",
+            )
+            session.add(product_row)
+            session.flush()
+
+        fw_row = session.execute(
+            sa_select(FirmwareVersion).where(
+                FirmwareVersion.product_id == product_row.id,
+                FirmwareVersion.version == firmware_version,
+            )
+        ).scalar_one_or_none()
+        if fw_row is None:
+            fw_row = FirmwareVersion(product_id=product_row.id, version=firmware_version)
+            session.add(fw_row)
+            session.flush()
+
+        ingested = 0
+        skipped = 0
+        errors = 0
+
+        for page in result.pages:
+            if not page.markdown or not page.markdown.strip():
+                skipped += 1
+                continue
+
+            source_hash = hashlib.sha256(page.markdown.encode("utf-8")).hexdigest()
+
+            existing = session.execute(
+                sa_select(Document).where(
+                    Document.source_hash == source_hash
+                ).limit(1)
+            ).scalar_one_or_none()
+            if existing is not None:
+                skipped += 1
+                continue
+
+            doc = Document(
+                product_id=product_row.id,
+                firmware_version_id=fw_row.id,
+                format="confluence",
+                original_filename=f"{page.title}.md",
+                file_size_bytes=len(page.markdown.encode("utf-8")),
+                title=page.title,
+                status="processing",
+                source_hash=source_hash,
+                source_container=url,
+                source_path=page.url,
+            )
+            session.add(doc)
+            session.flush()
+
+            try:
+                t_parse = time.perf_counter()
+                sections = parse_markdown(page.markdown)
+                _replace_generic_headings(sections, page.title)
+                chunks = chunk_sections(sections)
+                parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
+
+                if not chunks:
+                    doc.status = "error"
+                    doc.error_message = "No content extracted"
+                    session.commit()
+                    errors += 1
+                    continue
+
+                t_embed = time.perf_counter()
+                enriched = enrich_for_embedding(chunks)
+                embeddings = embed_texts(enriched)
+                embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
+
+                t_db = time.perf_counter()
+                for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+                    db_chunk = Chunk(
+                        document_id=doc.id,
+                        chunk_index=i,
+                        heading_path=chunk_data.heading_path,
+                        heading_level=chunk_data.heading_level,
+                        content=chunk_data.content,
+                        content_clean=_clean_md(chunk_data.content),
+                        parent_content=chunk_data.parent_content,
+                        token_count=chunk_data.token_count,
+                        embedding=embedding,
+                    )
+                    session.add(db_chunk)
+
+                doc.total_chunks = len(chunks)
+                doc.status = "ready"
+                doc.indexed_at = datetime.now(timezone.utc)
+
+                token_counts = [c.token_count for c in chunks]
+                doc.total_tokens = sum(token_counts)
+                doc.min_chunk_tokens = min(token_counts)
+                doc.max_chunk_tokens = max(token_counts)
+                doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
+                doc.embedding_tokens = sum(token_counts)
+
+                db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+                doc.parse_ms = parse_ms
+                doc.embed_ms = embed_ms
+                doc.db_ms = db_ms
+                doc.convert_ms = result.crawl_ms / max(result.total_pages, 1)
+                doc.embedding_model = _settings.embedding_model_gemini
+                doc.embedding_dims = _settings.embedding_dims
+
+                session.commit()
+                ingested += 1
+
+                logger.debug("Confluence page ingested", extra={
+                    "page_id": page.page_id, "title": page.title,
+                    "chunks": len(chunks), "document_id": doc.id,
+                })
+
+            except Exception as exc:
+                doc.status = "error"
+                doc.error_message = str(exc)[:2000]
+                session.commit()
+                errors += 1
+                logger.error("Failed to ingest Confluence page", extra={
+                    "page_id": page.page_id, "title": page.title,
+                    "error_type": type(exc).__name__,
+                }, exc_info=True)
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    logger.info("Celery ingest_confluence_task completed", extra={
+        "url": url, "total_pages": result.total_pages,
+        "ingested": ingested, "skipped": skipped, "errors": errors,
+        "duration_ms": duration_ms,
+    })
+    return {
+        "status": "ok",
+        "url": url,
+        "total_pages": result.total_pages,
+        "ingested": ingested,
+        "skipped": skipped,
+        "errors": errors,
+        "crawl_errors": result.errors[:10],
+        "duration_ms": duration_ms,
+    }
+
+
 @celery.task(name="run_reindex_job", bind=True, max_retries=0)
 def run_reindex_job_task(self, job_id: int, document_ids: list[int]):
     """Celery task: orchestrate a reindex job."""

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Upload,
+  Globe,
   Loader2,
   Clock,
   CheckCircle,
@@ -107,11 +108,12 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
 
 interface Props {
   onUploadClick?: () => void
+  onUrlImportClick?: () => void
 }
 
 const DEFAULT_COLUMN_ORDER = ['name', 'documents', 'format', 'status', 'size', 'chunks', 'uploaded', 'indexed', 'actions']
 
-export function ProductsPage({ onUploadClick }: Props) {
+export function ProductsPage({ onUploadClick, onUrlImportClick }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [products, setProducts] = useState<ProductListItem[]>([])
@@ -427,6 +429,12 @@ export function ProductsPage({ onUploadClick }: Props) {
               </button>
             )}
           </div>
+          {onUrlImportClick && (
+            <button className="docs-upload-btn docs-upload-btn--secondary" onClick={onUrlImportClick}>
+              <Globe size={16} />
+              <span>{t('urlImport.button')}</span>
+            </button>
+          )}
           {onUploadClick && (
             <button className="docs-upload-btn" onClick={onUploadClick}>
               <Upload size={16} />

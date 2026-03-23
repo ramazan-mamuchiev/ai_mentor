@@ -82,6 +82,25 @@ class ArchiveIngestResponse(BaseModel):
     files: list[ArchiveFileResult]
 
 
+class UrlIngestRequest(BaseModel):
+    url: str
+    product_name: str
+    firmware_version: str = "1.0"
+    manufacturer: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class UrlIngestResponse(BaseModel):
+    status: str
+    message: str
+    url: str
+    product_name: str
+    task_id: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class DocumentDebugInfo(BaseModel):
     document_id: int
     title: str

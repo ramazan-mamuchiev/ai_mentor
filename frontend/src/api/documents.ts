@@ -48,6 +48,28 @@ export async function cancelDocument(id: number): Promise<void> {
   return apiFetch<void>(`/documents/${id}/cancel`, { method: 'POST' })
 }
 
+export interface UrlIngestRequest {
+  url: string
+  product_name: string
+  firmware_version?: string
+  manufacturer?: string
+}
+
+export interface UrlIngestResponse {
+  status: string
+  message: string
+  url: string
+  product_name: string
+  task_id: string | null
+}
+
+export async function ingestUrl(data: UrlIngestRequest): Promise<UrlIngestResponse> {
+  return apiFetch<UrlIngestResponse>('/documents/ingest-url', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 export async function listReindexJobs(): Promise<ReindexJobList> {
   return apiFetch<ReindexJobList>('/reindex/jobs')
 }

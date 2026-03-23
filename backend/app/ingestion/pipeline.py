@@ -13,6 +13,7 @@ from app.ingestion.chunker import ChunkData, chunk_sections
 from app.ingestion.converters.pdf import convert_pdf
 from app.ingestion.converters.proto import convert_proto_file
 from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_file
+from app.ingestion.converters.postman import convert_postman_file, is_postman_collection
 from app.ingestion.converters.web import convert_url
 from app.ingestion.embedder import embed_texts
 from app.config import settings as _settings
@@ -129,6 +130,8 @@ def detect_format(file_path: str) -> str:
     if ext in (".wsdl", ".xml"):
         return "markdown"
     if ext in (".yaml", ".yml", ".json"):
+        if ext == ".json" and is_postman_collection(file_path):
+            return "postman"
         if is_swagger_file(file_path):
             return "swagger"
         if ext == ".json":
@@ -211,6 +214,18 @@ async def ingest_file(
                 exc_info=True,
             )
             return {"status": "error", "error": f"Swagger conversion failed: {e}"}
+        fmt_effective = "markdown"
+    elif fmt == "postman":
+        try:
+            text, convert_metadata = convert_postman_file(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            logger.error(
+                "Postman conversion failed",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
+            return {"status": "error", "error": f"Postman conversion failed: {e}"}
         fmt_effective = "markdown"
     elif fmt == "proto":
         try:
@@ -688,6 +703,18 @@ def ingest_from_bytes(
         except Exception as e:
             document.status = "error"
             document.error_message = f"Swagger conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
+    elif fmt == "postman":
+        try:
+            text, convert_metadata = convert_postman_file(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"Postman conversion failed: {e}"
             document.progress_percent = 0
             document.progress_stage = ""
             session.commit()

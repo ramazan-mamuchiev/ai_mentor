@@ -104,6 +104,32 @@
   opacity: 0.9;
 }
 
+.docs-upload-btn--secondary {
+  background: var(--surface-2, #e5e7eb);
+  color: var(--text-primary, #374151);
+}
+
+[data-theme="dark"] .docs-upload-btn--secondary {
+  background: var(--surface-2, #374151);
+  color: var(--text-primary, #e5e7eb);
+}
+
+.url-import-type-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface-1, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+[data-theme="dark"] .url-import-type-hint {
+  background: var(--surface-1, #1f2937);
+}
+
 /* ── Header actions ── */
 .docs-header-actions {
   display: flex;

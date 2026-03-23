@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   FileText,
   Upload,
+  Globe,
   Download,
   RefreshCw,
   Trash2,
@@ -141,13 +142,14 @@ function OverflowCell({ children, className }: { children: React.ReactNode; clas
 
 interface Props {
   onUploadClick: () => void
+  onUrlImportClick?: () => void
   refreshKey?: number
   productId?: number
 }
 
 const DEFAULT_COLUMN_ORDER = ['title', 'format', 'status', 'size', 'chunks', 'product', 'uploaded', 'indexed', 'actions']
 
-export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
+export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, productId }: Props) {
   const { t } = useTranslation()
   const [documents, setDocuments] = useState<DocumentListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -472,6 +474,12 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
               </button>
             )}
           </div>
+          {onUrlImportClick && (
+            <button className="docs-upload-btn docs-upload-btn--secondary" onClick={onUrlImportClick}>
+              <Globe size={16} />
+              <span>{t('urlImport.button')}</span>
+            </button>
+          )}
           <button className="docs-upload-btn" onClick={onUploadClick}>
             <Upload size={16} />
             <span>{t('docs.upload')}</span>

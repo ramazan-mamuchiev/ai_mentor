@@ -6,7 +6,7 @@ import { getProduct } from '../api/products'
 import { DocumentsPage } from './DocumentsPage'
 import type { ProductDetail } from '../types'
 
-export function ProductDetailPage({ onUploadClick }: { onUploadClick: () => void }) {
+export function ProductDetailPage({ onUploadClick, onUrlImportClick }: { onUploadClick: () => void; onUrlImportClick?: () => void }) {
   const { t } = useTranslation()
   const { manufacturer, product: productSlug } = useParams<{ manufacturer: string; product: string }>()
   const navigate = useNavigate()
@@ -53,7 +53,7 @@ export function ProductDetailPage({ onUploadClick }: { onUploadClick: () => void
           </div>
         )}
       </div>
-      <DocumentsPage onUploadClick={onUploadClick} productId={product.id} />
+      <DocumentsPage onUploadClick={onUploadClick} onUrlImportClick={onUrlImportClick} productId={product.id} />
     </div>
   )
 }
