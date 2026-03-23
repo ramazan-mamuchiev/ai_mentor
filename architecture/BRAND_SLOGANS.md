@@ -1,10 +1,26 @@
 # IPCodex — Brand Slogans & Competitive Messaging
 
-> **Status**: v1.2 — March 18, 2026 · **СЛОГАН + СУБТИТР ВЫБРАНЫ**
+> **Status**: v1.3 — March 23, 2026 · **СЛОГАН + СУБТИТР ВЫБРАНЫ · ПОЗИЦИОНИРОВАНИЕ ОБНОВЛЕНО**
 > **Author**: Oleg Voitekhovich
 > **Purpose**: Анализ слоганов косвенных конкурентов, варианты слоганов IPCodex, финальный выбор
 >
 > Related: [GTM_STRATEGY.md](GTM_STRATEGY.md) · [MARKET_RESEARCH.md](MARKET_RESEARCH.md) · [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md)
+
+---
+
+> **✅ Позиционирование продукта (title / badge)**
+>
+> **EN: "IPCodex — AI Integration Platform"**
+> **RU: "IPCodex — AI-платформа интеграции"**
+>
+> Ранее использовалось "AI Documentation Assistant" — отклонено как слишком узкое.
+> IPCodex — не просто ассистент по документации, а полноценная платформа интеграции:
+> парсинг документации, семантический поиск, AI-чат, MCP-сервер, генерация кода.
+> Новое позиционирование отражает масштаб продукта и отстраивает от конкурентов
+> в категории "documentation tools" (Mintlify, ReadTheDocs, DevDocs).
+>
+> Обновлено: `<title>` в `frontend/index.html`, локали (`en.json`, `ru.json`),
+> промо-материалы (`ipcodex.html`).
 
 ---
 
@@ -160,3 +176,4 @@
 - [ ] Обсудить слоган с Grundig Security (hardware-партнёр)
 - [ ] Протестировать на целевой аудитории (developer survey)
 - [ ] Адаптировать под контексты: GitHub README, конференции, email-рассылки
+- [x] ~~Обновить позиционирование: "AI Documentation Assistant" → "AI Integration Platform"~~
