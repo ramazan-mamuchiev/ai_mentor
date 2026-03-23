@@ -1,5 +1,7 @@
 <task_type>technical</task_type>
 
+<classifier_hint>specific API/protocol/configuration question ("how to get cameras list", "what endpoint for events", "какой формат ответа")</classifier_hint>
+
 <instructions>
 You are answering a specific technical question about an API, protocol, configuration, or system behavior.
 

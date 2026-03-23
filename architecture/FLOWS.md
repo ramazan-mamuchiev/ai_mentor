@@ -373,15 +373,24 @@ Server: load session (product_filter, version_filter, history)
 RAG Pipeline (chat/rag.py):
   1. Auto-detect product from query (if no explicit filter)
      → scan products table for name match in query text
-  2. LLM Query Rewrite (if history exists):
+     → word-boundary regex matching, longer names prioritised
+  2. LLM Query Classification (parallel with rewrite):
+     → lightweight call to Gemini 2.0 Flash (~100ms, ~20 output tokens)
+     → classifies into: overview | technical | code | comparison | troubleshooting | chitchat
+     → categories auto-discovered from prompts/*.md files (<classifier_hint> tags)
+     → selects per-type system prompt: base.md + {query_type}.md
+     → token usage tracked separately (action="query_classify" in usage_log)
+     → fallback to "overview" on error
+     → see architecture/PROMPT_ROUTING.md for details
+  3. LLM Query Rewrite (if history exists):
      → send last 3 user messages + current question to LLM
      → LLM reformulates follow-up into standalone query
      → uses Gemini with reasoning_effort=none, temperature=0
      → self-contained questions pass through unchanged
      → fallback to original query on any error
-  3. Embed rewritten query → vector [0.023, -0.118, ...]
+  4. Embed rewritten query → vector [0.023, -0.118, ...]
      → "query:" prefix for E5 models
-  4. Hybrid search (two parallel retrieval paths):
+  5. Hybrid search (two parallel retrieval paths):
      a. Vector search: ORDER BY embedding <=> $q LIMIT rerank_candidates (default 20)
      b. BM25 full-text: tsv @@ plainto_tsquery('english', $q) ORDER BY ts_rank_cd
         → uses PostgreSQL tsvector/GIN index on (heading_path + content_clean)
@@ -393,7 +402,7 @@ RAG Pipeline (chat/rag.py):
         → configurable: hybrid_search_enabled (default true)
      → optional product/version filter on both paths
      → deduplication by (heading_path, SHA-256(content)) — full content hash
-  5. Cross-encoder re-ranking (reranker.py):
+  6. Cross-encoder re-ranking (reranker.py):
      → **multilingual cross-encoder** (mmarco-mMiniLMv2-L12-H384-v1, 100+ languages)
      → scores each (query, cleaned_enriched_text) pair
      → text cleaned from Markdown artifacts (same as embedding pipeline)
@@ -402,26 +411,26 @@ RAG Pipeline (chat/rag.py):
      → raw `rerank_score` preserved for debugging; original dicts not mutated
      → top rag_top_k (default 10) results kept after re-ranking
      → configurable: rerank_enabled (default true)
-  6. Similarity threshold filtering:
+  7. Similarity threshold filtering:
      → discard chunks with similarity < rag_min_similarity (default 0.35)
      → after re-ranking, uses the sigmoid-normalized cross-encoder score
-  7. Small-to-big context expansion:
+  8. Small-to-big context expansion:
      → if chunk has parent_content (was split from larger section),
        use full section text in LLM context instead of chunk fragment
      → deduplicate when multiple child chunks from same section are retrieved
-  8. Format context: each source as **Markdown-cleaned** numbered block with metadata
+  9. Format context: each source as **Markdown-cleaned** numbered block with metadata
      → parent_content and chunk content cleaned via clean_for_embedding()
      → strips bold, links, images, list markers — saves LLM tokens
      → code blocks and tables preserved
      → context_tokens calculated on actual formatted text (not sum of chunk sizes)
      → wrapped in <documentation_context> XML tags
-  9. Build LLM messages (5-part sequence for implicit caching):
-     a. System message — SYSTEM_PROMPT with XML-tagged sections:
-        <role>, <constraints> (9 rules), <instructions>, <output_format>
-     b. User message — documentation context
-     c. Assistant ack — "Understood. I will answer strictly based on..."
-     d. History — last 6 messages, up to 8,000 tokens (trims oldest first)
-     e. User query — with anchor phrase
+  10. Build LLM messages (5-part sequence for implicit caching):
+      a. System message — per-type prompt (base.md + {query_type}.md):
+         <role>, <constraints> (10 rules), <format_rules>, <task_type>, <instructions>
+      b. User message — documentation context
+      c. Assistant ack — "Understood. I will use the documentation context..."
+      d. History — last 6 messages, up to 8,000 tokens (trims oldest first)
+      e. User query — with chunk count hint + anchor phrase
         │
         ▼
 LLM Streaming (llm/client.py):

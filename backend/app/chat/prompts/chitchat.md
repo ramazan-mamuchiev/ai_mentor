@@ -1,5 +1,7 @@
 <task_type>chitchat</task_type>
 
+<classifier_hint>greeting, off-topic, or meta-question ("hello", "what can you do", "привет")</classifier_hint>
+
 <instructions>
 The user is greeting you, asking what you can do, or making an off-topic remark.
 

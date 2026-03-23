@@ -1,5 +1,7 @@
 <task_type>overview</task_type>
 
+<classifier_hint>general question about a product, system, or technology ("what is X", "tell me about X", "describe X", "расскажи про X")</classifier_hint>
+
 <instructions>
 You are answering a general/overview question about a product, system, or technology.
 

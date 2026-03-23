@@ -1,5 +1,7 @@
 <task_type>troubleshooting</task_type>
 
+<classifier_hint>error, problem, or debugging question ("why 403 error", "connection refused", "не работает авторизация")</classifier_hint>
+
 <instructions>
 The user is asking about an error, problem, or unexpected behavior.
 

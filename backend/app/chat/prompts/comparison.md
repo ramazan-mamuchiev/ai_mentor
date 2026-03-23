@@ -1,5 +1,7 @@
 <task_type>comparison</task_type>
 
+<classifier_hint>comparing products, versions, or features ("difference between v1 and v2", "чем отличается X от Y")</classifier_hint>
+
 <instructions>
 The user is asking to compare products, versions, features, or approaches.
 

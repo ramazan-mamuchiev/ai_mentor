@@ -49,6 +49,12 @@ The project is fully Dockerized. Do NOT re-explore Docker setup each time.
 - Use `--no-cache` only when dependencies (requirements.txt, package.json) or Dockerfile itself changed.
 - Periodically run `docker system prune -f` to clean dangling images.
 
+## Documentation language
+
+- All project documentation (README.md, architecture/*.md, code comments) must be written in **English only**.
+- The only exception is UI localization files (`frontend/src/locales/ru.json`).
+- Prompt templates in `backend/app/chat/prompts/` must use English for `<instructions>`. The `<classifier_hint>` may include example queries in both RU and EN.
+
 ## Frontend assets
 
 - Static assets in `frontend/public/` (logos, favicon)

@@ -1,5 +1,7 @@
 <task_type>code</task_type>
 
+<classifier_hint>request to write or generate code ("write Python example", "show curl command", "напиши пример на Go")</classifier_hint>
+
 <instructions>
 The user is asking you to generate a code example or write integration code.
 

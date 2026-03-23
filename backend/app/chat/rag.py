@@ -19,19 +19,56 @@ logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-QUERY_TYPES = ("overview", "technical", "code", "comparison", "troubleshooting", "chitchat")
+_TAG_RE = re.compile(r"<(\w+)>(.*?)</\1>", re.DOTALL)
 
 
-def _load_prompt_file(name: str) -> str:
-    path = _PROMPTS_DIR / f"{name}.md"
-    if path.exists():
-        return path.read_text(encoding="utf-8").strip()
-    logger.warning("Prompt file not found: %s", path)
-    return ""
+def _load_prompts() -> tuple[str, dict[str, str], dict[str, str]]:
+    """Scan prompts/ directory and build prompt registry.
+
+    Returns (base_prompt, type_prompts, classifier_hints) where:
+    - base_prompt: contents of base.md
+    - type_prompts: {query_type: full file content} for each type .md
+    - classifier_hints: {query_type: hint text} for building the classify prompt
+    """
+    base_path = _PROMPTS_DIR / "base.md"
+    base = base_path.read_text(encoding="utf-8").strip() if base_path.exists() else ""
+
+    type_prompts: dict[str, str] = {}
+    hints: dict[str, str] = {}
+
+    for md_file in sorted(_PROMPTS_DIR.glob("*.md")):
+        if md_file.stem in ("base", "README"):
+            continue
+        content = md_file.read_text(encoding="utf-8").strip()
+        tags = {m.group(1): m.group(2).strip() for m in _TAG_RE.finditer(content)}
+
+        qtype = tags.get("task_type", md_file.stem)
+        type_prompts[qtype] = content
+        if "classifier_hint" in tags:
+            hints[qtype] = tags["classifier_hint"]
+        else:
+            logger.warning("Prompt %s has no <classifier_hint>, using filename as hint", md_file.name)
+            hints[qtype] = qtype
+
+    logger.info("Loaded %d prompt types: %s", len(type_prompts), ", ".join(sorted(type_prompts)))
+    return base, type_prompts, hints
 
 
-_BASE_PROMPT = _load_prompt_file("base")
-_TYPE_PROMPTS: dict[str, str] = {qt: _load_prompt_file(qt) for qt in QUERY_TYPES}
+_BASE_PROMPT, _TYPE_PROMPTS, _CLASSIFIER_HINTS = _load_prompts()
+QUERY_TYPES = tuple(_TYPE_PROMPTS.keys())
+
+
+def _build_classify_prompt() -> str:
+    lines = ["Classify the user question into exactly ONE category. Return ONLY the category name, nothing else.", "", "Categories:"]
+    for qtype, hint in _CLASSIFIER_HINTS.items():
+        lines.append(f"- {qtype}: {hint}")
+    lines.append("")
+    lines.append("Question: {query}")
+    lines.append("Category:")
+    return "\n".join(lines)
+
+
+_CLASSIFY_PROMPT_TEMPLATE = _build_classify_prompt()
 
 
 def _build_system_prompt(query_type: str) -> str:
@@ -63,21 +100,6 @@ The knowledge base is currently EMPTY — no documentation has been uploaded yet
 - Keep the response concise and helpful.
 </instructions>"""
 
-_CLASSIFY_PROMPT = """\
-Classify the user question into exactly ONE category. Return ONLY the category name, nothing else.
-
-Categories:
-- overview: general question about a product, system, or technology ("what is X", "tell me about X", "describe X", "расскажи про X")
-- technical: specific API/protocol/configuration question ("how to get cameras list", "what endpoint for events", "какой формат ответа")
-- code: request to write or generate code ("write Python example", "show curl command", "напиши пример на Go")
-- comparison: comparing products, versions, or features ("difference between v1 and v2", "чем отличается X от Y")
-- troubleshooting: error, problem, or debugging question ("why 403 error", "connection refused", "не работает авторизация")
-- chitchat: greeting, off-topic, or meta-question ("hello", "what can you do", "привет")
-
-Question: {query}
-Category:"""
-
-
 async def _classify_query(query: str) -> tuple[str, dict]:
     """Classify user query into a query type using a lightweight LLM call.
 
@@ -86,7 +108,7 @@ async def _classify_query(query: str) -> tuple[str, dict]:
     if not settings.classifier_enabled:
         return "overview", {}
 
-    prompt = _CLASSIFY_PROMPT.format(query=query)
+    prompt = _CLASSIFY_PROMPT_TEMPLATE.format(query=query)
     messages = [{"role": "user", "content": prompt}]
 
     try:
