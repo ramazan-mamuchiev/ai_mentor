@@ -145,41 +145,6 @@ export function DataTable<TData>({
 
   return (
     <>
-      <div className="docs-table-toolbar">
-        <div className="docs-col-settings-wrap" ref={colSettingsRef}>
-          <button
-            className="docs-col-settings-btn"
-            onClick={() => setShowColumnSettings(v => !v)}
-            title={t('docs.columns.settings')}
-          >
-            <Settings2 size={16} />
-          </button>
-          {showColumnSettings && (
-            <div className="docs-col-settings-dropdown">
-              <div className="docs-col-settings-title">{t('docs.columns.settings')}</div>
-              {table.getAllLeafColumns()
-                .filter(col => col.id !== actionsColumnId)
-                .map(col => (
-                  <label key={col.id} className="docs-col-settings-item">
-                    <input
-                      type="checkbox"
-                      checked={col.getIsVisible()}
-                      onChange={col.getToggleVisibilityHandler()}
-                    />
-                    {col.getIsVisible() ? <Eye size={14} /> : <EyeOff size={14} />}
-                    <span>{flexRender(col.columnDef.header, { table, header: null as never, column: col })}</span>
-                  </label>
-                ))}
-              <div className="docs-col-settings-divider" />
-              <button className="docs-col-settings-reset" onClick={() => { resetSettings(); setShowColumnSettings(false) }}>
-                <RotateCcw size={14} />
-                {t('docs.columns.reset')}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
       {grouping.length > 0 && (
         <div className="docs-group-bar">
           <Layers size={14} />
@@ -214,6 +179,38 @@ export function DataTable<TData>({
                               <span className="docs-th-label">
                                 {flexRender(header.column.columnDef.header, header.getContext())}
                               </span>
+                              <div className="docs-col-settings-wrap" ref={colSettingsRef}>
+                                <button
+                                  className="docs-col-settings-btn"
+                                  onClick={() => setShowColumnSettings(v => !v)}
+                                  title={t('docs.columns.settings')}
+                                >
+                                  <Settings2 size={14} />
+                                </button>
+                                {showColumnSettings && (
+                                  <div className="docs-col-settings-dropdown">
+                                    <div className="docs-col-settings-title">{t('docs.columns.settings')}</div>
+                                    {table.getAllLeafColumns()
+                                      .filter(col => col.id !== actionsColumnId)
+                                      .map(col => (
+                                        <label key={col.id} className="docs-col-settings-item">
+                                          <input
+                                            type="checkbox"
+                                            checked={col.getIsVisible()}
+                                            onChange={col.getToggleVisibilityHandler()}
+                                          />
+                                          {col.getIsVisible() ? <Eye size={14} /> : <EyeOff size={14} />}
+                                          <span>{flexRender(col.columnDef.header, { table, header: null as never, column: col })}</span>
+                                        </label>
+                                      ))}
+                                    <div className="docs-col-settings-divider" />
+                                    <button className="docs-col-settings-reset" onClick={() => { resetSettings(); setShowColumnSettings(false) }}>
+                                      <RotateCcw size={14} />
+                                      {t('docs.columns.reset')}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </th>
                         )

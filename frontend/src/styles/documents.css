@@ -112,32 +112,29 @@
 }
 
 /* ── Table Toolbar (column settings inline) ── */
-.docs-table-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 4px 24px 0;
-}
-
 /* ── Column Settings ── */
 .docs-col-settings-wrap {
   position: relative;
+  margin-left: auto;
 }
 
 .docs-col-settings-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s;
+  opacity: 0.5;
 }
 
 .docs-col-settings-btn:hover {
+  opacity: 1;
   background: var(--surface-hover);
   color: var(--text);
 }
@@ -1170,8 +1167,7 @@ td:has(.docs-actions) {
 
   .docs-filter-bar,
   .docs-group-bar,
-  .docs-group-actions,
-  .docs-table-toolbar {
+  .docs-group-actions {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -1199,10 +1195,6 @@ td:has(.docs-actions) {
   }
 
   .docs-col-settings-wrap {
-    display: none;
-  }
-
-  .docs-table-toolbar {
     display: none;
   }
 
