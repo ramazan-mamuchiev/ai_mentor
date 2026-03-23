@@ -2,7 +2,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, FileText, Box, BarChart3, Settings,
-  PanelLeftClose, PanelLeftOpen, Menu,
+  PanelLeftClose, PanelLeftOpen, PanelLeft, X,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
@@ -166,7 +166,7 @@ export function Layout({
               onClick={() => setMobileOpen(false)}
               aria-label={t('sidebar.collapse')}
             >
-              <PanelLeftClose size={18} />
+              <X size={18} />
             </button>
           ) : (
             <button
@@ -233,7 +233,7 @@ export function Layout({
               onClick={() => setMobileOpen(true)}
               aria-label="Menu"
             >
-              <Menu size={20} />
+              <PanelLeft size={20} />
             </button>
             <div className="mobile-topbar-brand">
               <img src="/logo-on-light.svg" alt="" className="mobile-topbar-logo logo-light" />
