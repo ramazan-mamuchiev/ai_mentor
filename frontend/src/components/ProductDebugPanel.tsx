@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getProductDebug } from '../api/products'
 import type { ProductDebugInfo } from '../types'
@@ -70,6 +70,7 @@ export function ProductDebugPanel({ productId }: Props) {
   const [debug, setDebug] = useState<ProductDebugInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [docsExpanded, setDocsExpanded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -153,29 +154,39 @@ export function ProductDebugPanel({ productId }: Props) {
 
         {debug.documents.length > 0 && (
           <div className="doc-debug-section doc-debug-section--wide">
-            <div className="doc-debug-section-title">Documents ({debug.documents.length})</div>
-            <table className="doc-debug-docs-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Format</th>
-                  <th>Size</th>
-                  <th>Chunks</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {debug.documents.map(doc => (
-                  <tr key={doc.id}>
-                    <td>{doc.title}</td>
-                    <td><span className="docs-format">{doc.format}</span></td>
-                    <td>{fmtBytes(doc.file_size_bytes)}</td>
-                    <td>{fmt(doc.total_chunks)}</td>
-                    <td><span className={`docs-status docs-status--${doc.status}`}>{doc.status}</span></td>
+            <button
+              className="doc-debug-section-toggle"
+              onClick={() => setDocsExpanded(v => !v)}
+            >
+              {docsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span className="doc-debug-section-title">Documents ({debug.documents.length})</span>
+            </button>
+            {docsExpanded && (
+              <table className="doc-debug-docs-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Format</th>
+                    <th>Size</th>
+                    <th>Chunks</th>
+                    <th>Status</th>
+                    <th>{t('docs.table.indexed')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {debug.documents.map(doc => (
+                    <tr key={doc.id}>
+                      <td>{doc.title}</td>
+                      <td><span className="docs-format">{doc.format}</span></td>
+                      <td>{fmtBytes(doc.file_size_bytes)}</td>
+                      <td>{fmt(doc.total_chunks)}</td>
+                      <td><span className={`docs-status docs-status--${doc.status}`}>{doc.status}</span></td>
+                      <td>{fmtDate(doc.indexed_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>

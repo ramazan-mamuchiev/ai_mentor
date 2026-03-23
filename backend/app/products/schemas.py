@@ -69,6 +69,7 @@ class ProductDocumentSummary(BaseModel):
     file_size_bytes: int
     total_chunks: int
     status: str
+    indexed_at: datetime | None = None
 
 
 class ProductDebugInfo(BaseModel):

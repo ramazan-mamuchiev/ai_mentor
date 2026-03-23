@@ -210,6 +210,7 @@ export interface ProductDocumentSummary {
   file_size_bytes: number
   total_chunks: number
   status: string
+  indexed_at: string | null
 }
 
 export interface ProductDebugInfo {

@@ -281,6 +281,7 @@ async def get_product_debug(product_id: int):
                 Document.file_size_bytes,
                 Document.total_chunks,
                 Document.status,
+                Document.indexed_at,
             )
             .where(Document.product_id == product_id)
             .order_by(Document.uploaded_at.desc())

@@ -448,6 +448,8 @@
 }
 
 .docs-name-cell {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -847,6 +849,27 @@ td:has(.docs-actions) {
 
 .doc-debug-section--wide {
   grid-column: 1 / -1;
+}
+
+.doc-debug-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 4px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: inherit;
+}
+
+.doc-debug-section-toggle:hover {
+  color: var(--accent);
+}
+
+.doc-debug-section-toggle .doc-debug-section-title {
+  margin: 0;
 }
 
 /* ── Empty State ── */

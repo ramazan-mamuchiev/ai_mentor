@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { ProductDebugPanel } from '../../components/ProductDebugPanel'
 import type { ProductDebugInfo } from '../../types'
 
@@ -27,9 +27,9 @@ const mockDebug: ProductDebugInfo = {
   avg_rag_similarity: 0.82,
   last_rag_used_at: '2026-01-15T10:20:30Z',
   documents: [
-    { id: 1, title: 'API Guide', format: 'pdf', file_size_bytes: 50000, total_chunks: 60, status: 'ready' },
-    { id: 2, title: 'Proto Spec', format: 'proto', file_size_bytes: 30000, total_chunks: 40, status: 'ready' },
-    { id: 3, title: 'Manual', format: 'pdf', file_size_bytes: 22400, total_chunks: 20, status: 'ready' },
+    { id: 1, title: 'API Guide', format: 'pdf', file_size_bytes: 50000, total_chunks: 60, status: 'ready', indexed_at: '2026-01-15T10:20:30Z' },
+    { id: 2, title: 'Proto Spec', format: 'proto', file_size_bytes: 30000, total_chunks: 40, status: 'ready', indexed_at: '2026-01-15T11:00:00Z' },
+    { id: 3, title: 'Manual', format: 'pdf', file_size_bytes: 22400, total_chunks: 20, status: 'ready', indexed_at: null },
   ],
 }
 
@@ -89,7 +89,7 @@ describe('ProductDebugPanel', () => {
     })
   })
 
-  it('displays documents table', async () => {
+  it('documents section is collapsed by default', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -99,10 +99,31 @@ describe('ProductDebugPanel', () => {
     render(<ProductDebugPanel productId={1} />)
 
     await waitFor(() => {
-      expect(screen.getByText('API Guide')).toBeInTheDocument()
-      expect(screen.getByText('Proto Spec')).toBeInTheDocument()
-      expect(screen.getByText('Manual')).toBeInTheDocument()
+      expect(screen.getByText('Documents (3)')).toBeInTheDocument()
     })
+
+    expect(screen.queryByText('API Guide')).not.toBeInTheDocument()
+    expect(document.querySelector('.doc-debug-docs-table')).not.toBeInTheDocument()
+  })
+
+  it('expands documents table on toggle click', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(mockDebug),
+    }))
+
+    render(<ProductDebugPanel productId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Documents (3)')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText('Documents (3)'))
+
+    expect(screen.getByText('API Guide')).toBeInTheDocument()
+    expect(screen.getByText('Proto Spec')).toBeInTheDocument()
+    expect(screen.getByText('Manual')).toBeInTheDocument()
   })
 
   it('shows error state on API failure', async () => {
