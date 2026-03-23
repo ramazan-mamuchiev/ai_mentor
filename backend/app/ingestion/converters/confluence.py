@@ -21,8 +21,6 @@ import json
 from dataclasses import dataclass, field
 from urllib.parse import urlparse, quote
 
-from markdownify import markdownify as md
-
 logger = logging.getLogger(__name__)
 
 _FETCH_TIMEOUT = 30
@@ -115,6 +113,8 @@ def _get_child_pages(base_url: str, page_id: str) -> list[dict]:
 
 def _html_to_markdown(html: str, page_title: str) -> str:
     """Convert Confluence storage format HTML to clean Markdown."""
+    from markdownify import markdownify as md
+
     if not html or not html.strip():
         return ""
 

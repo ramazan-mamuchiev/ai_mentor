@@ -195,42 +195,48 @@ async def ingest_url(request: Request, body: UrlIngestRequest):
     except ValueError:
         pass
 
-    if is_confluence:
-        from app.celery_app import ingest_confluence_task
-        task = ingest_confluence_task.delay(
+    try:
+        if is_confluence:
+            from app.celery_app import ingest_confluence_task
+            task = ingest_confluence_task.delay(
+                url=url,
+                product_name=body.product_name,
+                firmware_version=body.firmware_version,
+                manufacturer=body.manufacturer,
+            )
+            logger.info("Confluence crawl task queued", extra={
+                "url": url, "task_id": task.id, "client_ip": client_ip,
+            })
+            return UrlIngestResponse(
+                status="pending",
+                message="Confluence documentation crawl queued for processing",
+                url=url,
+                product_name=body.product_name,
+                task_id=task.id,
+            )
+
+        from app.celery_app import ingest_single_url_task
+        task = ingest_single_url_task.delay(
             url=url,
             product_name=body.product_name,
             firmware_version=body.firmware_version,
             manufacturer=body.manufacturer,
         )
-        logger.info("Confluence crawl task queued", extra={
+        logger.info("Single URL ingest task queued", extra={
             "url": url, "task_id": task.id, "client_ip": client_ip,
         })
         return UrlIngestResponse(
             status="pending",
-            message="Confluence documentation crawl queued for processing",
+            message="Web page queued for processing",
             url=url,
             product_name=body.product_name,
             task_id=task.id,
         )
-
-    from app.celery_app import ingest_single_url_task
-    task = ingest_single_url_task.delay(
-        url=url,
-        product_name=body.product_name,
-        firmware_version=body.firmware_version,
-        manufacturer=body.manufacturer,
-    )
-    logger.info("Single URL ingest task queued", extra={
-        "url": url, "task_id": task.id, "client_ip": client_ip,
-    })
-    return UrlIngestResponse(
-        status="pending",
-        message="Web page queued for processing",
-        url=url,
-        product_name=body.product_name,
-        task_id=task.id,
-    )
+    except Exception as exc:
+        logger.error("Failed to queue URL ingest task", extra={
+            "url": url, "error_type": type(exc).__name__, "error": str(exc),
+        }, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
 
 
 from app.documents.archive import (
