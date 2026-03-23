@@ -774,9 +774,10 @@ td:has(.docs-actions) {
 }
 
 .docs-progress-fill--pending {
-  width: 30%;
-  background: var(--text-secondary);
-  animation: progress-pulse 2s ease-in-out infinite;
+  width: 100%;
+  background: #d69e2e;
+  opacity: 0.5;
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
 }
 
 .docs-progress-fill--processing {
@@ -784,11 +785,6 @@ td:has(.docs-actions) {
   background: var(--accent);
   animation: progress-indeterminate 1.5s ease-in-out infinite;
   transition: width 0.5s ease;
-}
-
-@keyframes progress-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
 }
 
 @keyframes progress-indeterminate {

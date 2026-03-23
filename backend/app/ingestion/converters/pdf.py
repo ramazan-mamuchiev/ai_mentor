@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 PARALLEL_THRESHOLD = 10
 MAX_PDF_WORKERS = 4
 MAX_RETRIES = 2
-PAGES_PER_CHUNK = 50
+PAGES_PER_CHUNK = 10
 
 _OCR_IMAGE_MIN_AREA = 100_000
 _IMG_REF_RE = re.compile(r"!\[([^\]]*)\]\(((?:[^()]*|\([^()]*\))*)\)")
@@ -139,11 +139,15 @@ def _ocr_image_file(image_path: str, languages: list[str] | None = None) -> str:
     return " ".join(item[1] for item in results if item[1].strip())
 
 
-def _find_ocr_pages(pdf_path: str) -> list[int]:
+def _find_ocr_pages(
+    pdf_path: str,
+    progress_callback: Callable[[float], None] | None = None,
+) -> list[int]:
     doc = pymupdf.open(pdf_path)
     try:
         ocr_pages: list[int] = []
-        for i in range(doc.page_count):
+        total = doc.page_count
+        for i in range(total):
             page = doc[i]
             for img_info in page.get_images():
                 xref = img_info[0]
@@ -153,6 +157,8 @@ def _find_ocr_pages(pdf_path: str) -> list[int]:
                 if area >= _OCR_IMAGE_MIN_AREA:
                     ocr_pages.append(i)
                     break
+            if progress_callback is not None and total > 0:
+                progress_callback((i + 1) / total)
         return ocr_pages
     finally:
         doc.close()
@@ -305,16 +311,20 @@ def convert_pdf(
     if progress_callback is not None:
         progress_callback(0.0, "analyzing")
 
-    ocr_pages = _find_ocr_pages(file_path)
+    def _analyze_cb(frac: float) -> None:
+        if progress_callback is not None:
+            progress_callback(frac * 0.05, "analyzing")
+
+    ocr_pages = _find_ocr_pages(file_path, progress_callback=_analyze_cb)
     has_ocr_images = len(ocr_pages) > 0
     will_ocr = has_ocr_images and _ocr_available()
 
     if progress_callback is not None:
         if will_ocr:
-            _convert_cb = lambda frac: progress_callback(frac * 0.625, "converting")
+            _convert_cb = lambda frac: progress_callback(0.05 + frac * 0.575, "converting")
             _ocr_cb = lambda frac: progress_callback(0.625 + frac * 0.375, "ocr")
         else:
-            _convert_cb = lambda frac: progress_callback(frac, "converting")
+            _convert_cb = lambda frac: progress_callback(0.05 + frac * 0.95, "converting")
             _ocr_cb = None
     else:
         _convert_cb = None
