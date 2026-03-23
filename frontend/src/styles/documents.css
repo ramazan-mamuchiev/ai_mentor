@@ -266,6 +266,96 @@
 }
 
 /* ── Group Bar ── */
+/* ── Filter Chips ── */
+.docs-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.docs-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.docs-filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.docs-filter-chips {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.docs-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.docs-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.docs-filter-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.docs-filter-chip--active {
+  border-color: var(--accent);
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.docs-filter-chip-count {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.docs-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--danger, #ef4444);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.docs-filter-clear:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
 .docs-group-bar {
   display: flex;
   align-items: center;
@@ -792,14 +882,24 @@ td:has(.docs-actions) {
 
 /* ── Product detail header ── */
 .product-detail-header {
-  padding: 0 0 8px;
+  padding: 16px 24px 8px;
+}
+
+.product-detail-title {
+  margin: 4px 0 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text);
+  line-height: 1.3;
 }
 
 .product-back-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  padding: 4px 8px;
+  margin-left: -8px;
   border: none;
   background: none;
   color: var(--accent);
@@ -1027,6 +1127,7 @@ td:has(.docs-actions) {
     width: 120px;
   }
 
+  .docs-filter-bar,
   .docs-group-bar,
   .docs-group-actions {
     padding-left: 16px;
@@ -1037,6 +1138,17 @@ td:has(.docs-actions) {
 @media (max-width: 768px) {
   .docs-table-wrap {
     display: none;
+  }
+
+  .docs-filter-bar {
+    padding: 6px 12px;
+    gap: 8px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .docs-filter-group {
+    flex-shrink: 0;
   }
 
   .docs-group-bar,

@@ -58,13 +58,19 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
   return (
     <div className="doc-debug-timing-bar">
       {stages.map((s, i) => {
-        const rawPct = total > 0 ? ((s.ms ?? 0) / total) * 100 : 0
-        const pct = Math.max(MIN_PCT, rawPct)
+        const ms = s.ms ?? 0
+        const rawPct = total > 0 ? (ms / total) * 100 : 0
+        const isZero = ms === 0
         return (
           <div
             key={i}
             className="doc-debug-timing-segment"
-            style={{ width: `${pct}%`, background: s.color, opacity: rawPct < 1 ? 0.45 : 1 }}
+            style={{
+              width: isZero ? '2px' : `${Math.max(MIN_PCT, rawPct)}%`,
+              flexShrink: isZero ? 0 : undefined,
+              background: s.color,
+              opacity: isZero ? 0.45 : rawPct < 1 ? 0.45 : 1,
+            }}
             title={`${s.label}: ${fmtMs(s.ms)} (${rawPct.toFixed(1)}%)`}
           />
         )

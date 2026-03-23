@@ -36,6 +36,7 @@ import {
   type ColumnDef,
   type SortingState,
   type ColumnOrderState,
+  type ColumnFiltersState,
   type GroupingState,
   type ExpandedState,
   type VisibilityState,
@@ -247,6 +248,8 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
+  const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const colSettingsRef = useRef<HTMLDivElement>(null)
@@ -372,6 +375,45 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
     })
   }, [])
 
+  const formatCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const d of documents) {
+      map.set(d.format, (map.get(d.format) ?? 0) + 1)
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1])
+  }, [documents])
+
+  const statusCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const d of documents) {
+      map.set(d.status, (map.get(d.status) ?? 0) + 1)
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1])
+  }, [documents])
+
+  const toggleFilter = useCallback((setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
+    setter(prev => {
+      const next = new Set(prev)
+      if (next.has(value)) next.delete(value)
+      else next.add(value)
+      return next
+    })
+  }, [])
+
+  const clearFilters = useCallback(() => {
+    setFormatFilter(new Set())
+    setStatusFilter(new Set())
+  }, [])
+
+  const hasActiveFilters = formatFilter.size > 0 || statusFilter.size > 0
+
+  const columnFilters = useMemo<ColumnFiltersState>(() => {
+    const filters: ColumnFiltersState = []
+    if (formatFilter.size > 0) filters.push({ id: 'format', value: formatFilter })
+    if (statusFilter.size > 0) filters.push({ id: 'status', value: statusFilter })
+    return filters
+  }, [formatFilter, statusFilter])
+
   const columns = useMemo<ColumnDef<DocumentListItem, unknown>[]>(() => [
     {
       id: 'title',
@@ -399,6 +441,8 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
         )
       },
       enableGrouping: true,
+      filterFn: (row, _columnId, filterValue: Set<string>) =>
+        filterValue.size === 0 || filterValue.has(row.original.format),
     },
     {
       id: 'status',
@@ -413,6 +457,8 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
         />
       ),
       enableGrouping: true,
+      filterFn: (row, _columnId, filterValue: Set<string>) =>
+        filterValue.size === 0 || filterValue.has(row.original.status),
     },
     {
       id: 'size',
@@ -493,7 +539,7 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
   const table = useReactTable({
     data: documents,
     columns,
-    state: { sorting, globalFilter, columnOrder, grouping, expanded, columnVisibility },
+    state: { sorting, globalFilter, columnFilters, columnOrder, grouping, expanded, columnVisibility },
     onSortingChange: handleSortingChange,
     onGlobalFilterChange: setGlobalFilter,
     onColumnOrderChange: handleColumnOrderChange,
@@ -548,6 +594,8 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
     setColumnVisibility({})
     setExpanded(true)
     setGlobalFilter('')
+    setFormatFilter(new Set())
+    setStatusFilter(new Set())
     localStorage.removeItem(STORAGE_KEY)
   }, [defaultColumnOrder])
 
@@ -639,6 +687,51 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
           </button>
         </div>
       </div>
+
+      {(formatCounts.length > 1 || statusCounts.length > 1) && (
+        <div className="docs-filter-bar">
+          {formatCounts.length > 1 && (
+            <div className="docs-filter-group">
+              <span className="docs-filter-label">{t('docs.filter.format')}:</span>
+              <div className="docs-filter-chips">
+                {formatCounts.map(([fmt, count]) => (
+                  <button
+                    key={fmt}
+                    className={`docs-filter-chip${formatFilter.has(fmt) ? ' docs-filter-chip--active' : ''}`}
+                    onClick={() => toggleFilter(setFormatFilter, fmt)}
+                  >
+                    {fmt.toUpperCase()}
+                    <span className="docs-filter-chip-count">{count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {statusCounts.length > 1 && (
+            <div className="docs-filter-group">
+              <span className="docs-filter-label">{t('docs.filter.status')}:</span>
+              <div className="docs-filter-chips">
+                {statusCounts.map(([st, count]) => (
+                  <button
+                    key={st}
+                    className={`docs-filter-chip docs-filter-chip--status-${st}${statusFilter.has(st) ? ' docs-filter-chip--active' : ''}`}
+                    onClick={() => toggleFilter(setStatusFilter, st)}
+                  >
+                    {t(`docs.status.${st}`)}
+                    <span className="docs-filter-chip-count">{count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {hasActiveFilters && (
+            <button className="docs-filter-clear" onClick={clearFilters}>
+              <X size={12} />
+              {t('docs.filter.clear')}
+            </button>
+          )}
+        </div>
+      )}
 
       {grouping.length > 0 && (
         <div className="docs-group-bar">
@@ -770,6 +863,8 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
       <div className="docs-cards">
         {documents
           .filter(doc => {
+            if (formatFilter.size > 0 && !formatFilter.has(doc.format)) return false
+            if (statusFilter.size > 0 && !statusFilter.has(doc.status)) return false
             if (!globalFilter) return true
             const q = globalFilter.toLowerCase()
             return (

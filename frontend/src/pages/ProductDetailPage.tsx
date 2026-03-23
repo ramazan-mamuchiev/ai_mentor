@@ -42,7 +42,7 @@ export function ProductDetailPage({ onUploadClick }: { onUploadClick: () => void
           <ArrowLeft size={18} />
           {t('products.title')}
         </button>
-        <h1 className="docs-page-title" style={{ marginTop: 8 }}>
+        <h1 className="product-detail-title">
           {product.name}
           {product.manufacturer && <span className="product-manufacturer"> — {product.manufacturer}</span>}
         </h1>
