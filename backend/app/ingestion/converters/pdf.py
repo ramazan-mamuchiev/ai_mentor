@@ -9,7 +9,7 @@ import math
 import os
 import re
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 import pymupdf
@@ -238,7 +238,7 @@ def convert_pdf(
             },
         )
 
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
             future_to_idx = {
                 executor.submit(_convert_page_range_with_retry, file_path, pr): idx
                 for idx, pr in enumerate(page_ranges)
