@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import re
 import time
 
 import httpx
@@ -90,6 +91,9 @@ async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None
     """Match product/manufacturer names mentioned in the user query against the products table.
 
     Returns the product name if found, or None.
+    Uses word-boundary matching and prioritises longer names to avoid
+    false positives (e.g. a single-letter product name matching inside
+    an unrelated word).
     """
     result = await db.execute(
         text("SELECT name, manufacturer FROM products WHERE name != 'TestDevice'")
@@ -97,15 +101,28 @@ async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None
     products = result.mappings().all()
 
     query_lower = query.lower()
-    for prod in products:
+
+    def _word_boundary_match(keyword: str) -> bool:
+        """Check if *keyword* appears in query as a whole word (not inside another word)."""
+        escaped = re.escape(keyword.lower())
+        return bool(re.search(rf"(?<!\w){escaped}(?!\w)", query_lower))
+
+    # Pass 1: exact full-name / manufacturer match (longer names first).
+    sorted_products = sorted(products, key=lambda p: len(p["name"] or ""), reverse=True)
+    for prod in sorted_products:
         name = prod["name"] or ""
         manufacturer = prod["manufacturer"] or ""
         for keyword in [name, manufacturer]:
-            if keyword and keyword.lower() in query_lower:
+            if keyword and _word_boundary_match(keyword):
                 return name
+
+    # Pass 2: individual words from the product name (≥4 chars).
+    for prod in sorted_products:
+        name = prod["name"] or ""
         for word in name.split():
-            if len(word) >= 4 and word.lower() in query_lower:
+            if len(word) >= 4 and _word_boundary_match(word):
                 return name
+
     return None
 
 
