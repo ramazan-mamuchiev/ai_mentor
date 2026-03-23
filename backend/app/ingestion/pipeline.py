@@ -705,7 +705,7 @@ def ingest_from_bytes(
         embeddings = embed_texts(
             enriched,
             progress_callback=lambda pct: _update_progress(
-                session, document, 50 + int(pct * 0.4), "embedding",
+                session, document, 50 + int(pct * 40), "embedding",
             ),
         )
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
