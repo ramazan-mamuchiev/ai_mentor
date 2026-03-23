@@ -622,7 +622,14 @@ def ingest_from_bytes(
     t_read = time.perf_counter()
     if fmt == "pdf":
         try:
-            text, convert_metadata = convert_pdf(file_path, ocr_mode="auto", ocr_languages="en")
+            text, convert_metadata = convert_pdf(
+                file_path,
+                ocr_mode="auto",
+                ocr_languages="en",
+                progress_callback=lambda frac: _update_progress(
+                    session, document, int(frac * 40), "converting",
+                ),
+            )
             convert_ms = convert_metadata.get("total_ms", 0.0)
         except Exception as e:
             document.status = "error"

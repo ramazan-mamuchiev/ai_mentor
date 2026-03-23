@@ -5,14 +5,21 @@ without OCR (text-only extraction via pymupdf4llm).
 """
 
 import logging
+import math
 import os
 import re
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Callable
 
 import pymupdf
 import pymupdf4llm
 
 logger = logging.getLogger(__name__)
+
+PARALLEL_THRESHOLD = 10
+MAX_PDF_WORKERS = 4
+MAX_RETRIES = 2
 
 _OCR_IMAGE_MIN_AREA = 100_000
 _IMG_REF_RE = re.compile(r"!\[([^\]]*)\]\(((?:[^()]*|\([^()]*\))*)\)")
@@ -144,17 +151,59 @@ def _enrich_markdown_with_ocr(
     return "".join(parts), stats
 
 
+def _convert_page_range_with_retry(file_path: str, page_range: list[int]) -> str:
+    """Convert pages with retry logic. Top-level for pickle serialisation."""
+    _logger = logging.getLogger(__name__)
+    for attempt in range(1, MAX_RETRIES + 2):
+        try:
+            return pymupdf4llm.to_markdown(file_path, pages=page_range)
+        except Exception as exc:
+            if attempt > MAX_RETRIES:
+                _logger.error(
+                    "PDF page range conversion failed after all retries",
+                    extra={
+                        "pages": f"{page_range[0]}-{page_range[-1]}",
+                        "attempts": attempt,
+                        "error": str(exc)[:300],
+                    },
+                )
+                raise
+            _logger.warning(
+                "PDF page range conversion failed, retrying",
+                extra={
+                    "pages": f"{page_range[0]}-{page_range[-1]}",
+                    "attempt": attempt,
+                    "max_retries": MAX_RETRIES,
+                    "error": str(exc)[:200],
+                },
+            )
+            time.sleep(attempt)
+    return ""  # unreachable, satisfies type checker
+
+
+def _split_page_ranges(page_count: int, max_workers: int) -> list[list[int]]:
+    """Split pages into roughly equal chunks for parallel processing."""
+    chunk_size = math.ceil(page_count / max_workers)
+    ranges: list[list[int]] = []
+    for start in range(0, page_count, chunk_size):
+        end = min(start + chunk_size, page_count)
+        ranges.append(list(range(start, end)))
+    return ranges
+
+
 def convert_pdf(
     file_path: str,
     ocr_mode: str = "auto",
     ocr_languages: str = "en",
+    progress_callback: Callable[[float], None] | None = None,
 ) -> tuple[str, dict]:
-    """Convert PDF to Markdown text.
+    """Convert PDF to Markdown text with optional parallel page processing.
 
     Args:
         file_path: Path to the PDF file.
         ocr_mode: "auto" (OCR pages with large images), "always", or "off".
         ocr_languages: Comma-separated language codes (e.g. "en,ru").
+        progress_callback: optional fn(fraction) called as conversion progresses, fraction in [0..1].
 
     Returns:
         (markdown_text, metadata) where metadata includes conversion stats.
@@ -167,10 +216,57 @@ def convert_pdf(
 
     logger.info(
         "PDF conversion started",
-        extra={"file": os.path.basename(file_path), "pages": page_count, "file_size_bytes": file_size, "ocr_mode": ocr_mode},
+        extra={
+            "file": os.path.basename(file_path), "pages": page_count,
+            "file_size_bytes": file_size, "ocr_mode": ocr_mode,
+            "parallel": page_count > PARALLEL_THRESHOLD,
+        },
     )
 
-    md_text = pymupdf4llm.to_markdown(file_path)
+    if page_count > PARALLEL_THRESHOLD:
+        num_workers = min(MAX_PDF_WORKERS, page_count)
+        page_ranges = _split_page_ranges(page_count, num_workers)
+        results: dict[int, str] = {}
+        completed_count = 0
+
+        logger.info(
+            "Parallel PDF conversion",
+            extra={
+                "workers": num_workers,
+                "chunks": len(page_ranges),
+                "pages_per_chunk": [len(r) for r in page_ranges],
+            },
+        )
+
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            future_to_idx = {
+                executor.submit(_convert_page_range_with_retry, file_path, pr): idx
+                for idx, pr in enumerate(page_ranges)
+            }
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                results[idx] = future.result()
+                completed_count += 1
+                if progress_callback is not None:
+                    progress_callback(completed_count / len(page_ranges))
+
+        md_text = "\n\n".join(results[i] for i in range(len(page_ranges)))
+    else:
+        for attempt in range(1, MAX_RETRIES + 2):
+            try:
+                md_text = pymupdf4llm.to_markdown(file_path)
+                break
+            except Exception as exc:
+                if attempt > MAX_RETRIES:
+                    raise
+                logger.warning(
+                    "PDF conversion failed, retrying",
+                    extra={"attempt": attempt, "error": str(exc)[:200]},
+                )
+                time.sleep(attempt)
+        if progress_callback is not None:
+            progress_callback(1.0)
+
     convert_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     metadata: dict = {
@@ -178,6 +274,7 @@ def convert_pdf(
         "file_size_bytes": file_size,
         "convert_ms": convert_ms,
         "ocr_applied": False,
+        "parallel_workers": min(MAX_PDF_WORKERS, page_count) if page_count > PARALLEL_THRESHOLD else 1,
     }
 
     should_ocr = False
