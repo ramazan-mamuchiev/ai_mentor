@@ -277,6 +277,11 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
         <div className="docs-name-cell">
           <OverflowCell className="docs-name">{row.original.title}</OverflowCell>
           <OverflowCell className="docs-filename">{row.original.original_filename}</OverflowCell>
+          {row.original.source_container && (
+            <OverflowCell className="docs-source-container">
+              {t('docs.source.from', { source: row.original.source_container })}
+            </OverflowCell>
+          )}
         </div>
       ),
       enableGrouping: true,
@@ -546,7 +551,8 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
               doc.title.toLowerCase().includes(q) ||
               doc.original_filename.toLowerCase().includes(q) ||
               doc.format.toLowerCase().includes(q) ||
-              (doc.product_name || '').toLowerCase().includes(q)
+              (doc.product_name || '').toLowerCase().includes(q) ||
+              (doc.source_container || '').toLowerCase().includes(q)
             )
           })
           .map(doc => (

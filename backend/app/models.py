@@ -107,6 +107,8 @@ class Document(Base):
     ocr_images_failed: Mapped[int | None] = mapped_column(Integer, nullable=True)
     detected_language: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    source_container: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 

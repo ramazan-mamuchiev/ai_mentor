@@ -302,7 +302,7 @@ def ingest_archive_task(
     """Background task: download archive from S3, extract files, create Documents, ingest each."""
     from app.models import Document, Product, FirmwareVersion
     from app.s3 import download_file, upload_file, s3_key_for_document
-    from app.documents.archive import extract_archive, ARCHIVE_ALLOWED_EXTENSIONS
+    from app.documents.archive import extract_archive
 
     t0 = time.perf_counter()
     logger.info("Celery ingest_archive_task started", extra={
@@ -368,6 +368,8 @@ def ingest_archive_task(
             session.add(fw_row)
             session.flush()
 
+        archive_filename = archive_doc.original_filename
+
         child_ids = []
         for arc_path, entry_data in entries:
             entry_filename = os.path.basename(arc_path)
@@ -392,6 +394,7 @@ def ingest_archive_task(
                 title=os.path.splitext(entry_filename)[0],
                 status="pending",
                 source_hash=entry_hash,
+                source_container=archive_filename,
             )
             session.add(child_doc)
             session.flush()
@@ -403,9 +406,20 @@ def ingest_archive_task(
 
             child_ids.append(child_doc.id)
 
-        archive_doc.status = "ready"
-        archive_doc.total_chunks = 0
-        archive_doc.error_message = f"Archive: extracted {len(child_ids)} files"
+        from app.s3 import delete_file as s3_delete
+        if archive_doc.s3_key:
+            try:
+                s3_delete(archive_doc.s3_key)
+            except Exception:
+                logger.warning("Failed to delete archive S3 file", extra={"s3_key": archive_doc.s3_key})
+
+        from app.models import Chunk
+        existing_chunks = session.execute(
+            sa_select(Chunk).where(Chunk.document_id == archive_doc.id)
+        ).scalars().all()
+        for c in existing_chunks:
+            session.delete(c)
+        session.delete(archive_doc)
         session.commit()
 
         for cid in child_ids:
@@ -421,6 +435,138 @@ def ingest_archive_task(
         return {
             "status": "ok",
             "archive_document_id": archive_document_id,
+            "extracted_files": len(entries),
+            "queued_documents": len(child_ids),
+            "child_document_ids": child_ids,
+        }
+
+
+@celery.task(name="ingest_archive_from_s3", bind=True, max_retries=1, default_retry_delay=30)
+def ingest_archive_from_s3_task(
+    self,
+    s3_key: str,
+    archive_filename: str,
+    product_name: str,
+    firmware_version: str = "1.0",
+    manufacturer: str = "",
+    force: bool = False,
+):
+    """Download archive from S3, extract files, create Documents for each inner file.
+
+    Unlike ingest_archive_task, this does NOT require a Document record for the
+    archive itself — it works directly with an S3 key.
+    """
+    from app.models import Document, Product, FirmwareVersion
+    from app.s3 import download_file, upload_file, s3_key_for_document, delete_file as s3_delete
+    from app.documents.archive import extract_archive
+
+    t0 = time.perf_counter()
+    logger.info("ingest_archive_from_s3_task started", extra={
+        "s3_key": s3_key, "archive_filename": archive_filename, "task_id": self.request.id,
+    })
+
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        try:
+            file_data = download_file(s3_key)
+        except Exception as exc:
+            logger.error("S3 download failed for archive", extra={
+                "s3_key": s3_key,
+            }, exc_info=True)
+            raise self.retry(exc=exc)
+
+        try:
+            entries = extract_archive(file_data, archive_filename)
+        except Exception as exc:
+            logger.error("Archive extraction failed", extra={
+                "archive_filename": archive_filename,
+            }, exc_info=True)
+            return {"status": "error", "error": str(exc)}
+
+        if not entries:
+            logger.warning("No supported files in archive", extra={"archive_filename": archive_filename})
+            return {"status": "error", "error": "No supported files in archive"}
+
+        from sqlalchemy import select as sa_select
+        product_row = session.execute(
+            sa_select(Product).where(Product.name == product_name)
+        ).scalar_one_or_none()
+        if product_row is None:
+            from app.slugify import slugify
+            product_row = Product(
+                name=product_name,
+                manufacturer=manufacturer,
+                slug=slugify(product_name),
+                manufacturer_slug=slugify(manufacturer) if manufacturer else "default",
+            )
+            session.add(product_row)
+            session.flush()
+
+        fw_row = session.execute(
+            sa_select(FirmwareVersion).where(
+                FirmwareVersion.product_id == product_row.id,
+                FirmwareVersion.version == firmware_version,
+            )
+        ).scalar_one_or_none()
+        if fw_row is None:
+            fw_row = FirmwareVersion(product_id=product_row.id, version=firmware_version)
+            session.add(fw_row)
+            session.flush()
+
+        child_ids = []
+        for arc_path, entry_data in entries:
+            entry_filename = os.path.basename(arc_path)
+            entry_hash = hashlib.sha256(entry_data).hexdigest()
+
+            if not force:
+                dup = session.execute(
+                    sa_select(Document).where(Document.source_hash == entry_hash).limit(1)
+                ).scalar_one_or_none()
+                if dup is not None:
+                    logger.info("Archive entry duplicate skipped", extra={
+                        "entry": arc_path, "existing_id": dup.id,
+                    })
+                    continue
+
+            child_doc = Document(
+                product_id=product_row.id,
+                firmware_version_id=fw_row.id,
+                format="auto",
+                original_filename=entry_filename,
+                file_size_bytes=len(entry_data),
+                title=os.path.splitext(entry_filename)[0],
+                status="pending",
+                source_hash=entry_hash,
+                source_container=archive_filename,
+            )
+            session.add(child_doc)
+            session.flush()
+
+            child_s3_key = s3_key_for_document(child_doc.id, entry_filename)
+            upload_file(child_s3_key, entry_data, "application/octet-stream")
+            child_doc.s3_key = child_s3_key
+            session.commit()
+
+            child_ids.append(child_doc.id)
+
+        try:
+            s3_delete(s3_key)
+        except Exception:
+            logger.warning("Failed to delete archive S3 file", extra={"s3_key": s3_key})
+
+        for cid in child_ids:
+            ingest_document_task.delay(cid)
+
+        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+        logger.info("ingest_archive_from_s3_task completed", extra={
+            "archive_filename": archive_filename,
+            "extracted_files": len(entries),
+            "queued_documents": len(child_ids),
+            "duration_ms": duration_ms,
+        })
+        return {
+            "status": "ok",
             "extracted_files": len(entries),
             "queued_documents": len(child_ids),
             "child_document_ids": child_ids,

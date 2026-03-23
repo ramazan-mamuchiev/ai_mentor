@@ -483,6 +483,7 @@ async def ingest_url(
         source_hash=source_hash,
         title=title,
         status="processing",
+        source_container=url,
     )
     session.add(doc)
     await session.flush()

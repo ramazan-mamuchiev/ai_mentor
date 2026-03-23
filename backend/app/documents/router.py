@@ -261,6 +261,7 @@ async def ingest_archive(
                     title=os.path.splitext(entry_filename)[0],
                     status="pending",
                     source_hash=entry_hash,
+                    source_container=original_filename,
                 )
                 session.add(doc)
                 await session.flush()
@@ -339,6 +340,7 @@ async def list_documents(product_id: int | None = None):
                 Document.progress_percent,
                 Document.progress_stage,
                 Document.detected_language,
+                Document.source_container,
             )
             .join(Product, Document.product_id == Product.id)
             .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)

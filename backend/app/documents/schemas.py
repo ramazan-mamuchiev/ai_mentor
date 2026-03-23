@@ -47,6 +47,7 @@ class DocumentListItem(BaseModel):
     progress_percent: int = 0
     progress_stage: str = ""
     detected_language: str | None = None
+    source_container: str | None = None
 
     model_config = {"from_attributes": True}
 

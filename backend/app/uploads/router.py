@@ -369,8 +369,20 @@ async def tus_delete(upload_id: str):
 
 
 async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int | None:
-    """Create Document record and trigger ingestion after upload completes."""
+    """Create Document record and trigger ingestion after upload completes.
+
+    For archives: no Document is created for the archive itself. Instead, the
+    Celery task extracts inner files and creates Documents for each one.
+    """
     from app.documents.router import _find_by_hash, _get_or_create_firmware, _get_or_create_product
+
+    if us.is_archive:
+        from app.celery_app import ingest_archive_from_s3_task
+        ingest_archive_from_s3_task.delay(
+            us.s3_key, us.filename, us.product_name,
+            us.firmware_version, us.manufacturer, us.force,
+        )
+        return None
 
     if not us.force:
         existing = await _find_by_hash(session, source_hash)
@@ -415,12 +427,8 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
 
     await session.commit()
 
-    if us.is_archive:
-        from app.celery_app import ingest_archive_task
-        ingest_archive_task.delay(doc.id, us.product_name, us.firmware_version, us.manufacturer, us.force)
-    else:
-        from app.celery_app import ingest_document_task
-        ingest_document_task.delay(doc.id)
+    from app.celery_app import ingest_document_task
+    ingest_document_task.delay(doc.id)
 
     return doc.id
 

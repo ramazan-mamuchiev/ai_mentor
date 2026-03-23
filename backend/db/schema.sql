@@ -86,6 +86,9 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_empty INT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_failed INT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS detected_language TEXT;
 
+-- Source container (archive filename or URL the document was extracted from)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_container TEXT;
+
 -- Chunks (semantic search units with vector embeddings)
 CREATE TABLE IF NOT EXISTS chunks (
     id BIGSERIAL PRIMARY KEY,

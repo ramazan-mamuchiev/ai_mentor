@@ -23,10 +23,13 @@ logger = logging.getLogger(__name__)
 PARALLEL_THRESHOLD = 10
 MAX_PDF_WORKERS = 4
 MAX_RETRIES = 2
-PAGES_PER_CHUNK = 2
+PAGES_PER_CHUNK_SMALL = 2
+PAGES_PER_CHUNK_LARGE = 10
 
 _OCR_IMAGE_MIN_AREA = 100_000
 _IMG_REF_RE = re.compile(r"!\[([^\]]*)\]\(((?:[^()]*|\([^()]*\))*)\)")
+_XREF_WIDTH_RE = re.compile(r"/Width\s+(\d+)")
+_XREF_HEIGHT_RE = re.compile(r"/Height\s+(\d+)")
 
 _ocr_reader = None
 _ocr_reader_langs: list[str] = []
@@ -139,6 +142,19 @@ def _ocr_image_file(image_path: str, languages: list[str] | None = None) -> str:
     return " ".join(item[1] for item in results if item[1].strip())
 
 
+def _image_area_from_xref(doc: pymupdf.Document, xref: int) -> int:
+    """Get image pixel area from xref metadata without decompressing the image."""
+    try:
+        obj_str = doc.xref_object(xref)
+        w_match = _XREF_WIDTH_RE.search(obj_str)
+        h_match = _XREF_HEIGHT_RE.search(obj_str)
+        if w_match and h_match:
+            return int(w_match.group(1)) * int(h_match.group(1))
+    except Exception:
+        pass
+    return 0
+
+
 def _find_ocr_pages(
     pdf_path: str,
     progress_callback: Callable[[float], None] | None = None,
@@ -151,10 +167,7 @@ def _find_ocr_pages(
             page = doc[i]
             for img_info in page.get_images():
                 xref = img_info[0]
-                pix = pymupdf.Pixmap(doc, xref)
-                area = pix.width * pix.height
-                pix = None
-                if area >= _OCR_IMAGE_MIN_AREA:
+                if _image_area_from_xref(doc, xref) >= _OCR_IMAGE_MIN_AREA:
                     ocr_pages.append(i)
                     break
             if progress_callback is not None and total > 0:
@@ -268,7 +281,7 @@ def _convert_page_range_with_retry(file_path: str, page_range: list[int]) -> str
     return ""  # unreachable, satisfies type checker
 
 
-def _split_page_ranges(page_count: int, pages_per_chunk: int = PAGES_PER_CHUNK) -> list[list[int]]:
+def _split_page_ranges(page_count: int, pages_per_chunk: int = PAGES_PER_CHUNK_SMALL) -> list[list[int]]:
     """Split pages into fixed-size chunks for granular progress reporting."""
     ranges: list[list[int]] = []
     for start in range(0, page_count, pages_per_chunk):
@@ -340,7 +353,8 @@ def convert_pdf(
         },
     )
 
-    page_ranges = _split_page_ranges(page_count, pages_per_chunk=PAGES_PER_CHUNK)
+    chunk_size = PAGES_PER_CHUNK_LARGE if page_count > PARALLEL_THRESHOLD else PAGES_PER_CHUNK_SMALL
+    page_ranges = _split_page_ranges(page_count, pages_per_chunk=chunk_size)
     total_ranges = len(page_ranges)
 
     if page_count > PARALLEL_THRESHOLD:
@@ -353,7 +367,7 @@ def convert_pdf(
             extra={
                 "workers": num_workers,
                 "total_chunks": total_ranges,
-                "pages_per_chunk": PAGES_PER_CHUNK,
+                "pages_per_chunk": chunk_size,
             },
         )
 
