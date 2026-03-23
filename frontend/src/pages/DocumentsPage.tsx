@@ -483,7 +483,7 @@ export function DocumentsPage({ onUploadClick, refreshKey, productId }: Props) {
           )}
           {hasActiveFilters && (
             <button className="docs-filter-clear" onClick={clearFilters}>
-              <X size={12} />
+              <X size={14} />
               {t('docs.filter.clear')}
             </button>
           )}
