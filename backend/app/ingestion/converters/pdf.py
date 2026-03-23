@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 PARALLEL_THRESHOLD = 10
 MAX_PDF_WORKERS = 4
 MAX_RETRIES = 2
+PAGES_PER_CHUNK = 50
 
 _OCR_IMAGE_MIN_AREA = 100_000
 _IMG_REF_RE = re.compile(r"!\[([^\]]*)\]\(((?:[^()]*|\([^()]*\))*)\)")
@@ -181,12 +182,11 @@ def _convert_page_range_with_retry(file_path: str, page_range: list[int]) -> str
     return ""  # unreachable, satisfies type checker
 
 
-def _split_page_ranges(page_count: int, max_workers: int) -> list[list[int]]:
-    """Split pages into roughly equal chunks for parallel processing."""
-    chunk_size = math.ceil(page_count / max_workers)
+def _split_page_ranges(page_count: int, pages_per_chunk: int = PAGES_PER_CHUNK) -> list[list[int]]:
+    """Split pages into fixed-size chunks for granular progress reporting."""
     ranges: list[list[int]] = []
-    for start in range(0, page_count, chunk_size):
-        end = min(start + chunk_size, page_count)
+    for start in range(0, page_count, pages_per_chunk):
+        end = min(start + pages_per_chunk, page_count)
         ranges.append(list(range(start, end)))
     return ranges
 
@@ -225,7 +225,7 @@ def convert_pdf(
 
     if page_count > PARALLEL_THRESHOLD:
         num_workers = min(MAX_PDF_WORKERS, page_count)
-        page_ranges = _split_page_ranges(page_count, num_workers)
+        page_ranges = _split_page_ranges(page_count)
         results: dict[int, str] = {}
         completed_count = 0
 
@@ -233,8 +233,8 @@ def convert_pdf(
             "Parallel PDF conversion",
             extra={
                 "workers": num_workers,
-                "chunks": len(page_ranges),
-                "pages_per_chunk": [len(r) for r in page_ranges],
+                "total_chunks": len(page_ranges),
+                "pages_per_chunk": PAGES_PER_CHUNK,
             },
         )
 
