@@ -224,6 +224,8 @@ class ChatMessageAnalytics(Base):
     auto_product: Mapped[str | None] = mapped_column(Text, nullable=True)
     detected_doc_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     search_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+    query_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user_input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     user_output_tokens: Mapped[int] = mapped_column(Integer, default=0)
@@ -284,6 +286,8 @@ class ChatMessageAnalytics(Base):
             "auto_product": self.auto_product,
             "detected_doc_context": self.detected_doc_context,
             "search_query": self.search_query,
+            "query_type": self.query_type,
+            "prompt_hash": self.prompt_hash,
             "user_input_tokens": self.user_input_tokens,
             "user_output_tokens": self.user_output_tokens,
             "llm_prompt_tokens": self.llm_prompt_tokens,

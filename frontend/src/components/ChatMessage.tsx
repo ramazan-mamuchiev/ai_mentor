@@ -78,6 +78,7 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
             )}
             {debug.classify_model && <div className="debug-row debug-row-config"><span>{t('debug.classifyModel')}</span><code>{debug.classify_model}</code></div>}
             {debug.classify_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.classifyTime')}</span><code>{(debug.classify_ms / 1000).toFixed(2)}s</code></div>}
+            {debug.prompt_hash && <div className="debug-row debug-row-config"><span>{t('debug.promptHash')}</span><code>{debug.prompt_hash}</code></div>}
           </div>
         )}
         {hasTiming && (

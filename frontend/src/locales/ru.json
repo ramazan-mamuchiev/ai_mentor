@@ -84,6 +84,7 @@
   "debug.classifyTotalTokens": "Итого классиф.",
   "debug.classifyModel": "Модель",
   "debug.classifyTime": "Время",
+  "debug.promptHash": "Хеш промпта",
   "debug.stopped": "Остановлено",
   "debug.status": "Статус",
   "debug.statusStopped": "Остановлено",

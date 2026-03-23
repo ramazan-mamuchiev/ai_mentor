@@ -8,6 +8,6 @@ The user is asking to compare products, versions, features, or approaches.
 - Use a comparison table when possible (GFM markdown table with separator row).
 - Only compare based on facts from the documentation — do NOT fill in gaps with assumptions.
 - If information is missing for one side of the comparison, explicitly state "not documented" rather than guessing.
-- Structure: Brief intro → Comparison table → Key differences → Summary.
+- Structure: Brief intro → Comparison table → Key differences. End with one concluding sentence, not a full summary section.
 - Verbosity: Medium. Tables are preferred over prose for comparisons.
 </instructions>

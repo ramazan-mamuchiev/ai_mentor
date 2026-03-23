@@ -57,6 +57,7 @@ export interface DebugInfo {
   classify_completion_tokens?: number
   classify_total_tokens?: number
   classify_raw?: string
+  prompt_hash?: string
   status?: 'success' | 'stopped' | 'error'
   status_detail?: string
 }

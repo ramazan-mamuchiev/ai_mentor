@@ -84,6 +84,7 @@
   "debug.classifyTotalTokens": "Total classify",
   "debug.classifyModel": "Model",
   "debug.classifyTime": "Time",
+  "debug.promptHash": "Prompt hash",
   "debug.stopped": "Stopped",
   "debug.status": "Status",
   "debug.statusStopped": "Stopped",

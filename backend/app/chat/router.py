@@ -415,6 +415,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     auto_product=debug_info.get("auto_product"),
                     detected_doc_context=debug_info.get("detected_doc_context"),
                     search_query=debug_info.get("search_query"),
+                    query_type=debug_info.get("query_type"),
+                    prompt_hash=debug_info.get("prompt_hash"),
                     user_input_tokens=user_input_tokens,
                     user_output_tokens=user_output_tokens,
                     llm_prompt_tokens=llm_prompt_tokens,

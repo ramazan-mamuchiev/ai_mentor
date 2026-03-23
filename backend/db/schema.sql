@@ -212,6 +212,10 @@ CREATE INDEX IF NOT EXISTS idx_cma_provider ON chat_message_analytics(llm_provid
 CREATE INDEX IF NOT EXISTS idx_cma_created ON chat_message_analytics(created_at);
 CREATE INDEX IF NOT EXISTS idx_cma_similarity ON chat_message_analytics(top_similarity);
 
+-- Prompt tracking (query_type + prompt_hash for reproducibility)
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS query_type TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS prompt_hash TEXT;
+
 -- Search analytics (per-query metrics for MCP tools and API search)
 CREATE TABLE IF NOT EXISTS search_analytics (
     id BIGSERIAL PRIMARY KEY,

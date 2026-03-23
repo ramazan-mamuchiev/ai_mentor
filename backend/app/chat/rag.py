@@ -475,26 +475,35 @@ async def build_rag_prompt(
     context_block = f"{context_header}{context}\n</documentation_context>"
 
     system_prompt = _build_system_prompt(query_type)
+    prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:12]
 
-    messages = [
+    messages: list[dict] = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": context_block},
-        {"role": "assistant", "content": "Understood. I will use the documentation context above to answer questions. If the sources contain relevant information, I will summarize it."},
     ]
 
-    if history:
-        messages.extend(_build_history_messages(
-            history, settings.rag_history_messages, settings.rag_history_max_tokens,
-        ))
-
-    if chunks:
-        hint = (
-            f"Note: {len(chunks)} relevant source chunks were found in the documentation. "
-            "Use them to answer the question.\n\n"
-        )
+    if query_type == "chitchat":
+        if history:
+            messages.extend(_build_history_messages(
+                history, settings.rag_history_messages, settings.rag_history_max_tokens,
+            ))
+        messages.append({"role": "user", "content": query})
     else:
-        hint = ""
-    messages.append({"role": "user", "content": f"{hint}Based on the documentation above, answer the following question:\n\n{query}"})
+        messages.append({"role": "user", "content": context_block})
+        messages.append({"role": "assistant", "content": "Understood. I will use the documentation context above to answer questions. If the sources contain relevant information, I will summarize it."})
+
+        if history:
+            messages.extend(_build_history_messages(
+                history, settings.rag_history_messages, settings.rag_history_max_tokens,
+            ))
+
+        if chunks:
+            hint = (
+                f"Note: {len(chunks)} relevant source chunks were found in the documentation. "
+                "Use them to answer the question.\n\n"
+            )
+        else:
+            hint = ""
+        messages.append({"role": "user", "content": f"{hint}Based on the documentation above, answer the following question:\n\n{query}"})
 
     sources = [
         {
@@ -545,6 +554,8 @@ async def build_rag_prompt(
         "rerank_completion_tokens": search_meta.get("rerank_completion_tokens", 0),
         "rerank_total_tokens": search_meta.get("rerank_total_tokens", 0),
         "rerank_model": search_meta.get("rerank_model", ""),
+        "query_type": query_type,
+        "prompt_hash": prompt_hash,
         **classify_meta,
     }
 
