@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Bot, Bug, ChevronDown, ChevronUp, Loader2, RefreshCw, User } from 'lucide-react'
+import { AlertTriangle, Bot, Bug, ChevronDown, ChevronUp, Loader2, RefreshCw, User, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -28,7 +28,7 @@ function fmtPct(v: number | undefined | null): string {
   return v != null ? (v * 100).toFixed(1) + '%' : '—'
 }
 
-function DebugPanel({ debug }: { debug: DebugInfo }) {
+function DebugPanel({ debug, onCollapse }: { debug: DebugInfo; onCollapse?: () => void }) {
   const { t } = useTranslation()
   const promptTotal = (debug.query_tokens ?? 0) + (debug.context_tokens ?? 0)
     + (debug.history_tokens ?? 0) + (debug.system_prompt_tokens ?? 0)
@@ -39,6 +39,11 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
   const hasContext = debug.product_filter != null || debug.search_query != null || debug.chunks_found != null
   return (
     <div className="debug-panel">
+      {onCollapse && (
+        <button className="debug-panel-close" onClick={onCollapse} title={t('docDebug.collapse')}>
+          <X size={14} />
+        </button>
+      )}
       <div className="debug-grid">
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.billing')}</div>
@@ -265,7 +270,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             )}
           </div>
         )}
-        {debugExpanded && debug && <DebugPanel debug={debug} />}
+        {debugExpanded && debug && <DebugPanel debug={debug} onCollapse={() => setDebugExpanded(false)} />}
       </div>
     </div>
   )
