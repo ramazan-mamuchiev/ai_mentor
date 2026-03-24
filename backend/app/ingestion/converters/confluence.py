@@ -125,10 +125,6 @@ def _html_to_markdown(html: str, page_title: str) -> str:
         heading_style="ATX",
         bullets="-",
         strip=["script", "style", "nav", "footer", "header"],
-        convert=["table", "tr", "td", "th", "thead", "tbody",
-                 "p", "br", "h1", "h2", "h3", "h4", "h5", "h6",
-                 "ul", "ol", "li", "a", "img", "strong", "em",
-                 "code", "pre", "blockquote", "hr", "div", "span"],
     )
 
     lines = text.split("\n")
