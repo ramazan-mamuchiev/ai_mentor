@@ -61,6 +61,8 @@ export interface UrlIngestResponse {
   url: string
   product_name: string
   task_id: string | null
+  product_id: number | null
+  document_id: number | null
 }
 
 export async function ingestUrl(data: UrlIngestRequest): Promise<UrlIngestResponse> {

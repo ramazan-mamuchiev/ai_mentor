@@ -168,11 +168,9 @@ async def ingest_document(
 async def ingest_url(request: Request, body: UrlIngestRequest):
     """Import documentation from a web URL.
 
-    Supports Confluence page trees (auto-detected by URL pattern) and
-    single web pages. For Confluence, recursively crawls all child pages
-    and ingests each as a separate document.
-
-    Processing runs in background via Celery.
+    Creates Product + FirmwareVersion + Document placeholder synchronously,
+    then dispatches a Celery task for background crawl/ingestion.
+    The placeholder tracks overall progress visible to the frontend via polling.
     """
     from app.ingestion.converters.confluence import parse_confluence_url
 
@@ -195,48 +193,58 @@ async def ingest_url(request: Request, body: UrlIngestRequest):
     except ValueError:
         pass
 
-    try:
-        if is_confluence:
-            from app.celery_app import ingest_confluence_task
-            task = ingest_confluence_task.delay(
-                url=url,
-                product_name=body.product_name,
-                firmware_version=body.firmware_version,
-                manufacturer=body.manufacturer,
-            )
-            logger.info("Confluence crawl task queued", extra={
-                "url": url, "task_id": task.id, "client_ip": client_ip,
+    doc_format = "confluence" if is_confluence else "url"
+
+    async with async_session() as session:
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer)
+        fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
+
+        placeholder = Document(
+            product_id=product.id,
+            firmware_version_id=fw.id,
+            format=doc_format,
+            original_filename=url[:200],
+            title=url[:200],
+            status="pending",
+            source_path=url,
+            source_container=url,
+            progress_stage="queued",
+        )
+        session.add(placeholder)
+        await session.flush()
+
+        try:
+            if is_confluence:
+                from app.celery_app import ingest_confluence_task
+                task = ingest_confluence_task.delay(document_id=placeholder.id)
+            else:
+                from app.celery_app import ingest_single_url_task
+                task = ingest_single_url_task.delay(document_id=placeholder.id)
+
+            placeholder.celery_task_id = task.id
+            await session.commit()
+
+            logger.info("URL ingest task queued", extra={
+                "url": url, "task_id": task.id, "document_id": placeholder.id,
+                "product_id": product.id, "is_confluence": is_confluence,
+                "client_ip": client_ip,
             })
+
             return UrlIngestResponse(
                 status="pending",
-                message="Confluence documentation crawl queued for processing",
+                message="Confluence documentation crawl queued" if is_confluence else "Web page queued for processing",
                 url=url,
                 product_name=body.product_name,
                 task_id=task.id,
+                product_id=product.id,
+                document_id=placeholder.id,
             )
-
-        from app.celery_app import ingest_single_url_task
-        task = ingest_single_url_task.delay(
-            url=url,
-            product_name=body.product_name,
-            firmware_version=body.firmware_version,
-            manufacturer=body.manufacturer,
-        )
-        logger.info("Single URL ingest task queued", extra={
-            "url": url, "task_id": task.id, "client_ip": client_ip,
-        })
-        return UrlIngestResponse(
-            status="pending",
-            message="Web page queued for processing",
-            url=url,
-            product_name=body.product_name,
-            task_id=task.id,
-        )
-    except Exception as exc:
-        logger.error("Failed to queue URL ingest task", extra={
-            "url": url, "error_type": type(exc).__name__, "error": str(exc),
-        }, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
+        except Exception as exc:
+            await session.rollback()
+            logger.error("Failed to queue URL ingest task", extra={
+                "url": url, "error_type": type(exc).__name__, "error": str(exc),
+            }, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
 
 
 from app.documents.archive import (

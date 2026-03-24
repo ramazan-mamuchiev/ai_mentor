@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Globe, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { Globe, X, AlertCircle, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ingestUrl } from '../api/documents'
 import type { ProductContext } from './FileUpload'
@@ -10,7 +10,7 @@ interface UrlImportProps {
   productContext?: ProductContext
 }
 
-type ImportStatus = 'idle' | 'submitting' | 'completed' | 'error'
+type ImportStatus = 'idle' | 'submitting' | 'error'
 
 export function UrlImport({ onComplete, onClose, productContext }: UrlImportProps) {
   const { t } = useTranslation()
@@ -21,7 +21,6 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
   const hasProductContext = !!productContext?.name
   const [status, setStatus] = useState<ImportStatus>('idle')
   const [error, setError] = useState('')
-  const [resultMessage, setResultMessage] = useState('')
 
   const isConfluence = /\/confluence\/spaces\/[^/]+\/pages\/\d+/.test(url)
 
@@ -32,20 +31,19 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setError('')
 
     try {
-      const result = await ingestUrl({
+      await ingestUrl({
         url: url.trim(),
         product_name: productName.trim(),
         firmware_version: firmwareVersion || '1.0',
         manufacturer: manufacturer,
       })
-      setStatus('completed')
-      setResultMessage(result.message)
       onComplete?.()
+      onClose?.()
     } catch (err) {
       setStatus('error')
       setError(err instanceof Error ? err.message : String(err))
     }
-  }, [url, productName, firmwareVersion, manufacturer, onComplete])
+  }, [url, productName, firmwareVersion, manufacturer, onComplete, onClose])
 
   const handleReset = useCallback(() => {
     setUrl('')
@@ -54,7 +52,6 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setManufacturer('')
     setStatus('idle')
     setError('')
-    setResultMessage('')
   }, [])
 
   const isValid = url.trim().length > 0 && productName.trim().length > 0
@@ -160,17 +157,6 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
               <Loader2 size={14} className="spin-icon" />
               <span>{t('urlImport.processing')}</span>
             </div>
-          </div>
-        )}
-
-        {status === 'completed' && (
-          <div className="file-upload-result file-upload-success">
-            <CheckCircle size={24} />
-            <div>
-              <strong>{t('urlImport.complete')}</strong>
-              <p>{resultMessage}</p>
-            </div>
-            <button className="file-upload-btn" onClick={handleReset}>{t('urlImport.another')}</button>
           </div>
         )}
 

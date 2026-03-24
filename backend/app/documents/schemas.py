@@ -97,6 +97,8 @@ class UrlIngestResponse(BaseModel):
     url: str
     product_name: str
     task_id: str | None = None
+    product_id: int | None = None
+    document_id: int | None = None
 
     model_config = {"from_attributes": True}
 

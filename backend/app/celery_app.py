@@ -574,16 +574,14 @@ def ingest_archive_from_s3_task(
 
 
 @celery.task(name="ingest_single_url", bind=True, max_retries=2, default_retry_delay=30)
-def ingest_single_url_task(
-    self,
-    url: str,
-    product_name: str,
-    firmware_version: str = "1.0",
-    manufacturer: str = "",
-):
-    """Background task: fetch a single web page, convert to Markdown, and ingest."""
+def ingest_single_url_task(self, document_id: int):
+    """Background task: fetch a single web page, convert to Markdown, and ingest.
+
+    Receives the placeholder Document id (created by the API endpoint).
+    Updates the placeholder in-place with fetched content and embeddings.
+    """
     import asyncio
-    from app.models import Document, Product, FirmwareVersion, Chunk
+    from app.models import Document, Chunk
     from app.ingestion.converters.web import convert_url
     from app.ingestion.pipeline import (
         enrich_for_embedding, _replace_generic_headings,
@@ -593,12 +591,25 @@ def ingest_single_url_task(
     from app.ingestion.embedder import embed_texts
     from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
     from app.config import settings as _settings
-    from app.slugify import slugify
     from datetime import datetime, timezone
 
     t0 = time.perf_counter()
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            logger.error("Placeholder document not found", extra={"document_id": document_id})
+            return {"status": "error", "error": "Placeholder not found"}
+
+        url = doc.source_path
+        doc.status = "processing"
+        doc.progress_stage = "fetching"
+        doc.progress_percent = 0
+        session.commit()
+
     logger.info("Celery ingest_single_url_task started", extra={
-        "url": url, "product_name": product_name, "task_id": self.request.id,
+        "url": url, "document_id": document_id, "task_id": self.request.id,
     })
 
     try:
@@ -612,67 +623,45 @@ def ingest_single_url_task(
             finally:
                 loop.close()
     except Exception as exc:
+        with Session(engine) as session:
+            doc = session.get(Document, document_id)
+            if doc:
+                doc.status = "error"
+                doc.error_message = f"Fetch failed: {type(exc).__name__}: {str(exc)[:1900]}"
+                doc.progress_stage = ""
+                session.commit()
         logger.error("URL conversion failed", extra={
-            "url": url, "error_type": type(exc).__name__,
+            "url": url, "document_id": document_id,
+            "error_type": type(exc).__name__,
         }, exc_info=True)
         raise self.retry(exc=exc)
 
     if not text or not text.strip():
+        with Session(engine) as session:
+            doc = session.get(Document, document_id)
+            if doc:
+                doc.status = "error"
+                doc.error_message = "URL conversion produced empty content"
+                doc.progress_stage = ""
+                session.commit()
         logger.error("URL conversion produced empty content", extra={"url": url})
         return {"status": "error", "error": "Empty content", "url": url}
 
     source_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    engine = _get_sync_engine()
 
     with Session(engine) as session:
-        existing = session.execute(
-            sa_select(Document).where(Document.source_hash == source_hash).limit(1)
-        ).scalar_one_or_none()
-        if existing is not None:
-            logger.info("URL content already ingested", extra={
-                "url": url, "existing_id": existing.id,
-            })
-            return {"status": "skipped", "document_id": existing.id, "url": url}
-
-        product_row = session.execute(
-            sa_select(Product).where(Product.name == product_name)
-        ).scalar_one_or_none()
-        if product_row is None:
-            product_row = Product(
-                name=product_name,
-                manufacturer=manufacturer,
-                slug=slugify(product_name),
-                manufacturer_slug=slugify(manufacturer) if manufacturer else "default",
-            )
-            session.add(product_row)
-            session.flush()
-
-        fw_row = session.execute(
-            sa_select(FirmwareVersion).where(
-                FirmwareVersion.product_id == product_row.id,
-                FirmwareVersion.version == firmware_version,
-            )
-        ).scalar_one_or_none()
-        if fw_row is None:
-            fw_row = FirmwareVersion(product_id=product_row.id, version=firmware_version)
-            session.add(fw_row)
-            session.flush()
+        doc = session.get(Document, document_id)
+        if doc is None:
+            return {"status": "error", "error": "Placeholder disappeared"}
 
         page_title = convert_metadata.get("page_title") or convert_metadata.get("api_title") or url
-        doc = Document(
-            product_id=product_row.id,
-            firmware_version_id=fw_row.id,
-            format="url",
-            original_filename=f"{page_title[:100]}.md",
-            file_size_bytes=len(text.encode("utf-8")),
-            title=page_title,
-            status="processing",
-            source_hash=source_hash,
-            source_container=url,
-            source_path=url,
-        )
-        session.add(doc)
-        session.flush()
+        doc.title = page_title
+        doc.original_filename = f"{page_title[:100]}.md"
+        doc.file_size_bytes = len(text.encode("utf-8"))
+        doc.source_hash = source_hash
+        doc.progress_stage = "parsing"
+        doc.progress_percent = 30
+        session.commit()
 
         try:
             t_parse = time.perf_counter()
@@ -684,13 +673,22 @@ def ingest_single_url_task(
             if not chunks:
                 doc.status = "error"
                 doc.error_message = "No content extracted"
+                doc.progress_stage = ""
                 session.commit()
                 return {"status": "error", "error": "No content extracted", "url": url}
+
+            doc.progress_stage = "embedding"
+            doc.progress_percent = 50
+            session.commit()
 
             t_embed = time.perf_counter()
             enriched = enrich_for_embedding(chunks)
             embeddings = embed_texts(enriched)
             embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
+
+            doc.progress_stage = "storing"
+            doc.progress_percent = 80
+            session.commit()
 
             t_db = time.perf_counter()
             for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
@@ -709,6 +707,8 @@ def ingest_single_url_task(
 
             doc.total_chunks = len(chunks)
             doc.status = "ready"
+            doc.progress_percent = 100
+            doc.progress_stage = "done"
             doc.indexed_at = datetime.now(timezone.utc)
 
             token_counts = [c.token_count for c in chunks]
@@ -746,6 +746,7 @@ def ingest_single_url_task(
         except Exception as exc:
             doc.status = "error"
             doc.error_message = str(exc)[:2000]
+            doc.progress_stage = ""
             session.commit()
             logger.error("Single URL ingestion failed", extra={
                 "url": url, "document_id": doc.id,
@@ -755,85 +756,106 @@ def ingest_single_url_task(
 
 
 @celery.task(name="ingest_confluence", bind=True, max_retries=1, default_retry_delay=60)
-def ingest_confluence_task(
-    self,
-    url: str,
-    product_name: str,
-    firmware_version: str = "1.0",
-    manufacturer: str = "",
-):
-    """Background task: crawl Confluence page tree and ingest each page as a Document."""
+def ingest_confluence_task(self, document_id: int):
+    """Background task: crawl Confluence page tree and ingest each page.
+
+    Receives the placeholder Document id (created by the API endpoint).
+    The placeholder tracks overall crawl progress; each Confluence page
+    becomes a separate child Document.
+    """
     import asyncio
-    from app.models import Document, Product, FirmwareVersion, Chunk
+    from app.models import Document, Chunk
     from app.ingestion.converters.confluence import crawl_confluence
     from app.ingestion.pipeline import (
-        ingest_from_bytes, _update_progress, enrich_for_embedding,
-        _text_hash, _replace_generic_headings,
+        enrich_for_embedding, _replace_generic_headings,
     )
     from app.ingestion.parsers.markdown import parse_markdown
     from app.ingestion.chunker import chunk_sections
     from app.ingestion.embedder import embed_texts
     from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
     from app.config import settings as _settings
-    from app.slugify import slugify
     from datetime import datetime, timezone
 
     t0 = time.perf_counter()
-    logger.info("Celery ingest_confluence_task started", extra={
-        "url": url, "product_name": product_name, "task_id": self.request.id,
-    })
-
     engine = _get_sync_engine()
 
+    with Session(engine) as session:
+        placeholder = session.get(Document, document_id)
+        if placeholder is None:
+            logger.error("Placeholder document not found", extra={"document_id": document_id})
+            return {"status": "error", "error": "Placeholder not found"}
+
+        url = placeholder.source_path
+        product_id = placeholder.product_id
+        firmware_version_id = placeholder.firmware_version_id
+
+        placeholder.status = "processing"
+        placeholder.progress_stage = "crawling"
+        placeholder.progress_percent = 0
+        session.commit()
+
+    logger.info("Celery ingest_confluence_task started", extra={
+        "url": url, "document_id": document_id, "task_id": self.request.id,
+    })
+
     try:
-        result = asyncio.get_event_loop().run_until_complete(
-            crawl_confluence(url, max_pages=500)
-        )
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
         try:
-            result = loop.run_until_complete(
+            result = asyncio.get_event_loop().run_until_complete(
                 crawl_confluence(url, max_pages=500)
             )
-        finally:
-            loop.close()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(
+                    crawl_confluence(url, max_pages=500)
+                )
+            finally:
+                loop.close()
+    except Exception as exc:
+        with Session(engine) as session:
+            placeholder = session.get(Document, document_id)
+            if placeholder:
+                placeholder.status = "error"
+                placeholder.error_message = f"Crawl failed: {type(exc).__name__}: {str(exc)[:1900]}"
+                placeholder.progress_stage = ""
+                session.commit()
+        logger.error("Confluence crawl failed", extra={
+            "url": url, "document_id": document_id,
+            "error_type": type(exc).__name__,
+        }, exc_info=True)
+        raise self.retry(exc=exc)
 
     if not result.pages:
+        with Session(engine) as session:
+            placeholder = session.get(Document, document_id)
+            if placeholder:
+                placeholder.status = "error"
+                placeholder.error_message = "Crawl returned no pages"
+                placeholder.progress_stage = ""
+                session.commit()
         logger.error("Confluence crawl returned no pages", extra={"url": url})
         return {"status": "error", "error": "No pages found", "url": url}
 
-    with Session(engine) as session:
-        product_row = session.execute(
-            sa_select(Product).where(Product.name == product_name)
-        ).scalar_one_or_none()
-        if product_row is None:
-            product_row = Product(
-                name=product_name,
-                manufacturer=manufacturer,
-                slug=slugify(product_name),
-                manufacturer_slug=slugify(manufacturer) if manufacturer else "default",
-            )
-            session.add(product_row)
-            session.flush()
+    total_pages = len(result.pages)
 
-        fw_row = session.execute(
-            sa_select(FirmwareVersion).where(
-                FirmwareVersion.product_id == product_row.id,
-                FirmwareVersion.version == firmware_version,
-            )
-        ).scalar_one_or_none()
-        if fw_row is None:
-            fw_row = FirmwareVersion(product_id=product_row.id, version=firmware_version)
-            session.add(fw_row)
-            session.flush()
+    with Session(engine) as session:
+        placeholder = session.get(Document, document_id)
+        if placeholder:
+            placeholder.progress_stage = "ingesting"
+            placeholder.title = f"{result.pages[0].title} ({total_pages} pages)"
+            session.commit()
 
         ingested = 0
         skipped = 0
         errors = 0
+        processed = 0
 
         for page in result.pages:
+            processed += 1
+
             if not page.markdown or not page.markdown.strip():
                 skipped += 1
+                _update_placeholder_progress(session, document_id, processed, total_pages)
                 continue
 
             source_hash = hashlib.sha256(page.markdown.encode("utf-8")).hexdigest()
@@ -845,11 +867,12 @@ def ingest_confluence_task(
             ).scalar_one_or_none()
             if existing is not None:
                 skipped += 1
+                _update_placeholder_progress(session, document_id, processed, total_pages)
                 continue
 
             doc = Document(
-                product_id=product_row.id,
-                firmware_version_id=fw_row.id,
+                product_id=product_id,
+                firmware_version_id=firmware_version_id,
                 format="confluence",
                 original_filename=f"{page.title}.md",
                 file_size_bytes=len(page.markdown.encode("utf-8")),
@@ -874,6 +897,7 @@ def ingest_confluence_task(
                     doc.error_message = "No content extracted"
                     session.commit()
                     errors += 1
+                    _update_placeholder_progress(session, document_id, processed, total_pages)
                     continue
 
                 t_embed = time.perf_counter()
@@ -934,15 +958,29 @@ def ingest_confluence_task(
                     "error_type": type(exc).__name__,
                 }, exc_info=True)
 
+            _update_placeholder_progress(session, document_id, processed, total_pages)
+
+        placeholder = session.get(Document, document_id)
+        if placeholder:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            placeholder.status = "ready"
+            placeholder.progress_percent = 100
+            placeholder.progress_stage = "done"
+            placeholder.ingest_duration_ms = duration_ms
+            placeholder.total_chunks = ingested
+            session.commit()
+
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     logger.info("Celery ingest_confluence_task completed", extra={
-        "url": url, "total_pages": result.total_pages,
+        "url": url, "document_id": document_id,
+        "total_pages": result.total_pages,
         "ingested": ingested, "skipped": skipped, "errors": errors,
         "duration_ms": duration_ms,
     })
     return {
         "status": "ok",
         "url": url,
+        "document_id": document_id,
         "total_pages": result.total_pages,
         "ingested": ingested,
         "skipped": skipped,
@@ -950,6 +988,17 @@ def ingest_confluence_task(
         "crawl_errors": result.errors[:10],
         "duration_ms": duration_ms,
     }
+
+
+def _update_placeholder_progress(session, document_id: int, done: int, total: int):
+    """Update placeholder document progress (throttled to avoid excessive commits)."""
+    from app.models import Document
+    pct = round(done / max(total, 1) * 100)
+    placeholder = session.get(Document, document_id)
+    if placeholder and placeholder.progress_percent != pct:
+        placeholder.progress_percent = pct
+        placeholder.progress_stage = f"ingesting ({done}/{total})"
+        session.commit()
 
 
 @celery.task(name="run_reindex_job", bind=True, max_retries=0)
