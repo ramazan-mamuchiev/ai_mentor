@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getProductDebug } from '../api/products'
 import type { ProductDebugInfo } from '../types'
+import { DebugPanelWrapper } from './DebugPanelWrapper'
 
 type SortKey = 'title' | 'format' | 'file_size_bytes' | 'total_chunks' | 'status' | 'indexed_at'
 type SortDir = 'asc' | 'desc'
@@ -173,7 +174,7 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }:
 
   if (loading) {
     return (
-      <div className="doc-debug-panel doc-debug-loading">
+      <div className="debug-panel-box doc-debug-loading">
         <Loader2 size={16} className="spin-icon" />
       </div>
     )
@@ -181,7 +182,7 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }:
 
   if (error || !debug) {
     return (
-      <div className="doc-debug-panel doc-debug-error">
+      <div className="debug-panel-box doc-debug-error">
         {error || 'Failed to load debug info'}
       </div>
     )
@@ -197,12 +198,7 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }:
   ]
 
   return (
-    <div className="doc-debug-panel">
-      {onCollapse && (
-        <button className="doc-debug-collapse-btn" onClick={onCollapse} title={t('docDebug.collapse')}>
-          <X size={14} />
-        </button>
-      )}
+    <DebugPanelWrapper onCollapse={onCollapse}>
       <div className="doc-debug-grid">
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">Product Summary</div>
@@ -275,6 +271,6 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }:
           </div>
         )}
       </div>
-    </div>
+    </DebugPanelWrapper>
   )
 }

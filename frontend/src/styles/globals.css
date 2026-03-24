@@ -102,3 +102,39 @@ button {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* ── Shared Debug Panel ── */
+.debug-panel-box {
+  position: relative;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 11px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  line-height: 1.6;
+}
+
+.debug-panel-close-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  z-index: 1;
+}
+
+.debug-panel-close-btn:hover {
+  background: var(--error-bg, #fef2f2);
+  color: var(--error-text, #ef4444);
+  border-color: var(--error-text, #ef4444);
+}

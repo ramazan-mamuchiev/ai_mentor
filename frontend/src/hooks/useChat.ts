@@ -9,6 +9,7 @@ function snakeToCamel(s: string): string {
 
 interface ProductUpdate {
   product_filter?: string | null
+  product_filter_source?: string | null
   version_filter?: string | null
   auto_product?: string | null
 }
@@ -156,6 +157,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
             if (options?.onProductDetected && (event.auto_product || event.product_filter)) {
               options.onProductDetected(sessionId, {
                 product_filter: event.product_filter,
+                product_filter_source: event.product_filter_source,
                 version_filter: event.version_filter,
                 auto_product: event.auto_product,
               })

@@ -54,7 +54,7 @@ describe('ProductDebugPanel', () => {
     render(<ProductDebugPanel productId={1} />)
 
     await waitFor(() => {
-      expect(document.querySelector('.doc-debug-panel')).toBeInTheDocument()
+      expect(document.querySelector('.debug-panel-box')).toBeInTheDocument()
       expect(document.querySelector('.doc-debug-loading')).not.toBeInTheDocument()
     })
 

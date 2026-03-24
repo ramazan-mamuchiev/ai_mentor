@@ -150,6 +150,7 @@ class ChatSession(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    product_filter_source: Mapped[str | None] = mapped_column(Text, nullable=True)
     version_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
     doc_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

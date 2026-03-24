@@ -20,19 +20,20 @@ export function ChatApp() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
-  const [autoDetected, setAutoDetected] = useState(false)
 
   const handleProductDetected = useCallback((sessionId: number, update: {
     product_filter?: string | null
+    product_filter_source?: string | null
     version_filter?: string | null
     auto_product?: string | null
   }) => {
-    if (update.auto_product) {
-      setSessions(prev => prev.map(s =>
-        s.id === sessionId ? { ...s, product_filter: update.product_filter ?? s.product_filter } : s,
-      ))
-      setAutoDetected(true)
-    }
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? {
+        ...s,
+        product_filter: update.product_filter ?? s.product_filter,
+        product_filter_source: update.product_filter_source ?? s.product_filter_source,
+      } : s,
+    ))
   }, [])
 
   const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast } = useChat({
@@ -61,7 +62,6 @@ export function ChatApp() {
 
   const handleNewSession = useCallback(async () => {
     reset()
-    setAutoDetected(false)
     try {
       const session = await createSession()
       setSessions(prev => [session, ...prev])
@@ -73,7 +73,6 @@ export function ChatApp() {
 
   const handleSelectSession = useCallback(async (id: number) => {
     reset()
-    setAutoDetected(false)
     setActiveSessionId(id)
     try {
       const detail = await getSession(id)
@@ -122,7 +121,6 @@ export function ChatApp() {
     manufacturer: string | null
     versionFilter: string | null
   }) => {
-    setAutoDetected(false)
     if (!activeSessionId) return
 
     try {
@@ -131,7 +129,12 @@ export function ChatApp() {
         version_filter: selection.versionFilter,
       })
       setSessions(prev => prev.map(s =>
-        s.id === activeSessionId ? { ...s, product_filter: updated.product_filter, version_filter: updated.version_filter } : s,
+        s.id === activeSessionId ? {
+          ...s,
+          product_filter: updated.product_filter,
+          product_filter_source: updated.product_filter_source,
+          version_filter: updated.version_filter,
+        } : s,
       ))
     } catch {
       // ignore
@@ -139,7 +142,6 @@ export function ChatApp() {
   }, [activeSessionId])
 
   const handleClearProduct = useCallback(async () => {
-    setAutoDetected(false)
     if (!activeSessionId) return
     try {
       const updated = await updateSession(activeSessionId, {
@@ -147,7 +149,12 @@ export function ChatApp() {
         version_filter: '',
       })
       setSessions(prev => prev.map(s =>
-        s.id === activeSessionId ? { ...s, product_filter: updated.product_filter, version_filter: updated.version_filter } : s,
+        s.id === activeSessionId ? {
+          ...s,
+          product_filter: updated.product_filter,
+          product_filter_source: updated.product_filter_source,
+          version_filter: updated.version_filter,
+        } : s,
       ))
     } catch {
       // ignore

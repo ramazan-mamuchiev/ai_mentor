@@ -83,6 +83,7 @@ export interface ChatSession {
   id: number
   title: string | null
   product_filter: string | null
+  product_filter_source: string | null
   version_filter: string | null
   created_at: string
   updated_at: string
@@ -94,6 +95,7 @@ export interface SessionDetail {
   id: number
   title: string | null
   product_filter: string | null
+  product_filter_source: string | null
   version_filter: string | null
   created_at: string
   updated_at: string
@@ -104,7 +106,7 @@ export type SSEEvent =
   | { type: 'token'; content: string }
   | { type: 'sources'; sources: SourceInfo[] }
   | { type: 'debug_partial'; debug: Partial<DebugInfo> }
-  | { type: 'done'; message_id: number; duration_ms: number; debug?: DebugInfo; product_filter?: string | null; version_filter?: string | null; auto_product?: string | null }
+  | { type: 'done'; message_id: number; duration_ms: number; debug?: DebugInfo; product_filter?: string | null; product_filter_source?: string | null; version_filter?: string | null; auto_product?: string | null }
   | { type: 'error'; error_code: string; status_code?: number; error_type?: string; detail?: string }
 
 export type StreamStatus = 'idle' | 'streaming' | 'error'

@@ -43,6 +43,7 @@ async def create_session(req: CreateSessionRequest):
         chat_session = ChatSession(
             title=req.title,
             product_filter=req.product_filter,
+            product_filter_source=req.product_filter_source or ("explicit" if req.product_filter else None),
             version_filter=req.version_filter,
         )
         session.add(chat_session)
@@ -54,6 +55,7 @@ async def create_session(req: CreateSessionRequest):
             extra={
                 "session_id": chat_session.id,
                 "product_filter": req.product_filter,
+                "product_filter_source": chat_session.product_filter_source,
             },
         )
 
@@ -61,6 +63,7 @@ async def create_session(req: CreateSessionRequest):
             id=chat_session.id,
             title=chat_session.title,
             product_filter=chat_session.product_filter,
+            product_filter_source=chat_session.product_filter_source,
             version_filter=chat_session.version_filter,
             doc_context=chat_session.doc_context,
             created_at=chat_session.created_at,
@@ -83,7 +86,9 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
         )
 
         if req.product_filter is not None:
-            chat_session.product_filter = req.product_filter or None
+            new_product = req.product_filter or None
+            chat_session.product_filter = new_product
+            chat_session.product_filter_source = "explicit" if new_product else None
         if req.version_filter is not None:
             chat_session.version_filter = req.version_filter or None
 
@@ -104,6 +109,7 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
             extra={
                 "session_id": session_id,
                 "product_filter": chat_session.product_filter,
+                "product_filter_source": chat_session.product_filter_source,
                 "version_filter": chat_session.version_filter,
             },
         )
@@ -112,6 +118,7 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
             id=chat_session.id,
             title=chat_session.title,
             product_filter=chat_session.product_filter,
+            product_filter_source=chat_session.product_filter_source,
             version_filter=chat_session.version_filter,
             doc_context=chat_session.doc_context,
             created_at=chat_session.created_at,
@@ -141,6 +148,7 @@ async def list_sessions():
                 ChatSession.id,
                 ChatSession.title,
                 ChatSession.product_filter,
+                ChatSession.product_filter_source,
                 ChatSession.version_filter,
                 ChatSession.doc_context,
                 ChatSession.created_at,
@@ -159,6 +167,7 @@ async def list_sessions():
                 id=row.id,
                 title=row.title,
                 product_filter=row.product_filter,
+                product_filter_source=row.product_filter_source,
                 version_filter=row.version_filter,
                 doc_context=row.doc_context,
                 created_at=row.created_at,
@@ -200,6 +209,7 @@ async def get_session(session_id: int):
             id=chat_session.id,
             title=chat_session.title,
             product_filter=chat_session.product_filter,
+            product_filter_source=chat_session.product_filter_source,
             version_filter=chat_session.version_filter,
             doc_context=chat_session.doc_context,
             created_at=chat_session.created_at,
@@ -296,8 +306,10 @@ async def send_message(session_id: int, req: SendMessageRequest):
 
                 auto_prod = rag_debug.get("auto_product")
                 if auto_prod and chat_session.product_filter != auto_prod:
-                    chat_session.product_filter = auto_prod
-                    chat_session.doc_context = None
+                    if chat_session.product_filter_source != "explicit":
+                        chat_session.product_filter = auto_prod
+                        chat_session.product_filter_source = "auto"
+                        chat_session.doc_context = None
                 if not chat_session.doc_context:
                     detected = rag_debug.get("detected_doc_context")
                     if detected:
@@ -440,7 +452,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     **rag_debug,
                 }
 
-                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'request_id': request_id, 'product_filter': chat_session.product_filter, 'version_filter': chat_session.version_filter, 'auto_product': rag_debug.get('auto_product'), 'debug': debug_info})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'request_id': request_id, 'product_filter': chat_session.product_filter, 'product_filter_source': chat_session.product_filter_source, 'version_filter': chat_session.version_filter, 'auto_product': rag_debug.get('auto_product'), 'debug': debug_info})}\n\n"
 
                 analytics = ChatMessageAnalytics(
                     message_id=assistant_msg.id,

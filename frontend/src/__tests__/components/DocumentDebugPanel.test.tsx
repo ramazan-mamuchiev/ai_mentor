@@ -55,7 +55,7 @@ describe('DocumentDebugPanel', () => {
     render(<DocumentDebugPanel documentId={5} />)
 
     await waitFor(() => {
-      expect(document.querySelector('.doc-debug-panel')).toBeInTheDocument()
+      expect(document.querySelector('.debug-panel-box')).toBeInTheDocument()
       expect(document.querySelector('.doc-debug-loading')).not.toBeInTheDocument()
     })
 
@@ -168,7 +168,7 @@ describe('DocumentDebugPanel', () => {
     render(<DocumentDebugPanel documentId={5} />)
 
     await waitFor(() => {
-      expect(document.querySelector('.doc-debug-panel')).toBeInTheDocument()
+      expect(document.querySelector('.debug-panel-box')).toBeInTheDocument()
     })
 
     const dashes = screen.getAllByText('—')

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getDocumentDebug } from '../api/documents'
 import type { DocumentDebugInfo } from '../types'
+import { DebugPanelWrapper } from './DebugPanelWrapper'
 
 function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
@@ -103,7 +104,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
 
   if (loading) {
     return (
-      <div className="doc-debug-panel doc-debug-loading">
+      <div className="debug-panel-box doc-debug-loading">
         <Loader2 size={16} className="spin-icon" />
       </div>
     )
@@ -111,7 +112,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
 
   if (error || !debug) {
     return (
-      <div className="doc-debug-panel doc-debug-error">
+      <div className="debug-panel-box doc-debug-error">
         {error || 'Failed to load debug info'}
       </div>
     )
@@ -128,12 +129,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
   ]
 
   return (
-    <div className="doc-debug-panel">
-      {onCollapse && (
-        <button className="doc-debug-collapse-btn" onClick={onCollapse} title={t('docDebug.collapse')}>
-          <X size={14} />
-        </button>
-      )}
+    <DebugPanelWrapper onCollapse={onCollapse}>
       <div className="doc-debug-grid">
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.file')}</div>
@@ -224,6 +220,6 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
           <div className="doc-debug-row"><span>{t('docDebug.firmware')}</span><code>{debug.firmware_version || '—'}</code></div>
         </div>
       </div>
-    </div>
+    </DebugPanelWrapper>
   )
 }

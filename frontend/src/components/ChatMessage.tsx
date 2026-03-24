@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { AlertTriangle, Bot, Bug, ChevronDown, ChevronUp, Loader2, RefreshCw, User, X } from 'lucide-react'
+import { AlertTriangle, Bot, Bug, ChevronDown, ChevronUp, Loader2, RefreshCw, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { SourceCard } from './SourceCard'
+import { DebugPanelWrapper } from './DebugPanelWrapper'
 
 function formatTimestamp(iso: string): string {
   try {
@@ -38,12 +39,7 @@ function DebugPanel({ debug, onCollapse }: { debug: DebugInfo; onCollapse?: () =
   const hasIds = debug.session_id != null
   const hasContext = debug.product_filter != null || debug.search_query != null || debug.chunks_found != null
   return (
-    <div className="debug-panel">
-      {onCollapse && (
-        <button className="debug-panel-close" onClick={onCollapse} title={t('docDebug.collapse')}>
-          <X size={14} />
-        </button>
-      )}
+    <DebugPanelWrapper onCollapse={onCollapse} className="debug-panel">
       <div className="debug-grid">
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.billing')}</div>
@@ -173,7 +169,7 @@ function DebugPanel({ debug, onCollapse }: { debug: DebugInfo; onCollapse?: () =
           </div>
         )}
       </div>
-    </div>
+    </DebugPanelWrapper>
   )
 }
 
