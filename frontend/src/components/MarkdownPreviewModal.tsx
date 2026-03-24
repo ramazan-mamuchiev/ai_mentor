@@ -29,6 +29,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   const { t } = useTranslation()
   const [data, setData] = useState<DocumentMarkdownPreview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [rendering, setRendering] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -40,6 +41,12 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
         if (!cancelled) {
           setData(result)
           setLoading(false)
+          setRendering(true)
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              if (!cancelled) setRendering(false)
+            }, 50)
+          })
         }
       })
       .catch(err => {
@@ -70,6 +77,8 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
     URL.revokeObjectURL(url)
   }, [data, documentId])
 
+  const showSpinner = loading || rendering
+
   return (
     <div className="confirm-overlay" onClick={onClose}>
       <div
@@ -97,17 +106,17 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
                 </button>
               </>
             )}
-            <button className="confirm-close" onClick={onClose} aria-label="Close">
-              <X size={16} />
+            <button className="md-preview-close-btn" onClick={onClose} title={t('docDebug.collapse')}>
+              <X size={14} />
             </button>
           </div>
         </div>
 
         <div className="md-preview-body">
-          {loading && (
+          {showSpinner && (
             <div className="md-preview-placeholder">
               <Loader2 size={32} className="spin-icon" />
-              <span>{t('docs.preview.loading')}</span>
+              <span>{t(rendering ? 'docs.preview.rendering' : 'docs.preview.loading')}</span>
             </div>
           )}
           {error && (
@@ -116,7 +125,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
               <span>{error}</span>
             </div>
           )}
-          {data && !loading && (
+          {data && !showSpinner && (
             <div className="md-preview-content">
               <MarkdownRenderer content={data.markdown} />
             </div>

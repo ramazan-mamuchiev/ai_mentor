@@ -1692,6 +1692,27 @@ td:has(.docs-actions) {
   background: var(--surface-hover);
 }
 
+.md-preview-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.md-preview-close-btn:hover {
+  background: var(--error-bg, #fef2f2);
+  color: var(--error-text, #ef4444);
+  border-color: var(--error-text, #ef4444);
+}
+
 .md-preview-body {
   flex: 1;
   overflow-y: auto;
