@@ -89,6 +89,20 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS detected_language TEXT;
 -- Source container (archive filename or URL the document was extracted from)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_container TEXT;
 
+-- Fix FK: documents.firmware_version_id should CASCADE on delete
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'documents_firmware_version_id_fkey'
+        AND table_name = 'documents'
+    ) THEN
+        ALTER TABLE documents DROP CONSTRAINT documents_firmware_version_id_fkey;
+        ALTER TABLE documents ADD CONSTRAINT documents_firmware_version_id_fkey
+            FOREIGN KEY (firmware_version_id) REFERENCES firmware_versions(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
 -- Metadata extraction metrics (LLM-based entity/doc_type extraction)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_ms FLOAT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_prompt_tokens INT NOT NULL DEFAULT 0;

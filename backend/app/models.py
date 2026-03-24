@@ -59,7 +59,7 @@ class Document(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
-    firmware_version_id: Mapped[int] = mapped_column(ForeignKey("firmware_versions.id"), nullable=False)
+    firmware_version_id: Mapped[int] = mapped_column(ForeignKey("firmware_versions.id", ondelete="CASCADE"), nullable=False)
     format: Mapped[str] = mapped_column(Text, default="markdown")
     source_path: Mapped[str] = mapped_column(Text, default="")
     s3_key: Mapped[str] = mapped_column(Text, default="")
