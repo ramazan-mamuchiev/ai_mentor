@@ -260,6 +260,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
 
                 yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
+                effective_max_tokens = rag_debug.get("type_max_tokens") or settings.llm_max_tokens
+
                 query_tokens = rag_debug.get("query_tokens", 0)
                 context_tokens = rag_debug.get("context_tokens", 0)
                 history_tokens = rag_debug.get("history_tokens", 0)
@@ -292,7 +294,6 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 llm_meta: dict = {}
                 continuations = 0
                 llm_messages = list(messages)
-                effective_max_tokens = rag_debug.get("type_max_tokens") or settings.llm_max_tokens
 
                 while True:
                     llm_meta_chunk: dict = {}
