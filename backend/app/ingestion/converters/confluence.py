@@ -4,6 +4,10 @@ Crawls a Confluence page tree via REST API and converts each page to Markdown.
 Supports public (anonymous) Confluence instances.
 When OCR is enabled, downloads images from pages and extracts text via EasyOCR.
 
+Discovery strategy (in order of priority):
+  1. Child pages via REST API  (parent → child hierarchy)
+  2. In-body Confluence links  (hyperlinks in page HTML pointing to same space)
+
 Usage:
     pages = await crawl_confluence(
         "https://docs.axxonsoft.com/confluence/spaces/one20en/pages/246484043/Documentation",
@@ -17,23 +21,31 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import ssl
 import time
-import urllib.request
-import json
 from dataclasses import dataclass, field
-from urllib.parse import urlparse, quote
+from urllib.parse import quote
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
-_FETCH_TIMEOUT = 30
-_IMAGE_FETCH_TIMEOUT = 15
-_MAX_RESPONSE_BYTES = 20 * 1024 * 1024
-_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+_CONNECT_TIMEOUT = 15
+_READ_TIMEOUT = 30
+_IMAGE_READ_TIMEOUT = 15
+_MAX_CRAWL_SECONDS = 600
 _PAGE_LIMIT = 100
+
+_HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IPCodex/1.0",
+    "Accept": "application/json",
+}
 
 _CONFLUENCE_URL_PATTERN = re.compile(
     r"(?P<base>https?://[^/]+(?:/[^/]+)*?)/spaces/(?P<space>[^/]+)/pages/(?P<page_id>\d+)"
+)
+
+_BODY_LINK_RE = re.compile(
+    r'/spaces/(?P<space>[^/]+)/pages/(?P<page_id>\d+)'
 )
 
 
@@ -67,23 +79,33 @@ class CrawlResult:
     ocr_ms: float = 0.0
 
 
-def _make_ssl_context() -> ssl.SSLContext:
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return ctx
+def _make_http_client(image: bool = False) -> httpx.Client:
+    timeout = httpx.Timeout(
+        connect=_CONNECT_TIMEOUT,
+        read=_IMAGE_READ_TIMEOUT if image else _READ_TIMEOUT,
+        write=10.0,
+        pool=10.0,
+    )
+    return httpx.Client(
+        timeout=timeout,
+        headers=_HTTP_HEADERS,
+        verify=False,
+        follow_redirects=True,
+    )
 
 
-def _api_get(url: str) -> dict:
+def _api_get(url: str, client: httpx.Client | None = None) -> dict:
     """Fetch JSON from Confluence REST API."""
-    req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IPCodex/1.0",
-        "Accept": "application/json",
-    })
-    ctx = _make_ssl_context()
-    with urllib.request.urlopen(req, timeout=_FETCH_TIMEOUT, context=ctx) as resp:
-        body = resp.read(_MAX_RESPONSE_BYTES)
-    return json.loads(body.decode("utf-8"))
+    own_client = client is None
+    if own_client:
+        client = _make_http_client()
+    try:
+        resp = client.get(url)
+        resp.raise_for_status()
+        return resp.json()
+    finally:
+        if own_client:
+            client.close()
 
 
 def parse_confluence_url(url: str) -> tuple[str, str, str]:
@@ -100,28 +122,46 @@ def parse_confluence_url(url: str) -> tuple[str, str, str]:
     return m.group("base"), m.group("space"), m.group("page_id")
 
 
-def _get_page_content(base_url: str, page_id: str) -> tuple[str, str]:
+def _get_page_content(
+    base_url: str, page_id: str, client: httpx.Client | None = None,
+) -> tuple[str, str]:
     """Fetch page title and HTML body via REST API. Returns (title, html_body)."""
     url = f"{base_url}/rest/api/content/{page_id}?expand=body.storage,title"
-    data = _api_get(url)
+    data = _api_get(url, client)
     title = data.get("title", "")
     html_body = data.get("body", {}).get("storage", {}).get("value", "")
     return title, html_body
 
 
-def _get_child_pages(base_url: str, page_id: str) -> list[dict]:
+def _get_child_pages(
+    base_url: str, page_id: str, client: httpx.Client | None = None,
+) -> list[dict]:
     """Fetch all child pages (handles pagination)."""
-    children = []
+    children: list[dict] = []
     start = 0
     while True:
         url = f"{base_url}/rest/api/content/{page_id}/child/page?limit={_PAGE_LIMIT}&start={start}"
-        data = _api_get(url)
+        data = _api_get(url, client)
         results = data.get("results", [])
         children.extend(results)
         if len(results) < _PAGE_LIMIT:
             break
         start += _PAGE_LIMIT
     return children
+
+
+def _extract_linked_page_ids(html_body: str, space_key: str) -> list[str]:
+    """Extract Confluence page IDs from hyperlinks in the HTML body.
+
+    Only returns pages that belong to the same space.
+    """
+    page_ids: list[str] = []
+    for m in _BODY_LINK_RE.finditer(html_body):
+        if m.group("space") == space_key:
+            pid = m.group("page_id")
+            if pid not in page_ids:
+                page_ids.append(pid)
+    return page_ids
 
 
 _AC_IMAGE_RE = re.compile(
@@ -180,12 +220,10 @@ def _html_to_markdown(html: str, page_title: str, base_url: str = "", page_id: s
 def _fetch_image_bytes(url: str) -> bytes | None:
     """Download image bytes from a URL. Returns None on failure."""
     try:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IPCodex/1.0",
-        })
-        ctx = _make_ssl_context()
-        with urllib.request.urlopen(req, timeout=_IMAGE_FETCH_TIMEOUT, context=ctx) as resp:
-            return resp.read(_MAX_IMAGE_BYTES)
+        with _make_http_client(image=True) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            return resp.content
     except Exception as exc:
         logger.debug("Failed to download image", extra={
             "url": url[:200], "error": str(exc)[:200],
@@ -276,14 +314,20 @@ async def crawl_confluence(
     max_pages: int = 500,
     max_depth: int = 20,
     progress_callback: callable | None = None,
+    max_seconds: int = _MAX_CRAWL_SECONDS,
 ) -> CrawlResult:
     """Crawl a Confluence page tree starting from the given URL.
+
+    Pages are discovered via two mechanisms:
+      - REST API child-page hierarchy (parent → child)
+      - In-body hyperlinks pointing to pages in the same Confluence space
 
     Args:
         url: Confluence page URL.
         max_pages: Maximum number of pages to crawl.
         max_depth: Maximum tree depth to traverse.
         progress_callback: Optional callback(pages_done, total_estimated).
+        max_seconds: Hard wall-clock limit for the entire crawl.
 
     Returns:
         CrawlResult with all crawled pages.
@@ -294,6 +338,7 @@ async def crawl_confluence(
     )
 
     t0 = time.perf_counter()
+    deadline = t0 + max_seconds
     base_url, space_key, root_page_id = parse_confluence_url(url)
     do_ocr = _ocr_enabled()
 
@@ -301,6 +346,7 @@ async def crawl_confluence(
         "url": url, "base_url": base_url,
         "space_key": space_key, "root_page_id": root_page_id,
         "max_pages": max_pages, "ocr_enabled": do_ocr,
+        "max_seconds": max_seconds,
     })
 
     result = CrawlResult(base_url=base_url, space_key=space_key)
@@ -310,102 +356,123 @@ async def crawl_confluence(
     pages_done = 0
     ocr_languages: list[str] | None = None
 
-    while queue and pages_done < max_pages:
-        page_id, depth = queue.pop(0)
+    client = _make_http_client()
+    try:
+        while queue and pages_done < max_pages:
+            if time.perf_counter() >= deadline:
+                logger.warning("Confluence crawl hit time limit", extra={
+                    "max_seconds": max_seconds, "pages_done": pages_done,
+                })
+                result.errors.append(
+                    f"Crawl stopped: wall-clock limit of {max_seconds}s reached "
+                    f"after {pages_done} pages"
+                )
+                break
 
-        if page_id in visited:
-            continue
-        visited.add(page_id)
+            page_id, depth = queue.pop(0)
 
-        if depth > max_depth:
-            continue
+            if page_id in visited:
+                continue
+            visited.add(page_id)
 
-        try:
-            title, html_body = await asyncio.to_thread(
-                _get_page_content, base_url, page_id
-            )
-        except Exception as exc:
-            error_msg = f"Failed to fetch page {page_id}: {type(exc).__name__}: {exc}"
-            logger.warning(error_msg)
-            result.errors.append(error_msg)
-            continue
+            if depth > max_depth:
+                continue
 
-        markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
-
-        page_ocr_stats: dict = {}
-        page_ocr_ms = 0.0
-
-        if do_ocr and markdown:
-            if ocr_languages is None:
-                ocr_languages = detect_language_via_gemini(markdown)
-            t_ocr = time.perf_counter()
             try:
-                markdown, page_ocr_stats = await asyncio.to_thread(
-                    _enrich_confluence_markdown_with_ocr, markdown, ocr_languages,
+                title, html_body = await asyncio.to_thread(
+                    _get_page_content, base_url, page_id, client,
                 )
             except Exception as exc:
-                logger.warning("OCR enrichment failed for page", extra={
-                    "page_id": page_id, "title": title,
-                    "error": str(exc)[:200],
-                })
-                page_ocr_stats = {}
-            page_ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
+                error_msg = f"Failed to fetch page {page_id}: {type(exc).__name__}: {exc}"
+                logger.warning(error_msg)
+                result.errors.append(error_msg)
+                continue
 
-        page_url = f"{base_url}/spaces/{space_key}/pages/{page_id}/{quote(title, safe='')}"
+            markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
 
-        try:
-            children = await asyncio.to_thread(
-                _get_child_pages, base_url, page_id
-            )
-        except Exception as exc:
-            error_msg = f"Failed to fetch children of page {page_id}: {type(exc).__name__}: {exc}"
-            logger.warning(error_msg)
-            result.errors.append(error_msg)
-            children = []
+            page_ocr_stats: dict = {}
+            page_ocr_ms = 0.0
 
-        page = ConfluencePage(
-            page_id=page_id,
-            title=title,
-            markdown=markdown,
-            url=page_url,
-            space_key=space_key,
-            depth=depth,
-            children_count=len(children),
-            ocr_images_total=page_ocr_stats.get("ocr_images_total", 0),
-            ocr_images_success=page_ocr_stats.get("ocr_images_success", 0),
-            ocr_images_empty=page_ocr_stats.get("ocr_images_empty", 0),
-            ocr_images_failed=page_ocr_stats.get("ocr_images_failed", 0),
-            ocr_ms=page_ocr_ms,
-        )
-        result.pages.append(page)
-        pages_done += 1
+            if do_ocr and markdown:
+                if ocr_languages is None:
+                    ocr_languages = detect_language_via_gemini(markdown)
+                t_ocr = time.perf_counter()
+                try:
+                    markdown, page_ocr_stats = await asyncio.to_thread(
+                        _enrich_confluence_markdown_with_ocr, markdown, ocr_languages,
+                    )
+                except Exception as exc:
+                    logger.warning("OCR enrichment failed for page", extra={
+                        "page_id": page_id, "title": title,
+                        "error": str(exc)[:200],
+                    })
+                    page_ocr_stats = {}
+                page_ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
 
-        result.ocr_images_total += page.ocr_images_total
-        result.ocr_images_success += page.ocr_images_success
-        result.ocr_ms += page_ocr_ms
+            page_url = f"{base_url}/spaces/{space_key}/pages/{page_id}/{quote(title, safe='')}"
 
-        if pages_done == 1:
-            result.root_title = title
-
-        for child in children:
-            child_id = child.get("id", "")
-            if child_id and child_id not in visited:
-                queue.append((child_id, depth + 1))
-
-        if progress_callback:
-            estimated_total = pages_done + len(queue)
+            children: list[dict] = []
             try:
-                progress_callback(pages_done, estimated_total)
-            except Exception:
-                pass
+                children = await asyncio.to_thread(
+                    _get_child_pages, base_url, page_id, client,
+                )
+            except Exception as exc:
+                error_msg = f"Failed to fetch children of page {page_id}: {type(exc).__name__}: {exc}"
+                logger.warning(error_msg)
+                result.errors.append(error_msg)
 
-        logger.debug("Page crawled", extra={
-            "page_id": page_id, "title": title,
-            "depth": depth, "children": len(children),
-            "md_length": len(markdown),
-            "ocr_images": page_ocr_stats.get("ocr_images_success", 0),
-            "ocr_ms": page_ocr_ms,
-        })
+            linked_ids = _extract_linked_page_ids(html_body, space_key)
+
+            page = ConfluencePage(
+                page_id=page_id,
+                title=title,
+                markdown=markdown,
+                url=page_url,
+                space_key=space_key,
+                depth=depth,
+                children_count=len(children),
+                ocr_images_total=page_ocr_stats.get("ocr_images_total", 0),
+                ocr_images_success=page_ocr_stats.get("ocr_images_success", 0),
+                ocr_images_empty=page_ocr_stats.get("ocr_images_empty", 0),
+                ocr_images_failed=page_ocr_stats.get("ocr_images_failed", 0),
+                ocr_ms=page_ocr_ms,
+            )
+            result.pages.append(page)
+            pages_done += 1
+
+            result.ocr_images_total += page.ocr_images_total
+            result.ocr_images_success += page.ocr_images_success
+            result.ocr_ms += page_ocr_ms
+
+            if pages_done == 1:
+                result.root_title = title
+
+            for child in children:
+                child_id = child.get("id", "")
+                if child_id and child_id not in visited:
+                    queue.append((child_id, depth + 1))
+
+            for linked_id in linked_ids:
+                if linked_id not in visited:
+                    queue.append((linked_id, depth + 1))
+
+            if progress_callback:
+                estimated_total = pages_done + len(queue)
+                try:
+                    progress_callback(pages_done, estimated_total)
+                except Exception:
+                    pass
+
+            logger.info("Page crawled", extra={
+                "page_id": page_id, "title": title,
+                "depth": depth, "children": len(children),
+                "linked_pages": len(linked_ids),
+                "md_length": len(markdown),
+                "ocr_images": page_ocr_stats.get("ocr_images_success", 0),
+                "ocr_ms": page_ocr_ms,
+            })
+    finally:
+        client.close()
 
     result.total_pages = pages_done
     result.crawl_ms = round((time.perf_counter() - t0) * 1000, 1)
