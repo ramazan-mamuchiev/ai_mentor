@@ -155,7 +155,7 @@ export function DataTable<TData>({
             return (
               <span key={colId} className="docs-group-chip">
                 {label}
-                <button className="docs-group-chip-remove" onClick={() => removeGrouping(colId)}>
+                <button className="docs-group-chip-remove" onClick={() => removeGrouping(colId)} data-tooltip={t('docs.group.remove')}>
                   <X size={12} />
                 </button>
               </span>
@@ -183,7 +183,7 @@ export function DataTable<TData>({
                                 <button
                                   className="docs-col-settings-btn"
                                   onClick={() => setShowColumnSettings(v => !v)}
-                                  title={t('docs.columns.settings')}
+                                  data-tooltip={t('docs.columns.settings')}
                                 >
                                   <Settings2 size={14} />
                                 </button>

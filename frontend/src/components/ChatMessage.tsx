@@ -258,7 +258,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 <button
                   className="debug-toggle"
                   onClick={() => setDebugExpanded(prev => !prev)}
-                  title={t('chat.debug')}
+                  data-tooltip={t('chat.debug')}
                 >
                   <Bug size={12} />
                 </button>

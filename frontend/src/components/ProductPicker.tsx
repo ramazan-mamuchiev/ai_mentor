@@ -85,7 +85,7 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
         <div className="product-picker-header">
           <h3>{t('productPicker.title')}</h3>
           {onClose && (
-            <button className="product-picker-close" onClick={onClose}>
+            <button className="product-picker-close" onClick={onClose} data-tooltip={t('productPicker.close')}>
               <X size={16} />
             </button>
           )}
@@ -157,7 +157,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
 
   if (!productFilter) {
     return (
-      <div className="product-badge product-badge--all" onClick={onEdit} role="button" title={t('productBadge.change')}>
+      <div className="product-badge product-badge--all" onClick={onEdit} role="button" data-tooltip={t('productBadge.change')}>
         <Globe size={13} className="product-badge-icon" />
         <span className="product-badge-name">{t('productBadge.allProducts')}</span>
         <ChevronDown size={14} className="product-badge-chevron" />
@@ -167,7 +167,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
 
   return (
     <div className={`product-badge${locked ? ' product-badge--locked' : ''}`}>
-      <span className="product-badge-label" onClick={onEdit} title={t('productBadge.change')}>
+      <span className="product-badge-label" onClick={onEdit} data-tooltip={t('productBadge.change')}>
         {locked && <Lock size={12} className="product-badge-lock" />}
         {autoDetected && !locked && <span className="product-badge-auto">{t('productBadge.autoDetected')}</span>}
         <Box size={13} className="product-badge-icon" />
@@ -178,7 +178,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
       <button
         className="product-badge-clear"
         onClick={onClear}
-        title={t('productBadge.clear')}
+        data-tooltip={t('productBadge.clear')}
       >
         <X size={12} />
       </button>

@@ -138,3 +138,38 @@ button {
   color: var(--error-text, #ef4444);
   border-color: var(--error-text, #ef4444);
 }
+
+/* ── Tooltip (data-tooltip attribute) ── */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--text, #1e293b);
+  color: var(--bg, #fff);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 9999;
+  line-height: 1.4;
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+[data-tooltip=""]::after {
+  display: none;
+}

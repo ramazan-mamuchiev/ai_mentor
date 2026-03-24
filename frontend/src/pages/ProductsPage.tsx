@@ -104,7 +104,7 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
           <button
             className="docs-status-cancel"
             onClick={e => { e.stopPropagation(); onCancel() }}
-            title={t('products.actions.cancelIngestion')}
+            data-tooltip={t('products.actions.cancelIngestion')}
           >
             <X size={14} />
           </button>
@@ -349,28 +349,28 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
             <button
               className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
               onClick={() => toggleDebug(p.id)}
-              title={t('products.actions.debug')}
+              data-tooltip={t('products.actions.debug')}
             >
               <Bug size={16} />
             </button>
             <button
               className="docs-action-btn"
               onClick={() => setReingestTarget(p)}
-              title={t('products.actions.reindex')}
+              data-tooltip={t('products.actions.reindex')}
             >
               <RefreshCw size={16} />
             </button>
             <button
               className="docs-action-btn"
               onClick={() => setEditTarget(p)}
-              title={t('products.actions.edit')}
+              data-tooltip={t('products.actions.edit')}
             >
               <Pencil size={16} />
             </button>
             <button
               className="docs-action-btn docs-action-btn--danger"
               onClick={() => setDeleteTarget(p)}
-              title={t('products.actions.delete')}
+              data-tooltip={t('products.actions.delete')}
             >
               <Trash2 size={16} />
             </button>
@@ -453,7 +453,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
               className="docs-search-input"
             />
             {globalFilter && (
-              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }}>
+              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }} data-tooltip={t('products.search.clear')}>
                 <X size={14} />
               </button>
             )}

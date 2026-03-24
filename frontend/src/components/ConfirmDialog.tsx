@@ -43,7 +43,7 @@ export function ConfirmDialog({
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
       >
-        <button className="confirm-close" onClick={onCancel} aria-label="Close">
+        <button className="confirm-close" onClick={onCancel} aria-label="Close" data-tooltip={cancelLabel}>
           <X size={16} />
         </button>
 

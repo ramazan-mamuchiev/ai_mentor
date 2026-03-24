@@ -94,10 +94,10 @@ export function LandingPage() {
         </nav>
 
         <div className="landing-header-actions">
-          <button className="landing-btn-ghost" onClick={toggleLang} aria-label={t('lang.toggle')}>
+          <button className="landing-btn-ghost" onClick={toggleLang} aria-label={t('lang.toggle')} data-tooltip={t('lang.toggle')}>
             <Globe size={18} />
           </button>
-          <button className="landing-btn-ghost" onClick={toggleTheme} aria-label={t('theme.toggle')}>
+          <button className="landing-btn-ghost" onClick={toggleTheme} aria-label={t('theme.toggle')} data-tooltip={t('theme.toggle')}>
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <Link to="/app" className="landing-btn-primary">

@@ -174,7 +174,7 @@ export function ChatWindow({
       </div>
 
       {showScrollBtn && status === 'streaming' && (
-        <button className="scroll-to-bottom-btn" onClick={scrollToBottom} title={t('chat.scrollToBottom', 'Scroll to bottom')}>
+        <button className="scroll-to-bottom-btn" onClick={scrollToBottom} data-tooltip={t('chat.scrollToBottom', 'Scroll to bottom')}>
           <ArrowDown size={18} />
         </button>
       )}

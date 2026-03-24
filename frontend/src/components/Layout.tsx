@@ -166,6 +166,7 @@ export function Layout({
               className="sidebar-toggle-btn"
               onClick={() => setMobileOpen(false)}
               aria-label={t('sidebar.collapse')}
+              data-tooltip={t('sidebar.collapse')}
             >
               <X size={18} />
             </button>
@@ -174,6 +175,7 @@ export function Layout({
               className="sidebar-toggle-btn"
               onClick={toggleCollapsed}
               aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+              data-tooltip={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
             >
               {collapsed ? <SidebarExpandIcon size={18} /> : <SidebarCollapseIcon size={18} />}
             </button>
@@ -191,7 +193,7 @@ export function Layout({
                 key={item.path}
                 className={`nav-item${active ? ' nav-item--active' : ''}`}
                 onClick={() => navigate(item.path)}
-                title={collapsed && !isMobile ? t(item.labelKey) : undefined}
+                data-tooltip={collapsed && !isMobile ? t(item.labelKey) : undefined}
               >
                 <Icon size={18} />
                 {(!collapsed || isMobile) && t(item.labelKey)}
@@ -233,6 +235,7 @@ export function Layout({
               className="mobile-menu-btn"
               onClick={() => setMobileOpen(true)}
               aria-label="Menu"
+              data-tooltip={t('sidebar.menu')}
             >
               <SidebarMenuIcon size={20} />
             </button>

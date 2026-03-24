@@ -98,7 +98,7 @@ function StatusBadge({
           <button
             className="docs-status-cancel"
             onClick={e => { e.stopPropagation(); onCancel() }}
-            title={t('docs.actions.cancel')}
+            data-tooltip={t('docs.actions.cancel')}
           >
             <X size={14} />
           </button>
@@ -412,27 +412,27 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               <button
                 className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
                 onClick={() => toggleDebug(doc.id)}
-                title={t('docs.actions.debug')}
+                data-tooltip={t('docs.actions.debug')}
               >
                 <Bug size={16} />
               </button>
             )}
             {doc.status === 'ready' && (
-              <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} title={t('docs.actions.previewMd')}>
+              <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} data-tooltip={t('docs.actions.previewMd')}>
                 <Eye size={16} />
               </button>
             )}
             {doc.status === 'ready' && (
-              <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} title={t('docs.actions.download')}>
+              <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} data-tooltip={t('docs.actions.download')}>
                 <Download size={16} />
               </button>
             )}
             {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
-              <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} title={t('docs.actions.reindex')}>
+              <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} data-tooltip={t('docs.actions.reindex')}>
                 <RefreshCw size={16} />
               </button>
             )}
-            <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} title={t('docs.actions.delete')}>
+            <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')}>
               <Trash2 size={16} />
             </button>
           </div>
@@ -512,7 +512,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               className="docs-search-input"
             />
             {globalFilter && (
-              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }}>
+              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }} data-tooltip={t('docs.search.clear')}>
                 <X size={14} />
               </button>
             )}
@@ -640,27 +640,27 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                   <button
                     className={`docs-action-btn docs-debug-toggle${debugExpandedIds.has(doc.id) ? ' docs-debug-toggle--active' : ''}`}
                     onClick={() => toggleDebug(doc.id)}
-                    title={t('docs.actions.debug')}
+                    data-tooltip={t('docs.actions.debug')}
                   >
                     <Bug size={16} />
                   </button>
                 )}
                 {doc.status === 'ready' && (
-                  <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} title={t('docs.actions.previewMd')}>
+                  <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} data-tooltip={t('docs.actions.previewMd')}>
                     <Eye size={16} />
                   </button>
                 )}
                 {doc.status === 'ready' && (
-                  <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} title={t('docs.actions.download')}>
+                  <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} data-tooltip={t('docs.actions.download')}>
                     <Download size={16} />
                   </button>
                 )}
                 {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
-                  <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} title={t('docs.actions.reindex')}>
+                  <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} data-tooltip={t('docs.actions.reindex')}>
                     <RefreshCw size={16} />
                   </button>
                 )}
-                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} title={t('docs.actions.delete')}>
+                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')}>
                   <Trash2 size={16} />
                 </button>
               </div>
