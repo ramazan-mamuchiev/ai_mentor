@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Bot, Bug, ChevronDown, ChevronUp, FileSearch, Loader2, RefreshCw, User } from 'lucide-react'
+import { AlertTriangle, Bot, Bug, FileSearch, Loader2, RefreshCw, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -222,6 +222,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             <MarkdownRenderer
               content={content}
               isStreaming={isStreaming}
+              sources={sources}
               onDocumentPreview={(docId, title) => setPreviewTarget({ id: docId, title })}
             />
           )}

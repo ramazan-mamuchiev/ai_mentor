@@ -1,18 +1,57 @@
 import type { ReactNode } from 'react'
+import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './CodeBlock'
 import { fixBrokenTables } from '../utils/fixBrokenTables'
+import type { SourceInfo } from '../types'
 
-const DOC_LINK_RE = /^ipcodex:doc:(\d+)$/
+const DOC_LINK_RE = /ipcodex:doc:(\d+)/
 
 interface Props {
   content: string
   isStreaming?: boolean
+  sources?: SourceInfo[]
   onDocumentPreview?: (docId: number, title: string) => void
 }
 
-export function MarkdownRenderer({ content, isStreaming, onDocumentPreview }: Props) {
+/**
+ * Normalize citation links that LLM may produce in various forms:
+ * - [N](ipcodex:doc:ID) — already correct
+ * - [N](ID) or bare superscript numbers — need rewriting
+ * Uses the sources array to build a sourceIndex→documentId map.
+ */
+function normalizeCitations(md: string, sources?: SourceInfo[]): string {
+  if (!sources?.length) return md
+
+  const indexToDocId = new Map<number, number>()
+  sources.forEach((s, i) => {
+    if (s.document_id) indexToDocId.set(i + 1, s.document_id)
+  })
+
+  let result = md.replace(
+    /\[(\d+)\]\(ipcodex:doc:(\d+)\)/g,
+    (full, _n, id) => `[${_n}](ipcodex:doc:${id})`,
+  )
+
+  result = result.replace(
+    /\[(\d+)\]\((\d+)\)/g,
+    (_full, n, rawId) => {
+      const num = parseInt(n, 10)
+      const docId = indexToDocId.get(num) ?? parseInt(rawId, 10)
+      return `[${n}](ipcodex:doc:${docId})`
+    },
+  )
+
+  return result
+}
+
+export function MarkdownRenderer({ content, isStreaming, sources, onDocumentPreview }: Props) {
+  const processed = useMemo(
+    () => normalizeCitations(fixBrokenTables(content), sources),
+    [content, sources],
+  )
+
   return (
     <div className={isStreaming ? 'streaming-content' : undefined}>
       <ReactMarkdown
@@ -66,7 +105,7 @@ export function MarkdownRenderer({ content, isStreaming, onDocumentPreview }: Pr
           },
         }}
       >
-        {fixBrokenTables(content)}
+        {processed}
       </ReactMarkdown>
       {isStreaming && <span className="streaming-cursor" />}
     </div>
