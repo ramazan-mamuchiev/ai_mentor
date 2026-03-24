@@ -479,19 +479,31 @@
   text-decoration: underline;
 }
 
-.doc-ref-link {
-  text-decoration: none !important;
-  border-bottom: 1.5px dashed var(--accent);
-  color: var(--accent) !important;
-  font-weight: 500;
+.doc-ref-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin: 0 1px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
-  transition: border-color 0.15s, opacity 0.15s;
-  padding-bottom: 1px;
+  vertical-align: super;
+  position: relative;
+  top: -2px;
+  transition: background 0.15s, transform 0.1s;
+  user-select: none;
 }
 
-.doc-ref-link:hover {
-  border-bottom-style: solid;
-  opacity: 0.85;
+.doc-ref-badge:hover {
+  background: var(--accent2, #7c3aed);
+  transform: scale(1.1);
 }
 
 .message-footer {

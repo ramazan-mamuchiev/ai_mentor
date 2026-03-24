@@ -49,16 +49,17 @@ export function MarkdownRenderer({ content, isStreaming, onDocumentPreview }: Pr
             const docMatch = href ? DOC_LINK_RE.exec(href) : null
             if (docMatch && onDocumentPreview) {
               const docId = parseInt(docMatch[1], 10)
-              const title = extractText(children)
+              const label = extractText(children)
               return (
-                <a
-                  className="doc-ref-link"
-                  href="#"
-                  onClick={e => { e.preventDefault(); onDocumentPreview(docId, title) }}
-                  {...props}
+                <span
+                  className="doc-ref-badge"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onDocumentPreview(docId, label)}
+                  onKeyDown={e => { if (e.key === 'Enter') onDocumentPreview(docId, label) }}
                 >
-                  {children}
-                </a>
+                  {label}
+                </span>
               )
             }
             return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>

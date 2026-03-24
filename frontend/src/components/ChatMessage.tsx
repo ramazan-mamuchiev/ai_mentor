@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { AlertTriangle, Bot, Bug, ChevronDown, ChevronUp, Loader2, RefreshCw, User } from 'lucide-react'
+import { AlertTriangle, Bot, Bug, ChevronDown, ChevronUp, FileSearch, Loader2, RefreshCw, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { SourceCard } from './SourceCard'
 import { MarkdownPreviewModal } from './MarkdownPreviewModal'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 
@@ -180,16 +179,16 @@ interface Props {
   streamingContent?: string
   streamingSources?: SourceInfo[]
   onRetry?: () => void
+  onShowSources?: (sources: SourceInfo[]) => void
 }
 
-export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, onRetry }: Props) {
+export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, onRetry, onShowSources }: Props) {
   const { t } = useTranslation()
   const content = isStreaming ? (streamingContent || '') : message.content
   const sources = isStreaming ? (streamingSources || []) : (message.sources || [])
   const isUser = message.role === 'user'
   const isWaiting = isStreaming && !content
   const isError = !!message.error_code
-  const [sourcesExpanded, setSourcesExpanded] = useState(false)
   const [debugExpanded, setDebugExpanded] = useState(false)
   const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
   const debug = message.debug
@@ -229,16 +228,13 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
         </div>
         {sources.length > 0 && (
           <div className="sources-container">
-            <div
+            <button
               className="sources-toggle"
-              onClick={() => setSourcesExpanded(prev => !prev)}
+              onClick={() => onShowSources?.(sources)}
             >
+              <FileSearch size={14} />
               <span className="sources-label">{t('chat.sources', { count: sources.length })}</span>
-              {sourcesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </div>
-            {sourcesExpanded && sources.map((s, i) => (
-              <SourceCard key={i} source={s} onPreview={(id, title) => setPreviewTarget({ id, title })} />
-            ))}
+            </button>
           </div>
         )}
         {!isStreaming && !isUser && (message.duration_ms != null || debug) && (
