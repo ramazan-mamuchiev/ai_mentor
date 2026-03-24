@@ -154,7 +154,15 @@ interface BadgeProps {
 export function ProductBadge({ productFilter, versionFilter, autoDetected, onEdit, onClear }: BadgeProps) {
   const { t } = useTranslation()
 
-  if (!productFilter) return null
+  if (!productFilter) {
+    return (
+      <div className="product-badge product-badge--all" onClick={onEdit} role="button" title={t('productBadge.change')}>
+        <Globe size={13} className="product-badge-icon" />
+        <span className="product-badge-name">{t('productBadge.allProducts')}</span>
+        <ChevronDown size={14} className="product-badge-chevron" />
+      </div>
+    )
+  }
 
   return (
     <div className="product-badge">

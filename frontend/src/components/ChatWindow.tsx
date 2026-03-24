@@ -115,7 +115,7 @@ export function ChatWindow({
 
   return (
     <div className="main-area">
-      {productFilter && onEditProduct && onClearProduct && (
+      {onEditProduct && onClearProduct && (
         <div className="chat-product-header">
           <ProductBadge
             productFilter={productFilter}
