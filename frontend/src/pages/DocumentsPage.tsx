@@ -15,6 +15,7 @@ import {
   X,
   Bug,
   Ban,
+  ExternalLink,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listDocuments, downloadDocument, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
@@ -41,6 +42,18 @@ function formatDateTime(iso: string | null): string {
   const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
   const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   return `${date}\n${time}`
+}
+
+function isUrl(value: string): boolean {
+  return /^https?:\/\//.test(value)
+}
+
+function getDomainLabel(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
 }
 
 function StatusBadge({
@@ -275,17 +288,38 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       id: 'title',
       accessorFn: row => row.title,
       header: () => t('docs.table.name'),
-      cell: ({ row }) => (
-        <div className="docs-name-cell">
-          <OverflowCell className="docs-name">{row.original.title}</OverflowCell>
-          <OverflowCell className="docs-filename">{row.original.original_filename}</OverflowCell>
-          {row.original.source_container && (
-            <OverflowCell className="docs-source-container">
-              {t('docs.source.from', { source: row.original.source_container })}
-            </OverflowCell>
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const { title, original_filename, source_container } = row.original
+        const sourceIsUrl = source_container && isUrl(source_container)
+        return (
+          <div className="docs-name-cell">
+            <OverflowCell className="docs-name">{title}</OverflowCell>
+            {sourceIsUrl ? (
+              <a
+                href={source_container}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="docs-source-link"
+                title={source_container}
+              >
+                {getDomainLabel(source_container)}
+                <ExternalLink size={10} className="docs-source-link-icon" />
+              </a>
+            ) : (
+              <>
+                {original_filename && original_filename !== title && original_filename !== `${title}.md` && (
+                  <OverflowCell className="docs-filename">{original_filename}</OverflowCell>
+                )}
+                {source_container && (
+                  <OverflowCell className="docs-source-container">
+                    {t('docs.source.from', { source: source_container })}
+                  </OverflowCell>
+                )}
+              </>
+            )}
+          </div>
+        )
+      },
       enableGrouping: true,
     },
     {
@@ -569,6 +603,17 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                 <div className="docs-card-title">{doc.title}</div>
                 <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} onCancel={() => setCancelTarget(doc)} />
               </div>
+              {doc.source_container && isUrl(doc.source_container) && (
+                <a
+                  href={doc.source_container}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="docs-source-link"
+                >
+                  {getDomainLabel(doc.source_container)}
+                  <ExternalLink size={10} className="docs-source-link-icon" />
+                </a>
+              )}
               <div className="docs-card-meta">
                 <span>
                   <span className="docs-format">{doc.format}</span>

@@ -673,6 +673,48 @@ td:has(.docs-actions) {
   font-style: italic;
 }
 
+.docs-source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.docs-source-link:hover {
+  text-decoration: underline;
+}
+
+.docs-source-link-icon {
+  flex-shrink: 0;
+}
+
+@media (hover: hover) {
+  .docs-source-link-icon {
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .docs-source-link:hover .docs-source-link-icon {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .docs-source-link-icon {
+    opacity: 0.6;
+  }
+  .docs-source-link {
+    font-size: 11px;
+    padding: 2px 0;
+  }
+}
+
 .docs-format {
   display: inline-flex;
   align-items: center;
