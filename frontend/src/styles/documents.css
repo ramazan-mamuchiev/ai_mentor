@@ -1631,6 +1631,14 @@ td:has(.docs-actions) {
   flex-direction: column;
   animation: confirm-slide-up 0.2s ease-out;
   overflow: hidden;
+  transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease;
+}
+
+.md-preview-dialog--fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  border: none;
 }
 
 .md-preview-header {

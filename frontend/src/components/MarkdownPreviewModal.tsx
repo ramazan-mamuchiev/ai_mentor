@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Download, Loader2, AlertCircle, FileText } from 'lucide-react'
+import { X, Download, Loader2, AlertCircle, FileText, Maximize2, Minimize2 } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { previewMarkdown } from '../api/documents'
 import type { DocumentMarkdownPreview } from '../types'
@@ -31,6 +31,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   const [loading, setLoading] = useState(true)
   const [rendering, setRendering] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -82,7 +83,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   return (
     <div className="confirm-overlay" onClick={onClose}>
       <div
-        className="md-preview-dialog"
+        className={`md-preview-dialog${fullscreen ? ' md-preview-dialog--fullscreen' : ''}`}
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-labelledby="md-preview-title"
@@ -106,6 +107,13 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
                 </button>
               </>
             )}
+            <button
+              className="md-preview-close-btn"
+              onClick={() => setFullscreen(f => !f)}
+              title={t(fullscreen ? 'docs.preview.collapse' : 'docs.preview.expand')}
+            >
+              {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
             <button className="md-preview-close-btn" onClick={onClose} title={t('docDebug.collapse')}>
               <X size={14} />
             </button>

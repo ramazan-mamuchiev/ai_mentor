@@ -280,6 +280,8 @@
   "docs.preview.title": "MD Preview",
   "docs.preview.loading": "Loading content...",
   "docs.preview.rendering": "Rendering Markdown...",
+  "docs.preview.expand": "Fullscreen",
+  "docs.preview.collapse": "Exit fullscreen",
   "docs.preview.download": "Download .md",
 
   "docDebug.file": "File",

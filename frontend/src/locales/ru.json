@@ -280,6 +280,8 @@
   "docs.preview.title": "Просмотр MD",
   "docs.preview.loading": "Загрузка содержимого...",
   "docs.preview.rendering": "Рендеринг Markdown...",
+  "docs.preview.expand": "Развернуть на весь экран",
+  "docs.preview.collapse": "Свернуть",
   "docs.preview.download": "Скачать .md",
 
   "docDebug.file": "Файл",
