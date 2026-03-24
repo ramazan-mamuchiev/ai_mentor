@@ -13,9 +13,11 @@ from collections.abc import AsyncGenerator
 
 import httpx
 
-_RETRYABLE_STATUS_CODES = {429, 503}
+_RETRYABLE_STATUS_CODES = {429, 500, 503}
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 2.0
+_FALLBACK_MODEL = "gemini-2.5-flash"
+_FALLBACK_REASONING_EFFORT = "none"
 
 from app.config import settings
 
@@ -170,24 +172,19 @@ async def _stream_openai_compatible(
     max_tokens: int | None = None,
     meta: dict | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Stream from any OpenAI-compatible API (Gemini, GPT-4o, OpenRouter, etc.)."""
+    """Stream from any OpenAI-compatible API (Gemini, GPT-4o, OpenRouter, etc.).
+
+    Retries on 429/500/503 with exponential backoff. If all retries fail and
+    the primary model is not the fallback, automatically falls back to
+    gemini-2.5-flash (Google's recommendation for 503 on Pro).
+    """
     model = model or settings.openai_llm_model
     temperature = temperature if temperature is not None else settings.llm_temperature
     max_tokens = max_tokens or settings.llm_max_tokens
+    reasoning_effort = settings.llm_reasoning_effort or None
+
     if meta is not None:
         meta.update(model=model, temperature=temperature, max_tokens=max_tokens)
-
-    payload: dict = {
-        "model": model,
-        "messages": messages,
-        "stream": True,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "stream_options": {"include_usage": True},
-    }
-
-    if settings.llm_reasoning_effort:
-        payload["reasoning_effort"] = settings.llm_reasoning_effort
 
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
     headers = {
@@ -195,93 +192,161 @@ async def _stream_openai_compatible(
         "Authorization": f"Bearer {settings.gemini_api_key}",
     }
 
-    t0 = time.perf_counter()
-    token_count = 0
-    first_token_ms = 0.0
+    stream_state: dict = {}
 
-    logger.info(
-        "LLM stream starting",
-        extra={
-            "provider": "openai-compatible",
-            "model": model,
+    async def _attempt_stream(
+        attempt_model: str,
+        attempt_reasoning: str | None,
+    ) -> AsyncGenerator[str, None]:
+        payload: dict = {
+            "model": attempt_model,
+            "messages": messages,
+            "stream": True,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "reasoning_effort": payload.get("reasoning_effort"),
-            "prompt_messages": len(messages),
-            "base_url": settings.openai_base_url,
-        },
-    )
+            "stream_options": {"include_usage": True},
+        }
+        if attempt_reasoning:
+            payload["reasoning_effort"] = attempt_reasoning
 
-    last_error: LLMError | None = None
-    for attempt in range(_MAX_RETRIES + 1):
-        if attempt > 0:
-            delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
-            logger.warning(
-                "LLM API retrying after error",
-                extra={"attempt": attempt + 1, "delay_s": delay, "status": last_error.status_code if last_error else 0},
-            )
-            await asyncio.sleep(delay)
-            t0 = time.perf_counter()
-            token_count = 0
-            first_token_ms = 0.0
+        t0 = time.perf_counter()
+        token_count = 0
+        first_token_ms = 0.0
 
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
-                async with client.stream("POST", url, json=payload, headers=headers) as response:
-                    if response.status_code != 200:
-                        body = await response.aread()
-                        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-                        logger.error(
-                            "OpenAI-compatible API error",
-                            extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms, "attempt": attempt + 1},
-                        )
-                        err = LLMError(
-                            response.status_code,
-                            _error_code_from_status(response.status_code),
-                            f"LLM API returned {response.status_code}: {body.decode()[:200]}",
-                        )
-                        if response.status_code in _RETRYABLE_STATUS_CODES and attempt < _MAX_RETRIES:
-                            last_error = err
-                            continue
-                        raise err
+        logger.info(
+            "LLM stream starting",
+            extra={
+                "provider": "openai-compatible",
+                "model": attempt_model,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "reasoning_effort": attempt_reasoning,
+                "prompt_messages": len(messages),
+                "base_url": settings.openai_base_url,
+            },
+        )
 
-                    finish_reason = "stop"
-                    usage_data: dict | None = None
-                    async for line in response.aiter_lines():
-                        stripped = line.strip()
-                        if not stripped or not stripped.startswith("data: "):
-                            continue
-                        data_str = stripped[6:]
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            continue
+        last_error: LLMError | None = None
+        for attempt in range(_MAX_RETRIES + 1):
+            if attempt > 0:
+                delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                logger.warning(
+                    "LLM API retrying after error",
+                    extra={
+                        "attempt": attempt + 1,
+                        "delay_s": delay,
+                        "model": attempt_model,
+                        "status": last_error.status_code if last_error else 0,
+                    },
+                )
+                await asyncio.sleep(delay)
+                t0 = time.perf_counter()
+                token_count = 0
+                first_token_ms = 0.0
 
-                        if data.get("usage"):
-                            usage_data = data["usage"]
+            try:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
+                    async with client.stream("POST", url, json=payload, headers=headers) as response:
+                        if response.status_code != 200:
+                            body = await response.aread()
+                            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+                            logger.error(
+                                "OpenAI-compatible API error",
+                                extra={
+                                    "status": response.status_code,
+                                    "body": body.decode()[:500],
+                                    "duration_ms": duration_ms,
+                                    "attempt": attempt + 1,
+                                    "model": attempt_model,
+                                },
+                            )
+                            err = LLMError(
+                                response.status_code,
+                                _error_code_from_status(response.status_code),
+                                f"LLM API returned {response.status_code}: {body.decode()[:200]}",
+                            )
+                            if response.status_code in _RETRYABLE_STATUS_CODES and attempt < _MAX_RETRIES:
+                                last_error = err
+                                continue
+                            raise err
 
-                        choices = data.get("choices", [])
-                        if not choices:
-                            continue
-                        fr = choices[0].get("finish_reason")
-                        if fr:
-                            finish_reason = fr
-                        delta = choices[0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            token_count += 1
-                            if token_count == 1:
-                                first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
-                            yield content
-                    break
-        except LLMError:
+                        finish_reason = "stop"
+                        usage_data: dict | None = None
+                        async for line in response.aiter_lines():
+                            stripped = line.strip()
+                            if not stripped or not stripped.startswith("data: "):
+                                continue
+                            data_str = stripped[6:]
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                data = json.loads(data_str)
+                            except json.JSONDecodeError:
+                                continue
+
+                            if data.get("usage"):
+                                usage_data = data["usage"]
+
+                            choices = data.get("choices", [])
+                            if not choices:
+                                continue
+                            fr = choices[0].get("finish_reason")
+                            if fr:
+                                finish_reason = fr
+                            delta = choices[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                token_count += 1
+                                if token_count == 1:
+                                    first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
+                                yield content
+
+                        stream_state["t0"] = t0
+                        stream_state["token_count"] = token_count
+                        stream_state["first_token_ms"] = first_token_ms
+                        stream_state["finish_reason"] = finish_reason
+                        stream_state["usage_data"] = usage_data
+                        stream_state["model"] = attempt_model
+                        return
+            except LLMError:
+                raise
+            except httpx.ConnectError as e:
+                raise LLMError(0, "unreachable", f"LLM API unreachable: {e}") from e
+            except httpx.TimeoutException as e:
+                raise LLMError(0, "timeout", f"LLM API timeout: {e}") from e
+
+    try:
+        async for token in _attempt_stream(model, reasoning_effort):
+            yield token
+    except LLMError as primary_err:
+        if primary_err.status_code not in _RETRYABLE_STATUS_CODES:
             raise
-        except httpx.ConnectError as e:
-            raise LLMError(0, "unreachable", f"LLM API unreachable: {e}") from e
-        except httpx.TimeoutException as e:
-            raise LLMError(0, "timeout", f"LLM API timeout: {e}") from e
+        if model == _FALLBACK_MODEL:
+            raise
+
+        logger.warning(
+            "Primary model exhausted retries, falling back",
+            extra={
+                "primary_model": model,
+                "fallback_model": _FALLBACK_MODEL,
+                "error_code": primary_err.status_code,
+            },
+        )
+        if meta is not None:
+            meta["fallback_used"] = True
+            meta["primary_model"] = model
+            meta["primary_error"] = primary_err.status_code
+            meta.update(model=_FALLBACK_MODEL)
+
+        async for token in _attempt_stream(_FALLBACK_MODEL, _FALLBACK_REASONING_EFFORT):
+            yield token
+
+    used_model = stream_state.get("model", model)
+    t0 = stream_state.get("t0", time.perf_counter())
+    token_count = stream_state.get("token_count", 0)
+    first_token_ms = stream_state.get("first_token_ms", 0.0)
+    finish_reason = stream_state.get("finish_reason", "stop")
+    usage_data = stream_state.get("usage_data")
 
     if meta is not None:
         meta["first_token_ms"] = first_token_ms
@@ -300,9 +365,9 @@ async def _stream_openai_compatible(
             }
             logger.warning(
                 "LLM API did not return usage data, falling back to SSE chunk count",
-                extra={"model": model, "token_count": token_count},
+                extra={"model": used_model, "token_count": token_count},
             )
-    _log_completion("openai-compatible", model, token_count, t0, first_token_ms)
+    _log_completion("openai-compatible", used_model, token_count, t0, first_token_ms)
 
 
 def _log_completion(provider: str, model: str, token_count: int, t0: float, first_token_ms: float) -> None:
