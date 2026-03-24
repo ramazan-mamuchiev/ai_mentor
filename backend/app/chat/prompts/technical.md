@@ -1,6 +1,6 @@
 <task_type>technical</task_type>
 
-<classifier_hint>specific API/protocol/configuration question ("how to get cameras list", "what endpoint for events", "какой формат ответа")</classifier_hint>
+<classifier_hint>question about a specific API, protocol, endpoint, SDK, configuration, or technical mechanism — regardless of phrasing style ("how to get cameras list", "what endpoint for events", "расскажи про HTTP API", "объясни работу с событиями", "describe the WebSocket interface", "какой формат ответа")</classifier_hint>
 
 <instructions>
 You are answering a specific technical question about an API, protocol, configuration, or system behavior.

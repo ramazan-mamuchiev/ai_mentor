@@ -1,6 +1,6 @@
 <task_type>overview</task_type>
 
-<classifier_hint>general question about a product, system, or technology ("what is X", "tell me about X", "describe X", "расскажи про X")</classifier_hint>
+<classifier_hint>high-level question about a product or system as a whole, without focus on a specific API, protocol, or technical mechanism ("what is AxxonOne", "describe the platform", "расскажи про продукт", "what does this system do")</classifier_hint>
 
 <instructions>
 You are answering a general/overview question about a product, system, or technology.
