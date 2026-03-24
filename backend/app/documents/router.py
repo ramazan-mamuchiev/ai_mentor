@@ -426,6 +426,7 @@ async def list_documents(product_id: int | None = None):
                 Document.progress_stage,
                 Document.detected_language,
                 Document.source_container,
+                Document.source_path,
             )
             .join(Product, Document.product_id == Product.id)
             .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
@@ -673,8 +674,15 @@ async def reingest_single_document(document_id: int):
 
         is_confluence = doc.format == "confluence"
         is_url = doc.format == "url"
+        is_confluence_child = (
+            doc.format == "markdown"
+            and doc.source_path
+            and doc.source_container
+            and doc.source_path != doc.source_container
+            and "confluence" in (doc.source_path or "").lower()
+        )
 
-        if not doc.s3_key and not is_confluence and not is_url:
+        if not doc.s3_key and not is_confluence and not is_url and not is_confluence_child:
             raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
 
         if is_confluence or is_url:
@@ -724,6 +732,9 @@ async def reingest_single_document(document_id: int):
         elif is_url:
             from app.celery_app import ingest_single_url_task
             task = ingest_single_url_task.delay(document_id=document_id)
+        elif is_confluence_child:
+            from app.celery_app import reingest_confluence_page_task
+            task = reingest_confluence_page_task.delay(document_id=document_id)
         else:
             task = ingest_document_task.delay(document_id)
 

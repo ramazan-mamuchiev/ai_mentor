@@ -128,6 +128,7 @@ export interface DocumentListItem {
   progress_stage: string
   detected_language: string | null
   source_container: string | null
+  source_path: string | null
 }
 
 export interface DocumentDebugInfo {
@@ -206,6 +207,7 @@ export interface ProductListItem {
   processing_documents: number
   ready_documents: number
   error_documents: number
+  cancelled_documents: number
   total_file_size_bytes: number
   total_chunks: number
   formats: FormatCount[]

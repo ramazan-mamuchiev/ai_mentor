@@ -289,20 +289,21 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       accessorFn: row => row.title,
       header: () => t('docs.table.name'),
       cell: ({ row }) => {
-        const { title, original_filename, source_container } = row.original
-        const sourceIsUrl = source_container && isUrl(source_container)
+        const { title, original_filename, source_container, source_path } = row.original
+        const linkUrl = source_path || source_container
+        const sourceIsUrl = linkUrl && isUrl(linkUrl)
         return (
           <div className="docs-name-cell">
             <OverflowCell className="docs-name">{title}</OverflowCell>
             {sourceIsUrl ? (
               <a
-                href={source_container}
+                href={linkUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="docs-source-link"
-                title={source_container}
+                title={linkUrl}
               >
-                {getDomainLabel(source_container)}
+                {getDomainLabel(linkUrl)}
                 <ExternalLink size={10} className="docs-source-link-icon" />
               </a>
             ) : (
@@ -594,23 +595,26 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               doc.original_filename.toLowerCase().includes(q) ||
               doc.format.toLowerCase().includes(q) ||
               (doc.product_name || '').toLowerCase().includes(q) ||
-              (doc.source_container || '').toLowerCase().includes(q)
+              (doc.source_container || '').toLowerCase().includes(q) ||
+              (doc.source_path || '').toLowerCase().includes(q)
             )
           })
-          .map(doc => (
+          .map(doc => {
+            const cardLinkUrl = doc.source_path || doc.source_container
+            return (
             <div className="docs-card" key={doc.id}>
               <div className="docs-card-header">
                 <div className="docs-card-title">{doc.title}</div>
                 <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} onCancel={() => setCancelTarget(doc)} />
               </div>
-              {doc.source_container && isUrl(doc.source_container) && (
+              {cardLinkUrl && isUrl(cardLinkUrl) && (
                 <a
-                  href={doc.source_container}
+                  href={cardLinkUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="docs-source-link"
                 >
-                  {getDomainLabel(doc.source_container)}
+                  {getDomainLabel(cardLinkUrl)}
                   <ExternalLink size={10} className="docs-source-link-icon" />
                 </a>
               )}
@@ -653,7 +657,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                 </div>
               )}
             </div>
-          ))}
+          )})}
       </div>
 
       {deleteTarget && (

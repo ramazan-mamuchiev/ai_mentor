@@ -949,6 +949,118 @@ def ingest_confluence_task(self, document_id: int):
     }
 
 
+@celery.task(name="reingest_confluence_page", bind=True, max_retries=2, default_retry_delay=30)
+def reingest_confluence_page_task(self, document_id: int):
+    """Re-fetch a single Confluence page by its source_path and re-ingest.
+
+    Used when a child document (format='markdown') produced by a Confluence
+    crawl needs to be individually re-fetched from the source, e.g. after
+    an embedding failure (429) or when content has changed.
+    """
+    from app.models import Document, Chunk
+    from app.ingestion.converters.confluence import (
+        parse_confluence_url, _get_page_content, _html_to_markdown,
+    )
+    from app.s3 import upload_file
+
+    t0 = time.perf_counter()
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            logger.error("Document not found for confluence page reingest",
+                         extra={"document_id": document_id})
+            return {"status": "error", "error": "Document not found"}
+
+        url = doc.source_path
+        if not url:
+            doc.status = "error"
+            doc.error_message = "No source_path stored — cannot reingest page"
+            session.commit()
+            return {"status": "error", "error": "No source_path"}
+
+        doc.status = "processing"
+        doc.progress_stage = "fetching"
+        doc.progress_percent = 0
+        session.commit()
+
+    logger.info("Celery reingest_confluence_page_task started",
+                extra={"url": url, "document_id": document_id})
+
+    try:
+        base_url, _space_key, page_id = parse_confluence_url(url)
+    except ValueError as exc:
+        with Session(engine) as session:
+            doc = session.get(Document, document_id)
+            if doc:
+                doc.status = "error"
+                doc.error_message = f"Invalid Confluence URL: {exc}"
+                doc.progress_stage = ""
+                session.commit()
+        return {"status": "error", "error": str(exc)}
+
+    try:
+        title, html_body = _get_page_content(base_url, page_id)
+    except Exception as exc:
+        with Session(engine) as session:
+            doc = session.get(Document, document_id)
+            if doc:
+                doc.status = "error"
+                doc.error_message = f"Fetch failed: {type(exc).__name__}: {str(exc)[:1900]}"
+                doc.progress_stage = ""
+                session.commit()
+        logger.error("Confluence page fetch failed",
+                     extra={"url": url, "document_id": document_id},
+                     exc_info=True)
+        raise self.retry(exc=exc)
+
+    markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
+    md_bytes = markdown.encode("utf-8")
+    source_hash = hashlib.sha256(md_bytes).hexdigest()
+
+    with Session(engine) as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            return {"status": "error", "error": "Document disappeared"}
+
+        doc.title = title
+        doc.original_filename = f"{title}.md"
+        doc.file_size_bytes = len(md_bytes)
+        doc.source_hash = source_hash
+        doc.progress_stage = "uploading"
+        doc.progress_percent = 30
+
+        s3_key = doc.s3_key or f"documents/{doc.id}/source.md"
+        upload_file(s3_key, md_bytes, content_type="text/markdown")
+        doc.s3_key = s3_key
+        session.commit()
+
+    try:
+        task = ingest_document_task.delay(document_id)
+        with Session(engine) as session:
+            doc = session.get(Document, document_id)
+            if doc:
+                doc.celery_task_id = task.id
+                doc.progress_stage = "queued for indexing"
+                doc.progress_percent = 40
+                session.commit()
+    except Exception as exc:
+        logger.warning("Failed to dispatch ingest_document_task after page refetch",
+                       extra={"document_id": document_id, "error": str(exc)[:200]})
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    logger.info("Confluence page refetched and queued for indexing",
+                extra={"document_id": document_id, "title": title,
+                       "duration_ms": duration_ms})
+    return {
+        "status": "ok",
+        "document_id": document_id,
+        "title": title,
+        "duration_ms": duration_ms,
+    }
+
+
 def _update_placeholder_progress(session, document_id: int, done: int, total: int):
     """Update placeholder document progress (throttled to avoid excessive commits)."""
     from app.models import Document

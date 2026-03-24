@@ -25,6 +25,7 @@ class ProductListItem(BaseModel):
     processing_documents: int = 0
     ready_documents: int = 0
     error_documents: int = 0
+    cancelled_documents: int = 0
 
     total_file_size_bytes: int = 0
     total_chunks: int = 0

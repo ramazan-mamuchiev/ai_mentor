@@ -46,6 +46,7 @@ async def list_products():
                 func.sum(case((Document.status == "processing", 1), else_=0)).label("processing_documents"),
                 func.sum(case((Document.status == "ready", 1), else_=0)).label("ready_documents"),
                 func.sum(case((Document.status == "error", 1), else_=0)).label("error_documents"),
+                func.sum(case((Document.status == "cancelled", 1), else_=0)).label("cancelled_documents"),
                 func.sum(Document.file_size_bytes).label("total_file_size_bytes"),
                 func.sum(Document.total_chunks).label("total_chunks"),
                 func.min(Document.uploaded_at).label("uploaded_at"),
@@ -81,6 +82,7 @@ async def list_products():
                 func.coalesce(agg.c.processing_documents, 0).label("processing_documents"),
                 func.coalesce(agg.c.ready_documents, 0).label("ready_documents"),
                 func.coalesce(agg.c.error_documents, 0).label("error_documents"),
+                func.coalesce(agg.c.cancelled_documents, 0).label("cancelled_documents"),
                 func.coalesce(agg.c.total_file_size_bytes, 0).label("total_file_size_bytes"),
                 func.coalesce(agg.c.total_chunks, 0).label("total_chunks"),
                 agg.c.uploaded_at,
@@ -110,6 +112,8 @@ async def list_products():
             ready = p.ready_documents
             processing = p.processing_documents
             pending = p.pending_documents
+            errors = p.error_documents
+            cancelled = p.cancelled_documents
             parts = []
             if ready:
                 parts.append(f"{ready}/{total} ready")
@@ -117,6 +121,10 @@ async def list_products():
                 parts.append(f"{processing} processing")
             if pending:
                 parts.append(f"{pending} pending")
+            if errors:
+                parts.append(f"{errors} error")
+            if cancelled:
+                parts.append(f"{cancelled} cancelled")
             progress_detail = ", ".join(parts) if parts else ""
 
             items.append(ProductListItem(
@@ -132,7 +140,8 @@ async def list_products():
                 pending_documents=pending,
                 processing_documents=processing,
                 ready_documents=ready,
-                error_documents=p.error_documents,
+                error_documents=errors,
+                cancelled_documents=cancelled,
                 total_file_size_bytes=p.total_file_size_bytes,
                 total_chunks=p.total_chunks,
                 formats=fmt_map.get(p.id, []),

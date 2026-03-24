@@ -46,9 +46,10 @@ function formatDateTime(iso: string | null): string {
 }
 
 function getProductStatus(p: ProductListItem): DocumentStatusValue {
-  if (p.error_documents > 0) return 'error'
   if (p.processing_documents > 0) return 'processing'
   if (p.pending_documents > 0) return 'pending'
+  if (p.error_documents > 0) return 'error'
+  if (p.cancelled_documents > 0 && p.ready_documents === 0) return 'cancelled'
   return 'ready'
 }
 
@@ -56,13 +57,27 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
   const { t } = useTranslation()
   const status = getProductStatus(product)
 
-  const icons: Record<DocumentStatusValue, React.ReactNode> = {
-    pending: <Clock size={14} />,
-    processing: <Loader2 size={14} className="spin-icon" />,
-    ready: <CheckCircle size={14} />,
-    error: <AlertCircle size={14} />,
-    cancelled: <Ban size={14} />,
+  const allReady = product.total_documents > 0
+    && product.ready_documents === product.total_documents
+
+  if (allReady) {
+    return (
+      <div className="docs-status-wrap">
+        <span className="docs-status docs-status--ready">
+          <CheckCircle size={14} />
+          {t('docs.status.ready')}
+        </span>
+      </div>
+    )
   }
+
+  const counters: { key: DocumentStatusValue; count: number; icon: React.ReactNode }[] = [
+    { key: 'ready', count: product.ready_documents, icon: <CheckCircle size={12} /> },
+    { key: 'processing', count: product.processing_documents, icon: <Loader2 size={12} className="spin-icon" /> },
+    { key: 'pending', count: product.pending_documents, icon: <Clock size={12} /> },
+    { key: 'error', count: product.error_documents, icon: <AlertCircle size={12} /> },
+    { key: 'cancelled', count: product.cancelled_documents, icon: <Ban size={12} /> },
+  ]
 
   const pct = status === 'processing' || status === 'pending'
     ? Math.max(0, Math.min(100, product.progress_percent))
@@ -71,11 +86,20 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
 
   return (
     <div className="docs-status-wrap">
-      <div className="docs-status-row">
-        <span className={`docs-status docs-status--${status}`}>
-          {icons[status]}
-          {t(`docs.status.${status}`)}
-        </span>
+      <div className="product-status-summary">
+        {counters
+          .filter(c => c.count > 0)
+          .map(c => (
+            <span
+              key={c.key}
+              className={`product-status-counter product-status-counter--${c.key}`}
+              title={`${c.count} ${t(`docs.status.${c.key}`).toLowerCase()}`}
+            >
+              {c.icon}
+              <span className="product-status-counter-num">{c.count}</span>
+            </span>
+          ))
+        }
         {canCancel && (
           <button
             className="docs-status-cancel"

@@ -24,6 +24,10 @@ EMBEDDING_DIMS = settings.embedding_dims
 # Gemini BatchEmbedContents API allows at most 100 items per request
 BATCH_SIZE = 100
 
+_MAX_RETRIES = 5
+_RETRY_BASE_DELAY = 2.0
+_RETRY_MAX_DELAY = 120.0
+
 
 def _embed_config(*, task_type: str, output_dimensionality: int):
     from google.genai import types
@@ -67,12 +71,34 @@ def embed_texts(
 
     for batch_idx, i in enumerate(range(0, len(texts), BATCH_SIZE)):
         batch = texts[i : i + BATCH_SIZE]
-        t0 = time.perf_counter()
-        result = client.models.embed_content(
-            model=settings.embedding_model_gemini,
-            contents=batch,
-            config=_embed_config(task_type=task_type, output_dimensionality=target_dims),
-        )
+
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES + 1):
+            t0 = time.perf_counter()
+            try:
+                result = client.models.embed_content(
+                    model=settings.embedding_model_gemini,
+                    contents=batch,
+                    config=_embed_config(task_type=task_type, output_dimensionality=target_dims),
+                )
+                last_exc = None
+                break
+            except Exception as exc:
+                last_exc = exc
+                exc_str = str(exc)
+                is_retryable = "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str or "503" in exc_str
+                if not is_retryable or attempt == _MAX_RETRIES:
+                    raise
+                delay = min(_RETRY_BASE_DELAY * (2 ** attempt), _RETRY_MAX_DELAY)
+                logger.warning(
+                    "Gemini embedding retryable error, backing off",
+                    extra={
+                        "batch_index": batch_idx + 1, "attempt": attempt + 1,
+                        "delay_s": delay, "error": exc_str[:300],
+                    },
+                )
+                time.sleep(delay)
+
         batch_ms = round((time.perf_counter() - t0) * 1000, 1)
 
         raw = np.array([emb.values for emb in result.embeddings], dtype=np.float32)
