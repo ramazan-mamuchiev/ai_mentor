@@ -75,14 +75,19 @@ def _build_classify_prompt() -> str:
     lines = [
         "Classify the user question and detect the product mentioned.",
         "Return ONLY a JSON object with two fields, no other text:",
-        '  {{"category": "<category>", "product": "<product_name or null>"}}',
+        '  {{"category": "<category>", "product": "<exact_product_name or null>"}}',
+        "",
+        "Rules for product field:",
+        "- Copy the product name EXACTLY as written in the list below (preserve spelling, spacing, capitalization).",
+        "- If the user mentions a product by any variation (abbreviation, translation, misspelling), map it to the EXACT name from the list.",
+        "- If no product is mentioned or cannot be determined, return null.",
         "",
         "Categories:",
     ]
     for qtype, hint in _CLASSIFIER_HINTS.items():
         lines.append(f"- {qtype}: {hint}")
     lines.append("")
-    lines.append("Available products (return the EXACT name from this list, or null if none matches):")
+    lines.append("Available products (use EXACTLY these names in the response):")
     lines.append("{products}")
     lines.append("")
     lines.append("Question: {query}")
@@ -167,11 +172,13 @@ async def _classify_query(db: AsyncSession, query: str) -> tuple[str, str | None
                 query_type = cat if cat in QUERY_TYPES else "overview"
                 prod = parsed.get("product")
                 if prod and isinstance(prod, str) and prod.lower() != "null":
-                    prod_norm = re.sub(r"\s+", "", prod.lower())
-                    for pn in product_names:
-                        if pn.lower() == prod.lower() or re.sub(r"\s+", "", pn.lower()) == prod_norm:
-                            detected_product = pn
-                            break
+                    if prod in product_names:
+                        detected_product = prod
+                    else:
+                        for pn in product_names:
+                            if pn.lower() == prod.lower():
+                                detected_product = pn
+                                break
         except (json_lib.JSONDecodeError, KeyError):
             raw_lower = raw.lower().strip()
             query_type = raw_lower if raw_lower in QUERY_TYPES else "overview"
