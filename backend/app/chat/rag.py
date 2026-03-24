@@ -559,6 +559,8 @@ async def build_rag_prompt(
     context_header = "<documentation_context>\n"
     if detected_product:
         context_header += f"Product: {detected_product}\n"
+    if product_filter_source == "explicit" and product_filter:
+        context_header += f"IMPORTANT: The user has explicitly selected product \"{product_filter}\". Answer ONLY about this product. If the user asks about a different product, politely explain that the current conversation is scoped to {product_filter} and suggest switching the product filter.\n"
 
     doc_types_found = set(c.get("doc_type", "other") for c in chunks)
     if doc_types_found - {"other"}:
