@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Upload as UploadIcon, X, Pause, Play, CheckCircle, AlertCircle, FileText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import * as tus from 'tus-js-client'
@@ -74,7 +74,8 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
     setIsDragOver(false)
   }, [])
 
-  const startUpload = useCallback(() => {
+  const startUpload = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault()
     if (!state.file || !productName.trim()) return
 
     startTimeRef.current = Date.now()
@@ -165,6 +166,14 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
     return `${(bytes / 1024).toFixed(1)} KB`
   }
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose?.()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const isUploading = state.status === 'uploading' || state.status === 'paused'
 
   return (
@@ -214,14 +223,14 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
 
         {/* File selected — show form */}
         {state.file && state.status === 'idle' && (
-          <div className="file-upload-form">
+          <form className="file-upload-form" onSubmit={startUpload}>
             <div className="file-upload-file-info">
               <FileText size={20} />
               <div>
                 <strong>{state.file.name}</strong>
                 <span>{formatSize(state.file.size)}</span>
               </div>
-              <button className="file-upload-remove" onClick={() => setState(prev => ({ ...prev, file: null }))}>
+              <button type="button" className="file-upload-remove" onClick={() => setState(prev => ({ ...prev, file: null }))}>
                 <X size={16} />
               </button>
             </div>
@@ -265,14 +274,14 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
             </div>
 
             <button
+              type="submit"
               className="file-upload-start"
-              onClick={startUpload}
               disabled={!productName.trim()}
             >
               <UploadIcon size={16} />
               {t('upload.start')}
             </button>
-          </div>
+          </form>
         )}
 
         {/* Upload in progress */}

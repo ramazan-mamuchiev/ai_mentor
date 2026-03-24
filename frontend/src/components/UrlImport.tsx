@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Globe, X, AlertCircle, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ingestUrl } from '../api/documents'
@@ -24,7 +24,8 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
 
   const isConfluence = /\/confluence\/spaces\/[^/]+\/pages\/\d+/.test(url)
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault()
     if (!url.trim() || !productName.trim()) return
 
     setStatus('submitting')
@@ -54,6 +55,14 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setError('')
   }, [])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose?.()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const isValid = url.trim().length > 0 && productName.trim().length > 0
 
   return (
@@ -69,7 +78,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
         </div>
 
         {status === 'idle' && (
-          <div className="file-upload-form">
+          <form className="file-upload-form" onSubmit={handleSubmit}>
             <div className="file-upload-fields">
               <label>
                 {t('urlImport.url')}
@@ -131,14 +140,14 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
             </div>
 
             <button
+              type="submit"
               className="file-upload-start"
-              onClick={handleSubmit}
               disabled={!isValid}
             >
               <Globe size={16} />
-              {isConfluence ? t('urlImport.startCrawl') : t('urlImport.startImport')}
+              {t('urlImport.startImport')}
             </button>
-          </div>
+          </form>
         )}
 
         {status === 'submitting' && (
