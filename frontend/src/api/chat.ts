@@ -26,7 +26,7 @@ export async function deleteSession(id: number): Promise<void> {
 
 export async function updateSession(
   id: number,
-  data: { product_filter?: string | null; version_filter?: string | null },
+  data: { product_filter?: string | null; product_filter_source?: string | null; version_filter?: string | null },
 ): Promise<ChatSession> {
   return apiFetch<ChatSession>(`/chat/sessions/${id}`, {
     method: 'PATCH',

@@ -14,6 +14,7 @@ class CreateSessionRequest(BaseModel):
 
 class UpdateSessionRequest(BaseModel):
     product_filter: str | None = None
+    product_filter_source: str | None = None
     version_filter: str | None = None
 
 

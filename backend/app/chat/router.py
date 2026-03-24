@@ -89,6 +89,8 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
             new_product = req.product_filter or None
             chat_session.product_filter = new_product
             chat_session.product_filter_source = "explicit" if new_product else None
+        if req.product_filter_source is not None:
+            chat_session.product_filter_source = req.product_filter_source or None
         if req.version_filter is not None:
             chat_session.version_filter = req.version_filter or None
 

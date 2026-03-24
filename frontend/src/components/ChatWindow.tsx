@@ -6,6 +6,7 @@ import type { ChatMessage as ChatMessageType } from '../types'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
+import { SourcesPanel } from './SourcesPanel'
 
 const SCROLL_THRESHOLD = 100
 const USER_INTERACTION_TTL = 200
@@ -26,6 +27,8 @@ interface Props {
   productLocked?: boolean
   onEditProduct?: () => void
   onClearProduct?: () => void
+  onLockProduct?: () => void
+  onUnlockProduct?: () => void
 }
 
 export function ChatWindow({
@@ -44,6 +47,8 @@ export function ChatWindow({
   productLocked,
   onEditProduct,
   onClearProduct,
+  onLockProduct,
+  onUnlockProduct,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -112,74 +117,91 @@ export function ChatWindow({
     [onSend],
   )
 
+  const [panelSources, setPanelSources] = useState<SourceInfo[] | null>(null)
+
+  const handleShowSources = useCallback((sources: SourceInfo[]) => {
+    setPanelSources(sources)
+  }, [])
+
   const { t } = useTranslation()
   const isEmpty = messages.length === 0 && !streamingContent
 
   return (
     <div className="main-area">
-      {onEditProduct && onClearProduct && (
-        <div className="chat-product-header">
-          <ProductBadge
-            productFilter={productFilter ?? null}
-            versionFilter={versionFilter ?? null}
-            autoDetected={autoDetected}
-            locked={productLocked}
-            onEdit={onEditProduct}
-            onClear={onClearProduct}
-          />
-        </div>
-      )}
-      <div className="messages-container" ref={containerRef} onScroll={handleScroll}>
-        {isEmpty ? (
-          <div className="messages-empty">
-            <img src="/logo-on-light.svg" alt="" className="empty-logo logo-light" />
-            <img src="/logo-on-dark.svg" alt="" className="empty-logo logo-dark" />
-            <span className="empty-badge"><Cpu size={14} />{t('empty.badge')}</span>
-            <h1 className="empty-title">{t('empty.title')}</h1>
-            <p className="empty-slogan">{t('empty.slogan')}</p>
-            <div className="empty-divider">
-              <span /><span className="empty-dot">·</span><span />
-            </div>
-            <p className="empty-subslogan">
-              <Trans i18nKey="empty.subslogan">From docs to code.</Trans>{' '}
-              <em>{t('empty.instantly')}</em>
-            </p>
+      <div className="main-area-chat">
+        {onEditProduct && onClearProduct && (
+          <div className="chat-product-header">
+            <ProductBadge
+              productFilter={productFilter ?? null}
+              versionFilter={versionFilter ?? null}
+              autoDetected={autoDetected}
+              locked={productLocked}
+              onEdit={onEditProduct}
+              onClear={onClearProduct}
+            />
           </div>
-        ) : (
-          <>
-            {messages.map((msg, idx) => (
-              <ChatMessageComponent
-                key={msg.id}
-                message={msg}
-                onRetry={msg.error_code && idx === messages.length - 1 ? onRetry : undefined}
-              />
-            ))}
-            {status === 'streaming' && (
-              <ChatMessageComponent
-                message={{
-                  id: -1,
-                  session_id: 0,
-                  role: 'assistant',
-                  content: '',
-                  created_at: new Date().toISOString(),
-                }}
-                isStreaming
-                streamingContent={streamingContent}
-                streamingSources={streamingSources}
-              />
-            )}
-            <div ref={bottomRef} />
-          </>
         )}
+        <div className="messages-container" ref={containerRef} onScroll={handleScroll}>
+          {isEmpty ? (
+            <div className="messages-empty">
+              <img src="/logo-on-light.svg" alt="" className="empty-logo logo-light" />
+              <img src="/logo-on-dark.svg" alt="" className="empty-logo logo-dark" />
+              <span className="empty-badge"><Cpu size={14} />{t('empty.badge')}</span>
+              <h1 className="empty-title">{t('empty.title')}</h1>
+              <p className="empty-slogan">{t('empty.slogan')}</p>
+              <div className="empty-divider">
+                <span /><span className="empty-dot">·</span><span />
+              </div>
+              <p className="empty-subslogan">
+                <Trans i18nKey="empty.subslogan">From docs to code.</Trans>{' '}
+                <em>{t('empty.instantly')}</em>
+              </p>
+            </div>
+          ) : (
+            <>
+              {messages.map((msg, idx) => (
+                <ChatMessageComponent
+                  key={msg.id}
+                  message={msg}
+                  onRetry={msg.error_code && idx === messages.length - 1 ? onRetry : undefined}
+                  onShowSources={handleShowSources}
+                />
+              ))}
+              {status === 'streaming' && (
+                <ChatMessageComponent
+                  message={{
+                    id: -1,
+                    session_id: 0,
+                    role: 'assistant',
+                    content: '',
+                    created_at: new Date().toISOString(),
+                  }}
+                  isStreaming
+                  streamingContent={streamingContent}
+                  streamingSources={streamingSources}
+                  onShowSources={handleShowSources}
+                />
+              )}
+              <div ref={bottomRef} />
+            </>
+          )}
+        </div>
+
+        {showScrollBtn && status === 'streaming' && (
+          <button className="scroll-to-bottom-btn" onClick={scrollToBottom} data-tooltip={t('chat.scrollToBottom', 'Scroll to bottom')}>
+            <ArrowDown size={18} />
+          </button>
+        )}
+
+        <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} onUploadClick={onUploadClick} />
       </div>
 
-      {showScrollBtn && status === 'streaming' && (
-        <button className="scroll-to-bottom-btn" onClick={scrollToBottom} data-tooltip={t('chat.scrollToBottom', 'Scroll to bottom')}>
-          <ArrowDown size={18} />
-        </button>
+      {panelSources && (
+        <SourcesPanel
+          sources={panelSources}
+          onClose={() => setPanelSources(null)}
+        />
       )}
-
-      <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} onUploadClick={onUploadClick} />
     </div>
   )
 }

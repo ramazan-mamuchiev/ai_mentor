@@ -12,6 +12,7 @@
 
   "chat.searching": "Поиск по документации и генерация ответа...",
   "chat.sources": "Источники ({{count}})",
+  "chat.sourcesPanel.title": "Результаты поиска ({{count}})",
   "chat.debug": "Отладочная информация",
   "chat.stopped": "*⏹ Генерация остановлена*",
   "chat.error": "Ошибка: {{message}}",

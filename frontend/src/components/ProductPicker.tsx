@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, ChevronDown, X, Globe, Box, Lock } from 'lucide-react'
+import { Search, ChevronDown, X, Globe, Box, Lock, Unlock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { listProducts } from '../api/products'
 import type { ProductListItem } from '../types'
@@ -150,9 +150,11 @@ interface BadgeProps {
   locked?: boolean
   onEdit: () => void
   onClear: () => void
+  onLock?: () => void
+  onUnlock?: () => void
 }
 
-export function ProductBadge({ productFilter, versionFilter, autoDetected, locked, onEdit, onClear }: BadgeProps) {
+export function ProductBadge({ productFilter, versionFilter, autoDetected, locked, onEdit, onClear, onLock, onUnlock }: BadgeProps) {
   const { t } = useTranslation()
 
   if (!productFilter) {
@@ -175,6 +177,24 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
         {versionFilter && <span className="product-badge-version">{versionFilter}</span>}
         <ChevronDown size={14} className="product-badge-chevron" />
       </span>
+      {autoDetected && !locked && onLock && (
+        <button
+          className="product-badge-lock-btn"
+          onClick={onLock}
+          data-tooltip={t('productBadge.lock')}
+        >
+          <Lock size={12} />
+        </button>
+      )}
+      {locked && onUnlock && (
+        <button
+          className="product-badge-lock-btn product-badge-lock-btn--active"
+          onClick={onUnlock}
+          data-tooltip={t('productBadge.unlock')}
+        >
+          <Unlock size={12} />
+        </button>
+      )}
       <button
         className="product-badge-clear"
         onClick={onClear}
