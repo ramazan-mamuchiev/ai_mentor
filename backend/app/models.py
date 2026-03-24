@@ -109,6 +109,10 @@ class Document(Base):
 
     source_container: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    extract_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    extract_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    extract_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 
@@ -125,6 +129,8 @@ class Chunk(Base):
     parent_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, default=0)
     embedding = mapped_column(Vector(1024))
+    doc_type: Mapped[str] = mapped_column(Text, default="other")
+    entities: Mapped[dict | None] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -134,6 +140,7 @@ class Chunk(Base):
     __table_args__ = (
         UniqueConstraint("document_id", "chunk_index"),
         Index("idx_chunks_document", "document_id"),
+        Index("idx_chunks_doc_type", "doc_type"),
     )
 
 

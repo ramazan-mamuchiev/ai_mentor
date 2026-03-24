@@ -533,6 +533,9 @@ async def get_document_debug(document_id: int):
                 Document.ocr_images_empty,
                 Document.ocr_images_failed,
                 Document.detected_language,
+                Document.extract_ms,
+                Document.extract_prompt_tokens,
+                Document.extract_completion_tokens,
                 Product.name.label("product_name"),
                 FirmwareVersion.version.label("firmware_version"),
             )
@@ -543,7 +546,11 @@ async def get_document_debug(document_id: int):
         row = result.one_or_none()
         if row is None:
             raise HTTPException(status_code=404, detail="Document not found")
-        return DocumentDebugInfo(**dict(row._mapping))
+        data = dict(row._mapping)
+        if data.get("extract_ms") is not None:
+            from app.config import settings as _cfg
+            data["extract_model"] = _cfg.metadata_extraction_model
+        return DocumentDebugInfo(**data)
 
 
 @router.get("/{document_id}/download", response_model=DocumentDownload)

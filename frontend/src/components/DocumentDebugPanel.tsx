@@ -122,6 +122,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
     { label: t('docDebug.convertTime'), ms: debug.convert_ms, color: 'var(--doc-debug-convert, #69db7c)' },
     { label: t('docDebug.ocrTime'), ms: debug.ocr_ms, color: 'var(--doc-debug-ocr, #ff6b6b)' },
     { label: t('docDebug.parseTime'), ms: debug.parse_ms, color: 'var(--doc-debug-parse, #ffd43b)' },
+    { label: t('docDebug.extractTime'), ms: debug.extract_ms, color: 'var(--doc-debug-extract, #20c997)' },
     { label: t('docDebug.embedTime'), ms: debug.embed_ms, color: 'var(--doc-debug-embed, #ff922b)' },
     { label: t('docDebug.dbTime'), ms: debug.db_ms, color: 'var(--doc-debug-db, #da77f2)' },
   ]
@@ -154,6 +155,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
           <div className="doc-debug-row"><span>{t('docDebug.convertTime')}</span><code>{fmtMs(debug.convert_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.ocrTime')}</span><code>{fmtMs(debug.ocr_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.parseTime')}</span><code>{fmtMs(debug.parse_ms)}</code></div>
+          <div className="doc-debug-row"><span>{t('docDebug.extractTime')}</span><code>{fmtMs(debug.extract_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.embedTime')}</span><code>{fmtMs(debug.embed_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.dbTime')}</span><code>{fmtMs(debug.db_ms)}</code></div>
           <TimingBar stages={timingStages} />
@@ -184,6 +186,17 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
           <div className="doc-debug-row"><span>{t('docDebug.embeddingDims')}</span><code>{debug.embedding_dims != null ? fmt(debug.embedding_dims) : '—'}</code></div>
           <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.embeddingTokens')}</span><code>{fmt(debug.embedding_tokens)}</code></div>
         </div>
+
+        {debug.extract_ms != null && (
+          <div className="doc-debug-section">
+            <div className="doc-debug-section-title">{t('docDebug.extraction')}</div>
+            <div className="doc-debug-row"><span>{t('docDebug.extractTime')}</span><code>{fmtMs(debug.extract_ms)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.extractModel')}</span><code className="doc-debug-embed-model">{debug.extract_model ?? '—'}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.extractPromptTokens')}</span><code>{fmt(debug.extract_prompt_tokens)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.extractCompletionTokens')}</span><code>{fmt(debug.extract_completion_tokens)}</code></div>
+            <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.extractTotalTokens')}</span><code>{fmt((debug.extract_prompt_tokens ?? 0) + (debug.extract_completion_tokens ?? 0))}</code></div>
+          </div>
+        )}
 
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.performance')}</div>

@@ -373,6 +373,8 @@ async def get_product_debug(manufacturer_slug: str, product_slug: str):
                 func.sum(Document.rag_hit_count).label("total_rag_hit_count"),
                 func.avg(Document.rag_avg_similarity).label("avg_rag_similarity"),
                 func.max(Document.rag_last_used_at).label("last_rag_used_at"),
+                func.sum(Document.extract_ms).label("sum_extract_ms"),
+                func.sum(Document.extract_prompt_tokens + Document.extract_completion_tokens).label("total_extract_tokens"),
             )
             .where(Document.product_id == product_id)
         )

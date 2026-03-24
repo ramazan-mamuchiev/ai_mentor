@@ -82,23 +82,8 @@ def _embedding_model_name() -> str:
     return settings.embedding_model_gemini
 
 
-SYSTEM_PROMPT_NO_DOCS = """\
-<role>
-You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.
-</role>
-
-<situation>
-The knowledge base is currently EMPTY — no documentation has been uploaded yet.
-</situation>
-
-<instructions>
-- CRITICAL: ALWAYS respond in the same language as the user's question. If the user writes in Russian, your ENTIRE response must be in Russian. If in English — respond in English.
-- Politely explain that the knowledge base is empty and no documents have been uploaded yet.
-- You may briefly describe what IPCodex can do once documentation is loaded: semantic search across documentation, answering technical questions about APIs and protocols, generating code examples based on documentation.
-- Do NOT suggest the user to upload documents or give instructions on how to do it.
-- Do NOT make up any technical details about specific products or APIs.
-- Keep the response concise and helpful.
-</instructions>"""
+from app.chat.prompts import REWRITE_PROMPT as _REWRITE_PROMPT_IMPORTED
+from app.chat.prompts import REPHRASE_FOR_SEARCH_PROMPT, SYSTEM_PROMPT_NO_DOCS
 
 async def _classify_query(query: str) -> tuple[str, dict]:
     """Classify user query into a query type using a lightweight LLM call.
@@ -227,6 +212,10 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
                 source += f", FW: {chunk['firmware_version']}"
             source += ")"
 
+        doc_type = chunk.get("doc_type", "other")
+        if doc_type and doc_type != "other":
+            source += f" [type: {doc_type}]"
+
         parent = chunk.get("parent_content")
         if parent:
             parent_key = hashlib.sha256(parent.encode("utf-8")).hexdigest()
@@ -237,7 +226,17 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
         else:
             body = _clean_md(chunk["content"])
 
-        parts.append(f"--- Source {i}: {source} (similarity: {chunk['similarity']}) ---\n{body}")
+        entities = chunk.get("entities", {})
+        entity_line = ""
+        if entities:
+            flat = []
+            for vals in entities.values():
+                if isinstance(vals, list):
+                    flat.extend(str(v) for v in vals if v)
+            if flat:
+                entity_line = f"Entities: {', '.join(flat[:15])}\n"
+
+        parts.append(f"--- Source {i}: {source} (similarity: {chunk['similarity']}) ---\n{entity_line}{body}")
 
     return "\n\n".join(parts)
 
@@ -274,13 +273,7 @@ def _build_history_messages(
     return [{"role": msg.role, "content": msg.content} for msg in recent]
 
 
-_REWRITE_PROMPT = (
-    "Given the conversation history and a new user question, "
-    "rewrite the question so it is fully self-contained and can be understood "
-    "without the conversation history. "
-    "If the question is already self-contained, return it unchanged. "
-    "Return ONLY the rewritten question, nothing else."
-)
+_REWRITE_PROMPT = _REWRITE_PROMPT_IMPORTED
 
 
 async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> str:
@@ -347,6 +340,21 @@ async def _llm_rewrite_ollama(messages: list[dict]) -> str:
         resp.raise_for_status()
         data = resp.json()
         return data["message"]["content"].strip()
+
+
+async def _rephrase_for_retry(query: str) -> str | None:
+    """Rephrase a failed search query using LLM for a retry attempt."""
+    messages = [
+        {"role": "system", "content": REPHRASE_FOR_SEARCH_PROMPT},
+        {"role": "user", "content": query},
+    ]
+    try:
+        result = await _llm_rewrite_openai(messages)
+        if result and result.lower() != query.lower() and len(result) < 500:
+            return result
+    except Exception:
+        logger.warning("Query rephrase for retry failed", exc_info=True)
+    return None
 
 
 async def build_rag_prompt(
@@ -459,6 +467,44 @@ async def build_rag_prompt(
             },
         )
 
+    retry_used = False
+    rephrase_ms = 0.0
+    rephrase_query: str | None = None
+
+    if not chunks and query_type != "chitchat" and settings.search_retry_enabled:
+        t_rephrase = time.perf_counter()
+        rephrased = await _rephrase_for_retry(search_query)
+        rephrase_ms = round((time.perf_counter() - t_rephrase) * 1000, 1)
+
+        if rephrased:
+            logger.info(
+                "Search retry: rephrasing query",
+                extra={"original": search_query[:200], "rephrased": rephrased[:200]},
+            )
+            retry_meta: dict = {}
+            retry_chunks = await search_documents(
+                session=db,
+                query=rephrased,
+                product=product_filter,
+                version=version_filter,
+                doc_context=doc_context,
+                limit=settings.rag_top_k,
+                metadata=retry_meta,
+            )
+
+            if settings.rag_min_similarity > 0:
+                retry_chunks = [c for c in retry_chunks if c["similarity"] >= settings.rag_min_similarity]
+
+            if retry_chunks:
+                chunks = retry_chunks
+                search_query = rephrased
+                rephrase_query = rephrased
+                retry_used = True
+                logger.info(
+                    "Search retry succeeded",
+                    extra={"chunks_found": len(chunks), "top_sim": chunks[0]["similarity"]},
+                )
+
     detected_product = auto_product or product_filter
     detected_doc = doc_context
     if not doc_context and chunks:
@@ -471,7 +517,13 @@ async def build_rag_prompt(
 
     context_header = "<documentation_context>\n"
     if detected_product:
-        context_header += f"Product: {detected_product}\n\n"
+        context_header += f"Product: {detected_product}\n"
+
+    doc_types_found = set(c.get("doc_type", "other") for c in chunks)
+    if doc_types_found - {"other"}:
+        context_header += f"Source types: {', '.join(sorted(doc_types_found - {'other'}))}\n"
+
+    context_header += "\n"
     context_block = f"{context_header}{context}\n</documentation_context>"
 
     system_prompt = _build_system_prompt(query_type)
@@ -514,6 +566,8 @@ async def build_rag_prompt(
             "content_preview": c["content"][:500],
             "product_name": c.get("product_name", ""),
             "firmware_version": c.get("firmware_version", ""),
+            "doc_type": c.get("doc_type", "other"),
+            "entities": c.get("entities", {}),
         }
         for c in chunks
     ]
@@ -556,6 +610,9 @@ async def build_rag_prompt(
         "rerank_model": search_meta.get("rerank_model", ""),
         "query_type": query_type,
         "prompt_hash": prompt_hash,
+        "retry_used": retry_used,
+        "rephrase_ms": rephrase_ms,
+        "rephrase_query": rephrase_query,
         **classify_meta,
     }
 

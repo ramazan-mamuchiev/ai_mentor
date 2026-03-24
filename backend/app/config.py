@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     chunk_min_tokens: int = 30
     chunk_overlap_paragraphs: int = 2
 
+    metadata_extraction_enabled: bool = True
+    metadata_extraction_model: str = "gemini-2.0-flash"
+    metadata_extraction_batch_size: int = 5
+
+    search_retry_enabled: bool = True
+
     ocr_enabled: bool = True
     ocr_lang_detect_model: str = "gemini-2.5-flash"
 

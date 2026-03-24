@@ -468,6 +468,19 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         duration_ms=rag_debug.get("classify_ms", 0),
                     )
 
+                if rag_debug.get("retry_used"):
+                    await write_usage_log(
+                        channel="chat",
+                        action="search_retry_rephrase",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=settings.openai_llm_model,
+                        prompt_tokens=0,
+                        completion_tokens=0,
+                        query_text=req.content,
+                        duration_ms=rag_debug.get("rephrase_ms", 0),
+                    )
+
                 logger.info(
                     "Chat message completed",
                     extra={

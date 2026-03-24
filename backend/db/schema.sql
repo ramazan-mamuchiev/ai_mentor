@@ -89,6 +89,11 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS detected_language TEXT;
 -- Source container (archive filename or URL the document was extracted from)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_container TEXT;
 
+-- Metadata extraction metrics (LLM-based entity/doc_type extraction)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_ms FLOAT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_completion_tokens INT NOT NULL DEFAULT 0;
+
 -- Chunks (semantic search units with vector embeddings)
 CREATE TABLE IF NOT EXISTS chunks (
     id BIGSERIAL PRIMARY KEY,
@@ -107,25 +112,46 @@ CREATE TABLE IF NOT EXISTS chunks (
 -- Cleaned content for BM25 (Markdown stripped in Python, populated during ingestion)
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS content_clean TEXT;
 
+-- Chunk metadata: doc_type and extracted entities (LLM-based)
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS doc_type TEXT DEFAULT 'other';
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS entities JSONB DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS idx_chunks_doc_type ON chunks(doc_type);
+CREATE INDEX IF NOT EXISTS idx_chunks_entities ON chunks USING gin(entities jsonb_path_ops);
+
 -- Full-text search column (BM25 via tsvector for hybrid search)
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
 
 CREATE OR REPLACE FUNCTION chunks_tsv_trigger() RETURNS trigger AS $$
+DECLARE
+    entity_text TEXT := '';
+    kw TEXT;
 BEGIN
+    IF NEW.entities IS NOT NULL AND NEW.entities != '{}' THEN
+        FOR kw IN SELECT jsonb_array_elements_text(v)
+            FROM jsonb_each(NEW.entities) AS e(k, v)
+            WHERE jsonb_typeof(v) = 'array'
+        LOOP
+            entity_text := entity_text || ' ' || kw;
+        END LOOP;
+    END IF;
+
     NEW.tsv := to_tsvector('english',
         COALESCE(NEW.heading_path, '') || ' ' ||
+        COALESCE(NEW.doc_type, '') || ' ' ||
+        entity_text || ' ' ||
         COALESCE(NEW.content_clean, NEW.content, ''));
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_chunks_tsv ON chunks;
-CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path ON chunks
+CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path, doc_type, entities ON chunks
     FOR EACH ROW EXECUTE FUNCTION chunks_tsv_trigger();
 
--- Backfill existing rows with english stemmer
+-- Backfill existing rows
 UPDATE chunks SET tsv = to_tsvector('english',
     COALESCE(heading_path, '') || ' ' ||
+    COALESCE(doc_type, '') || ' ' ||
     COALESCE(content_clean, content, ''));
 
 -- GIN index for full-text search

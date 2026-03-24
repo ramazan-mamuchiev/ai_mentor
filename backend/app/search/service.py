@@ -96,6 +96,8 @@ async def _bm25_search(
             c.heading_path,
             c.heading_level,
             c.token_count,
+            c.doc_type,
+            c.entities,
             d.title AS doc_title,
             p.name AS product_name,
             p.manufacturer,
@@ -121,6 +123,8 @@ async def _bm25_search(
             "heading_path": row["heading_path"],
             "heading_level": row["heading_level"],
             "token_count": row["token_count"],
+            "doc_type": row["doc_type"] or "other",
+            "entities": row["entities"] or {},
             "doc_title": row["doc_title"],
             "product_name": row["product_name"],
             "manufacturer": row["manufacturer"],
@@ -137,6 +141,7 @@ async def search_documents(
     product: str | None = None,
     version: str | None = None,
     doc_context: str | None = None,
+    doc_type: str | None = None,
     limit: int = 5,
     metadata: dict | None = None,
 ) -> list[dict]:
@@ -170,6 +175,9 @@ async def search_documents(
     if doc_context:
         where_clauses.append("d.title = :doc_context")
         params["doc_context"] = doc_context
+    if doc_type:
+        where_clauses.append("c.doc_type = :doc_type")
+        params["doc_type"] = doc_type
 
     where_sql = " AND ".join(where_clauses)
 
@@ -181,6 +189,8 @@ async def search_documents(
             c.heading_path,
             c.heading_level,
             c.token_count,
+            c.doc_type,
+            c.entities,
             d.title AS doc_title,
             p.name AS product_name,
             p.manufacturer,
@@ -211,6 +221,8 @@ async def search_documents(
             "heading_path": row["heading_path"],
             "heading_level": row["heading_level"],
             "token_count": row["token_count"],
+            "doc_type": row["doc_type"] or "other",
+            "entities": row["entities"] or {},
             "doc_title": row["doc_title"],
             "product_name": row["product_name"],
             "manufacturer": row["manufacturer"],

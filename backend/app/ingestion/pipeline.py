@@ -35,27 +35,43 @@ def _embedding_model_name() -> str:
 
 MAX_EMBEDDING_TOKENS = 500
 
-def enrich_for_embedding(chunks: list[ChunkData]) -> list[str]:
-    """Clean Markdown artifacts and prepend heading_path for better embeddings.
+def enrich_for_embedding(
+    chunks: list[ChunkData],
+    chunk_metadata: list[dict] | None = None,
+) -> list[str]:
+    """Clean Markdown artifacts and prepend heading_path + metadata for better embeddings.
 
-    Two-step enrichment:
-    1. Strip Markdown formatting noise (bold, links, images, HTML) so the
-       embedding model sees clean semantic text.
-    2. Prepend the heading hierarchy so the model knows *what* the chunk
-       describes (e.g. "API Reference > GET /doors > Parameters").
+    Enrichment steps:
+    1. Strip Markdown formatting noise (bold, links, images, HTML).
+    2. Prepend heading hierarchy.
+    3. Prepend doc_type and flattened entities (if metadata is available).
 
     Warns and truncates if enriched text exceeds model max_seq_length.
-    Truncation preserves the heading prefix and only cuts content.
     """
     from app.ingestion.chunker import _estimate_tokens
 
     enriched: list[str] = []
-    for c in chunks:
+    for idx, c in enumerate(chunks):
         cleaned = _clean_md(c.content)
-        heading_prefix = ""
+        prefix_parts: list[str] = []
         if c.heading_path:
-            heading_prefix = f"[{c.heading_path}]\n"
+            prefix_parts.append(f"[{c.heading_path}]")
 
+        if chunk_metadata and idx < len(chunk_metadata):
+            meta = chunk_metadata[idx]
+            doc_type = meta.get("doc_type", "other")
+            if doc_type and doc_type != "other":
+                prefix_parts.append(f"[type: {doc_type}]")
+            entities = meta.get("entities", {})
+            if entities:
+                flat = []
+                for vals in entities.values():
+                    if isinstance(vals, list):
+                        flat.extend(str(v) for v in vals if v)
+                if flat:
+                    prefix_parts.append(f"[entities: {', '.join(flat[:20])}]")
+
+        heading_prefix = "\n".join(prefix_parts) + "\n" if prefix_parts else ""
         text = heading_prefix + cleaned
 
         token_count = _estimate_tokens(text)
@@ -326,13 +342,23 @@ async def ingest_file(
             },
         )
 
+        from app.ingestion.metadata_extractor import extract_metadata_batch_async
+        extraction_result = await extract_metadata_batch_async(
+            [c.content for c in chunks]
+        )
+        chunk_meta_dicts = [
+            {"doc_type": m.doc_type, "entities": m.entities}
+            for m in extraction_result.metadata
+        ]
+
         t_embed = time.perf_counter()
-        enriched = enrich_for_embedding(chunks)
+        enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
         embeddings = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
         t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+            meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
             db_chunk = Chunk(
                 document_id=doc.id,
                 chunk_index=i,
@@ -343,6 +369,8 @@ async def ingest_file(
                 parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
+                doc_type=meta.get("doc_type", "other"),
+                entities=meta.get("entities", {}),
             )
             session.add(db_chunk)
 
@@ -366,6 +394,9 @@ async def ingest_file(
         doc.parse_ms = parse_ms
         doc.embed_ms = embed_ms
         doc.db_ms = db_ms
+        doc.extract_ms = extraction_result.usage.extract_ms
+        doc.extract_prompt_tokens = extraction_result.usage.prompt_tokens
+        doc.extract_completion_tokens = extraction_result.usage.completion_tokens
         doc.embedding_model = _embedding_model_name()
         doc.embedding_dims = _settings.embedding_dims
 
@@ -522,13 +553,23 @@ async def ingest_url(
 
         _log_chunk_stats(chunks, url)
 
+        from app.ingestion.metadata_extractor import extract_metadata_batch_async
+        extraction_result = await extract_metadata_batch_async(
+            [c.content for c in chunks]
+        )
+        chunk_meta_dicts = [
+            {"doc_type": m.doc_type, "entities": m.entities}
+            for m in extraction_result.metadata
+        ]
+
         t_embed = time.perf_counter()
-        enriched = enrich_for_embedding(chunks)
+        enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
         embeddings = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
         t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+            meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
             db_chunk = Chunk(
                 document_id=doc.id,
                 chunk_index=i,
@@ -539,6 +580,8 @@ async def ingest_url(
                 parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
+                doc_type=meta.get("doc_type", "other"),
+                entities=meta.get("entities", {}),
             )
             session.add(db_chunk)
 
@@ -562,6 +605,9 @@ async def ingest_url(
         doc.parse_ms = parse_ms
         doc.embed_ms = embed_ms
         doc.db_ms = db_ms
+        doc.extract_ms = extraction_result.usage.extract_ms
+        doc.extract_prompt_tokens = extraction_result.usage.prompt_tokens
+        doc.extract_completion_tokens = extraction_result.usage.completion_tokens
         doc.embedding_model = _embedding_model_name()
         doc.embedding_dims = _settings.embedding_dims
         await session.commit()
@@ -769,10 +815,22 @@ def ingest_from_bytes(
         _log_chunk_stats(chunks, file_path)
 
         _check_cancelled(session, document)
+        _update_progress(session, document, 50, "extracting_metadata")
+
+        from app.ingestion.metadata_extractor import extract_metadata_batch_sync
+        extraction_result = extract_metadata_batch_sync(
+            [c.content for c in chunks]
+        )
+        chunk_meta_dicts = [
+            {"doc_type": m.doc_type, "entities": m.entities}
+            for m in extraction_result.metadata
+        ]
+
+        _check_cancelled(session, document)
         _update_progress(session, document, 55, "embedding")
 
         t_embed = time.perf_counter()
-        enriched = enrich_for_embedding(chunks)
+        enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
         embeddings = embed_texts(
             enriched,
             progress_callback=lambda pct: _update_progress(
@@ -794,6 +852,7 @@ def ingest_from_bytes(
         session.flush()
 
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+            meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
             db_chunk = Chunk(
                 document_id=document.id,
                 chunk_index=i,
@@ -804,6 +863,8 @@ def ingest_from_bytes(
                 parent_content=chunk_data.parent_content,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
+                doc_type=meta.get("doc_type", "other"),
+                entities=meta.get("entities", {}),
             )
             session.add(db_chunk)
 
@@ -830,6 +891,9 @@ def ingest_from_bytes(
         document.parse_ms = parse_ms
         document.embed_ms = embed_ms
         document.db_ms = db_ms
+        document.extract_ms = extraction_result.usage.extract_ms
+        document.extract_prompt_tokens = extraction_result.usage.prompt_tokens
+        document.extract_completion_tokens = extraction_result.usage.completion_tokens
         document.embedding_model = _embedding_model_name()
         document.embedding_dims = _settings.embedding_dims
 

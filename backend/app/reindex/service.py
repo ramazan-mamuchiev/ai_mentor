@@ -80,8 +80,8 @@ async def start_reindex_job(
 
     Raises ValueError if a conflicting job is already active.
     """
-    if mode not in ("reingest", "reembed"):
-        raise ValueError(f"Invalid mode '{mode}'. Must be 'reingest' or 'reembed'.")
+    if mode not in ("reingest", "reembed", "extract_metadata"):
+        raise ValueError(f"Invalid mode '{mode}'. Must be 'reingest', 'reembed', or 'extract_metadata'.")
 
     conflict = await _find_conflicting_job(db, mode, product_name, format_filter)
     if conflict is not None:
@@ -323,6 +323,8 @@ def run_reindex_sync(job_id: int, document_ids: list[int]):
             try:
                 if job.mode == "reingest":
                     chunks = _reingest_document(session, doc_id)
+                elif job.mode == "extract_metadata":
+                    chunks = _extract_metadata_document(session, doc_id)
                 else:
                     chunks = _reembed_document(session, doc_id)
 
@@ -443,5 +445,39 @@ def _reembed_document(session: SyncSession, doc_id: int) -> int:
     embeddings = embed_texts(contents)
     for chunk, emb in zip(chunks, embeddings):
         chunk.embedding = emb
+    session.commit()
+    return len(chunks)
+
+
+def _extract_metadata_document(session: SyncSession, doc_id: int) -> int:
+    """Extract metadata (doc_type, entities) for existing chunks without re-embedding.
+
+    Returns the number of chunks updated.
+    """
+    from sqlalchemy import select as sa_select
+    from app.models import Chunk, Document
+    from app.ingestion.metadata_extractor import extract_metadata_batch_sync
+
+    doc = session.get(Document, doc_id)
+    if doc is None:
+        raise ValueError(f"Document {doc_id} not found")
+
+    chunks = session.execute(
+        sa_select(Chunk).where(Chunk.document_id == doc_id).order_by(Chunk.chunk_index)
+    ).scalars().all()
+
+    if not chunks:
+        return 0
+
+    result = extract_metadata_batch_sync([c.content for c in chunks])
+
+    for chunk, meta in zip(chunks, result.metadata):
+        chunk.doc_type = meta.doc_type
+        chunk.entities = meta.entities
+
+    doc.extract_ms = result.usage.extract_ms
+    doc.extract_prompt_tokens = result.usage.prompt_tokens
+    doc.extract_completion_tokens = result.usage.completion_tokens
+
     session.commit()
     return len(chunks)

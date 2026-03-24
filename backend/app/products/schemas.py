@@ -104,4 +104,7 @@ class ProductDebugInfo(BaseModel):
     avg_rag_similarity: float | None = None
     last_rag_used_at: datetime | None = None
 
+    sum_extract_ms: float | None = None
+    total_extract_tokens: int = 0
+
     documents: list[ProductDocumentSummary] = []

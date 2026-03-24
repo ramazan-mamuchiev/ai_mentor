@@ -141,6 +141,11 @@ class DocumentDebugInfo(BaseModel):
     ocr_images_failed: int | None = None
     detected_language: str | None = None
 
+    extract_ms: float | None = None
+    extract_model: str | None = None
+    extract_prompt_tokens: int | None = None
+    extract_completion_tokens: int | None = None
+
     product_name: str = ""
     firmware_version: str = ""
 

@@ -81,6 +81,13 @@ function DebugPanel({ debug }: { debug: DebugInfo }) {
             {debug.prompt_hash && <div className="debug-row debug-row-config"><span>{t('debug.promptHash')}</span><code>{debug.prompt_hash}</code></div>}
           </div>
         )}
+        {debug.retry_used && (
+          <div className="debug-section">
+            <div className="debug-section-title">{t('debug.retryUsed')}</div>
+            <div className="debug-row"><span>{t('debug.rephraseMs')}</span><code>{debug.rephrase_ms != null ? (debug.rephrase_ms / 1000).toFixed(2) + 's' : '—'}</code></div>
+            {debug.rephrase_query && <div className="debug-row debug-row-wide"><span>{t('debug.rephraseQuery')}</span><code className="debug-query-value">{debug.rephrase_query}</code></div>}
+          </div>
+        )}
         {hasTiming && (
           <div className="debug-section">
             <div className="debug-section-title">{t('debug.timing')}</div>

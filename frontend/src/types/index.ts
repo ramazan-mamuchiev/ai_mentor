@@ -5,6 +5,8 @@ export interface SourceInfo {
   content_preview: string
   product_name: string
   firmware_version: string
+  doc_type?: string
+  entities?: Record<string, string[]>
 }
 
 export interface DebugInfo {
@@ -58,6 +60,9 @@ export interface DebugInfo {
   classify_total_tokens?: number
   classify_raw?: string
   prompt_hash?: string
+  retry_used?: boolean
+  rephrase_ms?: number
+  rephrase_query?: string | null
   status?: 'success' | 'stopped' | 'error'
   status_detail?: string
 }
@@ -165,6 +170,11 @@ export interface DocumentDebugInfo {
   ocr_images_failed: number | null
   detected_language: string | null
 
+  extract_ms: number | null
+  extract_model: string | null
+  extract_prompt_tokens: number | null
+  extract_completion_tokens: number | null
+
   product_name: string
   firmware_version: string
 }
@@ -249,10 +259,12 @@ export interface ProductDebugInfo {
   total_rag_hit_count: number
   avg_rag_similarity: number | null
   last_rag_used_at: string | null
+  sum_extract_ms: number | null
+  total_extract_tokens: number
   documents: ProductDocumentSummary[]
 }
 
-export type ReindexMode = 'reingest' | 'reembed'
+export type ReindexMode = 'reingest' | 'reembed' | 'extract_metadata'
 export type ReindexStatus = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed'
 
 export interface ReindexJob {

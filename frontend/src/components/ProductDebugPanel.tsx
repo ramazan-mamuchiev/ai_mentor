@@ -191,6 +191,7 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }:
     { label: t('docDebug.readTime'), ms: debug.sum_read_ms, color: 'var(--doc-debug-read, #4dabf7)' },
     { label: t('docDebug.convertTime'), ms: debug.sum_convert_ms, color: 'var(--doc-debug-convert, #69db7c)' },
     { label: t('docDebug.parseTime'), ms: debug.sum_parse_ms, color: 'var(--doc-debug-parse, #ffd43b)' },
+    { label: t('docDebug.extractTime'), ms: debug.sum_extract_ms, color: 'var(--doc-debug-extract, #20c997)' },
     { label: t('docDebug.embedTime'), ms: debug.sum_embed_ms, color: 'var(--doc-debug-embed, #ff922b)' },
     { label: t('docDebug.dbTime'), ms: debug.sum_db_ms, color: 'var(--doc-debug-db, #da77f2)' },
   ]
@@ -218,6 +219,7 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }:
           <div className="doc-debug-row"><span>{t('docDebug.readTime')}</span><code>{fmtMs(debug.sum_read_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.convertTime')}</span><code>{fmtMs(debug.sum_convert_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.parseTime')}</span><code>{fmtMs(debug.sum_parse_ms)}</code></div>
+          <div className="doc-debug-row"><span>{t('docDebug.extractTime')}</span><code>{fmtMs(debug.sum_extract_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.embedTime')}</span><code>{fmtMs(debug.sum_embed_ms)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.dbTime')}</span><code>{fmtMs(debug.sum_db_ms)}</code></div>
           <TimingBar stages={timingStages} />
@@ -236,6 +238,7 @@ export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }:
           <div className="doc-debug-section-title">{t('docDebug.embedding')}</div>
           <div className="doc-debug-row"><span>{t('docDebug.embeddingModel')}</span><code className="doc-debug-embed-model">{debug.embedding_model ?? '—'}</code></div>
           <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.embeddingTokens')}</span><code>{fmt(debug.total_embedding_tokens)}</code></div>
+          <div className="doc-debug-row"><span>{t('docDebug.extractTotalTokens')}</span><code>{fmt(debug.total_extract_tokens)}</code></div>
         </div>
 
         <div className="doc-debug-section">
