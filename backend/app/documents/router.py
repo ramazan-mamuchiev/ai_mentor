@@ -656,8 +656,12 @@ async def delete_document(document_id: int):
 async def reingest_single_document(document_id: int):
     """Re-run full ingestion for a single document.
 
-    Resets the document to 'pending', clears existing chunks, and queues
-    a new Celery ingestion task. The original file in S3 is preserved.
+    For file-based documents: resets to 'pending', clears chunks, re-queues
+    the ingestion task (the original file in S3 is preserved).
+
+    For URL/Confluence documents: deletes all child documents produced by
+    the previous crawl, resets the placeholder, and re-queues the
+    appropriate Celery task.
     """
     from app.celery_app import ingest_document_task
 
@@ -666,8 +670,31 @@ async def reingest_single_document(document_id: int):
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        if not doc.s3_key:
+        is_confluence = doc.format == "confluence"
+        is_url = doc.format == "url"
+
+        if not doc.s3_key and not is_confluence and not is_url:
             raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
+
+        if is_confluence or is_url:
+            if not doc.source_path:
+                raise HTTPException(status_code=400, detail="No source URL stored — cannot reingest")
+
+            source_url = doc.source_path
+
+            children = (await session.execute(
+                select(Document).where(
+                    Document.source_container == source_url,
+                    Document.id != doc.id,
+                )
+            )).scalars().all()
+            for child in children:
+                child_chunks = (await session.execute(
+                    select(Chunk).where(Chunk.document_id == child.id)
+                )).scalars().all()
+                for ch in child_chunks:
+                    await session.delete(ch)
+                await session.delete(child)
 
         chunks = (await session.execute(
             select(Chunk).where(Chunk.document_id == doc.id)
@@ -677,17 +704,29 @@ async def reingest_single_document(document_id: int):
 
         doc.status = "pending"
         doc.total_chunks = 0
+        doc.total_tokens = 0
+        doc.file_size_bytes = 0
         doc.error_message = None
         doc.progress_percent = 0
-        doc.progress_stage = ""
+        doc.progress_stage = "queued"
+        doc.title = doc.source_path[:200] if (is_confluence or is_url) else doc.title
         await session.flush()
 
-        task = ingest_document_task.delay(document_id)
+        if is_confluence:
+            from app.celery_app import ingest_confluence_task
+            task = ingest_confluence_task.delay(document_id=document_id)
+        elif is_url:
+            from app.celery_app import ingest_single_url_task
+            task = ingest_single_url_task.delay(document_id=document_id)
+        else:
+            task = ingest_document_task.delay(document_id)
+
         doc.celery_task_id = task.id
         await session.commit()
 
     logger.info("Single document reingest queued", extra={
         "document_id": document_id, "task_id": task.id,
+        "format": doc.format,
     })
     return {
         "document_id": document_id,
