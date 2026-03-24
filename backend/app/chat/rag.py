@@ -60,17 +60,8 @@ QUERY_TYPES = tuple(_TYPE_PROMPTS.keys())
 
 def _build_classify_prompt() -> str:
     lines = [
-        "Classify the user question into exactly ONE category. "
+        "Classify the user question into exactly ONE category.",
         "Return ONLY the category name, nothing else.",
-        "",
-        "IMPORTANT: If the question mentions a specific technical subject "
-        "(API, endpoint, protocol, gRPC, WebSocket, HTTP, SDK, configuration, "
-        "event, archive, macro, authentication), classify as 'technical' — "
-        "even if the phrasing is conversational ('tell me about', 'describe', "
-        "'explain', 'расскажи', 'опиши', 'объясни', 'рассмотрим', 'разберём').",
-        "",
-        "Use 'overview' only for genuinely high-level questions about a product "
-        "or system as a whole, without a specific technical focus.",
         "",
         "Categories:",
     ]
