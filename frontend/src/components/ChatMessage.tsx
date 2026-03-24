@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { SourceCard } from './SourceCard'
+import { MarkdownPreviewModal } from './MarkdownPreviewModal'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 
 function formatTimestamp(iso: string): string {
@@ -190,6 +191,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
   const isError = !!message.error_code
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
   const [debugExpanded, setDebugExpanded] = useState(false)
+  const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
   const debug = message.debug
 
   return (
@@ -218,7 +220,11 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               <span>{t('chat.searching')}</span>
             </div>
           ) : (
-            <MarkdownRenderer content={content} isStreaming={isStreaming} />
+            <MarkdownRenderer
+              content={content}
+              isStreaming={isStreaming}
+              onDocumentPreview={(docId, title) => setPreviewTarget({ id: docId, title })}
+            />
           )}
         </div>
         {sources.length > 0 && (
@@ -231,7 +237,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               {sourcesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </div>
             {sourcesExpanded && sources.map((s, i) => (
-              <SourceCard key={i} source={s} />
+              <SourceCard key={i} source={s} onPreview={(id, title) => setPreviewTarget({ id, title })} />
             ))}
           </div>
         )}
@@ -268,6 +274,13 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
         )}
         {debugExpanded && debug && <DebugPanel debug={debug} onCollapse={() => setDebugExpanded(false)} />}
       </div>
+      {previewTarget && (
+        <MarkdownPreviewModal
+          documentId={previewTarget.id}
+          documentTitle={previewTarget.title}
+          onClose={() => setPreviewTarget(null)}
+        />
+      )}
     </div>
   )
 }

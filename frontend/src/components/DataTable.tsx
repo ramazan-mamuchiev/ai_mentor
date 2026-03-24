@@ -292,7 +292,7 @@ export function DataTable<TData>({
               key={col.id}
               className={`docs-group-action-btn ${grouping.includes(col.id) ? 'docs-group-action-btn--active' : ''}`}
               onClick={() => toggleGrouping(col.id)}
-              title={t('docs.group.toggle')}
+              data-tooltip={t('docs.group.toggle')}
             >
               <Layers size={12} />
               {flexRender(col.columnDef.header, { table, header: null as never, column: col })}

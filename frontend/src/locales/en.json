@@ -424,5 +424,15 @@
 
   "settings.title": "Settings",
   "settings.description": "API keys, team management, billing, and integration settings.",
-  "settings.comingSoon": "Coming Soon"
+  "settings.comingSoon": "Coming Soon",
+
+  "common.close": "Close",
+  "upload.removeFile": "Remove file",
+  "docs.search.clear": "Clear search",
+  "docs.group.remove": "Remove grouping",
+  "products.search.clear": "Clear search",
+  "productPicker.close": "Close",
+  "sidebar.menu": "Menu",
+  "chat.scrollToBottom": "Scroll to bottom",
+  "chat.sources.preview": "View full document"
 }

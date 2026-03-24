@@ -9,7 +9,7 @@ export function LanguageToggle() {
     <button
       className="lang-toggle"
       onClick={() => i18n.changeLanguage(next)}
-      title={t('lang.toggle')}
+      data-tooltip={t('lang.toggle')}
     >
       {current.toUpperCase()}
     </button>

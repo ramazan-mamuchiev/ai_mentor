@@ -1,4 +1,5 @@
 export interface SourceInfo {
+  document_id?: number | null
   doc_title: string
   heading_path: string
   similarity: number

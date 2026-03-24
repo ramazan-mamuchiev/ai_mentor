@@ -47,6 +47,7 @@ class SendMessageRequest(BaseModel):
 
 
 class SourceInfo(BaseModel):
+    document_id: int | None = None
     doc_title: str
     heading_path: str
     similarity: float

@@ -424,5 +424,15 @@
 
   "settings.title": "Настройки",
   "settings.description": "API-ключи, управление командой, биллинг и настройки интеграции.",
-  "settings.comingSoon": "Скоро"
+  "settings.comingSoon": "Скоро",
+
+  "common.close": "Закрыть",
+  "upload.removeFile": "Удалить файл",
+  "docs.search.clear": "Очистить поиск",
+  "docs.group.remove": "Убрать группировку",
+  "products.search.clear": "Очистить поиск",
+  "productPicker.close": "Закрыть",
+  "sidebar.menu": "Меню",
+  "chat.scrollToBottom": "Прокрутить вниз",
+  "chat.sources.preview": "Просмотреть документ"
 }

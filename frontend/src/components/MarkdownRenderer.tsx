@@ -1,14 +1,18 @@
+import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './CodeBlock'
 import { fixBrokenTables } from '../utils/fixBrokenTables'
 
+const DOC_LINK_RE = /^ipcodex:doc:(\d+)$/
+
 interface Props {
   content: string
   isStreaming?: boolean
+  onDocumentPreview?: (docId: number, title: string) => void
 }
 
-export function MarkdownRenderer({ content, isStreaming }: Props) {
+export function MarkdownRenderer({ content, isStreaming, onDocumentPreview }: Props) {
   return (
     <div className={isStreaming ? 'streaming-content' : undefined}>
       <ReactMarkdown
@@ -41,6 +45,24 @@ export function MarkdownRenderer({ content, isStreaming }: Props) {
               </CodeBlock>
             )
           },
+          a({ href, children, ...props }) {
+            const docMatch = href ? DOC_LINK_RE.exec(href) : null
+            if (docMatch && onDocumentPreview) {
+              const docId = parseInt(docMatch[1], 10)
+              const title = extractText(children)
+              return (
+                <a
+                  className="doc-ref-link"
+                  href="#"
+                  onClick={e => { e.preventDefault(); onDocumentPreview(docId, title) }}
+                  {...props}
+                >
+                  {children}
+                </a>
+              )
+            }
+            return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+          },
         }}
       >
         {fixBrokenTables(content)}
@@ -48,4 +70,13 @@ export function MarkdownRenderer({ content, isStreaming }: Props) {
       {isStreaming && <span className="streaming-cursor" />}
     </div>
   )
+}
+
+function extractText(node: ReactNode): string {
+  if (typeof node === 'string') return node
+  if (Array.isArray(node)) return node.map(extractText).join('')
+  if (node && typeof node === 'object' && 'props' in node) {
+    return extractText((node as { props: { children?: ReactNode } }).props.children)
+  }
+  return ''
 }

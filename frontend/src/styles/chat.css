@@ -479,6 +479,21 @@
   text-decoration: underline;
 }
 
+.doc-ref-link {
+  text-decoration: none !important;
+  border-bottom: 1.5px dashed var(--accent);
+  color: var(--accent) !important;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, opacity 0.15s;
+  padding-bottom: 1px;
+}
+
+.doc-ref-link:hover {
+  border-bottom-style: solid;
+  opacity: 0.85;
+}
+
 .message-footer {
   display: flex;
   align-items: center;
@@ -797,6 +812,33 @@
 .source-card-info {
   flex: 1;
   min-width: 0;
+}
+
+.source-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.source-card-preview-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.source-card-preview-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface-hover);
 }
 
 .source-card-toggle {
