@@ -69,6 +69,7 @@ services:
 
   api:
     build: ./backend
+    image: ipcodex-backend
     restart: unless-stopped
     logging: *default-logging
     deploy:
@@ -126,7 +127,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
 
   worker:
-    build: ./backend
+    image: ipcodex-backend
     restart: unless-stopped
     logging: *default-logging
     deploy:
@@ -162,7 +163,7 @@ services:
     command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring
 
   beat:
-    build: ./backend
+    image: ipcodex-backend
     restart: unless-stopped
     logging: *default-logging
     deploy:

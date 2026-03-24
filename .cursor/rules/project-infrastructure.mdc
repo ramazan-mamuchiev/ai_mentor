@@ -26,20 +26,22 @@ The project is fully Dockerized. Do NOT re-explore Docker setup each time.
 
 ### Key services
 
-| Service  | Port | Image               |
-|----------|------|---------------------|
-| web      | 80   | frontend (nginx)    |
-| api      | 8000 | backend (uvicorn)   |
-| postgres | 5432 | pgvector/pgvector:pg16 |
-| redis    | 6379 | redis:7-alpine      |
-| minio    | 9000/9001 | minio/minio    |
-| ollama   | 11434 | ollama/ollama      |
-| grafana  | 3000 | grafana/grafana     |
+| Service  | Port | Image               | Notes |
+|----------|------|---------------------|-------|
+| web      | 80   | frontend (nginx)    | |
+| api      | 8000 | ipcodex-backend     | builds the shared backend image |
+| worker   | -    | ipcodex-backend     | no build, reuses api image |
+| beat     | -    | ipcodex-backend     | no build, reuses api image |
+| postgres | 5432 | pgvector/pgvector:pg16 | |
+| redis    | 6379 | redis:7-alpine      | |
+| minio    | 9000/9001 | minio/minio    | |
+| ollama   | 11434 | ollama/ollama      | |
+| grafana  | 3000 | grafana/grafana     | |
 
 ### Common commands
 
 - Rebuild & restart frontend: `docker compose build web && docker compose up -d web`
-- Rebuild & restart backend: `docker compose build api && docker compose up -d api worker`
+- Rebuild & restart backend: `docker compose build api && docker compose up -d api worker beat`
 - Full stack up: `docker compose up -d`
 - Logs: `docker compose logs -f <service>`
 

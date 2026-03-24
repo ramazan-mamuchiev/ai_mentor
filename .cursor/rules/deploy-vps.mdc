@@ -5,54 +5,37 @@ alwaysApply: true
 
 # Deploy to VPS
 
-Use the deploy script `scripts/deploy.ps1`. The sandbox blocks SSH, so **always tell the user to run the command** in their terminal.
+When the user asks to publish/deploy changes to VPS (82.38.66.177):
 
-## Deploy script usage
+1. **Commit & push** locally (if there are uncommitted changes):
+   ```powershell
+   git add <files>
+   git commit -m "message"
+   git push origin main
+   ```
 
-```powershell
-.\scripts\deploy.ps1                       # deploy everything (api + web)
-.\scripts\deploy.ps1 -Target api           # backend only
-.\scripts\deploy.ps1 -Target web           # frontend only
-.\scripts\deploy.ps1 -NoCache              # rebuild without Docker cache
-.\scripts\deploy.ps1 -NoCache -Target api  # backend only, no cache
-.\scripts\deploy.ps1 -SkipPush             # skip git push (already pushed)
-```
+2. **Pull on VPS**:
+   ```powershell
+   ssh root@82.38.66.177 "cd /opt/ipcodex && git pull origin main"
+   ```
 
-## When to use -NoCache
+3. **Build changed images on VPS** (Docker layer cache makes this fast):
+   ```powershell
+   ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose build api web"
+   ```
+   - `api` builds the shared `ipcodex-backend` image used by `api`, `worker`, and `beat`.
+   - Only `api` and `web` need `build` — worker/beat reuse the `ipcodex-backend` image.
 
-**Only** when `requirements.txt`, `package.json`, or `Dockerfile` changed. Cached layers save disk and time.
-
-## What the script does
-
-1. `git push origin main`
-2. `ssh root@82.38.66.177` → `git pull origin main`
-3. `docker compose build` (with or without `--no-cache`)
-4. `docker compose up -d --force-recreate`
-5. Health check: `docker compose ps`
-
-## Target selection
-
-- If only frontend changed → `-Target web`
-- If only backend changed → `-Target api`
-- If both changed → `-Target all` (default)
-
-## Mandatory workflow
-
-When the user asks to deploy/publish:
-
-1. **Commit** all pending changes (if any).
-2. **Tell the user** to run the appropriate `.\scripts\deploy.ps1` command with correct flags.
-3. **NEVER** give raw `ssh`, `git push`, `docker compose` commands separately — always use the deploy script.
-4. Choose the right flags based on what changed:
-   - Backend Python code only → `.\scripts\deploy.ps1 -Target api`
-   - Frontend code only → `.\scripts\deploy.ps1 -Target web`
-   - Both → `.\scripts\deploy.ps1`
-   - Dependencies changed (`requirements.txt`, `package.json`) → add `-NoCache`
+4. **Restart changed services**:
+   ```powershell
+   ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose up -d api worker beat web"
+   ```
 
 ## Rules
 
 - **NEVER** copy full Docker images via `docker save` / `scp` / `docker load`. Always build on VPS.
-- **NEVER** use `--no-cache` unless dependencies or Dockerfile changed.
-- **NEVER** give separate ssh/docker commands — always use `scripts/deploy.ps1`.
-- Always commit changes before running deploy.
-- The sandbox cannot run SSH commands — provide the deploy command for the user to execute.
+- **NEVER** use `--no-cache` unless `requirements.txt`, `package.json`, or `Dockerfile` changed.
+- If only frontend changed, build `web` and restart only `web`.
+- If only backend changed, build `api` and restart `api` + `worker` + `beat`.
+- If both changed, build `api web` and restart `api worker beat web`.
+- `worker` and `beat` have NO `build:` directive — they use `image: ipcodex-backend` built by `api`.
