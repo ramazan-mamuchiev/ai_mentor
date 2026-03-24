@@ -104,6 +104,14 @@ class UrlIngestResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DocumentMarkdownPreview(BaseModel):
+    document_id: int
+    title: str
+    markdown: str
+    size_bytes: int
+    source: str  # "s3_converted" | "s3_original" | "chunks_reconstructed"
+
+
 class DocumentDebugInfo(BaseModel):
     document_id: int
     title: str

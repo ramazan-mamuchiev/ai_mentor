@@ -273,8 +273,13 @@
   "docs.cancel.message": "Процесс индексирования этого документа будет остановлен. Вы сможете запустить его позже.",
   "docs.cancel.confirm": "Остановить",
   "docs.cancel.dismiss": "Продолжить",
+  "docs.actions.previewMd": "Просмотр Markdown",
   "docs.actions.debug": "Отладочная информация",
   "docs.source.from": "из {{source}}",
+
+  "docs.preview.title": "Просмотр MD",
+  "docs.preview.loading": "Загрузка содержимого...",
+  "docs.preview.download": "Скачать .md",
 
   "docDebug.file": "Файл",
   "docDebug.format": "Формат",

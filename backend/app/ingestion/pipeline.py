@@ -793,6 +793,16 @@ def ingest_from_bytes(
 
     read_ms = round((time.perf_counter() - t_read) * 1000, 1)
 
+    if fmt in ("pdf", "swagger", "postman", "proto"):
+        try:
+            from app.s3 import upload_file as _s3_upload
+            converted_key = f"documents/{document.id}/converted.md"
+            _s3_upload(converted_key, text.encode("utf-8"), content_type="text/markdown")
+            document.converted_s3_key = converted_key
+            session.commit()
+        except Exception:
+            logger.warning("Failed to save converted MD to S3", extra={"document_id": document.id}, exc_info=True)
+
     _check_cancelled(session, document)
     _update_progress(session, document, 45, "chunking")
 

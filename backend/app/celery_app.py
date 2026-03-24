@@ -659,6 +659,13 @@ def ingest_single_url_task(self, document_id: int):
         doc.original_filename = f"{page_title[:100]}.md"
         doc.file_size_bytes = len(text.encode("utf-8"))
         doc.source_hash = source_hash
+
+        from app.s3 import upload_file as _s3_upload
+        converted_key = f"documents/{doc.id}/converted.md"
+        _s3_upload(converted_key, text.encode("utf-8"), content_type="text/markdown")
+        doc.converted_s3_key = converted_key
+        doc.s3_key = converted_key
+
         doc.progress_stage = "parsing"
         doc.progress_percent = 30
         session.commit()

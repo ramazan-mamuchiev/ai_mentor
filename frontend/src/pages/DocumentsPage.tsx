@@ -16,10 +16,12 @@ import {
   Bug,
   Ban,
   ExternalLink,
+  Eye,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listDocuments, downloadDocument, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
 import { DocumentDebugPanel } from '../components/DocumentDebugPanel'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
@@ -169,6 +171,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<DocumentListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<DocumentListItem | null>(null)
+  const [previewTarget, setPreviewTarget] = useState<DocumentListItem | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
   const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
@@ -415,6 +418,11 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               </button>
             )}
             {doc.status === 'ready' && (
+              <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} title={t('docs.actions.previewMd')}>
+                <Eye size={16} />
+              </button>
+            )}
+            {doc.status === 'ready' && (
               <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} title={t('docs.actions.download')}>
                 <Download size={16} />
               </button>
@@ -638,6 +646,11 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                   </button>
                 )}
                 {doc.status === 'ready' && (
+                  <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} title={t('docs.actions.previewMd')}>
+                    <Eye size={16} />
+                  </button>
+                )}
+                {doc.status === 'ready' && (
                   <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} title={t('docs.actions.download')}>
                     <Download size={16} />
                   </button>
@@ -696,6 +709,14 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           variant="danger"
           onConfirm={handleCancelConfirm}
           onCancel={() => setCancelTarget(null)}
+        />
+      )}
+
+      {previewTarget && (
+        <MarkdownPreviewModal
+          documentId={previewTarget.id}
+          documentTitle={previewTarget.title}
+          onClose={() => setPreviewTarget(null)}
         />
       )}
     </div>

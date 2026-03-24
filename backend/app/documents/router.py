@@ -16,6 +16,7 @@ from app.documents.schemas import (
     DocumentDebugInfo,
     DocumentDownload,
     DocumentListItem,
+    DocumentMarkdownPreview,
     DocumentStatus,
     IngestResponse,
     UrlIngestRequest,
@@ -579,6 +580,67 @@ async def download_document(document_id: int):
             original_filename=doc.original_filename,
             download_url=url,
             expires_in_seconds=900,
+        )
+
+
+@router.get("/{document_id}/preview-markdown", response_model=DocumentMarkdownPreview)
+async def preview_markdown(document_id: int):
+    """Get the converted Markdown content for a document.
+
+    Priority: converted_s3_key (full MD before chunking) > s3_key for .md files >
+    reconstruct from chunks as fallback.
+    """
+    from app.s3 import download_file as s3_download
+
+    async with async_session() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        if doc.status != "ready":
+            raise HTTPException(status_code=400, detail=f"Document is not ready (status: {doc.status})")
+
+        md_text: str | None = None
+        source = "unknown"
+
+        if doc.converted_s3_key:
+            try:
+                data = s3_download(doc.converted_s3_key)
+                md_text = data.decode("utf-8", errors="replace")
+                source = "s3_converted"
+            except Exception:
+                logger.warning("Failed to download converted MD from S3", extra={
+                    "document_id": document_id, "key": doc.converted_s3_key,
+                })
+
+        if md_text is None and doc.s3_key:
+            ext = os.path.splitext(doc.s3_key)[1].lower()
+            if ext in (".md", ".txt"):
+                try:
+                    data = s3_download(doc.s3_key)
+                    md_text = data.decode("utf-8", errors="replace")
+                    source = "s3_original"
+                except Exception:
+                    logger.warning("Failed to download original MD from S3", extra={
+                        "document_id": document_id, "key": doc.s3_key,
+                    })
+
+        if md_text is None:
+            chunks = (await session.execute(
+                select(Chunk)
+                .where(Chunk.document_id == document_id)
+                .order_by(Chunk.chunk_index)
+            )).scalars().all()
+            if not chunks:
+                raise HTTPException(status_code=404, detail="No markdown content available")
+            md_text = "\n\n".join(c.content for c in chunks)
+            source = "chunks_reconstructed"
+
+        return DocumentMarkdownPreview(
+            document_id=doc.id,
+            title=doc.title,
+            markdown=md_text,
+            size_bytes=len(md_text.encode("utf-8")),
+            source=source,
         )
 
 

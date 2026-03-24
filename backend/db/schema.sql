@@ -103,6 +103,9 @@ BEGIN
     END IF;
 END $$;
 
+-- Converted Markdown stored in S3 (full text before chunking, for preview/download)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS converted_s3_key TEXT;
+
 -- Metadata extraction metrics (LLM-based entity/doc_type extraction)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_ms FLOAT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_prompt_tokens INT NOT NULL DEFAULT 0;

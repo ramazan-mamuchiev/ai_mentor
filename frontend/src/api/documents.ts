@@ -3,6 +3,7 @@ import type {
   DocumentListItem,
   DocumentDebugInfo,
   DocumentDownload,
+  DocumentMarkdownPreview,
   ReindexJob,
   ReindexJobList,
   ReindexMode,
@@ -34,6 +35,10 @@ export async function getDocumentDebug(id: number): Promise<DocumentDebugInfo> {
 
 export async function downloadDocument(id: number): Promise<DocumentDownload> {
   return apiFetch<DocumentDownload>(`/documents/${id}/download`)
+}
+
+export async function previewMarkdown(id: number): Promise<DocumentMarkdownPreview> {
+  return apiFetch<DocumentMarkdownPreview>(`/documents/${id}/preview-markdown`)
 }
 
 export async function deleteDocument(id: number): Promise<void> {

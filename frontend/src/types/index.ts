@@ -190,6 +190,14 @@ export interface DocumentDownload {
   expires_in_seconds: number
 }
 
+export interface DocumentMarkdownPreview {
+  document_id: number
+  title: string
+  markdown: string
+  size_bytes: number
+  source: 's3_converted' | 's3_original' | 'chunks_reconstructed'
+}
+
 export interface FormatCount {
   format: string
   count: number

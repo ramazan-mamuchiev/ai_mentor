@@ -109,6 +109,8 @@ class Document(Base):
 
     source_container: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    converted_s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     extract_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     extract_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     extract_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
