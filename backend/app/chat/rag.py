@@ -167,8 +167,9 @@ async def _classify_query(db: AsyncSession, query: str) -> tuple[str, str | None
                 query_type = cat if cat in QUERY_TYPES else "overview"
                 prod = parsed.get("product")
                 if prod and isinstance(prod, str) and prod.lower() != "null":
+                    prod_norm = re.sub(r"\s+", "", prod.lower())
                     for pn in product_names:
-                        if pn.lower() == prod.lower():
+                        if pn.lower() == prod.lower() or re.sub(r"\s+", "", pn.lower()) == prod_norm:
                             detected_product = pn
                             break
         except (json_lib.JSONDecodeError, KeyError):
