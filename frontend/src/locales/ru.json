@@ -117,6 +117,8 @@
   "productBadge.clear": "Сбросить фильтр",
   "productBadge.autoDetected": "Авто-определение",
   "productBadge.locked": "Зафиксирован",
+  "productBadge.lock": "Закрепить продукт",
+  "productBadge.unlock": "Открепить продукт",
 
   "upload.title": "Загрузка документации",
   "upload.close": "Закрыть",
