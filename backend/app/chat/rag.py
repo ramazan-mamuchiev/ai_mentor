@@ -75,7 +75,7 @@ def _build_classify_prompt() -> str:
     lines = [
         "Classify the user question and detect the product mentioned.",
         "Return ONLY a JSON object with two fields, no other text:",
-        '  {"category": "<category>", "product": "<product_name or null>"}',
+        '  {{"category": "<category>", "product": "<product_name or null>"}}',
         "",
         "Categories:",
     ]
