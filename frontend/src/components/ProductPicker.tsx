@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, ChevronDown, X, Globe } from 'lucide-react'
+import { Search, ChevronDown, X, Globe, Box } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { listProducts } from '../api/products'
 import type { ProductListItem } from '../types'
@@ -160,6 +160,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, onEdi
     <div className="product-badge">
       <span className="product-badge-label" onClick={onEdit} title={t('productBadge.change')}>
         {autoDetected && <span className="product-badge-auto">{t('productBadge.autoDetected')}</span>}
+        <Box size={13} className="product-badge-icon" />
         <span className="product-badge-name">{productFilter}</span>
         {versionFilter && <span className="product-badge-version">{versionFilter}</span>}
         <ChevronDown size={14} className="product-badge-chevron" />
