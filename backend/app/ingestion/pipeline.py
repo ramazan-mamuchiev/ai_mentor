@@ -949,7 +949,7 @@ async def _get_or_create_product(session: AsyncSession, name: str, manufacturer:
     from app.slugify import slugify
 
     result = await session.execute(
-        select(Product).where(Product.name == name)
+        select(Product).where(Product.name == name, Product.manufacturer == manufacturer)
     )
     product = result.scalar_one_or_none()
     if product:
@@ -959,11 +959,14 @@ async def _get_or_create_product(session: AsyncSession, name: str, manufacturer:
             await session.flush()
         return product
 
+    slug = slugify(name)
+    mfr_slug = slugify(manufacturer) if manufacturer else "default"
     product = Product(
         name=name,
         manufacturer=manufacturer,
-        slug=slugify(name),
-        manufacturer_slug=slugify(manufacturer) if manufacturer else "default",
+        model=name,
+        slug=slug,
+        manufacturer_slug=mfr_slug,
     )
     session.add(product)
     await session.flush()
