@@ -395,6 +395,7 @@ async def build_rag_prompt(
     product_filter: str | None = None,
     version_filter: str | None = None,
     doc_context: str | None = None,
+    product_filter_source: str | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """Build a complete prompt with RAG context for the LLM.
 
@@ -459,11 +460,17 @@ async def build_rag_prompt(
 
     auto_product = classify_product
     if auto_product and auto_product != product_filter:
-        logger.info(
-            "Auto-detected product from query via LLM classify",
-            extra={"product": auto_product, "previous": product_filter, "query": query[:100]},
-        )
-        product_filter = auto_product
+        if product_filter_source == "explicit":
+            logger.info(
+                "Auto-detected product ignored (explicit lock)",
+                extra={"detected": auto_product, "locked": product_filter, "query": query[:100]},
+            )
+        else:
+            logger.info(
+                "Auto-detected product from query via LLM classify",
+                extra={"product": auto_product, "previous": product_filter, "query": query[:100]},
+            )
+            product_filter = auto_product
 
     type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
 

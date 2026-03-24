@@ -301,6 +301,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     product_filter=chat_session.product_filter,
                     version_filter=chat_session.version_filter,
                     doc_context=chat_session.doc_context,
+                    product_filter_source=chat_session.product_filter_source,
                 )
                 rag_ms = round((time.perf_counter() - t_rag) * 1000, 1)
 
