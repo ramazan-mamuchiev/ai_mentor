@@ -102,6 +102,19 @@
   "session.rename": "Rename",
   "session.delete": "Delete",
   "session.options": "Session options",
+  "session.allProducts": "All products",
+
+  "productPicker.title": "Select Product",
+  "productPicker.search": "Search products...",
+  "productPicker.allProducts": "No filter (search all products)",
+  "productPicker.noProducts": "No products found",
+  "productPicker.version": "Version",
+  "productPicker.allVersions": "All versions",
+
+  "productBadge.allProducts": "All products",
+  "productBadge.change": "Change product",
+  "productBadge.clear": "Clear filter",
+  "productBadge.autoDetected": "Auto-detected",
 
   "upload.title": "Upload Documentation",
   "upload.close": "Close",

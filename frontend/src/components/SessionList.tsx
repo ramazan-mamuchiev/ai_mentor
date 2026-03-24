@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoreHorizontal, Pencil, Trash2, SquarePen } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, SquarePen, Box, Globe } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 
@@ -53,9 +53,18 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
             className={`session-item${isActive ? ' active' : ''}${isMenuOpen ? ' menu-open' : ''}`}
             onClick={() => onSelect(s.id)}
           >
-            <span className="session-item-title">
-              {s.title || s.last_message_preview || t('session.newChat')}
-            </span>
+            <div className="session-item-content">
+              <span className="session-item-title">
+                {s.title || s.last_message_preview || t('session.newChat')}
+              </span>
+              <span className="session-product-tag">
+                {s.product_filter ? (
+                  <><Box size={11} />{s.product_filter}</>
+                ) : (
+                  <><Globe size={11} />{t('session.allProducts')}</>
+                )}
+              </span>
+            </div>
             <div className="session-item-actions" ref={isMenuOpen ? menuRef : undefined}>
               <button
                 className="session-menu-btn"

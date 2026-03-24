@@ -7,6 +7,16 @@ function snakeToCamel(s: string): string {
   return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
 }
 
+interface ProductUpdate {
+  product_filter?: string | null
+  version_filter?: string | null
+  auto_product?: string | null
+}
+
+interface UseChatOptions {
+  onProductDetected?: (sessionId: number, update: ProductUpdate) => void
+}
+
 interface UseChatReturn {
   messages: ChatMessage[]
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
@@ -20,7 +30,7 @@ interface UseChatReturn {
   retryLast: (sessionId: number) => void
 }
 
-export function useChat(): UseChatReturn {
+export function useChat(options?: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [streamingContent, setStreamingContent] = useState('')
   const [streamingSources, setStreamingSources] = useState<SourceInfo[]>([])
@@ -143,6 +153,13 @@ export function useChat(): UseChatReturn {
             msgId = event.message_id
             durationMs = event.duration_ms
             debugInfo = event.debug ?? null
+            if (options?.onProductDetected && (event.auto_product || event.product_filter)) {
+              options.onProductDetected(sessionId, {
+                product_filter: event.product_filter,
+                version_filter: event.version_filter,
+                auto_product: event.auto_product,
+              })
+            }
             break
           case 'error': {
             const errCode = snakeToCamel(event.error_code || 'internal_error')

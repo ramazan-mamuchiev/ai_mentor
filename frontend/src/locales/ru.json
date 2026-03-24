@@ -102,6 +102,19 @@
   "session.rename": "Переименовать",
   "session.delete": "Удалить",
   "session.options": "Параметры сессии",
+  "session.allProducts": "Все продукты",
+
+  "productPicker.title": "Выберите продукт",
+  "productPicker.search": "Поиск продуктов...",
+  "productPicker.allProducts": "Без фильтра (искать по всем продуктам)",
+  "productPicker.noProducts": "Продукты не найдены",
+  "productPicker.version": "Версия",
+  "productPicker.allVersions": "Все версии",
+
+  "productBadge.allProducts": "Все продукты",
+  "productBadge.change": "Изменить продукт",
+  "productBadge.clear": "Сбросить фильтр",
+  "productBadge.autoDetected": "Авто-определение",
 
   "upload.title": "Загрузка документации",
   "upload.close": "Закрыть",

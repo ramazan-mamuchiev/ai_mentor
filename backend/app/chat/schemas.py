@@ -11,6 +11,11 @@ class CreateSessionRequest(BaseModel):
     version_filter: str | None = None
 
 
+class UpdateSessionRequest(BaseModel):
+    product_filter: str | None = None
+    version_filter: str | None = None
+
+
 class SessionResponse(BaseModel):
     id: int
     title: str | None

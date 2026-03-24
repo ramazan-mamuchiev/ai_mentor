@@ -5,6 +5,7 @@ import type { SourceInfo, StreamStatus } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
+import { ProductBadge } from './ProductPicker'
 
 const SCROLL_THRESHOLD = 100
 const USER_INTERACTION_TTL = 200
@@ -19,6 +20,11 @@ interface Props {
   onRetry?: () => void
   editValue?: string
   onUploadClick?: () => void
+  productFilter?: string | null
+  versionFilter?: string | null
+  autoDetected?: boolean
+  onEditProduct?: () => void
+  onClearProduct?: () => void
 }
 
 export function ChatWindow({
@@ -31,6 +37,11 @@ export function ChatWindow({
   onRetry,
   editValue,
   onUploadClick,
+  productFilter,
+  versionFilter,
+  autoDetected,
+  onEditProduct,
+  onClearProduct,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -104,6 +115,17 @@ export function ChatWindow({
 
   return (
     <div className="main-area">
+      {productFilter && onEditProduct && onClearProduct && (
+        <div className="chat-product-header">
+          <ProductBadge
+            productFilter={productFilter}
+            versionFilter={versionFilter ?? null}
+            autoDetected={autoDetected}
+            onEdit={onEditProduct}
+            onClear={onClearProduct}
+          />
+        </div>
+      )}
       <div className="messages-container" ref={containerRef} onScroll={handleScroll}>
         {isEmpty ? (
           <div className="messages-empty">

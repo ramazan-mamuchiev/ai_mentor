@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { createSession, deleteSession, getSession, listSessions } from '../api/chat'
+import { createSession, deleteSession, getSession, listSessions, updateSession } from '../api/chat'
 import { ChatWindow } from '../components/ChatWindow'
 import { FileUpload, type ProductContext } from '../components/FileUpload'
 import { UrlImport } from '../components/UrlImport'
 import { Layout } from '../components/Layout'
+import { ProductPicker } from '../components/ProductPicker'
 import { useChat } from '../hooks/useChat'
 import { useTheme } from '../hooks/useTheme'
 import type { ChatSession } from '../types'
@@ -18,12 +19,32 @@ export function ChatApp() {
   const { theme, toggle: toggleTheme } = useTheme()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
-  const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast } = useChat()
+  const [showProductPicker, setShowProductPicker] = useState(false)
+  const [autoDetected, setAutoDetected] = useState(false)
+
+  const handleProductDetected = useCallback((sessionId: number, update: {
+    product_filter?: string | null
+    version_filter?: string | null
+    auto_product?: string | null
+  }) => {
+    if (update.auto_product) {
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId ? { ...s, product_filter: update.product_filter ?? s.product_filter } : s,
+      ))
+      setAutoDetected(true)
+    }
+  }, [])
+
+  const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast } = useChat({
+    onProductDetected: handleProductDetected,
+  })
 
   const [showUpload, setShowUpload] = useState(false)
   const [showUrlImport, setShowUrlImport] = useState(false)
   const [docsRefreshKey, setDocsRefreshKey] = useState(0)
   const productContextRef = useRef<ProductContext | undefined>(undefined)
+
+  const activeSession = sessions.find(s => s.id === activeSessionId) ?? null
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -40,6 +61,7 @@ export function ChatApp() {
 
   const handleNewSession = useCallback(async () => {
     reset()
+    setAutoDetected(false)
     try {
       const session = await createSession()
       setSessions(prev => [session, ...prev])
@@ -51,6 +73,7 @@ export function ChatApp() {
 
   const handleSelectSession = useCallback(async (id: number) => {
     reset()
+    setAutoDetected(false)
     setActiveSessionId(id)
     try {
       const detail = await getSession(id)
@@ -67,6 +90,7 @@ export function ChatApp() {
       if (activeSessionId === id) {
         reset()
         setActiveSessionId(null)
+        setAutoDetected(false)
       }
     } catch {
       // ignore
@@ -93,6 +117,43 @@ export function ChatApp() {
     refreshSessions()
   }, [activeSessionId, sendMessage, setMessages, refreshSessions])
 
+  const handleProductChange = useCallback(async (selection: {
+    productName: string | null
+    manufacturer: string | null
+    versionFilter: string | null
+  }) => {
+    setAutoDetected(false)
+    if (!activeSessionId) return
+
+    try {
+      const updated = await updateSession(activeSessionId, {
+        product_filter: selection.productName,
+        version_filter: selection.versionFilter,
+      })
+      setSessions(prev => prev.map(s =>
+        s.id === activeSessionId ? { ...s, product_filter: updated.product_filter, version_filter: updated.version_filter } : s,
+      ))
+    } catch {
+      // ignore
+    }
+  }, [activeSessionId])
+
+  const handleClearProduct = useCallback(async () => {
+    setAutoDetected(false)
+    if (!activeSessionId) return
+    try {
+      const updated = await updateSession(activeSessionId, {
+        product_filter: '',
+        version_filter: '',
+      })
+      setSessions(prev => prev.map(s =>
+        s.id === activeSessionId ? { ...s, product_filter: updated.product_filter, version_filter: updated.version_filter } : s,
+      ))
+    } catch {
+      // ignore
+    }
+  }, [activeSessionId])
+
   const chatContent = (
     <ChatWindow
       messages={messages}
@@ -112,6 +173,11 @@ export function ChatApp() {
       }
       editValue={lastUserPrompt}
       onUploadClick={() => setShowUpload(true)}
+      productFilter={activeSession?.product_filter}
+      versionFilter={activeSession?.version_filter}
+      autoDetected={autoDetected}
+      onEditProduct={() => setShowProductPicker(true)}
+      onClearProduct={handleClearProduct}
     />
   )
 
@@ -124,7 +190,7 @@ export function ChatApp() {
       onNewSession={handleNewSession}
       onDeleteSession={handleDeleteSession}
       onToggleTheme={toggleTheme}
-      onLogoClick={() => { reset(); setActiveSessionId(null) }}
+      onLogoClick={() => { reset(); setActiveSessionId(null); setAutoDetected(false) }}
     >
       <Routes>
         <Route index element={chatContent} />
@@ -156,6 +222,17 @@ export function ChatApp() {
             setDocsRefreshKey(k => k + 1)
           }}
           productContext={productContextRef.current}
+        />
+      )}
+      {showProductPicker && (
+        <ProductPicker
+          value={{
+            productName: activeSession?.product_filter ?? null,
+            manufacturer: null,
+            versionFilter: activeSession?.version_filter ?? null,
+          }}
+          onChange={handleProductChange}
+          onClose={() => setShowProductPicker(false)}
         />
       )}
     </Layout>

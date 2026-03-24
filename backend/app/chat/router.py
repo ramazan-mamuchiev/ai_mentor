@@ -20,6 +20,7 @@ from app.chat.schemas import (
     SessionDetailResponse,
     SessionListItem,
     SessionResponse,
+    UpdateSessionRequest,
 )
 from app.config import settings
 from app.database import async_session
@@ -65,6 +66,49 @@ async def create_session(req: CreateSessionRequest):
             created_at=chat_session.created_at,
             updated_at=chat_session.updated_at,
             message_count=0,
+        )
+
+
+@router.patch("/sessions/{session_id}", response_model=SessionResponse)
+async def update_session(session_id: int, req: UpdateSessionRequest):
+    """Update session product/version filter."""
+    async with async_session() as session:
+        chat_session = await session.get(ChatSession, session_id)
+        if not chat_session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        if req.product_filter is not None:
+            chat_session.product_filter = req.product_filter or None
+        if req.version_filter is not None:
+            chat_session.version_filter = req.version_filter or None
+
+        await session.commit()
+        await session.refresh(chat_session)
+
+        msg_count = await session.scalar(
+            select(func.count(ChatMessage.id)).where(
+                ChatMessage.session_id == session_id
+            )
+        )
+
+        logger.info(
+            "Chat session updated",
+            extra={
+                "session_id": session_id,
+                "product_filter": chat_session.product_filter,
+                "version_filter": chat_session.version_filter,
+            },
+        )
+
+        return SessionResponse(
+            id=chat_session.id,
+            title=chat_session.title,
+            product_filter=chat_session.product_filter,
+            version_filter=chat_session.version_filter,
+            doc_context=chat_session.doc_context,
+            created_at=chat_session.created_at,
+            updated_at=chat_session.updated_at,
+            message_count=msg_count or 0,
         )
 
 
@@ -387,7 +431,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     **rag_debug,
                 }
 
-                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'request_id': request_id, 'debug': debug_info})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'request_id': request_id, 'product_filter': chat_session.product_filter, 'version_filter': chat_session.version_filter, 'auto_product': rag_debug.get('auto_product'), 'debug': debug_info})}\n\n"
 
                 analytics = ChatMessageAnalytics(
                     message_id=assistant_msg.id,

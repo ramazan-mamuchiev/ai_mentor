@@ -1,0 +1,176 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Search, ChevronDown, X, Globe } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { listProducts } from '../api/products'
+import type { ProductListItem } from '../types'
+
+interface ProductSelection {
+  productName: string | null
+  manufacturer: string | null
+  versionFilter: string | null
+}
+
+interface Props {
+  value: ProductSelection
+  onChange: (selection: ProductSelection) => void
+  onClose?: () => void
+}
+
+interface GroupedProduct {
+  manufacturer: string
+  products: ProductListItem[]
+}
+
+export function ProductPicker({ value, onChange, onClose }: Props) {
+  const { t } = useTranslation()
+  const [products, setProducts] = useState<ProductListItem[]>([])
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    listProducts()
+      .then(list => { if (!cancelled) setProducts(list) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    searchRef.current?.focus()
+  }, [])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return products
+    const q = search.toLowerCase()
+    return products.filter(
+      p => p.name.toLowerCase().includes(q) || p.manufacturer.toLowerCase().includes(q),
+    )
+  }, [products, search])
+
+  const grouped = useMemo<GroupedProduct[]>(() => {
+    const map = new Map<string, ProductListItem[]>()
+    for (const p of filtered) {
+      const key = p.manufacturer || 'Other'
+      const list = map.get(key) ?? []
+      list.push(p)
+      map.set(key, list)
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([manufacturer, prods]) => ({ manufacturer, products: prods }))
+  }, [filtered])
+
+  const handleSelect = useCallback(
+    (product: ProductListItem | null) => {
+      if (!product) {
+        onChange({ productName: null, manufacturer: null, versionFilter: null })
+      } else {
+        onChange({
+          productName: product.name,
+          manufacturer: product.manufacturer,
+          versionFilter: null,
+        })
+      }
+      onClose?.()
+    },
+    [onChange, onClose],
+  )
+
+  return (
+    <div className="product-picker-overlay" onClick={onClose}>
+      <div className="product-picker" onClick={e => e.stopPropagation()}>
+        <div className="product-picker-header">
+          <h3>{t('productPicker.title')}</h3>
+          {onClose && (
+            <button className="product-picker-close" onClick={onClose}>
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        <div className="product-picker-search">
+          <Search size={16} />
+          <input
+            ref={searchRef}
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t('productPicker.search')}
+          />
+        </div>
+
+        <div className="product-picker-list">
+          <button
+            className={`product-picker-item product-picker-item--all${!value.productName ? ' active' : ''}`}
+            onClick={() => handleSelect(null)}
+          >
+            <Globe size={16} />
+            <span>{t('productPicker.allProducts')}</span>
+          </button>
+
+          {loading && <div className="product-picker-loading">...</div>}
+
+          {!loading && grouped.length === 0 && search && (
+            <div className="product-picker-empty">{t('productPicker.noProducts')}</div>
+          )}
+
+          {grouped.map(group => (
+            <div key={group.manufacturer} className="product-picker-group">
+              <div className="product-picker-group-label">{group.manufacturer}</div>
+              {group.products.map(p => {
+                const isActive = value.productName === p.name
+                return (
+                  <button
+                    key={p.id}
+                    className={`product-picker-item${isActive ? ' active' : ''}`}
+                    onClick={() => handleSelect(p)}
+                  >
+                    <span className="product-picker-item-name">{p.name}</span>
+                    <span className="product-picker-item-meta">
+                      {p.total_documents} docs · {p.total_chunks} chunks
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface BadgeProps {
+  productFilter: string | null
+  versionFilter: string | null
+  autoDetected?: boolean
+  onEdit: () => void
+  onClear: () => void
+}
+
+export function ProductBadge({ productFilter, versionFilter, autoDetected, onEdit, onClear }: BadgeProps) {
+  const { t } = useTranslation()
+
+  if (!productFilter) return null
+
+  return (
+    <div className="product-badge">
+      <span className="product-badge-label" onClick={onEdit} title={t('productBadge.change')}>
+        {autoDetected && <span className="product-badge-auto">{t('productBadge.autoDetected')}</span>}
+        <span className="product-badge-name">{productFilter}</span>
+        {versionFilter && <span className="product-badge-version">{versionFilter}</span>}
+        <ChevronDown size={14} className="product-badge-chevron" />
+      </span>
+      <button
+        className="product-badge-clear"
+        onClick={onClear}
+        title={t('productBadge.clear')}
+      >
+        <X size={12} />
+      </button>
+    </div>
+  )
+}

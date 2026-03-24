@@ -24,6 +24,16 @@ export async function deleteSession(id: number): Promise<void> {
   return apiFetch<void>(`/chat/sessions/${id}`, { method: 'DELETE' })
 }
 
+export async function updateSession(
+  id: number,
+  data: { product_filter?: string | null; version_filter?: string | null },
+): Promise<ChatSession> {
+  return apiFetch<ChatSession>(`/chat/sessions/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
 export async function* streamMessage(
   sessionId: number,
   content: string,
