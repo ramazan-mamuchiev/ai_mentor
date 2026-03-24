@@ -5,12 +5,17 @@ Supported providers:
   - "openai"  — any OpenAI-compatible API (Gemini, GPT-4o, OpenRouter, etc.)
 """
 
+import asyncio
 import json
 import logging
 import time
 from collections.abc import AsyncGenerator
 
 import httpx
+
+_RETRYABLE_STATUS_CODES = {429, 503}
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 2.0
 
 from app.config import settings
 
@@ -207,58 +212,76 @@ async def _stream_openai_compatible(
         },
     )
 
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
-            async with client.stream("POST", url, json=payload, headers=headers) as response:
-                if response.status_code != 200:
-                    body = await response.aread()
-                    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-                    logger.error(
-                        "OpenAI-compatible API error",
-                        extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms},
-                    )
-                    raise LLMError(
-                        response.status_code,
-                        _error_code_from_status(response.status_code),
-                        f"LLM API returned {response.status_code}: {body.decode()[:200]}",
-                    )
+    last_error: LLMError | None = None
+    for attempt in range(_MAX_RETRIES + 1):
+        if attempt > 0:
+            delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
+            logger.warning(
+                "LLM API retrying after error",
+                extra={"attempt": attempt + 1, "delay_s": delay, "status": last_error.status_code if last_error else 0},
+            )
+            await asyncio.sleep(delay)
+            t0 = time.perf_counter()
+            token_count = 0
+            first_token_ms = 0.0
 
-                finish_reason = "stop"
-                usage_data: dict | None = None
-                async for line in response.aiter_lines():
-                    stripped = line.strip()
-                    if not stripped or not stripped.startswith("data: "):
-                        continue
-                    data_str = stripped[6:]
-                    if data_str == "[DONE]":
-                        break
-                    try:
-                        data = json.loads(data_str)
-                    except json.JSONDecodeError:
-                        continue
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
+                async with client.stream("POST", url, json=payload, headers=headers) as response:
+                    if response.status_code != 200:
+                        body = await response.aread()
+                        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+                        logger.error(
+                            "OpenAI-compatible API error",
+                            extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms, "attempt": attempt + 1},
+                        )
+                        err = LLMError(
+                            response.status_code,
+                            _error_code_from_status(response.status_code),
+                            f"LLM API returned {response.status_code}: {body.decode()[:200]}",
+                        )
+                        if response.status_code in _RETRYABLE_STATUS_CODES and attempt < _MAX_RETRIES:
+                            last_error = err
+                            continue
+                        raise err
 
-                    if data.get("usage"):
-                        usage_data = data["usage"]
+                    finish_reason = "stop"
+                    usage_data: dict | None = None
+                    async for line in response.aiter_lines():
+                        stripped = line.strip()
+                        if not stripped or not stripped.startswith("data: "):
+                            continue
+                        data_str = stripped[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
 
-                    choices = data.get("choices", [])
-                    if not choices:
-                        continue
-                    fr = choices[0].get("finish_reason")
-                    if fr:
-                        finish_reason = fr
-                    delta = choices[0].get("delta", {})
-                    content = delta.get("content", "")
-                    if content:
-                        token_count += 1
-                        if token_count == 1:
-                            first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
-                        yield content
-    except LLMError:
-        raise
-    except httpx.ConnectError as e:
-        raise LLMError(0, "unreachable", f"LLM API unreachable: {e}") from e
-    except httpx.TimeoutException as e:
-        raise LLMError(0, "timeout", f"LLM API timeout: {e}") from e
+                        if data.get("usage"):
+                            usage_data = data["usage"]
+
+                        choices = data.get("choices", [])
+                        if not choices:
+                            continue
+                        fr = choices[0].get("finish_reason")
+                        if fr:
+                            finish_reason = fr
+                        delta = choices[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            token_count += 1
+                            if token_count == 1:
+                                first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
+                            yield content
+                    break
+        except LLMError:
+            raise
+        except httpx.ConnectError as e:
+            raise LLMError(0, "unreachable", f"LLM API unreachable: {e}") from e
+        except httpx.TimeoutException as e:
+            raise LLMError(0, "timeout", f"LLM API timeout: {e}") from e
 
     if meta is not None:
         meta["first_token_ms"] = first_token_ms
