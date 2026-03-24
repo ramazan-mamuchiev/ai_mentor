@@ -36,9 +36,23 @@ Use the deploy script `scripts/deploy.ps1`. The sandbox blocks SSH, so **always 
 - If only backend changed → `-Target api`
 - If both changed → `-Target all` (default)
 
+## Mandatory workflow
+
+When the user asks to deploy/publish:
+
+1. **Commit** all pending changes (if any).
+2. **Tell the user** to run the appropriate `.\scripts\deploy.ps1` command with correct flags.
+3. **NEVER** give raw `ssh`, `git push`, `docker compose` commands separately — always use the deploy script.
+4. Choose the right flags based on what changed:
+   - Backend Python code only → `.\scripts\deploy.ps1 -Target api`
+   - Frontend code only → `.\scripts\deploy.ps1 -Target web`
+   - Both → `.\scripts\deploy.ps1`
+   - Dependencies changed (`requirements.txt`, `package.json`) → add `-NoCache`
+
 ## Rules
 
 - **NEVER** copy full Docker images via `docker save` / `scp` / `docker load`. Always build on VPS.
 - **NEVER** use `--no-cache` unless dependencies or Dockerfile changed.
+- **NEVER** give separate ssh/docker commands — always use `scripts/deploy.ps1`.
 - Always commit changes before running deploy.
 - The sandbox cannot run SSH commands — provide the deploy command for the user to execute.
