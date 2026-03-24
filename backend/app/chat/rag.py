@@ -170,6 +170,9 @@ async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None
     Uses word-boundary matching and prioritises longer names to avoid
     false positives (e.g. a single-letter product name matching inside
     an unrelated word).
+
+    Handles CamelCase product names like "AxxonOne" by also matching
+    the space-separated variant "axxon one" in the user query.
     """
     result = await db.execute(
         text("SELECT name, manufacturer FROM products WHERE name != 'TestDevice'")
@@ -177,20 +180,40 @@ async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None
     products = result.mappings().all()
 
     query_lower = query.lower()
+    query_nospace = re.sub(r"\s+", "", query_lower)
 
     def _word_boundary_match(keyword: str) -> bool:
         """Check if *keyword* appears in query as a whole word (not inside another word)."""
         escaped = re.escape(keyword.lower())
         return bool(re.search(rf"(?<!\w){escaped}(?!\w)", query_lower))
 
-    # Pass 1: exact full-name / manufacturer match (longer names first).
+    def _camel_to_spaced(name: str) -> str:
+        """Split CamelCase into space-separated lowercase: 'AxxonOne' -> 'axxon one'."""
+        return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", name).lower()
+
+    def _fuzzy_name_match(name: str) -> bool:
+        """Match product name with tolerance for spacing/CamelCase differences."""
+        if _word_boundary_match(name):
+            return True
+        name_lower = name.lower()
+        name_nospace = re.sub(r"\s+", "", name_lower)
+        if len(name_nospace) >= 4 and name_nospace in query_nospace:
+            return True
+        spaced = _camel_to_spaced(name)
+        if spaced != name_lower and _word_boundary_match(spaced):
+            return True
+        return False
+
     sorted_products = sorted(products, key=lambda p: len(p["name"] or ""), reverse=True)
+
+    # Pass 1: full product name or manufacturer match.
     for prod in sorted_products:
         name = prod["name"] or ""
         manufacturer = prod["manufacturer"] or ""
-        for keyword in [name, manufacturer]:
-            if keyword and _word_boundary_match(keyword):
-                return name
+        if name and _fuzzy_name_match(name):
+            return name
+        if manufacturer and _word_boundary_match(manufacturer):
+            return name
 
     # Pass 2: individual words from the product name (≥4 chars).
     for prod in sorted_products:
