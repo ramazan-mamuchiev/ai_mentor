@@ -124,12 +124,30 @@ def _get_child_pages(base_url: str, page_id: str) -> list[dict]:
     return children
 
 
-def _html_to_markdown(html: str, page_title: str) -> str:
+_AC_IMAGE_RE = re.compile(
+    r"<ac:image[^>]*>.*?<ri:attachment\s+ri:filename=\"([^\"]+)\"\s*/?>.*?</ac:image>",
+    re.DOTALL,
+)
+
+
+def _resolve_confluence_images(html: str, base_url: str, page_id: str) -> str:
+    """Replace Confluence <ac:image><ri:attachment/></ac:image> with standard <img> tags."""
+    def _replace(m: re.Match) -> str:
+        filename = m.group(1)
+        img_url = f"{base_url}/download/attachments/{page_id}/{quote(filename, safe='')}"
+        return f'<img src="{img_url}" alt="{filename}" />'
+    return _AC_IMAGE_RE.sub(_replace, html)
+
+
+def _html_to_markdown(html: str, page_title: str, base_url: str = "", page_id: str = "") -> str:
     """Convert Confluence storage format HTML to clean Markdown."""
     from markdownify import markdownify as md
 
     if not html or not html.strip():
         return ""
+
+    if base_url and page_id:
+        html = _resolve_confluence_images(html, base_url, page_id)
 
     text = md(
         html,
@@ -312,7 +330,7 @@ async def crawl_confluence(
             result.errors.append(error_msg)
             continue
 
-        markdown = _html_to_markdown(html_body, title)
+        markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
 
         page_ocr_stats: dict = {}
         page_ocr_ms = 0.0
