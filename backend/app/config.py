@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     gemini_api_key: str = ""
-    openai_llm_model: str = "gemini-2.5-flash"
+    openai_llm_model: str = "gemini-2.5-pro"
 
     llm_reasoning_effort: str = "none"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 
