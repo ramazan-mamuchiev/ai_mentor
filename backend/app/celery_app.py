@@ -827,28 +827,28 @@ def ingest_confluence_task(self, document_id: int):
                     skipped += 1
                     return
 
-            doc = Document(
-                product_id=product_id,
-                firmware_version_id=firmware_version_id,
-                format="markdown",
-                original_filename=f"{page.title}.md",
-                file_size_bytes=len(md_bytes),
-                title=page.title,
-                status="pending",
-                source_hash=source_hash,
-                source_container=url,
-                source_path=page.url,
-            )
-            if page.ocr_images_total > 0 or page.ocr_error:
-                doc.ocr_ms = page.ocr_ms
-                doc.ocr_images_total = page.ocr_images_total
-                doc.ocr_images_success = page.ocr_images_success
-                doc.ocr_images_empty = page.ocr_images_empty
-                doc.ocr_images_failed = page.ocr_images_failed
-            if page.ocr_error:
-                doc.error_message = f"OCR failed: {page.ocr_error}"
-            s.add(doc)
-            s.flush()
+                doc = Document(
+                    product_id=product_id,
+                    firmware_version_id=firmware_version_id,
+                    format="markdown",
+                    original_filename=f"{page.title}.md",
+                    file_size_bytes=len(md_bytes),
+                    title=page.title,
+                    status="pending",
+                    source_hash=source_hash,
+                    source_container=url,
+                    source_path=page.url,
+                )
+                if page.ocr_images_total > 0 or page.ocr_error:
+                    doc.ocr_ms = page.ocr_ms
+                    doc.ocr_images_total = page.ocr_images_total
+                    doc.ocr_images_success = page.ocr_images_success
+                    doc.ocr_images_empty = page.ocr_images_empty
+                    doc.ocr_images_failed = page.ocr_images_failed
+                if page.ocr_error:
+                    doc.error_message = f"OCR failed: {page.ocr_error}"
+                s.add(doc)
+                s.flush()
 
                 s3_key = f"documents/{doc.id}/source.md"
                 upload_file(s3_key, md_bytes, content_type="text/markdown")
