@@ -272,7 +272,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     "session_id": session_id,
                     "user_message_id": user_msg.id,
                     "timestamp": user_msg.created_at.isoformat() if user_msg.created_at else datetime.now(timezone.utc).isoformat(),
-                    "model": settings.llm_model,
+                    "model": settings.openai_llm_model if settings.llm_provider == "openai" else settings.llm_model,
                     "llm_provider": settings.llm_provider,
                     "temperature": settings.llm_temperature,
                     "max_tokens": effective_max_tokens,
