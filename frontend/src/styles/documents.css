@@ -1800,11 +1800,23 @@ td:has(.docs-actions) {
     height: 92vh;
     border-radius: 10px;
   }
+  .md-preview-dialog--fullscreen {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    border: none;
+  }
   .md-preview-header {
     flex-wrap: wrap;
   }
   .md-preview-meta {
     display: none;
+  }
+  .md-preview-download-btn span {
+    display: none;
+  }
+  .md-preview-download-btn {
+    padding: 6px 8px;
   }
 }
 
