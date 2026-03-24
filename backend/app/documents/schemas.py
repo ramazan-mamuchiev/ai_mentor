@@ -114,6 +114,7 @@ class DocumentDebugInfo(BaseModel):
     file_size_bytes: int
     uploaded_at: datetime
     indexed_at: datetime | None = None
+    error_message: str | None = None
 
     ingest_duration_ms: float | None = None
     read_ms: float | None = None

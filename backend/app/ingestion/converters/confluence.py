@@ -63,6 +63,7 @@ class ConfluencePage:
     ocr_images_empty: int = 0
     ocr_images_failed: int = 0
     ocr_ms: float = 0.0
+    ocr_error: str = ""
 
 
 @dataclass
@@ -315,6 +316,7 @@ async def crawl_confluence(
     max_depth: int = 20,
     progress_callback: callable | None = None,
     max_seconds: int = _MAX_CRAWL_SECONDS,
+    page_callback: callable | None = None,
 ) -> CrawlResult:
     """Crawl a Confluence page tree starting from the given URL.
 
@@ -328,6 +330,10 @@ async def crawl_confluence(
         max_depth: Maximum tree depth to traverse.
         progress_callback: Optional callback(pages_done, total_estimated).
         max_seconds: Hard wall-clock limit for the entire crawl.
+        page_callback: Optional callback(page: ConfluencePage) invoked for
+            each page immediately after it is crawled, before the next page
+            starts.  This allows the caller to persist / enqueue the page
+            without waiting for the full crawl to finish.
 
     Returns:
         CrawlResult with all crawled pages.
@@ -402,11 +408,12 @@ async def crawl_confluence(
                         _enrich_confluence_markdown_with_ocr, markdown, ocr_languages,
                     )
                 except Exception as exc:
+                    ocr_error_msg = f"{type(exc).__name__}: {exc}"
                     logger.warning("OCR enrichment failed for page", extra={
                         "page_id": page_id, "title": title,
-                        "error": str(exc)[:200],
+                        "error": ocr_error_msg[:200],
                     })
-                    page_ocr_stats = {}
+                    page_ocr_stats = {"ocr_error": ocr_error_msg[:500]}
                 page_ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
 
             page_url = f"{base_url}/spaces/{space_key}/pages/{page_id}/{quote(title, safe='')}"
@@ -436,6 +443,7 @@ async def crawl_confluence(
                 ocr_images_empty=page_ocr_stats.get("ocr_images_empty", 0),
                 ocr_images_failed=page_ocr_stats.get("ocr_images_failed", 0),
                 ocr_ms=page_ocr_ms,
+                ocr_error=page_ocr_stats.get("ocr_error", ""),
             )
             result.pages.append(page)
             pages_done += 1
@@ -455,6 +463,14 @@ async def crawl_confluence(
             for linked_id in linked_ids:
                 if linked_id not in visited:
                     queue.append((linked_id, depth + 1))
+
+            if page_callback:
+                try:
+                    await asyncio.to_thread(page_callback, page)
+                except Exception as cb_exc:
+                    logger.warning("page_callback failed", extra={
+                        "page_id": page_id, "error": str(cb_exc)[:200],
+                    })
 
             if progress_callback:
                 estimated_total = pages_done + len(queue)

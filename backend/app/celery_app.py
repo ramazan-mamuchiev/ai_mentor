@@ -760,21 +760,18 @@ def ingest_confluence_task(self, document_id: int):
     """Background task: crawl Confluence page tree and ingest each page.
 
     Receives the placeholder Document id (created by the API endpoint).
-    The placeholder tracks overall crawl progress; each Confluence page
-    becomes a separate child Document.
+    For every crawled page the task immediately:
+      1. Creates a child Document in the DB (status='pending')
+      2. Uploads page markdown to S3
+      3. Dispatches ``ingest_document_task`` for that child
+
+    This way each page appears in the UI and starts processing as soon as
+    it is discovered — without waiting for the entire crawl to finish.
     """
     import asyncio
-    from app.models import Document, Chunk
+    from app.models import Document
     from app.ingestion.converters.confluence import crawl_confluence
-    from app.ingestion.pipeline import (
-        enrich_for_embedding, _replace_generic_headings,
-    )
-    from app.ingestion.parsers.markdown import parse_markdown
-    from app.ingestion.chunker import chunk_sections
-    from app.ingestion.embedder import embed_texts
-    from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
-    from app.config import settings as _settings
-    from datetime import datetime, timezone
+    from app.s3 import upload_file
 
     t0 = time.perf_counter()
     engine = _get_sync_engine()
@@ -798,16 +795,110 @@ def ingest_confluence_task(self, document_id: int):
         "url": url, "document_id": document_id, "task_id": self.request.id,
     })
 
+    dispatched = 0
+    skipped = 0
+    errors = 0
+    pages_total = 0
+
+    def _on_page(page):
+        """Called by crawl_confluence for each page as it is discovered.
+
+        Fully fault-tolerant: any error for a single page is logged and
+        the crawl continues with the next page.
+        """
+        nonlocal dispatched, skipped, errors, pages_total
+        pages_total += 1
+
+        try:
+            if not page.markdown or not page.markdown.strip():
+                skipped += 1
+                return
+
+            md_bytes = page.markdown.encode("utf-8")
+            source_hash = hashlib.sha256(md_bytes).hexdigest()
+
+            with Session(engine) as s:
+                existing = s.execute(
+                    sa_select(Document).where(
+                        Document.source_hash == source_hash,
+                    ).limit(1)
+                ).scalar_one_or_none()
+                if existing is not None:
+                    skipped += 1
+                    return
+
+            doc = Document(
+                product_id=product_id,
+                firmware_version_id=firmware_version_id,
+                format="markdown",
+                original_filename=f"{page.title}.md",
+                file_size_bytes=len(md_bytes),
+                title=page.title,
+                status="pending",
+                source_hash=source_hash,
+                source_container=url,
+                source_path=page.url,
+            )
+            if page.ocr_images_total > 0 or page.ocr_error:
+                doc.ocr_ms = page.ocr_ms
+                doc.ocr_images_total = page.ocr_images_total
+                doc.ocr_images_success = page.ocr_images_success
+                doc.ocr_images_empty = page.ocr_images_empty
+                doc.ocr_images_failed = page.ocr_images_failed
+            if page.ocr_error:
+                doc.error_message = f"OCR failed: {page.ocr_error}"
+            s.add(doc)
+            s.flush()
+
+                s3_key = f"documents/{doc.id}/source.md"
+                upload_file(s3_key, md_bytes, content_type="text/markdown")
+                doc.s3_key = s3_key
+                s.commit()
+
+                try:
+                    task = ingest_document_task.delay(doc.id)
+                    doc.celery_task_id = task.id
+                    s.commit()
+                except Exception as task_exc:
+                    logger.warning("Failed to dispatch ingest task, doc stays pending", extra={
+                        "child_document_id": doc.id, "error": str(task_exc)[:200],
+                    })
+
+                dispatched += 1
+                logger.debug("Confluence page queued for ingestion", extra={
+                    "page_id": page.page_id, "title": page.title,
+                    "child_document_id": doc.id,
+                })
+
+        except Exception as exc:
+            errors += 1
+            logger.warning("Failed to persist Confluence page — skipping", extra={
+                "page_id": page.page_id, "title": page.title,
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:300],
+            })
+            return
+
+        try:
+            with Session(engine) as s:
+                ph = s.get(Document, document_id)
+                if ph:
+                    ph.progress_stage = f"crawling ({pages_total} found, {dispatched} queued)"
+                    ph.title = f"{page.title}" if pages_total == 1 else ph.title
+                    s.commit()
+        except Exception:
+            pass
+
     try:
         try:
             result = asyncio.get_event_loop().run_until_complete(
-                crawl_confluence(url, max_pages=500)
+                crawl_confluence(url, max_pages=500, page_callback=_on_page)
             )
         except RuntimeError:
             loop = asyncio.new_event_loop()
             try:
                 result = loop.run_until_complete(
-                    crawl_confluence(url, max_pages=500)
+                    crawl_confluence(url, max_pages=500, page_callback=_on_page)
                 )
             finally:
                 loop.close()
@@ -825,149 +916,7 @@ def ingest_confluence_task(self, document_id: int):
         }, exc_info=True)
         raise self.retry(exc=exc)
 
-    if not result.pages:
-        with Session(engine) as session:
-            placeholder = session.get(Document, document_id)
-            if placeholder:
-                placeholder.status = "error"
-                placeholder.error_message = "Crawl returned no pages"
-                placeholder.progress_stage = ""
-                session.commit()
-        logger.error("Confluence crawl returned no pages", extra={"url": url})
-        return {"status": "error", "error": "No pages found", "url": url}
-
-    total_pages = len(result.pages)
-
     with Session(engine) as session:
-        placeholder = session.get(Document, document_id)
-        if placeholder:
-            placeholder.progress_stage = "ingesting"
-            placeholder.title = f"{result.pages[0].title} ({total_pages} pages)"
-            session.commit()
-
-        ingested = 0
-        skipped = 0
-        errors = 0
-        processed = 0
-
-        for page in result.pages:
-            processed += 1
-
-            if not page.markdown or not page.markdown.strip():
-                skipped += 1
-                _update_placeholder_progress(session, document_id, processed, total_pages)
-                continue
-
-            source_hash = hashlib.sha256(page.markdown.encode("utf-8")).hexdigest()
-
-            existing = session.execute(
-                sa_select(Document).where(
-                    Document.source_hash == source_hash
-                ).limit(1)
-            ).scalar_one_or_none()
-            if existing is not None:
-                skipped += 1
-                _update_placeholder_progress(session, document_id, processed, total_pages)
-                continue
-
-            doc = Document(
-                product_id=product_id,
-                firmware_version_id=firmware_version_id,
-                format="confluence",
-                original_filename=f"{page.title}.md",
-                file_size_bytes=len(page.markdown.encode("utf-8")),
-                title=page.title,
-                status="processing",
-                source_hash=source_hash,
-                source_container=page.url,
-                source_path=page.url,
-            )
-            session.add(doc)
-            session.flush()
-
-            try:
-                t_parse = time.perf_counter()
-                sections = parse_markdown(page.markdown)
-                _replace_generic_headings(sections, page.title)
-                chunks = chunk_sections(sections)
-                parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
-
-                if not chunks:
-                    doc.status = "error"
-                    doc.error_message = "No content extracted"
-                    session.commit()
-                    errors += 1
-                    _update_placeholder_progress(session, document_id, processed, total_pages)
-                    continue
-
-                t_embed = time.perf_counter()
-                enriched = enrich_for_embedding(chunks)
-                embeddings = embed_texts(enriched)
-                embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
-
-                t_db = time.perf_counter()
-                for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
-                    db_chunk = Chunk(
-                        document_id=doc.id,
-                        chunk_index=i,
-                        heading_path=chunk_data.heading_path,
-                        heading_level=chunk_data.heading_level,
-                        content=chunk_data.content,
-                        content_clean=_clean_md(chunk_data.content),
-                        parent_content=chunk_data.parent_content,
-                        token_count=chunk_data.token_count,
-                        embedding=embedding,
-                    )
-                    session.add(db_chunk)
-
-                doc.total_chunks = len(chunks)
-                doc.status = "ready"
-                doc.indexed_at = datetime.now(timezone.utc)
-
-                token_counts = [c.token_count for c in chunks]
-                doc.total_tokens = sum(token_counts)
-                doc.min_chunk_tokens = min(token_counts)
-                doc.max_chunk_tokens = max(token_counts)
-                doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
-                doc.embedding_tokens = sum(token_counts)
-
-                db_ms = round((time.perf_counter() - t_db) * 1000, 1)
-
-                doc.parse_ms = parse_ms
-                doc.embed_ms = embed_ms
-                doc.db_ms = db_ms
-                doc.convert_ms = result.crawl_ms / max(result.total_pages, 1)
-                doc.embedding_model = _settings.embedding_model_gemini
-                doc.embedding_dims = _settings.embedding_dims
-
-                if page.ocr_images_total > 0:
-                    doc.ocr_ms = page.ocr_ms
-                    doc.ocr_images_total = page.ocr_images_total
-                    doc.ocr_images_success = page.ocr_images_success
-                    doc.ocr_images_empty = page.ocr_images_empty
-                    doc.ocr_images_failed = page.ocr_images_failed
-
-                session.commit()
-                ingested += 1
-
-                logger.debug("Confluence page ingested", extra={
-                    "page_id": page.page_id, "title": page.title,
-                    "chunks": len(chunks), "document_id": doc.id,
-                    "ocr_images": page.ocr_images_success,
-                })
-
-            except Exception as exc:
-                doc.status = "error"
-                doc.error_message = str(exc)[:2000]
-                session.commit()
-                errors += 1
-                logger.error("Failed to ingest Confluence page", extra={
-                    "page_id": page.page_id, "title": page.title,
-                    "error_type": type(exc).__name__,
-                }, exc_info=True)
-
-            _update_placeholder_progress(session, document_id, processed, total_pages)
-
         placeholder = session.get(Document, document_id)
         if placeholder:
             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -975,14 +924,16 @@ def ingest_confluence_task(self, document_id: int):
             placeholder.progress_percent = 100
             placeholder.progress_stage = "done"
             placeholder.ingest_duration_ms = duration_ms
-            placeholder.total_chunks = ingested
+            placeholder.total_chunks = dispatched
+            if result.root_title:
+                placeholder.title = f"{result.root_title} ({result.total_pages} pages)"
             session.commit()
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     logger.info("Celery ingest_confluence_task completed", extra={
         "url": url, "document_id": document_id,
         "total_pages": result.total_pages,
-        "ingested": ingested, "skipped": skipped, "errors": errors,
+        "dispatched": dispatched, "skipped": skipped, "errors": errors,
         "duration_ms": duration_ms,
     })
     return {
@@ -990,7 +941,7 @@ def ingest_confluence_task(self, document_id: int):
         "url": url,
         "document_id": document_id,
         "total_pages": result.total_pages,
-        "ingested": ingested,
+        "dispatched": dispatched,
         "skipped": skipped,
         "errors": errors,
         "crawl_errors": result.errors[:10],

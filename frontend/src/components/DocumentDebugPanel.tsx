@@ -146,6 +146,9 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
           {debug.detected_language && (
             <div className="doc-debug-row"><span>{t('docDebug.detectedLanguage')}</span><code>{debug.detected_language}</code></div>
           )}
+          {debug.error_message && (
+            <div className="doc-debug-row doc-debug-row--warning"><span>{t('docDebug.warning')}</span><code title={debug.error_message}>{debug.error_message.length > 80 ? debug.error_message.slice(0, 80) + '…' : debug.error_message}</code></div>
+          )}
         </div>
 
         <div className="doc-debug-section">

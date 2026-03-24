@@ -236,29 +236,48 @@ def convert_pdf(
     }
 
     if will_ocr:
-        detected_langs = detect_language_via_gemini(md_text)
-        metadata["detected_languages"] = detected_langs
-        metadata["detected_languages_str"] = ",".join(detected_langs)
+        try:
+            detected_langs = detect_language_via_gemini(md_text)
+            metadata["detected_languages"] = detected_langs
+            metadata["detected_languages_str"] = ",".join(detected_langs)
 
-        t_ocr = time.perf_counter()
-        md_text, ocr_stats = enrich_markdown_with_ocr_files(
-            md_text, languages=detected_langs,
-            progress_callback=_ocr_cb,
-        )
-        ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
-        metadata["ocr_applied"] = True
-        metadata["ocr_ms"] = ocr_ms
-        metadata["ocr_stats"] = ocr_stats
-        logger.info(
-            "OCR completed",
-            extra={
-                "ocr_ms": ocr_ms,
-                "detected_languages": detected_langs,
-                "ocr_images_total": ocr_stats["ocr_images_total"],
-                "ocr_images_success": ocr_stats["ocr_images_success"],
-                "ocr_images_failed": ocr_stats["ocr_images_failed"],
-            },
-        )
+            t_ocr = time.perf_counter()
+            md_text, ocr_stats = enrich_markdown_with_ocr_files(
+                md_text, languages=detected_langs,
+                progress_callback=_ocr_cb,
+            )
+            ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
+            metadata["ocr_applied"] = True
+            metadata["ocr_ms"] = ocr_ms
+            metadata["ocr_stats"] = ocr_stats
+            logger.info(
+                "OCR completed",
+                extra={
+                    "ocr_ms": ocr_ms,
+                    "detected_languages": detected_langs,
+                    "ocr_images_total": ocr_stats["ocr_images_total"],
+                    "ocr_images_success": ocr_stats["ocr_images_success"],
+                    "ocr_images_failed": ocr_stats["ocr_images_failed"],
+                },
+            )
+        except Exception as ocr_exc:
+            ocr_error_msg = f"{type(ocr_exc).__name__}: {ocr_exc}"
+            logger.error(
+                "OCR phase failed entirely — continuing without OCR",
+                extra={
+                    "file": os.path.basename(file_path),
+                    "error": ocr_error_msg[:500],
+                },
+                exc_info=True,
+            )
+            metadata["ocr_applied"] = False
+            metadata["ocr_error"] = ocr_error_msg[:500]
+            metadata["ocr_stats"] = {
+                "ocr_images_total": 0,
+                "ocr_images_success": 0,
+                "ocr_images_empty": 0,
+                "ocr_images_failed": 0,
+            }
 
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     metadata["total_ms"] = total_ms

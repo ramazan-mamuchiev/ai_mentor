@@ -906,6 +906,9 @@ def ingest_from_bytes(
             document.ocr_images_empty = ocr_stats.get("ocr_images_empty")
             document.ocr_images_failed = ocr_stats.get("ocr_images_failed")
 
+        if convert_metadata.get("ocr_error"):
+            document.error_message = f"OCR failed: {convert_metadata['ocr_error']}"
+
         session.commit()
 
         logger.info(

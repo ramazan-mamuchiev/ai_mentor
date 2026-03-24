@@ -518,6 +518,7 @@ async def get_document_debug(document_id: int):
                 Document.file_size_bytes,
                 Document.uploaded_at,
                 Document.indexed_at,
+                Document.error_message,
                 Document.ingest_duration_ms,
                 Document.read_ms,
                 Document.convert_ms,
@@ -694,6 +695,11 @@ async def reingest_single_document(document_id: int):
                 )).scalars().all()
                 for ch in child_chunks:
                     await session.delete(ch)
+                if child.s3_key:
+                    try:
+                        delete_file(child.s3_key)
+                    except Exception:
+                        pass
                 await session.delete(child)
 
         chunks = (await session.execute(

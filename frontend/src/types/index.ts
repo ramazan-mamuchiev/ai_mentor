@@ -141,6 +141,7 @@ export interface DocumentDebugInfo {
   file_size_bytes: number
   uploaded_at: string
   indexed_at: string | null
+  error_message: string | null
 
   ingest_duration_ms: number | null
   read_ms: number | null

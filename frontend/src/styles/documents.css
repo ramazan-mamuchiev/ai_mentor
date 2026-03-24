@@ -1629,6 +1629,11 @@ td:has(.docs-actions) {
   padding: 0;
 }
 
+.doc-debug-row--warning code {
+  color: var(--warning, #e5a100);
+  font-weight: 500;
+}
+
 .doc-debug-row-total {
   font-weight: 600;
   border-top: 1px solid var(--border);

@@ -269,6 +269,7 @@
   "docDebug.uploadedAt": "Дата загрузки",
   "docDebug.indexedAt": "Дата индексации",
   "docDebug.status": "Статус",
+  "docDebug.warning": "Предупреждение",
 
   "docDebug.detectedLanguage": "Язык",
 

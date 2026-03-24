@@ -269,6 +269,7 @@
   "docDebug.uploadedAt": "Uploaded at",
   "docDebug.indexedAt": "Indexed at",
   "docDebug.status": "Status",
+  "docDebug.warning": "Warning",
 
   "docDebug.detectedLanguage": "Language",
 
