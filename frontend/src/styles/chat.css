@@ -900,10 +900,6 @@
     display: none;
   }
 
-  .sources-panel-backdrop {
-    display: block;
-  }
-
   .sources-panel {
     position: fixed;
     top: 0;
@@ -924,7 +920,6 @@
 }
 
 .sources-panel-backdrop {
-  display: none;
   position: fixed;
   inset: 0;
   z-index: 200;

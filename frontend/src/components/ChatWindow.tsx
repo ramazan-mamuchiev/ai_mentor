@@ -138,6 +138,8 @@ export function ChatWindow({
               locked={productLocked}
               onEdit={onEditProduct}
               onClear={onClearProduct}
+              onLock={onLockProduct}
+              onUnlock={onUnlockProduct}
             />
           </div>
         )}

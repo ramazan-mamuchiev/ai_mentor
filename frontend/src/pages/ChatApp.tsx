@@ -160,6 +160,40 @@ export function ChatApp() {
     }
   }, [activeSessionId])
 
+  const handleLockProduct = useCallback(async () => {
+    if (!activeSessionId) return
+    try {
+      const updated = await updateSession(activeSessionId, {
+        product_filter_source: 'explicit',
+      })
+      setSessions(prev => prev.map(s =>
+        s.id === activeSessionId ? {
+          ...s,
+          product_filter_source: updated.product_filter_source,
+        } : s,
+      ))
+    } catch {
+      // ignore
+    }
+  }, [activeSessionId])
+
+  const handleUnlockProduct = useCallback(async () => {
+    if (!activeSessionId) return
+    try {
+      const updated = await updateSession(activeSessionId, {
+        product_filter_source: 'auto',
+      })
+      setSessions(prev => prev.map(s =>
+        s.id === activeSessionId ? {
+          ...s,
+          product_filter_source: updated.product_filter_source,
+        } : s,
+      ))
+    } catch {
+      // ignore
+    }
+  }, [activeSessionId])
+
   const chatContent = (
     <ChatWindow
       messages={messages}
@@ -185,6 +219,8 @@ export function ChatApp() {
       productLocked={activeSession?.product_filter_source === 'explicit'}
       onEditProduct={() => setShowProductPicker(true)}
       onClearProduct={handleClearProduct}
+      onLockProduct={handleLockProduct}
+      onUnlockProduct={handleUnlockProduct}
     />
   )
 

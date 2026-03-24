@@ -5,6 +5,7 @@ import type { SourceInfo } from '../types'
 import { SourceCard } from './SourceCard'
 import { MarkdownPreviewModal } from './MarkdownPreviewModal'
 
+const MOBILE_BP = 768
 const RATIO_KEY = 'ipcodex-sources-panel-ratio'
 const DEFAULT_RATIO = 0.3
 const MIN_RATIO = 0.15
@@ -21,6 +22,19 @@ function loadRatio(): number {
   return DEFAULT_RATIO
 }
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BP,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${MOBILE_BP - 1}px)`)
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return mobile
+}
+
 interface Props {
   sources: SourceInfo[]
   onClose: () => void
@@ -28,6 +42,7 @@ interface Props {
 
 export function SourcesPanel({ sources, onClose }: Props) {
   const { t } = useTranslation()
+  const isMobile = useIsMobile()
   const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
   const [ratio, setRatio] = useState(loadRatio)
   const dragging = useRef(false)
@@ -62,21 +77,23 @@ export function SourcesPanel({ sources, onClose }: Props) {
   }, [])
 
   const widthPercent = `${(ratio * 100).toFixed(2)}%`
+  const panelStyle = isMobile ? undefined : { width: widthPercent, minWidth: widthPercent }
 
   return (
     <>
-      <div
-        className="sources-panel-splitter"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      />
-      <div
-        ref={containerRef}
-        className="sources-panel"
-        style={{ width: widthPercent, minWidth: widthPercent }}
-      >
+      {isMobile && (
+        <div className="sources-panel-backdrop" onClick={onClose} />
+      )}
+      {!isMobile && (
+        <div
+          className="sources-panel-splitter"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        />
+      )}
+      <div ref={containerRef} className="sources-panel" style={panelStyle}>
         <div className="sources-panel-header">
           <span className="sources-panel-title">
             {t('chat.sourcesPanel.title', { count: sources.length })}
