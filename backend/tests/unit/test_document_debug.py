@@ -441,10 +441,10 @@ class TestUpdateRagHitCounts:
 class TestRagSourcesIncludeDocumentId:
 
     @pytest.mark.asyncio
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents", new_callable=AsyncMock)
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    async def test_sources_contain_document_id(self, mock_has_docs, mock_search, mock_detect):
+    async def test_sources_contain_document_id(self, mock_has_docs, mock_search, mock_classify):
         from app.chat.rag import build_rag_prompt
 
         mock_search.return_value = [

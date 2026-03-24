@@ -156,9 +156,9 @@ class TestBuildHistoryMessages:
 class TestBuildRagPrompt:
     @pytest.mark.asyncio
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents")
-    async def test_builds_prompt_with_context(self, mock_search, _mock_detect, _mock_has_docs):
+    async def test_builds_prompt_with_context(self, mock_search, _mock_classify, _mock_has_docs):
         mock_search.return_value = [
             {
                 "content": "Use HMAC-SHA256 for auth.",
@@ -194,9 +194,9 @@ class TestBuildRagPrompt:
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents")
-    async def test_system_prompt_instructs_code_generation(self, mock_search, _mock_detect, _mock_has_docs):
+    async def test_system_prompt_instructs_code_generation(self, mock_search, _mock_classify, _mock_has_docs):
         mock_search.return_value = []
         db = AsyncMock()
         messages, _, _debug = await build_rag_prompt(db=db, query="test")
@@ -208,9 +208,9 @@ class TestBuildRagPrompt:
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents")
-    async def test_content_preview_length_500(self, mock_search, _mock_detect, _mock_has_docs):
+    async def test_content_preview_length_500(self, mock_search, _mock_classify, _mock_has_docs):
         long_content = "A" * 1000
         mock_search.return_value = [
             {
@@ -232,9 +232,9 @@ class TestBuildRagPrompt:
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents")
-    async def test_includes_history(self, mock_search, _mock_detect, _mock_has_docs):
+    async def test_includes_history(self, mock_search, _mock_classify, _mock_has_docs):
         mock_search.return_value = []
 
         history = [
@@ -256,9 +256,9 @@ class TestBuildRagPrompt:
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents")
-    async def test_empty_search_results(self, mock_search, _mock_detect, _mock_has_docs):
+    async def test_empty_search_results(self, mock_search, _mock_classify, _mock_has_docs):
         mock_search.return_value = []
 
         db = AsyncMock()
@@ -270,9 +270,9 @@ class TestBuildRagPrompt:
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents")
-    async def test_system_prompt_instructs_proto_formatting(self, mock_search, _mock_detect, _mock_has_docs):
+    async def test_system_prompt_instructs_proto_formatting(self, mock_search, _mock_classify, _mock_has_docs):
         mock_search.return_value = []
         db = AsyncMock()
         messages, _, _debug = await build_rag_prompt(db=db, query="test")
@@ -284,9 +284,9 @@ class TestBuildRagPrompt:
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents")
-    async def test_grounding_instruction_present(self, mock_search, _mock_detect, _mock_has_docs):
+    async def test_grounding_instruction_present(self, mock_search, _mock_classify, _mock_has_docs):
         mock_search.return_value = []
         db = AsyncMock()
         messages, _, _debug = await build_rag_prompt(db=db, query="test")
@@ -298,9 +298,9 @@ class TestBuildRagPrompt:
 
     @pytest.mark.asyncio
     @patch("app.chat.rag._has_any_documents", new_callable=AsyncMock, return_value=True)
-    @patch("app.chat.rag._detect_product_from_query", new_callable=AsyncMock, return_value=None)
+    @patch("app.chat.rag._classify_query", new_callable=AsyncMock, return_value=("overview", None, {}))
     @patch("app.chat.rag.search_documents")
-    async def test_similarity_threshold_filters_chunks(self, mock_search, _mock_detect, _mock_has_docs):
+    async def test_similarity_threshold_filters_chunks(self, mock_search, _mock_classify, _mock_has_docs):
         mock_search.return_value = [
             {"content": "Good", "heading_path": "H1", "heading_level": 2, "token_count": 5,
              "doc_title": "Doc", "product_name": "", "manufacturer": "", "firmware_version": "", "similarity": 0.9},

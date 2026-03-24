@@ -1,6 +1,7 @@
 """RAG (Retrieval Augmented Generation) service for chat."""
 
 import hashlib
+import json as json_lib
 import logging
 import re
 import time
@@ -71,16 +72,32 @@ QUERY_TYPES = tuple(_TYPE_PROMPTS.keys())
 
 
 def _build_classify_prompt() -> str:
-    lines = ["Classify the user question into exactly ONE category. Return ONLY the category name, nothing else.", "", "Categories:"]
+    lines = [
+        "Classify the user question and detect the product mentioned.",
+        "Return ONLY a JSON object with two fields, no other text:",
+        '  {"category": "<category>", "product": "<product_name or null>"}',
+        "",
+        "Categories:",
+    ]
     for qtype, hint in _CLASSIFIER_HINTS.items():
         lines.append(f"- {qtype}: {hint}")
     lines.append("")
+    lines.append("Available products (return the EXACT name from this list, or null if none matches):")
+    lines.append("{products}")
+    lines.append("")
     lines.append("Question: {query}")
-    lines.append("Category:")
     return "\n".join(lines)
 
 
 _CLASSIFY_PROMPT_TEMPLATE = _build_classify_prompt()
+
+
+async def _load_product_names(db: AsyncSession) -> list[str]:
+    """Load product names from the database for classify prompt."""
+    result = await db.execute(
+        text("SELECT name FROM products WHERE name != 'TestDevice' ORDER BY name")
+    )
+    return [row[0] for row in result.fetchall()]
 
 
 def _build_system_prompt(query_type: str) -> str:
@@ -97,15 +114,18 @@ def _embedding_model_name() -> str:
 from app.chat.prompts import REWRITE_PROMPT as _REWRITE_PROMPT_IMPORTED
 from app.chat.prompts import REPHRASE_FOR_SEARCH_PROMPT, SYSTEM_PROMPT_NO_DOCS
 
-async def _classify_query(query: str) -> tuple[str, dict]:
-    """Classify user query into a query type using a lightweight LLM call.
+async def _classify_query(db: AsyncSession, query: str) -> tuple[str, str | None, dict]:
+    """Classify user query and detect product using a single LLM call.
 
-    Returns (query_type, usage_meta) where usage_meta contains token counts.
+    Returns (query_type, detected_product, usage_meta).
     """
     if not settings.classifier_enabled:
-        return "overview", {}
+        return "overview", None, {}
 
-    prompt = _CLASSIFY_PROMPT_TEMPLATE.format(query=query)
+    product_names = await _load_product_names(db)
+    products_str = ", ".join(product_names) if product_names else "(no products in database)"
+
+    prompt = _CLASSIFY_PROMPT_TEMPLATE.format(query=query, products=products_str)
     messages = [{"role": "user", "content": prompt}]
 
     try:
@@ -115,7 +135,7 @@ async def _classify_query(query: str) -> tuple[str, dict]:
             "model": settings.classifier_model,
             "messages": messages,
             "temperature": 0,
-            "max_tokens": 20,
+            "max_tokens": 60,
             "reasoning_effort": "none",
         }
         headers = {
@@ -129,10 +149,31 @@ async def _classify_query(query: str) -> tuple[str, dict]:
 
         classify_ms = round((time.perf_counter() - t0) * 1000, 1)
 
-        raw = data["choices"][0]["message"]["content"].strip().lower()
+        raw = data["choices"][0]["message"]["content"].strip()
         usage = data.get("usage", {})
 
-        query_type = raw if raw in QUERY_TYPES else "overview"
+        query_type = "overview"
+        detected_product: str | None = None
+
+        try:
+            clean = raw
+            if clean.startswith("```"):
+                clean = "\n".join(clean.split("\n")[1:])
+                if clean.endswith("```"):
+                    clean = clean[:-3]
+            parsed = json_lib.loads(clean)
+            if isinstance(parsed, dict):
+                cat = (parsed.get("category") or "").strip().lower()
+                query_type = cat if cat in QUERY_TYPES else "overview"
+                prod = parsed.get("product")
+                if prod and isinstance(prod, str) and prod.lower() != "null":
+                    for pn in product_names:
+                        if pn.lower() == prod.lower():
+                            detected_product = pn
+                            break
+        except (json_lib.JSONDecodeError, KeyError):
+            raw_lower = raw.lower().strip()
+            query_type = raw_lower if raw_lower in QUERY_TYPES else "overview"
 
         meta = {
             "classify_model": settings.classifier_model,
@@ -141,18 +182,25 @@ async def _classify_query(query: str) -> tuple[str, dict]:
             "classify_completion_tokens": usage.get("completion_tokens", 0),
             "classify_total_tokens": usage.get("total_tokens", 0),
             "query_type": query_type,
+            "classify_product": detected_product,
             "classify_raw": raw,
         }
 
         logger.info(
             "Query classified",
-            extra={"query": query[:100], "query_type": query_type, "raw": raw, "ms": classify_ms},
+            extra={
+                "query": query[:100],
+                "query_type": query_type,
+                "detected_product": detected_product,
+                "raw": raw,
+                "ms": classify_ms,
+            },
         )
-        return query_type, meta
+        return query_type, detected_product, meta
 
     except Exception:
         logger.warning("Query classification failed, defaulting to overview", exc_info=True)
-        return "overview", {"query_type": "overview", "classify_model": settings.classifier_model}
+        return "overview", None, {"query_type": "overview", "classify_model": settings.classifier_model}
 
 
 async def _has_any_documents(db: AsyncSession) -> bool:
@@ -163,66 +211,6 @@ async def _has_any_documents(db: AsyncSession) -> bool:
     return bool(result.scalar())
 
 
-async def _detect_product_from_query(db: AsyncSession, query: str) -> str | None:
-    """Match product/manufacturer names mentioned in the user query against the products table.
-
-    Returns the product name if found, or None.
-    Uses word-boundary matching and prioritises longer names to avoid
-    false positives (e.g. a single-letter product name matching inside
-    an unrelated word).
-
-    Handles CamelCase product names like "AxxonOne" by also matching
-    the space-separated variant "axxon one" in the user query.
-    """
-    result = await db.execute(
-        text("SELECT name, manufacturer FROM products WHERE name != 'TestDevice'")
-    )
-    products = result.mappings().all()
-
-    query_lower = query.lower()
-    query_nospace = re.sub(r"\s+", "", query_lower)
-
-    def _word_boundary_match(keyword: str) -> bool:
-        """Check if *keyword* appears in query as a whole word (not inside another word)."""
-        escaped = re.escape(keyword.lower())
-        return bool(re.search(rf"(?<!\w){escaped}(?!\w)", query_lower))
-
-    def _camel_to_spaced(name: str) -> str:
-        """Split CamelCase into space-separated lowercase: 'AxxonOne' -> 'axxon one'."""
-        return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", name).lower()
-
-    def _fuzzy_name_match(name: str) -> bool:
-        """Match product name with tolerance for spacing/CamelCase differences."""
-        if _word_boundary_match(name):
-            return True
-        name_lower = name.lower()
-        name_nospace = re.sub(r"\s+", "", name_lower)
-        if len(name_nospace) >= 4 and name_nospace in query_nospace:
-            return True
-        spaced = _camel_to_spaced(name)
-        if spaced != name_lower and _word_boundary_match(spaced):
-            return True
-        return False
-
-    sorted_products = sorted(products, key=lambda p: len(p["name"] or ""), reverse=True)
-
-    # Pass 1: full product name or manufacturer match.
-    for prod in sorted_products:
-        name = prod["name"] or ""
-        manufacturer = prod["manufacturer"] or ""
-        if name and _fuzzy_name_match(name):
-            return name
-        if manufacturer and _word_boundary_match(manufacturer):
-            return name
-
-    # Pass 2: individual words from the product name (≥4 chars).
-    for prod in sorted_products:
-        name = prod["name"] or ""
-        for word in name.split():
-            if len(word) >= 4 and _word_boundary_match(word):
-                return name
-
-    return None
 
 
 def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) -> str:
@@ -459,15 +447,16 @@ async def build_rag_prompt(
 
         return messages, [], rag_debug
 
-    auto_product = await _detect_product_from_query(db, query)
+    query_type, classify_product, classify_meta = await _classify_query(db, query)
+
+    auto_product = classify_product
     if auto_product and auto_product != product_filter:
         logger.info(
-            "Auto-detected product from query (overriding session filter)",
+            "Auto-detected product from query via LLM classify",
             extra={"product": auto_product, "previous": product_filter, "query": query[:100]},
         )
         product_filter = auto_product
 
-    query_type, classify_meta = await _classify_query(query)
     type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
 
     t_rewrite = time.perf_counter()
