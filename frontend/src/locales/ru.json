@@ -115,6 +115,7 @@
   "productBadge.change": "Изменить продукт",
   "productBadge.clear": "Сбросить фильтр",
   "productBadge.autoDetected": "Авто-определение",
+  "productBadge.locked": "Зафиксирован",
 
   "upload.title": "Загрузка документации",
   "upload.close": "Закрыть",

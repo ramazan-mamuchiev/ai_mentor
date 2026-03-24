@@ -115,6 +115,7 @@
   "productBadge.change": "Change product",
   "productBadge.clear": "Clear filter",
   "productBadge.autoDetected": "Auto-detected",
+  "productBadge.locked": "Locked",
 
   "upload.title": "Upload Documentation",
   "upload.close": "Close",

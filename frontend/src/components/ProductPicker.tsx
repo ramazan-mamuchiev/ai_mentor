@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, ChevronDown, X, Globe, Box } from 'lucide-react'
+import { Search, ChevronDown, X, Globe, Box, Lock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { listProducts } from '../api/products'
 import type { ProductListItem } from '../types'
@@ -147,11 +147,12 @@ interface BadgeProps {
   productFilter: string | null
   versionFilter: string | null
   autoDetected?: boolean
+  locked?: boolean
   onEdit: () => void
   onClear: () => void
 }
 
-export function ProductBadge({ productFilter, versionFilter, autoDetected, onEdit, onClear }: BadgeProps) {
+export function ProductBadge({ productFilter, versionFilter, autoDetected, locked, onEdit, onClear }: BadgeProps) {
   const { t } = useTranslation()
 
   if (!productFilter) {
@@ -165,9 +166,10 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, onEdi
   }
 
   return (
-    <div className="product-badge">
+    <div className={`product-badge${locked ? ' product-badge--locked' : ''}`}>
       <span className="product-badge-label" onClick={onEdit} title={t('productBadge.change')}>
-        {autoDetected && <span className="product-badge-auto">{t('productBadge.autoDetected')}</span>}
+        {locked && <Lock size={12} className="product-badge-lock" />}
+        {autoDetected && !locked && <span className="product-badge-auto">{t('productBadge.autoDetected')}</span>}
         <Box size={13} className="product-badge-icon" />
         <span className="product-badge-name">{productFilter}</span>
         {versionFilter && <span className="product-badge-version">{versionFilter}</span>}

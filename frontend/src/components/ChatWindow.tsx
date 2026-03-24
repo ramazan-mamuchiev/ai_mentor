@@ -23,6 +23,7 @@ interface Props {
   productFilter?: string | null
   versionFilter?: string | null
   autoDetected?: boolean
+  productLocked?: boolean
   onEditProduct?: () => void
   onClearProduct?: () => void
 }
@@ -40,6 +41,7 @@ export function ChatWindow({
   productFilter,
   versionFilter,
   autoDetected,
+  productLocked,
   onEditProduct,
   onClearProduct,
 }: Props) {
@@ -118,9 +120,10 @@ export function ChatWindow({
       {onEditProduct && onClearProduct && (
         <div className="chat-product-header">
           <ProductBadge
-            productFilter={productFilter}
+            productFilter={productFilter ?? null}
             versionFilter={versionFilter ?? null}
             autoDetected={autoDetected}
+            locked={productLocked}
             onEdit={onEditProduct}
             onClear={onClearProduct}
           />

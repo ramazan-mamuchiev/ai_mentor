@@ -89,7 +89,6 @@ export function ChatApp() {
       if (activeSessionId === id) {
         reset()
         setActiveSessionId(null)
-        setAutoDetected(false)
       }
     } catch {
       // ignore
@@ -182,7 +181,8 @@ export function ChatApp() {
       onUploadClick={() => setShowUpload(true)}
       productFilter={activeSession?.product_filter}
       versionFilter={activeSession?.version_filter}
-      autoDetected={autoDetected}
+      autoDetected={activeSession?.product_filter_source === 'auto'}
+      productLocked={activeSession?.product_filter_source === 'explicit'}
       onEditProduct={() => setShowProductPicker(true)}
       onClearProduct={handleClearProduct}
     />
@@ -197,7 +197,7 @@ export function ChatApp() {
       onNewSession={handleNewSession}
       onDeleteSession={handleDeleteSession}
       onToggleTheme={toggleTheme}
-      onLogoClick={() => { reset(); setActiveSessionId(null); setAutoDetected(false) }}
+      onLogoClick={() => { reset(); setActiveSessionId(null) }}
     >
       <Routes>
         <Route index element={chatContent} />

@@ -1825,6 +1825,29 @@
   border-color: var(--border);
 }
 
+.product-badge--locked {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.product-badge--locked:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+[data-theme='dark'] .product-badge--locked {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.25);
+}
+
+.product-badge-lock {
+  color: rgba(16, 185, 129, 0.8);
+  flex-shrink: 0;
+}
+
+[data-theme='dark'] .product-badge-lock {
+  color: rgba(52, 211, 153, 0.9);
+}
+
 .product-badge-label {
   display: inline-flex;
   align-items: center;
