@@ -77,10 +77,18 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
         if not chat_session:
             raise HTTPException(status_code=404, detail="Session not found")
 
+        product_changed = (
+            req.product_filter is not None
+            and (req.product_filter or None) != chat_session.product_filter
+        )
+
         if req.product_filter is not None:
             chat_session.product_filter = req.product_filter or None
         if req.version_filter is not None:
             chat_session.version_filter = req.version_filter or None
+
+        if product_changed:
+            chat_session.doc_context = None
 
         await session.commit()
         await session.refresh(chat_session)
@@ -289,6 +297,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 auto_prod = rag_debug.get("auto_product")
                 if auto_prod and chat_session.product_filter != auto_prod:
                     chat_session.product_filter = auto_prod
+                    chat_session.doc_context = None
                 if not chat_session.doc_context:
                     detected = rag_debug.get("detected_doc_context")
                     if detected:
