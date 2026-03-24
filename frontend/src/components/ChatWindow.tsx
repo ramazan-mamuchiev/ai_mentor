@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Cpu } from 'lucide-react'
+import { Cpu, ArrowDown } from 'lucide-react'
 import type { SourceInfo, StreamStatus } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 
-const SCROLL_THRESHOLD = 80
+const SCROLL_THRESHOLD = 100
 
 interface Props {
   messages: ChatMessageType[]
@@ -35,6 +35,7 @@ export function ChatWindow({
   const containerRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
   const programmaticScrollRef = useRef(false)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
 
   const handleScroll = useCallback(() => {
     if (programmaticScrollRef.current) return
@@ -42,6 +43,7 @@ export function ChatWindow({
     if (!el) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     stickToBottomRef.current = distanceFromBottom <= SCROLL_THRESHOLD
+    setShowScrollBtn(distanceFromBottom > SCROLL_THRESHOLD)
   }, [])
 
   useEffect(() => {
@@ -50,14 +52,38 @@ export function ChatWindow({
     if (!el) return
     programmaticScrollRef.current = true
     el.scrollTop = el.scrollHeight
-    setTimeout(() => {
-      programmaticScrollRef.current = false
-    }, 0)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false
+      })
+    })
   }, [messages, streamingContent])
+
+  useEffect(() => {
+    if (status !== 'streaming') {
+      setShowScrollBtn(false)
+    }
+  }, [status])
+
+  const scrollToBottom = useCallback(() => {
+    stickToBottomRef.current = true
+    setShowScrollBtn(false)
+    const el = containerRef.current
+    if (el) {
+      programmaticScrollRef.current = true
+      el.scrollTop = el.scrollHeight
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          programmaticScrollRef.current = false
+        })
+      })
+    }
+  }, [])
 
   const handleSend = useCallback(
     (content: string) => {
       stickToBottomRef.current = true
+      setShowScrollBtn(false)
       onSend(content)
     },
     [onSend],
@@ -111,6 +137,12 @@ export function ChatWindow({
           </>
         )}
       </div>
+
+      {showScrollBtn && status === 'streaming' && (
+        <button className="scroll-to-bottom-btn" onClick={scrollToBottom} title={t('chat.scrollToBottom', 'Scroll to bottom')}>
+          <ArrowDown size={18} />
+        </button>
+      )}
 
       <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} onUploadClick={onUploadClick} />
     </div>
