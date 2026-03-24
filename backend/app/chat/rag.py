@@ -236,6 +236,8 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
     seen_parents: set[str] = set()
     parts = []
     for i, chunk in enumerate(chunks, 1):
+        doc_id = chunk.get("document_id")
+        doc_id_tag = f" (doc_id={doc_id})" if doc_id else ""
         source = f"[{chunk['doc_title']}] {chunk['heading_path']}"
         if chunk.get("product_name"):
             source += f" (Product: {chunk['product_name']}"
@@ -267,7 +269,7 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
             if flat:
                 entity_line = f"Entities: {', '.join(flat[:15])}\n"
 
-        parts.append(f"--- Source {i}: {source} (similarity: {chunk['similarity']}) ---\n{entity_line}{body}")
+        parts.append(f"--- Source {i}{doc_id_tag}: {source} (similarity: {chunk['similarity']}) ---\n{entity_line}{body}")
 
     return "\n\n".join(parts)
 
@@ -560,7 +562,7 @@ async def build_rag_prompt(
     if detected_product:
         context_header += f"Product: {detected_product}\n"
     if product_filter_source == "explicit" and product_filter:
-        context_header += f"IMPORTANT: The user has explicitly selected product \"{product_filter}\". Answer ONLY about this product. If the user asks about a different product, politely explain that the current conversation is scoped to {product_filter} and suggest switching the product filter.\n"
+        context_header += f"⚠️ LOCKED PRODUCT: {product_filter} (user-selected, do NOT answer about other products)\n"
 
     doc_types_found = set(c.get("doc_type", "other") for c in chunks)
     if doc_types_found - {"other"}:
@@ -598,7 +600,20 @@ async def build_rag_prompt(
             )
         else:
             hint = ""
-        messages.append({"role": "user", "content": f"{hint}Based on the documentation above, answer the following question:\n\n{query}"})
+
+        scope_hint = ""
+        if product_filter_source == "explicit" and product_filter:
+            scope_hint = (
+                f"⚠️ SCOPE RESTRICTION: This conversation is locked to product \"{product_filter}\". "
+                f"The user asked about a topic that may reference other products. "
+                f"You MUST answer ONLY using the provided source chunks (which are all from \"{product_filter}\"). "
+                f"Do NOT use your general knowledge to answer about other products. "
+                f"If the sources do not contain relevant information, say: "
+                f"\"В документации {product_filter} нет информации по этому вопросу. "
+                f"Попробуйте переключить фильтр продукта.\"\n\n"
+            )
+
+        messages.append({"role": "user", "content": f"{hint}{scope_hint}Based on the documentation above, answer the following question:\n\n{query}"})
 
     sources = [
         {
