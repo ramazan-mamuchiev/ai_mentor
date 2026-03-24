@@ -129,7 +129,7 @@ export function ChatApp() {
       <Routes>
         <Route index element={chatContent} />
         <Route path="documents" element={<DocumentsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
-        <Route path="products" element={<ProductsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} />} />
+        <Route path="products" element={<ProductsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
         <Route path="products/:manufacturer/:product" element={
           <ProductDetailPage
             onUploadClick={(ctx) => { productContextRef.current = ctx; setShowUpload(true) }}
@@ -144,7 +144,6 @@ export function ChatApp() {
         <FileUpload
           onClose={() => setShowUpload(false)}
           onComplete={() => {
-            setShowUpload(false)
             setDocsRefreshKey(k => k + 1)
           }}
           productContext={productContextRef.current}
@@ -154,7 +153,6 @@ export function ChatApp() {
         <UrlImport
           onClose={() => setShowUrlImport(false)}
           onComplete={() => {
-            setShowUrlImport(false)
             setDocsRefreshKey(k => k + 1)
           }}
           productContext={productContextRef.current}

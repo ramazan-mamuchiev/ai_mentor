@@ -109,11 +109,12 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
 interface Props {
   onUploadClick?: () => void
   onUrlImportClick?: () => void
+  refreshKey?: number
 }
 
 const DEFAULT_COLUMN_ORDER = ['name', 'documents', 'format', 'status', 'size', 'chunks', 'uploaded', 'indexed', 'actions']
 
-export function ProductsPage({ onUploadClick, onUrlImportClick }: Props) {
+export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [products, setProducts] = useState<ProductListItem[]>([])
@@ -138,6 +139,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick }: Props) {
   }, [])
 
   useEffect(() => { fetchProducts() }, [fetchProducts])
+
+  useEffect(() => {
+    if (refreshKey) fetchProducts()
+  }, [refreshKey, fetchProducts])
 
   useEffect(() => {
     const hasPending = products.some(p => p.pending_documents > 0 || p.processing_documents > 0)

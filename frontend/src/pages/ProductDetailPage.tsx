@@ -28,16 +28,6 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
       .finally(() => setLoading(false))
   }, [manufacturer, productSlug, navigate])
 
-  if (loading) {
-    return (
-      <div className="docs-page">
-        <div className="docs-empty">
-          <Loader2 size={32} className="spin-icon docs-empty-icon" />
-        </div>
-      </div>
-    )
-  }
-
   const productCtx = useMemo<ProductContext | undefined>(() =>
     product ? { name: product.name, manufacturer: product.manufacturer || undefined } : undefined,
     [product?.name, product?.manufacturer],
@@ -50,6 +40,16 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
   const handleUrlImportClick = useCallback(() => {
     onUrlImportClick?.(productCtx)
   }, [onUrlImportClick, productCtx])
+
+  if (loading) {
+    return (
+      <div className="docs-page">
+        <div className="docs-empty">
+          <Loader2 size={32} className="spin-icon docs-empty-icon" />
+        </div>
+      </div>
+    )
+  }
 
   if (!product) return null
 
