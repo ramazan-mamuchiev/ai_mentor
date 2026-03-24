@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     openai_llm_model: str = "gemini-2.5-pro"
 
-    llm_reasoning_effort: str = "none"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
+    llm_reasoning_effort: str = "low"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 
     classifier_enabled: bool = True
     classifier_model: str = "gemini-2.5-flash"
