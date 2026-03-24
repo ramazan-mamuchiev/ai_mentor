@@ -59,7 +59,7 @@ After creating the file, restart the backend. No code changes required.
 ```
 User query
   │
-  ├─ 1. LLM Classifier (gemini-2.0-flash, ~100ms)
+  ├─ 1. LLM Classifier (gemini-2.5-flash, ~100ms)
   │     Classifier prompt is built automatically
   │     from <classifier_hint> tags in all files in this directory
   │     → Result: "overview" / "technical" / "code" / ...

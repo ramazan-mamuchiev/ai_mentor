@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     llm_reasoning_effort: str = "none"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 
     classifier_enabled: bool = True
-    classifier_model: str = "gemini-2.0-flash"
+    classifier_model: str = "gemini-2.5-flash"
 
     rag_top_k: int = 10
     rag_min_similarity: float = 0.35
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     rerank_enabled: bool = True
     rerank_candidates: int = 20
-    rerank_model: str = "gemini-2.0-flash"
+    rerank_model: str = "gemini-2.5-flash"
 
     hybrid_search_enabled: bool = True
     hybrid_bm25_weight: float = 0.3
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     chunk_overlap_paragraphs: int = 2
 
     metadata_extraction_enabled: bool = True
-    metadata_extraction_model: str = "gemini-2.0-flash"
+    metadata_extraction_model: str = "gemini-2.5-flash"
     metadata_extraction_batch_size: int = 5
 
     search_retry_enabled: bool = True

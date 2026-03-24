@@ -879,7 +879,7 @@ def ingest_confluence_task(self, document_id: int):
                 title=page.title,
                 status="processing",
                 source_hash=source_hash,
-                source_container=url,
+                source_container=page.url,
                 source_path=page.url,
             )
             session.add(doc)
