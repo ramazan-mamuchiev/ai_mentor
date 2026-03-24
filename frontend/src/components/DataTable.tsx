@@ -67,7 +67,7 @@ function DraggableHeader({
   }
 
   return (
-    <th ref={setNodeRef} style={style} className="docs-th">
+    <th ref={setNodeRef} style={style} className={`docs-th col-${headerId}`}>
       <div className="docs-th-inner">
         <span className="docs-th-drag" {...attributes} {...listeners}>
           <GripVertical size={12} />
@@ -174,7 +174,7 @@ export function DataTable<TData>({
                     {headerGroup.headers.map(header => {
                       if (header.id === actionsColumnId) {
                         return (
-                          <th key={header.id} className="docs-th docs-th--actions">
+                          <th key={header.id} className={`docs-th docs-th--actions col-${header.id}`}>
                             <div className="docs-th-inner">
                               <span className="docs-th-label">
                                 {flexRender(header.column.columnDef.header, header.getContext())}
@@ -253,7 +253,7 @@ export function DataTable<TData>({
                         }
                         if (cell.getIsAggregated() || cell.getIsPlaceholder()) return null
                         return (
-                          <td key={cell.id}>
+                          <td key={cell.id} className={`col-${cell.column.id}`}>
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </td>
                         )

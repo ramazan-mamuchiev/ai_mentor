@@ -499,7 +499,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 .docs-table th,
@@ -575,6 +575,8 @@
   border-bottom: 1px solid var(--border);
   color: var(--text);
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .docs-table tr:hover td {
@@ -598,6 +600,17 @@ td:has(.docs-actions) {
   width: 1%;
   white-space: nowrap;
 }
+
+/* ── Column widths (table-layout: fixed) ── */
+.docs-table .col-title    { width: auto; }
+.docs-table .col-format   { width: 110px; }
+.docs-table .col-status   { width: 140px; }
+.docs-table .col-size     { width: 80px; }
+.docs-table .col-chunks   { width: 70px; }
+.docs-table .col-product  { width: 130px; }
+.docs-table .col-uploaded { width: 120px; }
+.docs-table .col-indexed  { width: 120px; }
+.docs-table .col-actions  { width: 120px; }
 
 /* ── Grouped rows ── */
 .docs-row-group td {
@@ -657,6 +670,12 @@ td:has(.docs-actions) {
 
 .docs-name {
   font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .docs-filename {
@@ -1277,6 +1296,12 @@ td:has(.docs-actions) {
 }
 
 /* ── Responsive ── */
+@media (max-width: 1200px) {
+  .docs-table .col-indexed {
+    display: none;
+  }
+}
+
 @media (max-width: 1024px) {
   .docs-header {
     padding: 12px 16px;
@@ -1300,6 +1325,12 @@ td:has(.docs-actions) {
   .docs-group-actions {
     padding-left: 16px;
     padding-right: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .docs-table .col-format {
+    display: none;
   }
 }
 

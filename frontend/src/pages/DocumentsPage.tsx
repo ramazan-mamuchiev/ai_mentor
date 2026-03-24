@@ -139,7 +139,7 @@ function OverflowCell({ children, className }: { children: React.ReactNode; clas
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    setTruncated(el.scrollWidth > el.clientWidth)
+    setTruncated(el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight)
   })
 
   return (
