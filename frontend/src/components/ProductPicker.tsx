@@ -170,8 +170,8 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
   return (
     <div className={`product-badge${locked ? ' product-badge--locked' : ''}`}>
       <span className="product-badge-label" onClick={onEdit} data-tooltip={t('productBadge.change')}>
-        {locked && <Lock size={12} className="product-badge-lock" />}
         {autoDetected && !locked && <span className="product-badge-auto">{t('productBadge.autoDetected')}</span>}
+        {locked && <span className="product-badge-locked-label">{t('productBadge.locked')}</span>}
         <Box size={13} className="product-badge-icon" />
         <span className="product-badge-name">{productFilter}</span>
         {versionFilter && <span className="product-badge-version">{versionFilter}</span>}

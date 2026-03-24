@@ -2031,15 +2031,6 @@
   border-color: rgba(52, 211, 153, 0.25);
 }
 
-.product-badge-lock {
-  color: rgba(16, 185, 129, 0.8);
-  flex-shrink: 0;
-}
-
-[data-theme='dark'] .product-badge-lock {
-  color: rgba(52, 211, 153, 0.9);
-}
-
 .product-badge-label {
   display: inline-flex;
   align-items: center;
@@ -2063,6 +2054,22 @@
   padding: 1px 5px;
   background: rgba(37, 99, 235, 0.1);
   border-radius: 4px;
+}
+
+.product-badge-locked-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  background: rgba(16, 185, 129, 0.15);
+  color: rgb(16, 163, 115);
+  border-radius: 4px;
+}
+
+[data-theme='dark'] .product-badge-locked-label {
+  background: rgba(52, 211, 153, 0.15);
+  color: rgb(52, 211, 153);
 }
 
 .product-badge-icon {
