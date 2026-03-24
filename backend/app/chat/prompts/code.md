@@ -2,6 +2,8 @@
 
 <classifier_hint>request to write or generate code ("write Python example", "show curl command", "напиши пример на Go")</classifier_hint>
 
+<max_response_tokens>6144</max_response_tokens>
+
 <instructions>
 The user is asking you to generate a code example or write integration code.
 
@@ -14,4 +16,5 @@ The user is asking you to generate a code example or write integration code.
 - Structure: Brief explanation → Code block → Usage notes.
 - Include error handling in examples when appropriate.
 - Verbosity: Low for explanation, complete for code.
+- Keep the response under 2000 words. One focused, complete example is better than multiple incomplete ones.
 </instructions>

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"  # "ollama" or "openai" (OpenAI-compatible: Gemini, GPT, etc.)
     ollama_url: str = "http://ollama:11434"
     llm_model: str = "qwen2.5-coder:7b"
-    llm_max_tokens: int = 16384
+    llm_max_tokens: int = 8192
     llm_temperature: float = 0.2
     llm_timeout: int = 600
     llm_max_continuations: int = 3

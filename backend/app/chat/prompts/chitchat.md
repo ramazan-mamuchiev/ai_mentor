@@ -2,6 +2,8 @@
 
 <classifier_hint>greeting, off-topic, or meta-question ("hello", "what can you do", "привет")</classifier_hint>
 
+<max_response_tokens>1024</max_response_tokens>
+
 <instructions>
 The user is greeting you, asking what you can do, or making an off-topic remark.
 

@@ -22,19 +22,21 @@ _PROMPTS_DIR = Path(__file__).parent / "prompts"
 _TAG_RE = re.compile(r"<(\w+)>(.*?)</\1>", re.DOTALL)
 
 
-def _load_prompts() -> tuple[str, dict[str, str], dict[str, str]]:
+def _load_prompts() -> tuple[str, dict[str, str], dict[str, str], dict[str, int]]:
     """Scan prompts/ directory and build prompt registry.
 
-    Returns (base_prompt, type_prompts, classifier_hints) where:
+    Returns (base_prompt, type_prompts, classifier_hints, type_max_tokens) where:
     - base_prompt: contents of base.md
     - type_prompts: {query_type: full file content} for each type .md
     - classifier_hints: {query_type: hint text} for building the classify prompt
+    - type_max_tokens: {query_type: max_tokens} from <max_response_tokens> tags
     """
     base_path = _PROMPTS_DIR / "base.md"
     base = base_path.read_text(encoding="utf-8").strip() if base_path.exists() else ""
 
     type_prompts: dict[str, str] = {}
     hints: dict[str, str] = {}
+    max_tokens_map: dict[str, int] = {}
 
     for md_file in sorted(_PROMPTS_DIR.glob("*.md")):
         if md_file.stem in ("base", "README"):
@@ -50,11 +52,21 @@ def _load_prompts() -> tuple[str, dict[str, str], dict[str, str]]:
             logger.warning("Prompt %s has no <classifier_hint>, using filename as hint", md_file.name)
             hints[qtype] = qtype
 
-    logger.info("Loaded %d prompt types: %s", len(type_prompts), ", ".join(sorted(type_prompts)))
-    return base, type_prompts, hints
+        if "max_response_tokens" in tags:
+            try:
+                max_tokens_map[qtype] = int(tags["max_response_tokens"])
+            except ValueError:
+                logger.warning("Invalid <max_response_tokens> in %s: %s", md_file.name, tags["max_response_tokens"])
+
+    logger.info(
+        "Loaded %d prompt types: %s (max_tokens: %s)",
+        len(type_prompts), ", ".join(sorted(type_prompts)),
+        {k: v for k, v in sorted(max_tokens_map.items())},
+    )
+    return base, type_prompts, hints, max_tokens_map
 
 
-_BASE_PROMPT, _TYPE_PROMPTS, _CLASSIFIER_HINTS = _load_prompts()
+_BASE_PROMPT, _TYPE_PROMPTS, _CLASSIFIER_HINTS, _TYPE_MAX_TOKENS = _load_prompts()
 QUERY_TYPES = tuple(_TYPE_PROMPTS.keys())
 
 
@@ -414,6 +426,7 @@ async def build_rag_prompt(
             "detected_doc_context": None,
             "search_query": query,
             "no_documents": True,
+            "type_max_tokens": None,
         }
 
         logger.info(
@@ -432,6 +445,7 @@ async def build_rag_prompt(
         product_filter = auto_product
 
     query_type, classify_meta = await _classify_query(query)
+    type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
 
     t_rewrite = time.perf_counter()
     search_query = await _rewrite_query(query, history) if history else query
@@ -613,6 +627,7 @@ async def build_rag_prompt(
         "retry_used": retry_used,
         "rephrase_ms": rephrase_ms,
         "rephrase_query": rephrase_query,
+        "type_max_tokens": type_max_tokens,
         **classify_meta,
     }
 

@@ -273,7 +273,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     "model": settings.llm_model,
                     "llm_provider": settings.llm_provider,
                     "temperature": settings.llm_temperature,
-                    "max_tokens": settings.llm_max_tokens,
+                    "max_tokens": effective_max_tokens,
                     "rag_ms": rag_ms,
                     "user_input_tokens": query_tokens,
                     "llm_prompt_tokens": prompt_estimate,
@@ -292,10 +292,11 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 llm_meta: dict = {}
                 continuations = 0
                 llm_messages = list(messages)
+                effective_max_tokens = rag_debug.get("type_max_tokens") or settings.llm_max_tokens
 
                 while True:
                     llm_meta_chunk: dict = {}
-                    async for token in stream_chat_completion(llm_messages, metadata=llm_meta_chunk):
+                    async for token in stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk):
                         full_response.append(token)
                         token_count += 1
                         yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
