@@ -183,7 +183,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
           onClick={onLock}
           data-tooltip={t('productBadge.lock')}
         >
-          <Lock size={12} />
+          <Lock size={14} />
         </button>
       )}
       {locked && onUnlock && (
@@ -192,7 +192,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
           onClick={onUnlock}
           data-tooltip={t('productBadge.unlock')}
         >
-          <Unlock size={12} />
+          <Unlock size={14} />
         </button>
       )}
       <button
