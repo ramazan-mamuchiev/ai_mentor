@@ -65,6 +65,12 @@ describe('ChatWindow smart auto-scroll', () => {
     Object.defineProperty(el, 'clientHeight', { value: clientHeight, configurable: true })
   }
 
+  function simulateUserScroll(el: HTMLElement, scrollTop: number, scrollHeight: number, clientHeight: number) {
+    simulateScrollPosition(el, scrollTop, scrollHeight, clientHeight)
+    fireEvent.wheel(el, { deltaY: scrollTop < scrollHeight - clientHeight ? -1 : 1 })
+    fireEvent.scroll(el)
+  }
+
   it('auto-scrolls to bottom when user is near the bottom', () => {
     const { rerender } = renderChatWindow({
       messages: [{ id: 1, session_id: 1, role: 'user', content: 'q', created_at: '' }],
@@ -73,8 +79,7 @@ describe('ChatWindow smart auto-scroll', () => {
     })
 
     const container = getContainer()
-    simulateScrollPosition(container, 900, 1000, 100)
-    fireEvent.scroll(container)
+    simulateUserScroll(container, 900, 1000, 100)
 
     const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
 
@@ -103,8 +108,7 @@ describe('ChatWindow smart auto-scroll', () => {
     await vi.runAllTimersAsync()
 
     const container = getContainer()
-    simulateScrollPosition(container, 200, 1000, 100)
-    fireEvent.scroll(container)
+    simulateUserScroll(container, 200, 1000, 100)
 
     const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
 
@@ -132,11 +136,8 @@ describe('ChatWindow smart auto-scroll', () => {
 
     const container = getContainer()
 
-    simulateScrollPosition(container, 200, 1000, 100)
-    fireEvent.scroll(container)
-
-    simulateScrollPosition(container, 920, 1000, 100)
-    fireEvent.scroll(container)
+    simulateUserScroll(container, 200, 1000, 100)
+    simulateUserScroll(container, 920, 1000, 100)
 
     const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
 
@@ -166,8 +167,7 @@ describe('ChatWindow smart auto-scroll', () => {
     })
 
     const container = getContainer()
-    simulateScrollPosition(container, 200, 1000, 100)
-    fireEvent.scroll(container)
+    simulateUserScroll(container, 200, 1000, 100)
 
     rerender(
       <ChatWindow

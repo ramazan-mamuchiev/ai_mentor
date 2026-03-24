@@ -59,12 +59,7 @@ QUERY_TYPES = tuple(_TYPE_PROMPTS.keys())
 
 
 def _build_classify_prompt() -> str:
-    lines = [
-        "Classify the user question into exactly ONE category.",
-        "Return ONLY the category name, nothing else.",
-        "",
-        "Categories:",
-    ]
+    lines = ["Classify the user question into exactly ONE category. Return ONLY the category name, nothing else.", "", "Categories:"]
     for qtype, hint in _CLASSIFIER_HINTS.items():
         lines.append(f"- {qtype}: {hint}")
     lines.append("")

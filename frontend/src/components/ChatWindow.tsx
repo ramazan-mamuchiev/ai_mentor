@@ -7,6 +7,7 @@ import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 
 const SCROLL_THRESHOLD = 100
+const USER_INTERACTION_TTL = 200
 
 interface Props {
   messages: ChatMessageType[]
@@ -34,50 +35,59 @@ export function ChatWindow({
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
-  const programmaticScrollRef = useRef(false)
+  const userInteractingRef = useRef(false)
+  const interactionTimerRef = useRef(0)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
 
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const markInteraction = () => {
+      userInteractingRef.current = true
+      window.clearTimeout(interactionTimerRef.current)
+      interactionTimerRef.current = window.setTimeout(() => {
+        userInteractingRef.current = false
+      }, USER_INTERACTION_TTL)
+    }
+
+    el.addEventListener('wheel', markInteraction, { passive: true })
+    el.addEventListener('touchmove', markInteraction, { passive: true })
+    el.addEventListener('pointerdown', markInteraction)
+
+    return () => {
+      el.removeEventListener('wheel', markInteraction)
+      el.removeEventListener('touchmove', markInteraction)
+      el.removeEventListener('pointerdown', markInteraction)
+      window.clearTimeout(interactionTimerRef.current)
+    }
+  }, [])
+
   const handleScroll = useCallback(() => {
-    if (programmaticScrollRef.current) return
     const el = containerRef.current
     if (!el) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    stickToBottomRef.current = distanceFromBottom <= SCROLL_THRESHOLD
-    setShowScrollBtn(distanceFromBottom > SCROLL_THRESHOLD)
+    const nearBottom = distanceFromBottom <= SCROLL_THRESHOLD
+
+    if (userInteractingRef.current) {
+      stickToBottomRef.current = nearBottom
+    }
+
+    setShowScrollBtn(!nearBottom)
   }, [])
 
   useEffect(() => {
     if (!stickToBottomRef.current) return
     const el = containerRef.current
     if (!el) return
-    programmaticScrollRef.current = true
     el.scrollTop = el.scrollHeight
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        programmaticScrollRef.current = false
-      })
-    })
   }, [messages, streamingContent])
-
-  useEffect(() => {
-    if (status !== 'streaming') {
-      setShowScrollBtn(false)
-    }
-  }, [status])
 
   const scrollToBottom = useCallback(() => {
     stickToBottomRef.current = true
     setShowScrollBtn(false)
     const el = containerRef.current
-    if (el) {
-      programmaticScrollRef.current = true
-      el.scrollTop = el.scrollHeight
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          programmaticScrollRef.current = false
-        })
-      })
-    }
+    if (el) el.scrollTop = el.scrollHeight
   }, [])
 
   const handleSend = useCallback(
