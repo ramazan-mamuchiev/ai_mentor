@@ -499,7 +499,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .docs-table th,
@@ -575,8 +575,6 @@
   border-bottom: 1px solid var(--border);
   color: var(--text);
   vertical-align: middle;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .docs-table tr:hover td {
@@ -593,6 +591,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  max-width: 420px;
 }
 
 .docs-th--actions,
@@ -600,17 +599,6 @@ td:has(.docs-actions) {
   width: 1%;
   white-space: nowrap;
 }
-
-/* ── Column widths (table-layout: fixed) ── */
-.docs-table .col-title    { width: auto; }
-.docs-table .col-format   { width: 110px; }
-.docs-table .col-status   { width: 140px; }
-.docs-table .col-size     { width: 80px; }
-.docs-table .col-chunks   { width: 70px; }
-.docs-table .col-product  { width: 130px; }
-.docs-table .col-uploaded { width: 120px; }
-.docs-table .col-indexed  { width: 120px; }
-.docs-table .col-actions  { width: 120px; }
 
 /* ── Grouped rows ── */
 .docs-row-group td {
