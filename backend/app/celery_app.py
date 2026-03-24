@@ -940,12 +940,20 @@ def ingest_confluence_task(self, document_id: int):
                 doc.embedding_model = _settings.embedding_model_gemini
                 doc.embedding_dims = _settings.embedding_dims
 
+                if page.ocr_images_total > 0:
+                    doc.ocr_ms = page.ocr_ms
+                    doc.ocr_images_total = page.ocr_images_total
+                    doc.ocr_images_success = page.ocr_images_success
+                    doc.ocr_images_empty = page.ocr_images_empty
+                    doc.ocr_images_failed = page.ocr_images_failed
+
                 session.commit()
                 ingested += 1
 
                 logger.debug("Confluence page ingested", extra={
                     "page_id": page.page_id, "title": page.title,
                     "chunks": len(chunks), "document_id": doc.id,
+                    "ocr_images": page.ocr_images_success,
                 })
 
             except Exception as exc:
