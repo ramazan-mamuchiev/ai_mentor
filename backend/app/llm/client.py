@@ -426,7 +426,7 @@ async def _stream_bothub(
     )
 
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0), verify=False) as client:
             async with client.stream("POST", url, json=payload, headers=headers) as response:
                 if response.status_code != 200:
                     body = await response.aread()
@@ -569,7 +569,7 @@ async def _check_health_bothub() -> bool:
     try:
         url = f"{settings.bothub_base_url.rstrip('/')}/models"
         headers = {"Authorization": f"Bearer {settings.bothub_api_key}"}
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
                 return True
