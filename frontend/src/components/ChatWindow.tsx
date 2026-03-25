@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Cpu, ArrowDown } from 'lucide-react'
-import type { SourceInfo, StreamStatus, DebugInfo } from '../types'
+import type { SourceInfo, StreamStatus } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
 import { SourcesPanel } from './SourcesPanel'
-import { ChatDebugPanel } from './ChatDebugPanel'
 
 const SCROLL_THRESHOLD = 100
 const USER_INTERACTION_TTL = 200
@@ -119,14 +118,9 @@ export function ChatWindow({
   )
 
   const [panelSources, setPanelSources] = useState<{ sources: SourceInfo[]; sessionId?: number; messageId?: number } | null>(null)
-  const [panelDebug, setPanelDebug] = useState<{ debug: DebugInfo; sessionId?: number; messageId?: number } | null>(null)
 
   const handleShowSources = useCallback((sources: SourceInfo[], sessionId?: number, messageId?: number) => {
     setPanelSources({ sources, sessionId, messageId })
-  }, [])
-
-  const handleShowDebug = useCallback((debug: DebugInfo, sessionId?: number, messageId?: number) => {
-    setPanelDebug({ debug, sessionId, messageId })
   }, [])
 
   const { t } = useTranslation()
@@ -173,7 +167,6 @@ export function ChatWindow({
                   message={msg}
                   onRetry={msg.error_code && idx === messages.length - 1 ? onRetry : undefined}
                   onShowSources={handleShowSources}
-                  onShowDebug={handleShowDebug}
                 />
               ))}
               {status === 'streaming' && (
@@ -189,7 +182,6 @@ export function ChatWindow({
                   streamingContent={streamingContent}
                   streamingSources={streamingSources}
                   onShowSources={handleShowSources}
-                  onShowDebug={handleShowDebug}
                 />
               )}
               <div ref={bottomRef} />
@@ -204,15 +196,6 @@ export function ChatWindow({
         )}
 
         <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} onUploadClick={onUploadClick} />
-
-        {panelDebug && (
-          <ChatDebugPanel
-            debug={panelDebug.debug}
-            sessionId={panelDebug.sessionId}
-            messageId={panelDebug.messageId}
-            onClose={() => setPanelDebug(null)}
-          />
-        )}
       </div>
 
       {panelSources && (
