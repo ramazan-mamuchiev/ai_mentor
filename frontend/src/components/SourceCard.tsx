@@ -1,22 +1,20 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronUp, Eye } from 'lucide-react'
+import { Eye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { SourceInfo } from '../types'
 
 interface Props {
   source: SourceInfo
+  index: number
   onPreview?: (documentId: number, title: string) => void
 }
 
-export function SourceCard({ source, onPreview }: Props) {
+export function SourceCard({ source, index, onPreview }: Props) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
-
   const canPreview = !!source.document_id && !!onPreview
 
   return (
-    <div className={`source-card ${expanded ? 'expanded' : ''}`}>
-      <div className="source-card-header" onClick={() => setExpanded(prev => !prev)}>
+    <div className="source-card">
+      <div className="source-card-header">
         <div className="source-card-info">
           <div className="source-card-title">{source.doc_title}</div>
           <div className="source-card-path">{source.heading_path}</div>
@@ -29,19 +27,17 @@ export function SourceCard({ source, onPreview }: Props) {
           {canPreview && (
             <button
               className="source-card-preview-btn"
-              onClick={e => { e.stopPropagation(); onPreview!(source.document_id!, source.doc_title) }}
+              onClick={() => onPreview!(source.document_id!, source.doc_title)}
               data-tooltip={t('chat.sources.preview')}
             >
               <Eye size={14} />
             </button>
           )}
-          <div className="source-card-toggle">
-            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </div>
+          <span className="source-card-index">{index}</span>
         </div>
       </div>
-      {expanded && source.content_preview && (
-        <div className="source-card-preview">{source.content_preview}</div>
+      {source.content_preview && (
+        <div className="source-card-snippet">{source.content_preview}</div>
       )}
     </div>
   )

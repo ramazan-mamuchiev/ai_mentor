@@ -944,19 +944,13 @@
 
 .source-card:hover {
   border-color: var(--accent);
-}
-
-.source-card.expanded {
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .source-card-header {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  cursor: pointer;
-  user-select: none;
 }
 
 .source-card-info {
@@ -967,7 +961,7 @@
 .source-card-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -991,10 +985,19 @@
   background: var(--surface-hover);
 }
 
-.source-card-toggle {
+.source-card-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
   flex-shrink: 0;
-  color: var(--text-muted);
-  padding-top: 2px;
+  line-height: 1;
 }
 
 .source-card-title {
@@ -1021,19 +1024,16 @@
   margin-top: 2px;
 }
 
-.source-card-preview {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+.source-card-snippet {
+  margin-top: 8px;
   color: var(--text-secondary);
   font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
+  line-height: 1.5;
   word-break: break-word;
-  max-height: 300px;
-  overflow-y: auto;
-  user-select: text;
-  cursor: text;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ── Code blocks ── */

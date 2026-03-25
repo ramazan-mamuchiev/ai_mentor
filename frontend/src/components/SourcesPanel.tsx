@@ -107,6 +107,7 @@ export function SourcesPanel({ sources, onClose }: Props) {
             <SourceCard
               key={i}
               source={s}
+              index={i + 1}
               onPreview={(id, title) => setPreviewTarget({ id, title })}
             />
           ))}
