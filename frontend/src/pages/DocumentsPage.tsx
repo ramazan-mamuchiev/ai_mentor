@@ -160,11 +160,12 @@ interface Props {
   onUrlImportClick?: () => void
   refreshKey?: number
   productId?: number
+  headerSlot?: React.ReactNode
 }
 
 const DEFAULT_COLUMN_ORDER = ['title', 'format', 'status', 'size', 'chunks', 'product', 'uploaded', 'indexed', 'actions']
 
-export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, productId }: Props) {
+export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, productId, headerSlot }: Props) {
   const { t } = useTranslation()
   const [documents, setDocuments] = useState<DocumentListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -501,6 +502,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   return (
     <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
       <div className="docs-page-main">
+      {headerSlot}
       <div className="docs-header">
         <h1 className="docs-page-title">
           <FileText size={20} />

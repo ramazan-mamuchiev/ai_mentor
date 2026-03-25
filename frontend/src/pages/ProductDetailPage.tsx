@@ -53,26 +53,32 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
 
   if (!product) return null
 
-  return (
-    <div className="docs-page">
-      <div className="product-detail-header">
-        <button className="product-back-btn" onClick={() => navigate('/app/products')}>
-          <ArrowLeft size={18} />
-          {t('products.title')}
-        </button>
-        <h1 className="product-detail-title">
-          {product.name}
-          {product.manufacturer && <span className="product-manufacturer"> — {product.manufacturer}</span>}
-        </h1>
-        {product.firmware_versions.length > 0 && (
-          <div className="product-versions">
-            {product.firmware_versions.map(v => (
-              <span key={v} className="docs-format-badge">{v}</span>
-            ))}
-          </div>
-        )}
-      </div>
-      <DocumentsPage onUploadClick={handleUploadClick} onUrlImportClick={handleUrlImportClick} productId={product.id} />
+  const productHeader = (
+    <div className="product-detail-header">
+      <button className="product-back-btn" onClick={() => navigate('/app/products')}>
+        <ArrowLeft size={18} />
+        {t('products.title')}
+      </button>
+      <h1 className="product-detail-title">
+        {product.name}
+        {product.manufacturer && <span className="product-manufacturer"> — {product.manufacturer}</span>}
+      </h1>
+      {product.firmware_versions.length > 0 && (
+        <div className="product-versions">
+          {product.firmware_versions.map(v => (
+            <span key={v} className="docs-format-badge">{v}</span>
+          ))}
+        </div>
+      )}
     </div>
+  )
+
+  return (
+    <DocumentsPage
+      onUploadClick={handleUploadClick}
+      onUrlImportClick={handleUrlImportClick}
+      productId={product.id}
+      headerSlot={productHeader}
+    />
   )
 }
