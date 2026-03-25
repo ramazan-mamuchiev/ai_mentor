@@ -215,6 +215,10 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 {debug.status === 'error' && (
                   <span className="debug-error-badge">{t('debug.statusError')}</span>
                 )}
+              </>
+            )}
+            <div className="message-footer-actions">
+              {debug && (
                 <button
                   className="debug-toggle"
                   onClick={() => onShowDebug?.(debug, debug.session_id, debug.message_id)}
@@ -222,28 +226,28 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 >
                   <Bug size={12} />
                 </button>
-              </>
-            )}
-            <button
-              className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
-              onClick={handleCopy}
-              data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
-              aria-label={t('chat.copy')}
-              type="button"
-            >
-              {copied ? <Check size={12} /> : <Copy size={12} />}
-            </button>
-            {onShareMessage && message.id > 0 && (
+              )}
               <button
-                className="message-action-btn share-action-btn"
-                onClick={() => onShareMessage(message.id)}
-                data-tooltip={t('share.shareAnswer')}
-                aria-label={t('share.shareAnswer')}
+                className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
+                onClick={handleCopy}
+                data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
+                aria-label={t('chat.copy')}
                 type="button"
               >
-                <Share2 size={12} />
+                {copied ? <Check size={12} /> : <Copy size={12} />}
               </button>
-            )}
+              {onShareMessage && message.id > 0 && (
+                <button
+                  className="message-action-btn share-action-btn"
+                  onClick={() => onShareMessage(message.id)}
+                  data-tooltip={t('share.shareAnswer')}
+                  aria-label={t('share.shareAnswer')}
+                  type="button"
+                >
+                  <Share2 size={12} />
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
