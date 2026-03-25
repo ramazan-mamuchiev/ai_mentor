@@ -4,13 +4,22 @@ import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './CodeBlock'
 import { fixBrokenTables } from '../utils/fixBrokenTables'
 
+function stripCitations(md: string): string {
+  let result = md
+  result = result.replace(/\[[\d,\s]+\]\([^)]*\)/g, '')
+  result = result.replace(/\[[\d,\s]+\](?!\()/g, '')
+  result = result.replace(/ {2,}/g, ' ')
+  result = result.replace(/ ([.,;:!?])/g, '$1')
+  return result
+}
+
 interface Props {
   content: string
   isStreaming?: boolean
 }
 
 export function MarkdownRenderer({ content, isStreaming }: Props) {
-  const processed = useMemo(() => fixBrokenTables(content), [content])
+  const processed = useMemo(() => stripCitations(fixBrokenTables(content)), [content])
 
   return (
     <div className={isStreaming ? 'streaming-content' : undefined}>
