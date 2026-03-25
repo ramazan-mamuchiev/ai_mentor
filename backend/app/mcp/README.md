@@ -121,7 +121,7 @@ Discover what products have indexed documentation. **Call this first** to see wh
 ## Architecture
 
 ```
-Cursor / AI IDE                    IPCodex Server
+Cursor / AI IDE                    Plexicode Server
 ┌──────────────┐                  ┌──────────────────────────┐
 │  Developer   │  MCP over HTTP   │  FastAPI + FastMCP       │
 │  asks AI to  │ ───────────────> │                          │

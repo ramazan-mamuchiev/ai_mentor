@@ -33,9 +33,9 @@ beforeEach(() => {
 })
 
 describe('Layout', () => {
-  it('renders sidebar with IPCodex title', () => {
+  it('renders sidebar with Plexicode title', () => {
     renderLayout()
-    expect(screen.getByText('IPCodex')).toBeInTheDocument()
+    expect(screen.getByText('Plexicode')).toBeInTheDocument()
   })
 
   it('renders children in main area', () => {

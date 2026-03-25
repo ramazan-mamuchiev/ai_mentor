@@ -28,7 +28,7 @@ function renderChatWindow(overrides: Partial<Parameters<typeof ChatWindow>[0]> =
 describe('ChatWindow', () => {
   it('shows empty state when no messages', () => {
     renderChatWindow()
-    expect(screen.getByText('IPCodex')).toBeInTheDocument()
+    expect(screen.getByText('Plexicode')).toBeInTheDocument()
     expect(screen.getByText(/Protocols speak/)).toBeInTheDocument()
   })
 
@@ -41,7 +41,7 @@ describe('ChatWindow', () => {
   it('shows branded empty state with badge and slogan', () => {
     renderChatWindow()
     expect(screen.getByText('AI Integration Platform')).toBeInTheDocument()
-    expect(screen.getByText('IPCodex')).toBeInTheDocument()
+    expect(screen.getByText('Plexicode')).toBeInTheDocument()
   })
 
   it('renders streaming message during streaming', () => {
