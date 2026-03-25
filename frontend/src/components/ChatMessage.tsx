@@ -130,30 +130,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
           </div>
         ) : (
           <div className="message-content">
-            {isUser && !isEditing && (
-              <div className="message-actions">
-                <button
-                  className="message-action-btn"
-                  onClick={handleCopy}
-                  data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
-                  aria-label={t('chat.copy')}
-                  type="button"
-                >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-                {onEditMessage && (
-                  <button
-                    className="message-action-btn"
-                    onClick={handleEditStart}
-                    data-tooltip={t('chat.edit')}
-                    aria-label={t('chat.edit')}
-                    type="button"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                )}
-              </div>
-            )}
             {isError ? (
               <div className="message-error">
                 <AlertTriangle size={16} />
@@ -177,6 +153,30 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 content={content}
                 isStreaming={isStreaming}
               />
+            )}
+          </div>
+        )}
+        {isUser && !isEditing && (
+          <div className="message-actions">
+            <button
+              className="message-action-btn"
+              onClick={handleCopy}
+              data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
+              aria-label={t('chat.copy')}
+              type="button"
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+            </button>
+            {onEditMessage && (
+              <button
+                className="message-action-btn"
+                onClick={handleEditStart}
+                data-tooltip={t('chat.edit')}
+                aria-label={t('chat.edit')}
+                type="button"
+              >
+                <Pencil size={12} />
+              </button>
             )}
           </div>
         )}
