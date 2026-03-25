@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     reindex_stale_timeout_sec: int = 300
     reindex_doc_timeout_sec: int = 600
 
-    llm_provider: str = "openai"  # "ollama" or "openai" (OpenAI-compatible: Gemini, GPT, etc.)
+    llm_provider: str = "gemini"  # "ollama", "gemini" (OpenAI-compatible), or "bothub"
     ollama_url: str = "http://ollama:11434"
     llm_model: str = "qwen2.5-coder:7b"
     llm_max_tokens: int = 8192
@@ -40,9 +40,15 @@ class Settings(BaseSettings):
     llm_timeout: int = 600
     llm_max_continuations: int = 3
 
+    # === Gemini (OpenAI-compatible) ===
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     gemini_api_key: str = ""
     openai_llm_model: str = "gemini-2.5-pro"
+
+    # === BotHub ===
+    bothub_api_key: str = ""
+    bothub_base_url: str = "https://api.bothub.ru/v1"
+    bothub_llm_model: str = "gpt-4.5-turbo"
 
     llm_reasoning_effort: str = "low"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 

@@ -100,8 +100,11 @@ services:
       EMBEDDING_MODEL_GEMINI: ${EMBEDDING_MODEL_GEMINI:-gemini-embedding-2-preview}
       EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-      LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
+      BOTHUB_API_KEY: ${BOTHUB_API_KEY:-}
+      BOTHUB_BASE_URL: ${BOTHUB_BASE_URL:-https://api.bothub.ru/v1}
+      BOTHUB_LLM_MODEL: ${BOTHUB_LLM_MODEL:-gpt-4.5-turbo}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.2}
       LLM_TIMEOUT: ${LLM_TIMEOUT:-600}

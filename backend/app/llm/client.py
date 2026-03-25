@@ -1,8 +1,9 @@
 """LLM client with streaming support for multiple providers.
 
 Supported providers:
-  - "ollama"  — local Ollama server (default)
-  - "openai"  — any OpenAI-compatible API (Gemini, GPT-4o, OpenRouter, etc.)
+  - "ollama"  — local Ollama server
+  - "gemini"  — Google Gemini API (OpenAI-compatible)
+  - "bothub"  — BotHub aggregator API (https://bothub.ru)
 """
 
 import asyncio
@@ -47,8 +48,10 @@ def _error_code_from_status(status_code: int) -> str:
 
 
 def _effective_model() -> str:
-    if settings.llm_provider == "openai":
+    if settings.llm_provider == "gemini":
         return settings.openai_llm_model
+    if settings.llm_provider == "bothub":
+        return settings.bothub_llm_model
     return settings.llm_model
 
 
@@ -68,8 +71,11 @@ async def stream_chat_completion(
     meta = metadata if metadata is not None else {}
     meta["provider"] = settings.llm_provider
 
-    if settings.llm_provider == "openai":
+    if settings.llm_provider == "gemini":
         async for token in _stream_openai_compatible(messages, model, temperature, max_tokens, meta):
+            yield token
+    elif settings.llm_provider == "bothub":
+        async for token in _stream_bothub(messages, model, temperature, max_tokens, meta):
             yield token
     else:
         async for token in _stream_ollama(messages, model, temperature, max_tokens, meta):
@@ -370,6 +376,131 @@ async def _stream_openai_compatible(
     _log_completion("openai-compatible", used_model, token_count, t0, first_token_ms)
 
 
+async def _stream_bothub(
+    messages: list[dict],
+    model: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    meta: dict | None = None,
+) -> AsyncGenerator[str, None]:
+    """Stream from BotHub API (https://bothub.ru).
+    
+    BotHub is an AI aggregator that provides access to multiple LLM models
+    through a unified OpenAI-compatible API.
+    """
+    model = model or settings.bothub_llm_model
+    temperature = temperature if temperature is not None else settings.llm_temperature
+    max_tokens = max_tokens or settings.llm_max_tokens
+    if meta is not None:
+        meta.update(model=model, temperature=temperature, max_tokens=max_tokens)
+
+    url = f"{settings.bothub_base_url.rstrip('/')}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {settings.bothub_api_key}",
+    }
+
+    payload: dict = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream_options": {"include_usage": True},
+    }
+
+    t0 = time.perf_counter()
+    token_count = 0
+    first_token_ms = 0.0
+
+    logger.info(
+        "LLM stream starting",
+        extra={
+            "provider": "bothub",
+            "model": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "prompt_messages": len(messages),
+            "base_url": settings.bothub_base_url,
+        },
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
+            async with client.stream("POST", url, json=payload, headers=headers) as response:
+                if response.status_code != 200:
+                    body = await response.aread()
+                    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+                    logger.error(
+                        "BotHub API error",
+                        extra={
+                            "status": response.status_code,
+                            "body": body.decode()[:500],
+                            "duration_ms": duration_ms,
+                        },
+                    )
+                    raise LLMError(
+                        response.status_code,
+                        _error_code_from_status(response.status_code),
+                        f"BotHub API returned {response.status_code}: {body.decode()[:200]}",
+                    )
+
+                finish_reason = "stop"
+                usage_data: dict | None = None
+                async for line in response.aiter_lines():
+                    stripped = line.strip()
+                    if not stripped or not stripped.startswith("data: "):
+                        continue
+                    data_str = stripped[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
+
+                    if data.get("usage"):
+                        usage_data = data["usage"]
+
+                    choices = data.get("choices", [])
+                    if not choices:
+                        continue
+                    fr = choices[0].get("finish_reason")
+                    if fr:
+                        finish_reason = fr
+                    delta = choices[0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        token_count += 1
+                        if token_count == 1:
+                            first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
+                        yield content
+
+    except LLMError:
+        raise
+    except httpx.ConnectError as e:
+        raise LLMError(0, "unreachable", f"BotHub API unreachable: {e}") from e
+    except httpx.TimeoutException as e:
+        raise LLMError(0, "timeout", f"BotHub API timeout: {e}") from e
+
+    if meta is not None:
+        meta["first_token_ms"] = first_token_ms
+        meta["finish_reason"] = finish_reason
+        if usage_data:
+            meta["usage"] = {
+                "prompt_tokens": usage_data.get("prompt_tokens", 0),
+                "completion_tokens": usage_data.get("completion_tokens", 0),
+                "total_tokens": usage_data.get("total_tokens", 0),
+            }
+        else:
+            meta["usage"] = {
+                "prompt_tokens": 0,
+                "completion_tokens": token_count,
+                "total_tokens": token_count,
+            }
+    _log_completion("bothub", model, token_count, t0, first_token_ms)
+
+
 def _log_completion(provider: str, model: str, token_count: int, t0: float, first_token_ms: float) -> None:
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     tokens_per_sec = round(token_count / (total_ms / 1000), 1) if total_ms > 0 else 0
@@ -388,8 +519,10 @@ def _log_completion(provider: str, model: str, token_count: int, t0: float, firs
 
 async def check_health() -> bool:
     """Check if the configured LLM provider is reachable."""
-    if settings.llm_provider == "openai":
-        return await _check_health_openai()
+    if settings.llm_provider == "gemini":
+        return await _check_health_gemini()
+    if settings.llm_provider == "bothub":
+        return await _check_health_bothub()
     return await _check_health_ollama()
 
 
@@ -411,9 +544,9 @@ async def _check_health_ollama() -> bool:
         return False
 
 
-async def _check_health_openai() -> bool:
+async def _check_health_gemini() -> bool:
     if not settings.gemini_api_key:
-        logger.warning("OpenAI-compatible API key not configured")
+        logger.warning("Gemini API key not configured")
         return False
     try:
         url = f"{settings.openai_base_url.rstrip('/')}/models"
@@ -422,8 +555,26 @@ async def _check_health_openai() -> bool:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
                 return True
-            logger.warning("OpenAI-compatible health check failed", extra={"status": resp.status_code})
+            logger.warning("Gemini API health check failed", extra={"status": resp.status_code})
             return resp.status_code < 500
     except Exception as e:
-        logger.warning("OpenAI-compatible API unreachable", extra={"error": str(e)})
+        logger.warning("Gemini API unreachable", extra={"error": str(e)})
+        return False
+
+
+async def _check_health_bothub() -> bool:
+    if not settings.bothub_api_key:
+        logger.warning("BotHub API key not configured")
+        return False
+    try:
+        url = f"{settings.bothub_base_url.rstrip('/')}/models"
+        headers = {"Authorization": f"Bearer {settings.bothub_api_key}"}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                return True
+            logger.warning("BotHub API health check failed", extra={"status": resp.status_code})
+            return resp.status_code < 500
+    except Exception as e:
+        logger.warning("BotHub API unreachable", extra={"error": str(e)})
         return False
