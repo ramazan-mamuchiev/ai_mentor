@@ -20,7 +20,7 @@ import {
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listProducts, deleteProduct, reingestProduct, cancelProductIngestion } from '../api/products'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ProductDebugPanel } from '../components/ProductDebugPanel'
+import { DocsRightPanel } from '../components/DocsRightPanel'
 import { ProductEditDialog } from '../components/ProductEditDialog'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
@@ -148,7 +148,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const [editTarget, setEditTarget] = useState<ProductListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<ProductListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<ProductListItem | null>(null)
-  const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
+  const [debugPanel, setDebugPanel] = useState<ProductListItem | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -203,13 +203,12 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     finally { setCancelTarget(null) }
   }, [cancelTarget, fetchProducts])
 
-  const toggleDebug = useCallback((id: number) => {
-    setDebugExpandedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const openDebug = useCallback((product: ProductListItem) => {
+    setDebugPanel(product)
+  }, [])
+
+  const closeDebug = useCallback(() => {
+    setDebugPanel(null)
   }, [])
 
   const formatCounts = useMemo(() => {
@@ -343,12 +342,12 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       cell: ({ row }) => {
         const p = row.original
-        const isDebugOpen = debugExpandedIds.has(p.id)
+        const isDebugOpen = debugPanel?.id === p.id
         return (
           <div className="docs-actions">
             <button
               className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
-              onClick={() => toggleDebug(p.id)}
+              onClick={() => openDebug(p)}
               data-tooltip={t('products.actions.debug')}
             >
               <Bug size={16} />
@@ -379,7 +378,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         )
       },
     },
-  ], [t, navigate, debugExpandedIds, toggleDebug])
+  ], [t, navigate, debugPanel, openDebug])
 
   const {
     table,
@@ -436,7 +435,8 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   }
 
   return (
-    <div className="docs-page">
+    <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
+      <div className="docs-page-main">
       <div className="docs-header">
         <h1 className="docs-page-title">
           <Box size={20} />
@@ -527,18 +527,18 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         removeGrouping={removeGrouping}
         toggleGrouping={toggleGrouping}
         resetSettings={handleResetAll}
-        renderExpandedRow={(row) => {
-          const p = row.original
-          if (!debugExpandedIds.has(p.id)) return null
-          return (
-            <ProductDebugPanel
-              manufacturerSlug={p.manufacturer_slug}
-              productSlug={p.slug}
-              onCollapse={() => toggleDebug(p.id)}
-            />
-          )
-        }}
       />
+      </div>
+
+      {debugPanel && (
+        <DocsRightPanel
+          mode="product"
+          manufacturerSlug={debugPanel.manufacturer_slug}
+          productSlug={debugPanel.slug}
+          productName={debugPanel.name}
+          onClose={closeDebug}
+        />
+      )}
 
       {deleteTarget && (
         <ConfirmDialog

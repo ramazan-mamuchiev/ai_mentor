@@ -290,6 +290,7 @@
   "docs.preview.largeFile": "This file is large ({{size}}). Rendering may slow down the browser.",
   "docs.preview.openAnyway": "Open anyway",
 
+  "docDebug.title": "Debug Info",
   "docDebug.file": "File",
   "docDebug.format": "Format",
   "docDebug.size": "Size",

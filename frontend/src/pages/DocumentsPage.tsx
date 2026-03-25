@@ -22,7 +22,7 @@ import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
-import { DocumentDebugPanel } from '../components/DocumentDebugPanel'
+import { DocsRightPanel } from '../components/DocsRightPanel'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
@@ -173,7 +173,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [cancelTarget, setCancelTarget] = useState<DocumentListItem | null>(null)
   const [previewTarget, setPreviewTarget] = useState<DocumentListItem | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
+  const [debugPanel, setDebugPanel] = useState<DocumentListItem | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -244,13 +244,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     finally { setCancelTarget(null) }
   }, [cancelTarget])
 
-  const toggleDebug = useCallback((docId: number) => {
-    setDebugExpandedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(docId)) next.delete(docId)
-      else next.add(docId)
-      return next
-    })
+  const openDebug = useCallback((doc: DocumentListItem) => {
+    setDebugPanel(doc)
+  }, [])
+
+  const closeDebug = useCallback(() => {
+    setDebugPanel(null)
   }, [])
 
   const formatCounts = useMemo(() => {
@@ -411,13 +410,13 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       enableGrouping: false,
       cell: ({ row }) => {
         const doc = row.original
-        const isDebugOpen = debugExpandedIds.has(doc.id)
+        const isDebugOpen = debugPanel?.id === doc.id
         return (
           <div className="docs-actions">
             {doc.status === 'ready' && (
               <button
                 className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
-                onClick={() => toggleDebug(doc.id)}
+                onClick={() => openDebug(doc)}
                 data-tooltip={t('docs.actions.debug')}
               >
                 <Bug size={16} />
@@ -445,7 +444,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         )
       },
     },
-  ], [t, handleDownload, debugExpandedIds, toggleDebug])
+  ], [t, handleDownload, debugPanel, openDebug])
 
   const {
     table,
@@ -500,7 +499,8 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   }
 
   return (
-    <div className="docs-page">
+    <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
+      <div className="docs-page-main">
       <div className="docs-header">
         <h1 className="docs-page-title">
           <FileText size={20} />
@@ -589,11 +589,6 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         removeGrouping={removeGrouping}
         toggleGrouping={toggleGrouping}
         resetSettings={handleResetAll}
-        renderExpandedRow={(row) => {
-          const docId = row.original?.id
-          if (docId == null || !debugExpandedIds.has(docId)) return null
-          return <DocumentDebugPanel documentId={docId} onCollapse={() => toggleDebug(docId)} />
-        }}
       />
 
       {/* Mobile: Cards */}
@@ -644,8 +639,8 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               <div className="docs-card-actions">
                 {doc.status === 'ready' && (
                   <button
-                    className={`docs-action-btn docs-debug-toggle${debugExpandedIds.has(doc.id) ? ' docs-debug-toggle--active' : ''}`}
-                    onClick={() => toggleDebug(doc.id)}
+                    className={`docs-action-btn docs-debug-toggle${debugPanel?.id === doc.id ? ' docs-debug-toggle--active' : ''}`}
+                    onClick={() => openDebug(doc)}
                     data-tooltip={t('docs.actions.debug')}
                   >
                     <Bug size={16} />
@@ -670,11 +665,6 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                   <Trash2 size={16} />
                 </button>
               </div>
-              {debugExpandedIds.has(doc.id) && (
-                <div style={{ marginTop: 8 }}>
-                  <DocumentDebugPanel documentId={doc.id} onCollapse={() => toggleDebug(doc.id)} />
-                </div>
-              )}
             </div>
           )})}
       </div>
@@ -723,6 +713,16 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           documentId={previewTarget.id}
           documentTitle={previewTarget.title}
           onClose={() => setPreviewTarget(null)}
+        />
+      )}
+      </div>
+
+      {debugPanel && (
+        <DocsRightPanel
+          mode="document"
+          documentId={debugPanel.id}
+          documentTitle={debugPanel.title}
+          onClose={closeDebug}
         />
       )}
     </div>

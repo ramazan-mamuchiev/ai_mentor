@@ -56,6 +56,18 @@
   overflow: hidden;
 }
 
+.docs-page--with-panel {
+  flex-direction: row;
+}
+
+.docs-page-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
 .docs-header {
   display: flex;
   align-items: center;
@@ -1993,6 +2005,45 @@ td:has(.docs-actions) {
 .docs-debug-toggle--active {
   opacity: 1;
   color: var(--accent);
+}
+
+/* Right panel doc-debug styles */
+.right-panel-doc-debug {
+  grid-template-columns: 1fr !important;
+  gap: 6px;
+}
+
+.right-panel-doc-debug .doc-debug-section {
+  padding: 6px 10px;
+  background: var(--surface);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.right-panel-doc-debug .doc-debug-section-title {
+  font-size: 9px;
+  margin-bottom: 3px;
+}
+
+.right-panel-doc-debug .doc-debug-row {
+  font-size: 11px;
+  gap: 6px;
+}
+
+.right-panel-doc-debug .doc-debug-row span {
+  font-size: 11px;
+}
+
+.right-panel-doc-debug .doc-debug-row code {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.docs-right-panel .doc-debug-loading,
+.docs-right-panel .doc-debug-error {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
 }
 
 .input-readonly {

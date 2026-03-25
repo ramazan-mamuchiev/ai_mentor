@@ -80,12 +80,11 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
   )
 }
 
-interface Props {
+interface ContentProps {
   documentId: number
-  onCollapse?: () => void
 }
 
-export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
+export function DocumentDebugContent({ documentId }: ContentProps) {
   const { t } = useTranslation()
   const [debug, setDebug] = useState<DocumentDebugInfo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -104,7 +103,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
 
   if (loading) {
     return (
-      <div className="debug-panel-box doc-debug-loading">
+      <div className="doc-debug-loading">
         <Loader2 size={16} className="spin-icon" />
       </div>
     )
@@ -112,7 +111,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
 
   if (error || !debug) {
     return (
-      <div className="debug-panel-box doc-debug-error">
+      <div className="doc-debug-error">
         {error || 'Failed to load debug info'}
       </div>
     )
@@ -129,8 +128,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
   ]
 
   return (
-    <DebugPanelWrapper onCollapse={onCollapse}>
-      <div className="doc-debug-grid">
+    <div className="doc-debug-grid right-panel-doc-debug">
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.file')}</div>
           <div className="doc-debug-row"><span>{t('docDebug.format')}</span><code>{debug.format}</code></div>
@@ -219,7 +217,19 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
           <div className="doc-debug-row"><span>{t('docDebug.product')}</span><code>{debug.product_name || '—'}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.firmware')}</span><code>{debug.firmware_version || '—'}</code></div>
         </div>
-      </div>
+    </div>
+  )
+}
+
+interface Props {
+  documentId: number
+  onCollapse?: () => void
+}
+
+export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
+  return (
+    <DebugPanelWrapper onCollapse={onCollapse}>
+      <DocumentDebugContent documentId={documentId} />
     </DebugPanelWrapper>
   )
 }

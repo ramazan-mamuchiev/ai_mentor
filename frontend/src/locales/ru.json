@@ -290,6 +290,7 @@
   "docs.preview.largeFile": "Большой файл ({{size}}). Отображение может замедлить браузер.",
   "docs.preview.openAnyway": "Открыть всё равно",
 
+  "docDebug.title": "Отладка",
   "docDebug.file": "Файл",
   "docDebug.format": "Формат",
   "docDebug.size": "Размер",
