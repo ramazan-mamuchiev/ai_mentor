@@ -4,6 +4,8 @@
 
 <max_response_tokens>8192</max_response_tokens>
 
+<rag_top_k>20</rag_top_k>
+
 <instructions>
 You are answering a general/overview question about a product, system, or technology.
 

@@ -25,14 +25,15 @@ _PROMPTS_DIR = Path(__file__).parent / "prompts"
 _TAG_RE = re.compile(r"<(\w+)>(.*?)</\1>", re.DOTALL)
 
 
-def _load_prompts() -> tuple[str, dict[str, str], dict[str, str], dict[str, int]]:
+def _load_prompts() -> tuple[str, dict[str, str], dict[str, str], dict[str, int], dict[str, int]]:
     """Scan prompts/ directory and build prompt registry.
 
-    Returns (base_prompt, type_prompts, classifier_hints, type_max_tokens) where:
+    Returns (base_prompt, type_prompts, classifier_hints, type_max_tokens, type_top_k) where:
     - base_prompt: contents of base.md
     - type_prompts: {query_type: full file content} for each type .md
     - classifier_hints: {query_type: hint text} for building the classify prompt
     - type_max_tokens: {query_type: max_tokens} from <max_response_tokens> tags
+    - type_top_k: {query_type: rag_top_k} from <rag_top_k> tags
     """
     base_path = _PROMPTS_DIR / "base.md"
     base = base_path.read_text(encoding="utf-8").strip() if base_path.exists() else ""
@@ -40,6 +41,7 @@ def _load_prompts() -> tuple[str, dict[str, str], dict[str, str], dict[str, int]
     type_prompts: dict[str, str] = {}
     hints: dict[str, str] = {}
     max_tokens_map: dict[str, int] = {}
+    top_k_map: dict[str, int] = {}
 
     for md_file in sorted(_PROMPTS_DIR.glob("*.md")):
         if md_file.stem in ("base", "README"):
@@ -61,15 +63,22 @@ def _load_prompts() -> tuple[str, dict[str, str], dict[str, str], dict[str, int]
             except ValueError:
                 logger.warning("Invalid <max_response_tokens> in %s: %s", md_file.name, tags["max_response_tokens"])
 
+        if "rag_top_k" in tags:
+            try:
+                top_k_map[qtype] = int(tags["rag_top_k"])
+            except ValueError:
+                logger.warning("Invalid <rag_top_k> in %s: %s", md_file.name, tags["rag_top_k"])
+
     logger.info(
-        "Loaded %d prompt types: %s (max_tokens: %s)",
+        "Loaded %d prompt types: %s (max_tokens: %s, top_k: %s)",
         len(type_prompts), ", ".join(sorted(type_prompts)),
         {k: v for k, v in sorted(max_tokens_map.items())},
+        {k: v for k, v in sorted(top_k_map.items())},
     )
-    return base, type_prompts, hints, max_tokens_map
+    return base, type_prompts, hints, max_tokens_map, top_k_map
 
 
-_BASE_PROMPT, _TYPE_PROMPTS, _CLASSIFIER_HINTS, _TYPE_MAX_TOKENS = _load_prompts()
+_BASE_PROMPT, _TYPE_PROMPTS, _CLASSIFIER_HINTS, _TYPE_MAX_TOKENS, _TYPE_TOP_K = _load_prompts()
 QUERY_TYPES = tuple(_TYPE_PROMPTS.keys())
 
 
@@ -573,6 +582,7 @@ async def build_rag_prompt(
             product_filter = auto_product
 
     type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
+    effective_top_k = _TYPE_TOP_K.get(query_type, settings.rag_top_k)
 
     t_rewrite = time.perf_counter()
     search_query = await _rewrite_query(query, history) if history else query
@@ -620,7 +630,7 @@ async def build_rag_prompt(
         product=product_filter if not is_explicit_lock else None,
         version=version_filter,
         doc_context=doc_context,
-        limit=settings.rag_top_k,
+        limit=effective_top_k,
         metadata=search_meta,
     )
     search_ms = round((time.perf_counter() - t_search) * 1000, 1)
@@ -630,7 +640,7 @@ async def build_rag_prompt(
         chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
 
     if not chunks and all_chunks_before_filter and not is_explicit_lock and (product_filter or auto_product):
-        chunks = all_chunks_before_filter[:settings.rag_top_k]
+        chunks = all_chunks_before_filter[:effective_top_k]
         logger.info(
             "Similarity fallback: product detected but all chunks below threshold, "
             "returning top chunks without threshold",
@@ -664,7 +674,7 @@ async def build_rag_prompt(
                 product=product_filter if not is_explicit_lock else None,
                 version=version_filter,
                 doc_context=doc_context,
-                limit=settings.rag_top_k,
+                limit=effective_top_k,
                 metadata=retry_meta,
             )
 
@@ -833,6 +843,7 @@ async def build_rag_prompt(
         "rephrase_ms": rephrase_ms,
         "rephrase_query": rephrase_query,
         "type_max_tokens": type_max_tokens,
+        "effective_top_k": effective_top_k,
         **classify_meta,
     }
 
