@@ -58,6 +58,7 @@
 
 .docs-page--with-panel {
   flex-direction: row;
+  height: 100%;
 }
 
 .docs-page-main {
