@@ -13,6 +13,7 @@
   "chat.searching": "Searching documentation & generating response...",
   "chat.sources": "Sources ({{count}})",
   "chat.sourcesPanel.title": "Sources ({{count}})",
+  "chat.debugPanel.title": "Debug Info",
   "chat.debug": "Debug info",
   "chat.stopped": "*⏹ Generation stopped*",
   "chat.error": "Error: {{message}}",
