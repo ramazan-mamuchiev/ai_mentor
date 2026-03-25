@@ -110,6 +110,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 value={editText}
                 onChange={handleEditInput}
                 onKeyDown={handleEditKeyDown}
+                placeholder={t('input.placeholder')}
                 rows={1}
               />
               <div className="message-edit-actions">
@@ -162,7 +163,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
         {isUser && !isEditing && (
           <div className="message-actions">
             <button
-              className="message-action-btn"
+              className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
               onClick={handleCopy}
               data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
               aria-label={t('chat.copy')}
@@ -194,7 +195,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             </button>
           </div>
         )}
-        {!isStreaming && !isUser && (message.duration_ms != null || debug) && (
+        {!isStreaming && !isUser && (
           <div className="message-footer">
             {message.duration_ms != null && (
               <span className="message-duration">
@@ -223,6 +224,15 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 </button>
               </>
             )}
+            <button
+              className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
+              onClick={handleCopy}
+              data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
+              aria-label={t('chat.copy')}
+              type="button"
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+            </button>
             {onShareMessage && message.id > 0 && (
               <button
                 className="message-action-btn share-action-btn"

@@ -451,6 +451,7 @@
   background: #3b82f6;
   color: #fff;
   border-radius: 18px 18px 4px 18px;
+  word-break: break-word;
 }
 
 [data-theme="dark"] .message.user .message-content {
@@ -496,6 +497,7 @@
   margin-top: 6px;
   font-size: 11px;
   color: var(--text-muted);
+  --footer-actions-opacity: 0;
 }
 
 .message-error {
@@ -613,6 +615,35 @@
   justify-content: flex-end;
   gap: 2px;
   margin-top: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.message:hover .message-actions,
+.message-actions:focus-within {
+  opacity: 1;
+}
+
+.message:hover .message-footer {
+  --footer-actions-opacity: 1;
+}
+
+.message-footer .message-action-btn {
+  opacity: var(--footer-actions-opacity);
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.message-footer:focus-within .message-action-btn {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .message-actions {
+    opacity: 1;
+  }
+  .message-footer .message-action-btn {
+    opacity: 1;
+  }
 }
 
 .message-action-btn {
@@ -639,6 +670,10 @@
   outline-offset: 1px;
 }
 
+.message-action-btn--copied {
+  color: var(--success, #22c55e) !important;
+}
+
 /* ── Message edit mode ── */
 .message.user:has(.message-edit-mode) .message-body {
   flex: 1 1 auto;
@@ -648,6 +683,12 @@
 .message-edit-mode {
   display: flex;
   flex-direction: column;
+  animation: edit-mode-in 0.2s ease-out;
+}
+
+@keyframes edit-mode-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .message-edit-wrapper {
@@ -684,6 +725,10 @@
 
 .message-edit-textarea:focus {
   outline: none;
+}
+
+.message-edit-textarea::placeholder {
+  color: var(--text-muted);
 }
 
 .message-edit-actions {
