@@ -3,7 +3,6 @@ import { AlertTriangle, Bot, Bug, FileSearch, Loader2, RefreshCw, User } from 'l
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { MarkdownPreviewModal } from './MarkdownPreviewModal'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 
 function formatTimestamp(iso: string): string {
@@ -190,7 +189,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
   const isWaiting = isStreaming && !content
   const isError = !!message.error_code
   const [debugExpanded, setDebugExpanded] = useState(false)
-  const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
   const debug = message.debug
 
   return (
@@ -223,7 +221,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               content={content}
               isStreaming={isStreaming}
               sources={sources}
-              onDocumentPreview={(docId, title) => setPreviewTarget({ id: docId, title })}
             />
           )}
         </div>
@@ -271,13 +268,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
         )}
         {debugExpanded && debug && <DebugPanel debug={debug} onCollapse={() => setDebugExpanded(false)} />}
       </div>
-      {previewTarget && (
-        <MarkdownPreviewModal
-          documentId={previewTarget.id}
-          documentTitle={previewTarget.title}
-          onClose={() => setPreviewTarget(null)}
-        />
-      )}
     </div>
   )
 }
