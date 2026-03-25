@@ -10,6 +10,8 @@ Language detection uses Gemini (same API key as embeddings) between passes.
 import logging
 import os
 import re
+import shutil
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
@@ -72,12 +74,20 @@ def _find_ocr_pages(
 
 
 
-def _convert_page_range_with_retry(file_path: str, page_range: list[int]) -> str:
+def _convert_page_range_with_retry(
+    file_path: str,
+    page_range: list[int],
+    image_path: str | None = None,
+) -> str:
     """Convert pages with retry logic. Top-level for pickle serialisation."""
     _logger = logging.getLogger(__name__)
     for attempt in range(1, MAX_RETRIES + 2):
         try:
-            return pymupdf4llm.to_markdown(file_path, pages=page_range)
+            kwargs: dict = {"pages": page_range}
+            if image_path:
+                kwargs["write_images"] = True
+                kwargs["image_path"] = image_path
+            return pymupdf4llm.to_markdown(file_path, **kwargs)
         except Exception as exc:
             if attempt > MAX_RETRIES:
                 _logger.error(
@@ -164,6 +174,11 @@ def convert_pdf(
         _convert_cb = None
         _ocr_cb = None
 
+    image_temp_dir: str | None = None
+    if will_ocr:
+        image_temp_dir = tempfile.mkdtemp(prefix="pdf_ocr_images_")
+        logger.debug("Created temp dir for OCR images", extra={"path": image_temp_dir})
+
     logger.info(
         "PDF conversion started",
         extra={
@@ -178,117 +193,135 @@ def convert_pdf(
     page_ranges = _split_page_ranges(page_count, pages_per_chunk=chunk_size)
     total_ranges = len(page_ranges)
 
-    if page_count > PARALLEL_THRESHOLD:
-        num_workers = min(MAX_PDF_WORKERS, page_count)
-        results: dict[int, str] = {}
-        completed_count = 0
+    try:
+        if page_count > PARALLEL_THRESHOLD:
+            num_workers = min(MAX_PDF_WORKERS, page_count)
+            results: dict[int, str] = {}
+            completed_count = 0
+
+            logger.info(
+                "Parallel PDF conversion",
+                extra={
+                    "workers": num_workers,
+                    "total_chunks": total_ranges,
+                    "pages_per_chunk": chunk_size,
+                },
+            )
+
+            with ThreadPoolExecutor(max_workers=num_workers) as executor:
+                future_to_idx = {
+                    executor.submit(
+                        _convert_page_range_with_retry, file_path, pr, image_temp_dir
+                    ): idx
+                    for idx, pr in enumerate(page_ranges)
+                }
+                for future in as_completed(future_to_idx):
+                    idx = future_to_idx[future]
+                    results[idx] = future.result()
+                    completed_count += 1
+                    if _convert_cb is not None:
+                        _convert_cb(completed_count / total_ranges)
+
+            md_text = "\n\n".join(results[i] for i in range(total_ranges))
+        else:
+            page_results: dict[int, str] = {}
+            for idx, pr in enumerate(page_ranges):
+                for attempt in range(1, MAX_RETRIES + 2):
+                    try:
+                        kwargs: dict = {"pages": pr}
+                        if image_temp_dir:
+                            kwargs["write_images"] = True
+                            kwargs["image_path"] = image_temp_dir
+                        page_results[idx] = pymupdf4llm.to_markdown(file_path, **kwargs)
+                        break
+                    except Exception as exc:
+                        if attempt > MAX_RETRIES:
+                            raise
+                        logger.warning(
+                            "PDF page conversion failed, retrying",
+                            extra={"page": pr[0], "attempt": attempt, "error": str(exc)[:200]},
+                        )
+                        time.sleep(attempt)
+                if _convert_cb is not None:
+                    _convert_cb((idx + 1) / total_ranges)
+
+            md_text = "\n\n".join(page_results[i] for i in range(total_ranges))
+
+        convert_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        metadata: dict = {
+            "pages": page_count,
+            "file_size_bytes": file_size,
+            "convert_ms": convert_ms,
+            "ocr_applied": False,
+            "parallel_workers": min(MAX_PDF_WORKERS, page_count) if page_count > PARALLEL_THRESHOLD else 1,
+        }
+
+        if will_ocr:
+            try:
+                detected_langs = detect_language_via_gemini(md_text)
+                metadata["detected_languages"] = detected_langs
+                metadata["detected_languages_str"] = ",".join(detected_langs)
+
+                t_ocr = time.perf_counter()
+                md_text, ocr_stats = enrich_markdown_with_ocr_files(
+                    md_text, languages=detected_langs,
+                    progress_callback=_ocr_cb,
+                )
+                ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
+                metadata["ocr_applied"] = True
+                metadata["ocr_ms"] = ocr_ms
+                metadata["ocr_stats"] = ocr_stats
+                logger.info(
+                    "OCR completed",
+                    extra={
+                        "ocr_ms": ocr_ms,
+                        "detected_languages": detected_langs,
+                        "ocr_images_total": ocr_stats["ocr_images_total"],
+                        "ocr_images_success": ocr_stats["ocr_images_success"],
+                        "ocr_images_failed": ocr_stats["ocr_images_failed"],
+                    },
+                )
+            except Exception as ocr_exc:
+                ocr_error_msg = f"{type(ocr_exc).__name__}: {ocr_exc}"
+                logger.error(
+                    "OCR phase failed entirely — continuing without OCR",
+                    extra={
+                        "file": os.path.basename(file_path),
+                        "error": ocr_error_msg[:500],
+                    },
+                    exc_info=True,
+                )
+                metadata["ocr_applied"] = False
+                metadata["ocr_error"] = ocr_error_msg[:500]
+                metadata["ocr_stats"] = {
+                    "ocr_images_total": 0,
+                    "ocr_images_success": 0,
+                    "ocr_images_empty": 0,
+                    "ocr_images_failed": 0,
+                }
+
+        total_ms = round((time.perf_counter() - t0) * 1000, 1)
+        metadata["total_ms"] = total_ms
 
         logger.info(
-            "Parallel PDF conversion",
+            "PDF conversion completed",
             extra={
-                "workers": num_workers,
-                "total_chunks": total_ranges,
-                "pages_per_chunk": chunk_size,
+                "file": os.path.basename(file_path), "pages": page_count,
+                "total_ms": total_ms, "ocr_applied": metadata["ocr_applied"],
+                "md_length": len(md_text),
             },
         )
 
-        with ThreadPoolExecutor(max_workers=num_workers) as executor:
-            future_to_idx = {
-                executor.submit(_convert_page_range_with_retry, file_path, pr): idx
-                for idx, pr in enumerate(page_ranges)
-            }
-            for future in as_completed(future_to_idx):
-                idx = future_to_idx[future]
-                results[idx] = future.result()
-                completed_count += 1
-                if _convert_cb is not None:
-                    _convert_cb(completed_count / total_ranges)
+        return md_text, metadata
 
-        md_text = "\n\n".join(results[i] for i in range(total_ranges))
-    else:
-        page_results: dict[int, str] = {}
-        for idx, pr in enumerate(page_ranges):
-            for attempt in range(1, MAX_RETRIES + 2):
-                try:
-                    page_results[idx] = pymupdf4llm.to_markdown(file_path, pages=pr)
-                    break
-                except Exception as exc:
-                    if attempt > MAX_RETRIES:
-                        raise
-                    logger.warning(
-                        "PDF page conversion failed, retrying",
-                        extra={"page": pr[0], "attempt": attempt, "error": str(exc)[:200]},
-                    )
-                    time.sleep(attempt)
-            if _convert_cb is not None:
-                _convert_cb((idx + 1) / total_ranges)
-
-        md_text = "\n\n".join(page_results[i] for i in range(total_ranges))
-
-    convert_ms = round((time.perf_counter() - t0) * 1000, 1)
-
-    metadata: dict = {
-        "pages": page_count,
-        "file_size_bytes": file_size,
-        "convert_ms": convert_ms,
-        "ocr_applied": False,
-        "parallel_workers": min(MAX_PDF_WORKERS, page_count) if page_count > PARALLEL_THRESHOLD else 1,
-    }
-
-    if will_ocr:
-        try:
-            detected_langs = detect_language_via_gemini(md_text)
-            metadata["detected_languages"] = detected_langs
-            metadata["detected_languages_str"] = ",".join(detected_langs)
-
-            t_ocr = time.perf_counter()
-            md_text, ocr_stats = enrich_markdown_with_ocr_files(
-                md_text, languages=detected_langs,
-                progress_callback=_ocr_cb,
-            )
-            ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
-            metadata["ocr_applied"] = True
-            metadata["ocr_ms"] = ocr_ms
-            metadata["ocr_stats"] = ocr_stats
-            logger.info(
-                "OCR completed",
-                extra={
-                    "ocr_ms": ocr_ms,
-                    "detected_languages": detected_langs,
-                    "ocr_images_total": ocr_stats["ocr_images_total"],
-                    "ocr_images_success": ocr_stats["ocr_images_success"],
-                    "ocr_images_failed": ocr_stats["ocr_images_failed"],
-                },
-            )
-        except Exception as ocr_exc:
-            ocr_error_msg = f"{type(ocr_exc).__name__}: {ocr_exc}"
-            logger.error(
-                "OCR phase failed entirely — continuing without OCR",
-                extra={
-                    "file": os.path.basename(file_path),
-                    "error": ocr_error_msg[:500],
-                },
-                exc_info=True,
-            )
-            metadata["ocr_applied"] = False
-            metadata["ocr_error"] = ocr_error_msg[:500]
-            metadata["ocr_stats"] = {
-                "ocr_images_total": 0,
-                "ocr_images_success": 0,
-                "ocr_images_empty": 0,
-                "ocr_images_failed": 0,
-            }
-
-    total_ms = round((time.perf_counter() - t0) * 1000, 1)
-    metadata["total_ms"] = total_ms
-
-    logger.info(
-        "PDF conversion completed",
-        extra={
-            "file": os.path.basename(file_path), "pages": page_count,
-            "total_ms": total_ms, "ocr_applied": metadata["ocr_applied"],
-            "md_length": len(md_text),
-        },
-    )
-
-    return md_text, metadata
+    finally:
+        if image_temp_dir and os.path.isdir(image_temp_dir):
+            try:
+                shutil.rmtree(image_temp_dir)
+                logger.debug("Cleaned up OCR temp dir", extra={"path": image_temp_dir})
+            except Exception as cleanup_exc:
+                logger.warning(
+                    "Failed to clean up OCR temp dir",
+                    extra={"path": image_temp_dir, "error": str(cleanup_exc)[:200]},
+                )
