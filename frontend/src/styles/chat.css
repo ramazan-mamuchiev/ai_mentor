@@ -406,7 +406,7 @@
 
 .message {
   max-width: 800px;
-  margin: 0 auto 10px;
+  margin: 0 auto 6px;
   display: flex;
 }
 
@@ -484,7 +484,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 11px;
   color: var(--text-muted);
 }
