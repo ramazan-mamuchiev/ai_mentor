@@ -102,30 +102,32 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
       <div className="message-body">
         {isEditing ? (
           <div className="message-edit-mode">
-            <textarea
-              ref={editTextareaRef}
-              className="message-edit-textarea"
-              value={editText}
-              onChange={handleEditInput}
-              onKeyDown={handleEditKeyDown}
-              rows={1}
-            />
-            <div className="message-edit-actions">
-              <button
-                className="message-edit-cancel"
-                onClick={handleEditCancel}
-                type="button"
-              >
-                {t('chat.editCancel')}
-              </button>
-              <button
-                className="message-edit-send"
-                onClick={handleEditSend}
-                disabled={!editText.trim() || editText.trim() === content}
-                type="button"
-              >
-                {t('chat.editSend')}
-              </button>
+            <div className="message-edit-wrapper">
+              <textarea
+                ref={editTextareaRef}
+                className="message-edit-textarea"
+                value={editText}
+                onChange={handleEditInput}
+                onKeyDown={handleEditKeyDown}
+                rows={1}
+              />
+              <div className="message-edit-actions">
+                <button
+                  className="message-edit-cancel"
+                  onClick={handleEditCancel}
+                  type="button"
+                >
+                  {t('chat.editCancel')}
+                </button>
+                <button
+                  className="message-edit-send"
+                  onClick={handleEditSend}
+                  disabled={!editText.trim() || editText.trim() === content}
+                  type="button"
+                >
+                  {t('chat.editSend')}
+                </button>
+              </div>
             </div>
           </div>
         ) : (
