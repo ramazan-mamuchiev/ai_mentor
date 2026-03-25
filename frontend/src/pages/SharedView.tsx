@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Bot, ExternalLink, Loader2 } from 'lucide-react'
+import { ExternalLink, Loader2 } from 'lucide-react'
 import { getSharedContent } from '../api/share'
 import type { SharedContentResponse } from '../types'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
@@ -91,11 +91,6 @@ export function SharedView() {
       <div className="shared-view-messages">
         {data.messages.map((msg, idx) => (
           <div key={idx} className={`shared-message ${msg.role}`}>
-            {msg.role === 'assistant' && (
-              <div className="message-avatar">
-                <Bot size={16} />
-              </div>
-            )}
             <div className="shared-message-body">
               {msg.role === 'user' ? (
                 <div className="shared-message-content">{msg.content}</div>

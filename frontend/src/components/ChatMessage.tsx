@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bot, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react'
+import { AlertTriangle, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -95,11 +95,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
 
   return (
     <div className={`message ${message.role}`}>
-      {!isUser && (
-        <div className="message-avatar">
-          <Bot size={16} />
-        </div>
-      )}
       <div className="message-body">
         {isEditing ? (
           <div className="message-edit-mode">
