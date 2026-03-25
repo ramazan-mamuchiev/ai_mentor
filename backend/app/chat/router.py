@@ -107,8 +107,12 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
             and chat_session.product_filter
         ):
             product = await session.scalar(
-                select(Product).where(Product.name == chat_session.product_filter)
+                select(Product).where(Product.name.ilike(chat_session.product_filter))
             )
+            if not product:
+                product = await session.scalar(
+                    select(Product).where(Product.name.ilike(f"%{chat_session.product_filter}%"))
+                )
             if product:
                 chat_session.product_id = product.id
                 logger.info(
@@ -117,6 +121,15 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
                         "session_id": session_id,
                         "product_filter": chat_session.product_filter,
                         "product_id": product.id,
+                        "product_name": product.name,
+                    },
+                )
+            else:
+                logger.warning(
+                    "Could not resolve product_id for explicit lock - product not found",
+                    extra={
+                        "session_id": session_id,
+                        "product_filter": chat_session.product_filter,
                     },
                 )
 

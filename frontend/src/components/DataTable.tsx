@@ -184,6 +184,7 @@ export function DataTable<TData>({
                                   className="docs-col-settings-btn"
                                   onClick={() => setShowColumnSettings(v => !v)}
                                   data-tooltip={t('docs.columns.settings')}
+                                  data-tooltip-align="right"
                                 >
                                   <Settings2 size={14} />
                                 </button>

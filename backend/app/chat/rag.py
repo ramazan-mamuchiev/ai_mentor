@@ -493,13 +493,22 @@ async def build_rag_prompt(
     effective_product_id = product_id
     if product_filter_source == "explicit" and product_id is None and product_filter:
         product = await db.scalar(
-            sa_select(Product).where(Product.name == product_filter)
+            sa_select(Product).where(Product.name.ilike(product_filter))
         )
+        if not product:
+            product = await db.scalar(
+                sa_select(Product).where(Product.name.ilike(f"%{product_filter}%"))
+            )
         if product:
             effective_product_id = product.id
             logger.info(
                 "Resolved product_id from product_filter for explicit lock",
-                extra={"product_filter": product_filter, "product_id": effective_product_id},
+                extra={"product_filter": product_filter, "product_id": effective_product_id, "product_name": product.name},
+            )
+        else:
+            logger.warning(
+                "Could not resolve product_id for explicit lock - product not found",
+                extra={"product_filter": product_filter},
             )
 
     is_explicit_lock = product_filter_source == "explicit" and effective_product_id is not None
