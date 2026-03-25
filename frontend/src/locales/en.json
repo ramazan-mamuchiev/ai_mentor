@@ -276,7 +276,7 @@
   "docs.cancel.message": "The indexing process for this document will be stopped. You can restart it later.",
   "docs.cancel.confirm": "Stop",
   "docs.cancel.dismiss": "Continue",
-  "docs.actions.previewMd": "Preview Markdown",
+  "docs.actions.previewMd": "Preview",
   "docs.actions.debug": "Debug info",
   "docs.source.from": "from {{source}}",
 

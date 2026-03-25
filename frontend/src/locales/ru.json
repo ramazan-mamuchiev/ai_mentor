@@ -276,7 +276,7 @@
   "docs.cancel.message": "Процесс индексирования этого документа будет остановлен. Вы сможете запустить его позже.",
   "docs.cancel.confirm": "Остановить",
   "docs.cancel.dismiss": "Продолжить",
-  "docs.actions.previewMd": "Просмотр Markdown",
+  "docs.actions.previewMd": "Просмотр",
   "docs.actions.debug": "Отладочная информация",
   "docs.source.from": "из {{source}}",
 
