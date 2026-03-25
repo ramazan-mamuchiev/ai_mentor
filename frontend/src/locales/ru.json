@@ -349,6 +349,14 @@
   "docDebug.ragLastUsed": "Последнее использование",
   "docDebug.collapse": "Свернуть",
 
+  "docDebug.documentsSummary": "Сводка по документам",
+  "docDebug.totalDocs": "Всего документов",
+  "docDebug.totalSize": "Общий размер",
+  "docDebug.avgSize": "Средний размер",
+  "docDebug.avgChunksPerDoc": "Среднее чанков/док",
+  "docDebug.formats": "Форматы",
+  "docDebug.statuses": "Статусы",
+
   "docDebug.identifiers": "Идентификаторы",
   "docDebug.documentId": "ID документа",
   "docDebug.product": "Продукт",

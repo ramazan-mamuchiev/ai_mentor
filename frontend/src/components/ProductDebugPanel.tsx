@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getProductDebug } from '../api/products'
 import type { ProductDebugInfo } from '../types'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
-
-type SortKey = 'title' | 'format' | 'file_size_bytes' | 'total_chunks' | 'status' | 'indexed_at'
-type SortDir = 'asc' | 'desc'
 
 function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
@@ -28,14 +25,6 @@ function fmtBytes(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return `${(bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
-}
-
-function formatDateTime(iso: string | null): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  return `${date}\n${time}`
 }
 
 function TimingBar({ stages }: { stages: { label: string; ms: number | null; color: string }[] }) {
@@ -68,84 +57,6 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
   )
 }
 
-function DocSortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  if (!active) return <ArrowUpDown size={12} className="docs-sort-icon" />
-  if (dir === 'asc') return <ArrowUp size={12} className="docs-sort-icon docs-sort-icon--active" />
-  return <ArrowDown size={12} className="docs-sort-icon docs-sort-icon--active" />
-}
-
-function DocsSortableTable({
-  documents,
-  sortKey,
-  sortDir,
-  onSort,
-}: {
-  documents: ProductDebugInfo['documents']
-  sortKey: SortKey | null
-  sortDir: SortDir
-  onSort: (key: SortKey) => void
-}) {
-  const { t } = useTranslation()
-
-  const sorted = useMemo(() => {
-    if (!sortKey) return documents
-    const list = [...documents]
-    const dir = sortDir === 'asc' ? 1 : -1
-    list.sort((a, b) => {
-      const av = a[sortKey]
-      const bv = b[sortKey]
-      if (av == null && bv == null) return 0
-      if (av == null) return 1
-      if (bv == null) return -1
-      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
-      return String(av).localeCompare(String(bv)) * dir
-    })
-    return list
-  }, [documents, sortKey, sortDir])
-
-  const cols: { key: SortKey; label: string }[] = [
-    { key: 'title', label: 'Title' },
-    { key: 'format', label: 'Format' },
-    { key: 'file_size_bytes', label: 'Size' },
-    { key: 'total_chunks', label: 'Chunks' },
-    { key: 'status', label: 'Status' },
-    { key: 'indexed_at', label: t('docs.table.indexed') },
-  ]
-
-  return (
-    <table className="doc-debug-docs-table">
-      <thead>
-        <tr>
-          {cols.map(col => (
-            <th
-              key={col.key}
-              className="doc-debug-th--sortable"
-              onClick={() => onSort(col.key)}
-            >
-              <span className="doc-debug-th-label">
-                {col.label}
-                <DocSortIcon active={sortKey === col.key} dir={sortDir} />
-              </span>
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.map(doc => (
-          <tr key={doc.id}>
-            <td>{doc.title}</td>
-            <td><span className="docs-format">{doc.format}</span></td>
-            <td>{fmtBytes(doc.file_size_bytes)}</td>
-            <td>{fmt(doc.total_chunks)}</td>
-            <td><span className={`docs-status docs-status--${doc.status}`}>{doc.status}</span></td>
-            <td><span className="docs-date docs-date--twoline">{formatDateTime(doc.indexed_at)}</span></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
 interface ContentProps {
   manufacturerSlug: string
   productSlug: string
@@ -156,9 +67,6 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
   const [debug, setDebug] = useState<ProductDebugInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [docsExpanded, setDocsExpanded] = useState(false)
-  const [sortKey, setSortKey] = useState<SortKey | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   useEffect(() => {
     let cancelled = false
@@ -170,6 +78,32 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [manufacturerSlug, productSlug])
+
+  const docsSummary = useMemo(() => {
+    if (!debug?.documents.length) return null
+    const docs = debug.documents
+    const byStatus = new Map<string, number>()
+    const byFormat = new Map<string, number>()
+    let totalSize = 0
+    let totalChunks = 0
+
+    for (const d of docs) {
+      byStatus.set(d.status, (byStatus.get(d.status) ?? 0) + 1)
+      byFormat.set(d.format, (byFormat.get(d.format) ?? 0) + 1)
+      totalSize += d.file_size_bytes
+      totalChunks += d.total_chunks
+    }
+
+    return {
+      count: docs.length,
+      byStatus: [...byStatus.entries()].sort((a, b) => b[1] - a[1]),
+      byFormat: [...byFormat.entries()].sort((a, b) => b[1] - a[1]),
+      totalSize,
+      totalChunks,
+      avgSize: totalSize / docs.length,
+      avgChunks: totalChunks / docs.length,
+    }
+  }, [debug?.documents])
 
   if (loading) {
     return (
@@ -242,29 +176,18 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
           <div className="doc-debug-row"><span>{t('docDebug.ragLastUsed')}</span><code>{debug.last_rag_used_at ? new Date(debug.last_rag_used_at).toLocaleString() : '—'}</code></div>
         </div>
 
-        {debug.documents.length > 0 && (
-          <div className="doc-debug-section doc-debug-section--wide">
-            <button
-              className="doc-debug-section-toggle"
-              onClick={() => setDocsExpanded(v => !v)}
-            >
-              {docsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <span className="doc-debug-section-title">Documents ({debug.documents.length})</span>
-            </button>
-            {docsExpanded && (
-              <DocsSortableTable
-                documents={debug.documents}
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={(key) => {
-                  if (sortKey === key) {
-                    setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
-                  } else {
-                    setSortKey(key)
-                    setSortDir('asc')
-                  }
-                }}
-              />
+        {docsSummary && (
+          <div className="doc-debug-section">
+            <div className="doc-debug-section-title">{t('docDebug.documentsSummary')}</div>
+            <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.totalDocs')}</span><code>{fmt(docsSummary.count)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.totalSize')}</span><code>{fmtBytes(docsSummary.totalSize)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.avgSize')}</span><code>{fmtBytes(docsSummary.avgSize)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.avgChunksPerDoc')}</span><code>{docsSummary.avgChunks.toFixed(1)}</code></div>
+            {docsSummary.byFormat.length > 0 && (
+              <div className="doc-debug-row"><span>{t('docDebug.formats')}</span><code>{docsSummary.byFormat.map(([f, c]) => `${f} (${c})`).join(', ')}</code></div>
+            )}
+            {docsSummary.byStatus.length > 0 && (
+              <div className="doc-debug-row"><span>{t('docDebug.statuses')}</span><code>{docsSummary.byStatus.map(([s, c]) => `${s} (${c})`).join(', ')}</code></div>
             )}
           </div>
         )}

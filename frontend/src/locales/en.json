@@ -349,6 +349,14 @@
   "docDebug.ragLastUsed": "Last used",
   "docDebug.collapse": "Collapse",
 
+  "docDebug.documentsSummary": "Documents Summary",
+  "docDebug.totalDocs": "Total documents",
+  "docDebug.totalSize": "Total size",
+  "docDebug.avgSize": "Avg size",
+  "docDebug.avgChunksPerDoc": "Avg chunks/doc",
+  "docDebug.formats": "Formats",
+  "docDebug.statuses": "Statuses",
+
   "docDebug.identifiers": "Identifiers",
   "docDebug.documentId": "Document ID",
   "docDebug.product": "Product",
