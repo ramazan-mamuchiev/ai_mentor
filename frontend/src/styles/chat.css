@@ -497,7 +497,6 @@
   margin-top: 6px;
   font-size: 11px;
   color: var(--text-muted);
-  --footer-actions-opacity: 0;
 }
 
 .message-error {
@@ -615,35 +614,6 @@
   justify-content: flex-end;
   gap: 2px;
   margin-top: 2px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.message:hover .message-actions,
-.message-actions:focus-within {
-  opacity: 1;
-}
-
-.message:hover .message-footer {
-  --footer-actions-opacity: 1;
-}
-
-.message-footer .message-action-btn {
-  opacity: var(--footer-actions-opacity);
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
-}
-
-.message-footer:focus-within .message-action-btn {
-  opacity: 1;
-}
-
-@media (hover: none) {
-  .message-actions {
-    opacity: 1;
-  }
-  .message-footer .message-action-btn {
-    opacity: 1;
-  }
 }
 
 .message-action-btn {
