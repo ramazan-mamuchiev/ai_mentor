@@ -116,6 +116,7 @@ export function ChatApp() {
   }, [activeSessionId, sendMessage, setMessages, refreshSessions])
 
   const handleProductChange = useCallback(async (selection: {
+    productId: number | null
     productName: string | null
     manufacturer: string | null
     versionFilter: string | null
@@ -124,12 +125,14 @@ export function ChatApp() {
 
     try {
       const updated = await updateSession(activeSessionId, {
+        product_id: selection.productId,
         product_filter: selection.productName,
         version_filter: selection.versionFilter,
       })
       setSessions(prev => prev.map(s =>
         s.id === activeSessionId ? {
           ...s,
+          product_id: updated.product_id,
           product_filter: updated.product_filter,
           product_filter_source: updated.product_filter_source,
           version_filter: updated.version_filter,
@@ -144,12 +147,14 @@ export function ChatApp() {
     if (!activeSessionId) return
     try {
       const updated = await updateSession(activeSessionId, {
+        product_id: null,
         product_filter: '',
         version_filter: '',
       })
       setSessions(prev => prev.map(s =>
         s.id === activeSessionId ? {
           ...s,
+          product_id: updated.product_id,
           product_filter: updated.product_filter,
           product_filter_source: updated.product_filter_source,
           version_filter: updated.version_filter,
@@ -270,6 +275,7 @@ export function ChatApp() {
       {showProductPicker && (
         <ProductPicker
           value={{
+            productId: activeSession?.product_id ?? null,
             productName: activeSession?.product_filter ?? null,
             manufacturer: null,
             versionFilter: activeSession?.version_filter ?? null,

@@ -138,6 +138,7 @@ async def _bm25_search(
 async def search_documents(
     session: AsyncSession,
     query: str,
+    product_id: int | None = None,
     product: str | None = None,
     version: str | None = None,
     doc_context: str | None = None,
@@ -149,6 +150,10 @@ async def search_documents(
 
     Returns list of dicts with content, heading_path, similarity, product info.
     Fetches extra candidates and deduplicates to handle multiple uploads of the same doc.
+
+    Args:
+        product_id: Exact product ID filter (preferred, used for explicit lock).
+        product: Product name filter (fallback, partial match via ILIKE).
     """
     t0 = time.perf_counter()
 
@@ -166,7 +171,10 @@ async def search_documents(
     where_clauses = ["d.status = 'ready'"]
     params: dict = {"embedding": embedding_str, "limit": fetch_limit}
 
-    if product:
+    if product_id is not None:
+        where_clauses.append("d.product_id = :product_id")
+        params["product_id"] = product_id
+    elif product:
         where_clauses.append("p.name ILIKE '%' || :product || '%'")
         params["product"] = product
     if version:
@@ -207,7 +215,7 @@ async def search_documents(
 
     logger.debug(
         "Search query executing",
-        extra={"query": query, "product": product, "version": version, "embed_ms": embed_ms},
+        extra={"query": query, "product_id": product_id, "product": product, "version": version, "embed_ms": embed_ms},
     )
 
     t_db = time.perf_counter()
@@ -281,7 +289,7 @@ async def search_documents(
     top_similarity = results[0]["similarity"] if results else 0.0
 
     log_extra = {
-        "query": query, "product": product, "version": version,
+        "query": query, "product_id": product_id, "product": product, "version": version,
         "result_count": result_count, "top_similarity": top_similarity,
         "duration_ms": duration_ms, "embed_ms": embed_ms, "db_ms": db_ms,
         "bm25_ms": bm25_ms, "rerank_ms": rerank_ms,
@@ -348,6 +356,7 @@ async def _update_rag_hit_counts(session: AsyncSession, results: list[dict]) -> 
 async def search_endpoint(
     session: AsyncSession,
     endpoint: str,
+    product_id: int | None = None,
     product: str | None = None,
 ) -> list[dict]:
     """Find documentation for a specific API endpoint path.
@@ -362,7 +371,10 @@ async def search_endpoint(
     ]
     params: dict = {"endpoint": endpoint}
 
-    if product:
+    if product_id is not None:
+        where_clauses.append("d.product_id = :product_id")
+        params["product_id"] = product_id
+    elif product:
         where_clauses.append("p.name ILIKE '%' || :product || '%'")
         params["product"] = product
 
@@ -393,7 +405,7 @@ async def search_endpoint(
         logger.info(
             "Endpoint search: exact match",
             extra={
-                "endpoint": endpoint, "product": product,
+                "endpoint": endpoint, "product_id": product_id, "product": product,
                 "result_count": len(rows), "match_type": "exact",
                 "duration_ms": duration_ms,
             },
@@ -412,6 +424,6 @@ async def search_endpoint(
 
     logger.warning(
         "Endpoint search: no exact match, falling back to vector search",
-        extra={"endpoint": endpoint, "product": product},
+        extra={"endpoint": endpoint, "product_id": product_id, "product": product},
     )
-    return await search_documents(session, f"API endpoint {endpoint}", product=product, limit=5)
+    return await search_documents(session, f"API endpoint {endpoint}", product_id=product_id, product=product, limit=5)

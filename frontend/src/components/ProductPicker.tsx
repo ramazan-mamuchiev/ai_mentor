@@ -5,6 +5,7 @@ import { listProducts } from '../api/products'
 import type { ProductListItem } from '../types'
 
 interface ProductSelection {
+  productId: number | null
   productName: string | null
   manufacturer: string | null
   versionFilter: string | null
@@ -66,9 +67,10 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
   const handleSelect = useCallback(
     (product: ProductListItem | null) => {
       if (!product) {
-        onChange({ productName: null, manufacturer: null, versionFilter: null })
+        onChange({ productId: null, productName: null, manufacturer: null, versionFilter: null })
       } else {
         onChange({
+          productId: product.id,
           productName: product.name,
           manufacturer: product.manufacturer,
           versionFilter: null,

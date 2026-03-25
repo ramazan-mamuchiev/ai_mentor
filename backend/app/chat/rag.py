@@ -394,12 +394,17 @@ async def build_rag_prompt(
     db: AsyncSession,
     query: str,
     history: list[ChatMessage] | None = None,
+    product_id: int | None = None,
     product_filter: str | None = None,
     version_filter: str | None = None,
     doc_context: str | None = None,
     product_filter_source: str | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """Build a complete prompt with RAG context for the LLM.
+
+    Args:
+        product_id: Exact product ID for filtering (used when product is locked).
+        product_filter: Product name for display and fallback filtering.
 
     Returns:
         Tuple of (messages for LLM, source chunks for the client, rag_debug dict).
@@ -482,10 +487,14 @@ async def build_rag_prompt(
 
     t_search = time.perf_counter()
     search_meta: dict = {}
+
+    is_explicit_lock = product_filter_source == "explicit" and product_id is not None
+
     chunks = await search_documents(
         session=db,
         query=search_query,
-        product=product_filter,
+        product_id=product_id if is_explicit_lock else None,
+        product=product_filter if not is_explicit_lock else None,
         version=version_filter,
         doc_context=doc_context,
         limit=settings.rag_top_k,
@@ -497,7 +506,7 @@ async def build_rag_prompt(
     if settings.rag_min_similarity > 0:
         chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
 
-    if not chunks and all_chunks_before_filter and (product_filter or auto_product):
+    if not chunks and all_chunks_before_filter and not is_explicit_lock and (product_filter or auto_product):
         chunks = all_chunks_before_filter[:settings.rag_top_k]
         logger.info(
             "Similarity fallback: product detected but all chunks below threshold, "
@@ -528,7 +537,8 @@ async def build_rag_prompt(
             retry_chunks = await search_documents(
                 session=db,
                 query=rephrased,
-                product=product_filter,
+                product_id=product_id if is_explicit_lock else None,
+                product=product_filter if not is_explicit_lock else None,
                 version=version_filter,
                 doc_context=doc_context,
                 limit=settings.rag_top_k,
@@ -602,16 +612,23 @@ async def build_rag_prompt(
             hint = ""
 
         scope_hint = ""
-        if product_filter_source == "explicit" and product_filter:
-            scope_hint = (
-                f"⚠️ SCOPE RESTRICTION: This conversation is locked to product \"{product_filter}\". "
-                f"The user asked about a topic that may reference other products. "
-                f"You MUST answer ONLY using the provided source chunks (which are all from \"{product_filter}\"). "
-                f"Do NOT use your general knowledge to answer about other products. "
-                f"If the sources do not contain relevant information, say: "
-                f"\"В документации {product_filter} нет информации по этому вопросу. "
-                f"Попробуйте переключить фильтр продукта.\"\n\n"
-            )
+        if is_explicit_lock:
+            if not chunks:
+                scope_hint = (
+                    f"⚠️ CRITICAL SCOPE RESTRICTION: This conversation is LOCKED to product \"{product_filter}\". "
+                    f"The search was restricted to this product only and found NO relevant information. "
+                    f"You MUST respond with: \"В документации {product_filter} нет информации по этому вопросу. "
+                    f"Возможно, вы спрашиваете о другом продукте. Снимите блокировку продукта или переключитесь на нужный продукт.\"\n\n"
+                )
+            else:
+                scope_hint = (
+                    f"⚠️ SCOPE RESTRICTION: This conversation is locked to product \"{product_filter}\". "
+                    f"You MUST answer ONLY using the provided source chunks (which are all from \"{product_filter}\"). "
+                    f"Do NOT use your general knowledge to answer about other products. "
+                    f"If the sources do not contain relevant information, say: "
+                    f"\"В документации {product_filter} нет информации по этому вопросу. "
+                    f"Попробуйте переключить фильтр продукта.\"\n\n"
+                )
 
         citation_reminder = "Important: Do NOT include any citation links, footnotes, or [N] references in your answer.\n\n"
         messages.append({"role": "user", "content": f"{hint}{scope_hint}{citation_reminder}Based on the documentation above, answer the following question:\n\n{query}"})
@@ -656,7 +673,9 @@ async def build_rag_prompt(
         "history_messages": len(history) if history else 0,
         "prompt_messages": len(messages),
         "embedding_model": _embedding_model_name(),
+        "product_id": product_id,
         "product_filter": product_filter,
+        "product_filter_source": product_filter_source,
         "version_filter": version_filter,
         "doc_context": doc_context,
         "auto_product": auto_product,

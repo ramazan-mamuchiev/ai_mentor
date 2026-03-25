@@ -151,6 +151,7 @@ class ChatSession(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_filter_source: Mapped[str | None] = mapped_column(Text, nullable=True)
     version_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -164,6 +165,7 @@ class ChatSession(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    product: Mapped["Product | None"] = relationship()
     messages: Mapped[list["ChatMessage"]] = relationship(
         back_populates="session", cascade="all, delete-orphan", order_by="ChatMessage.created_at"
     )

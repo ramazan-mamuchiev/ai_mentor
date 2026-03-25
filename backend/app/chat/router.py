@@ -42,8 +42,9 @@ async def create_session(req: CreateSessionRequest):
     async with async_session() as session:
         chat_session = ChatSession(
             title=req.title,
+            product_id=req.product_id,
             product_filter=req.product_filter,
-            product_filter_source=req.product_filter_source or ("explicit" if req.product_filter else None),
+            product_filter_source=req.product_filter_source or ("explicit" if req.product_id or req.product_filter else None),
             version_filter=req.version_filter,
         )
         session.add(chat_session)
@@ -54,6 +55,7 @@ async def create_session(req: CreateSessionRequest):
             "Chat session created",
             extra={
                 "session_id": chat_session.id,
+                "product_id": req.product_id,
                 "product_filter": req.product_filter,
                 "product_filter_source": chat_session.product_filter_source,
             },
@@ -62,6 +64,7 @@ async def create_session(req: CreateSessionRequest):
         return SessionResponse(
             id=chat_session.id,
             title=chat_session.title,
+            product_id=chat_session.product_id,
             product_filter=chat_session.product_filter,
             product_filter_source=chat_session.product_filter_source,
             version_filter=chat_session.version_filter,
@@ -81,14 +84,18 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
             raise HTTPException(status_code=404, detail="Session not found")
 
         product_changed = (
-            req.product_filter is not None
-            and (req.product_filter or None) != chat_session.product_filter
+            (req.product_id is not None and req.product_id != chat_session.product_id)
+            or (req.product_filter is not None and (req.product_filter or None) != chat_session.product_filter)
         )
 
+        if req.product_id is not None:
+            chat_session.product_id = req.product_id or None
+            chat_session.product_filter_source = "explicit" if req.product_id else None
         if req.product_filter is not None:
             new_product = req.product_filter or None
             chat_session.product_filter = new_product
-            chat_session.product_filter_source = "explicit" if new_product else None
+            if not req.product_id:
+                chat_session.product_filter_source = "explicit" if new_product else None
         if req.product_filter_source is not None:
             chat_session.product_filter_source = req.product_filter_source or None
         if req.version_filter is not None:
@@ -110,6 +117,7 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
             "Chat session updated",
             extra={
                 "session_id": session_id,
+                "product_id": chat_session.product_id,
                 "product_filter": chat_session.product_filter,
                 "product_filter_source": chat_session.product_filter_source,
                 "version_filter": chat_session.version_filter,
@@ -119,6 +127,7 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
         return SessionResponse(
             id=chat_session.id,
             title=chat_session.title,
+            product_id=chat_session.product_id,
             product_filter=chat_session.product_filter,
             product_filter_source=chat_session.product_filter_source,
             version_filter=chat_session.version_filter,
@@ -149,6 +158,7 @@ async def list_sessions():
             select(
                 ChatSession.id,
                 ChatSession.title,
+                ChatSession.product_id,
                 ChatSession.product_filter,
                 ChatSession.product_filter_source,
                 ChatSession.version_filter,
@@ -168,6 +178,7 @@ async def list_sessions():
             SessionListItem(
                 id=row.id,
                 title=row.title,
+                product_id=row.product_id,
                 product_filter=row.product_filter,
                 product_filter_source=row.product_filter_source,
                 version_filter=row.version_filter,
@@ -210,6 +221,7 @@ async def get_session(session_id: int):
         return SessionDetailResponse(
             id=chat_session.id,
             title=chat_session.title,
+            product_id=chat_session.product_id,
             product_filter=chat_session.product_filter,
             product_filter_source=chat_session.product_filter_source,
             version_filter=chat_session.version_filter,
@@ -300,6 +312,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     db=db,
                     query=req.content,
                     history=list(history),
+                    product_id=chat_session.product_id,
                     product_filter=chat_session.product_filter,
                     version_filter=chat_session.version_filter,
                     doc_context=chat_session.doc_context,

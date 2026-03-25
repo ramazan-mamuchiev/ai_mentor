@@ -83,6 +83,7 @@ export interface ChatMessage {
 export interface ChatSession {
   id: number
   title: string | null
+  product_id: number | null
   product_filter: string | null
   product_filter_source: string | null
   version_filter: string | null
@@ -95,6 +96,7 @@ export interface ChatSession {
 export interface SessionDetail {
   id: number
   title: string | null
+  product_id: number | null
   product_filter: string | null
   product_filter_source: string | null
   version_filter: string | null

@@ -192,6 +192,10 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Migration: add product_id FK for strict product filtering
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS product_id INT REFERENCES products(id) ON DELETE SET NULL;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS product_filter_source TEXT;
+
 -- Chat messages
 CREATE TABLE IF NOT EXISTS chat_messages (
     id SERIAL PRIMARY KEY,

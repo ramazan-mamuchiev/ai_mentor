@@ -7,12 +7,14 @@ from pydantic import BaseModel, Field
 
 class CreateSessionRequest(BaseModel):
     title: str | None = None
+    product_id: int | None = None
     product_filter: str | None = None
     product_filter_source: str | None = None
     version_filter: str | None = None
 
 
 class UpdateSessionRequest(BaseModel):
+    product_id: int | None = None
     product_filter: str | None = None
     product_filter_source: str | None = None
     version_filter: str | None = None
@@ -21,6 +23,7 @@ class UpdateSessionRequest(BaseModel):
 class SessionResponse(BaseModel):
     id: int
     title: str | None
+    product_id: int | None = None
     product_filter: str | None
     product_filter_source: str | None = None
     version_filter: str | None
@@ -33,6 +36,7 @@ class SessionResponse(BaseModel):
 class SessionListItem(BaseModel):
     id: int
     title: str | None
+    product_id: int | None = None
     product_filter: str | None
     product_filter_source: str | None = None
     version_filter: str | None
@@ -71,6 +75,7 @@ class ChatMessageResponse(BaseModel):
 class SessionDetailResponse(BaseModel):
     id: int
     title: str | None
+    product_id: int | None = None
     product_filter: str | None
     product_filter_source: str | None = None
     version_filter: str | None
