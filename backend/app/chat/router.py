@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
 from app.billing.usage_writer import write_usage_log
-from app.chat.rag import build_rag_prompt
+from app.chat.rag import build_rag_prompt, summarize_history
 from app.chat.schemas import (
     ChatMessageResponse,
     CreateSessionRequest,
@@ -339,16 +339,39 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 )
                 history = msgs_result.scalars().all()
 
+                current_summary = chat_session.history_summary
+                history_list = list(history)
+                if (
+                    settings.summary_enabled
+                    and len(history_list) > settings.summary_threshold
+                ):
+                    buffer_size = settings.rag_history_messages
+                    old_messages = history_list[:-buffer_size] if buffer_size < len(history_list) else []
+                    new_to_summarize = [
+                        m for m in old_messages
+                        if chat_session.summary_up_to_message_id is None
+                        or m.id > chat_session.summary_up_to_message_id
+                    ]
+                    if new_to_summarize:
+                        updated_summary = await summarize_history(
+                            new_to_summarize, existing_summary=current_summary,
+                        )
+                        if updated_summary:
+                            chat_session.history_summary = updated_summary
+                            chat_session.summary_up_to_message_id = old_messages[-1].id
+                            current_summary = updated_summary
+
                 t_rag = time.perf_counter()
                 messages, sources, rag_debug = await build_rag_prompt(
                     db=db,
                     query=req.content,
-                    history=list(history),
+                    history=history_list,
                     product_id=chat_session.product_id,
                     product_filter=chat_session.product_filter,
                     version_filter=chat_session.version_filter,
                     doc_context=chat_session.doc_context,
                     product_filter_source=chat_session.product_filter_source,
+                    history_summary=current_summary,
                 )
                 rag_ms = round((time.perf_counter() - t_rag) * 1000, 1)
 

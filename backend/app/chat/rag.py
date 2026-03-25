@@ -119,7 +119,7 @@ def _embedding_model_name() -> str:
 
 
 from app.chat.prompts import REWRITE_PROMPT as _REWRITE_PROMPT_IMPORTED
-from app.chat.prompts import REPHRASE_FOR_SEARCH_PROMPT, SYSTEM_PROMPT_NO_DOCS
+from app.chat.prompts import REPHRASE_FOR_SEARCH_PROMPT, SUMMARIZE_HISTORY_PROMPT, SYSTEM_PROMPT_NO_DOCS
 
 async def _classify_query(db: AsyncSession, query: str) -> tuple[str, str | None, dict]:
     """Classify user query and detect product using a single LLM call.
@@ -285,17 +285,23 @@ def _build_history_messages(
     history: list[ChatMessage],
     max_messages: int,
     max_tokens: int | None = None,
+    summary: str | None = None,
 ) -> list[dict]:
     """Convert DB message history to LLM message format.
 
     Limits by message count first, then trims from the oldest if the total
     token budget is exceeded — keeping the most recent messages.
+    When *summary* is provided, it is prepended as a synthetic user/assistant
+    pair so the LLM has context from the older part of the conversation.
     """
     recent = history[-max_messages:] if len(history) > max_messages else list(history)
 
     if max_tokens and max_tokens > 0:
         result: list[dict] = []
         budget = max_tokens
+        if summary:
+            summary_tokens = _estimate_tokens(summary) + 20
+            budget -= summary_tokens
         for msg in reversed(recent):
             est = _estimate_tokens(msg.content)
             if est > budget:
@@ -303,9 +309,17 @@ def _build_history_messages(
             budget -= est
             result.append({"role": msg.role, "content": msg.content})
         result.reverse()
-        return result
+    else:
+        result = [{"role": msg.role, "content": msg.content} for msg in recent]
 
-    return [{"role": msg.role, "content": msg.content} for msg in recent]
+    if summary:
+        prefix = [
+            {"role": "user", "content": f"<conversation_summary>\n{summary}\n</conversation_summary>"},
+            {"role": "assistant", "content": "Understood, I have the context of our previous conversation."},
+        ]
+        result = prefix + result
+
+    return result
 
 
 _REWRITE_PROMPT = _REWRITE_PROMPT_IMPORTED
@@ -392,6 +406,69 @@ async def _rephrase_for_retry(query: str) -> str | None:
     return None
 
 
+async def summarize_history(
+    messages: list[ChatMessage],
+    existing_summary: str | None = None,
+) -> str | None:
+    """Summarize older chat messages into a compact summary using Flash.
+
+    If *existing_summary* is provided, the LLM merges it with new messages
+    instead of re-summarizing everything from scratch.
+    Returns the summary text, or None on failure.
+    """
+    if not messages:
+        return existing_summary
+
+    parts: list[str] = []
+    if existing_summary:
+        parts.append(f"Previous summary:\n{existing_summary}\n")
+    parts.append("New messages:")
+    for msg in messages:
+        role_label = "User" if msg.role == "user" else "Assistant"
+        parts.append(f"{role_label}: {msg.content}")
+
+    user_content = "\n".join(parts)
+    llm_messages = [
+        {"role": "system", "content": SUMMARIZE_HISTORY_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+    try:
+        t0 = time.perf_counter()
+        url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+        payload = {
+            "model": settings.summary_model,
+            "messages": llm_messages,
+            "temperature": 0,
+            "max_tokens": settings.summary_max_tokens,
+            "reasoning_effort": "none",
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {settings.gemini_api_key}",
+        }
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+
+        summary = data["choices"][0]["message"]["content"].strip()
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+        logger.info(
+            "History summarized",
+            extra={
+                "messages_count": len(messages),
+                "had_existing_summary": bool(existing_summary),
+                "summary_length": len(summary),
+                "summary_ms": elapsed_ms,
+            },
+        )
+        return summary
+    except Exception:
+        logger.warning("History summarization failed, continuing without summary", exc_info=True)
+        return existing_summary
+
+
 async def build_rag_prompt(
     db: AsyncSession,
     query: str,
@@ -401,12 +478,14 @@ async def build_rag_prompt(
     version_filter: str | None = None,
     doc_context: str | None = None,
     product_filter_source: str | None = None,
+    history_summary: str | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """Build a complete prompt with RAG context for the LLM.
 
     Args:
         product_id: Exact product ID for filtering (used when product is locked).
         product_filter: Product name for display and fallback filtering.
+        history_summary: Compressed summary of older conversation messages.
 
     Returns:
         Tuple of (messages for LLM, source chunks for the client, rag_debug dict).
@@ -425,11 +504,13 @@ async def build_rag_prompt(
         if history:
             messages.extend(_build_history_messages(
                 history, settings.rag_history_messages, settings.rag_history_max_tokens,
+                summary=history_summary,
             ))
         messages.append({"role": "user", "content": query})
 
         history_msgs = _build_history_messages(
             history, settings.rag_history_messages, settings.rag_history_max_tokens,
+            summary=history_summary,
         ) if history else []
         history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
 
@@ -624,6 +705,7 @@ async def build_rag_prompt(
         if history:
             messages.extend(_build_history_messages(
                 history, settings.rag_history_messages, settings.rag_history_max_tokens,
+                summary=history_summary,
             ))
         messages.append({"role": "user", "content": query})
     else:
@@ -633,6 +715,7 @@ async def build_rag_prompt(
         if history:
             messages.extend(_build_history_messages(
                 history, settings.rag_history_messages, settings.rag_history_max_tokens,
+                summary=history_summary,
             ))
 
         if chunks:
@@ -698,6 +781,7 @@ async def build_rag_prompt(
     query_tokens = _estimate_tokens(query)
     history_msgs = _build_history_messages(
         history, settings.rag_history_messages, settings.rag_history_max_tokens,
+        summary=history_summary,
     ) if history else []
     history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
     system_prompt_tokens = _estimate_tokens(system_prompt) + _estimate_tokens(context_block)

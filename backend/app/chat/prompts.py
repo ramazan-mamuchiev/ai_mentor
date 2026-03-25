@@ -19,6 +19,14 @@ REPHRASE_FOR_SEARCH_PROMPT = (
     "Return ONLY the rephrased query, nothing else."
 )
 
+SUMMARIZE_HISTORY_PROMPT = (
+    "Summarize the following conversation concisely. "
+    "Preserve key facts, decisions, product names, technical details, and user preferences. "
+    "Focus on information that would be needed to continue the conversation. "
+    "If a previous summary is provided, merge it with the new messages. "
+    "Return ONLY the summary, 3-5 sentences max."
+)
+
 SYSTEM_PROMPT_NO_DOCS = """\
 <role>
 You are IPCodex AI — a technical assistant that helps developers integrate security devices and systems.

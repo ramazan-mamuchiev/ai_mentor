@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     rag_history_messages: int = 6
     rag_history_max_tokens: int = 8000
 
+    summary_enabled: bool = True
+    summary_threshold: int = 8
+    summary_model: str = "gemini-2.5-flash"
+    summary_max_tokens: int = 500
+
     rerank_enabled: bool = True
     rerank_candidates: int = 20
     rerank_model: str = "gemini-2.5-flash"

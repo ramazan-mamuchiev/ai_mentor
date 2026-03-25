@@ -196,6 +196,10 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS product_id INT REFERENCES products(id) ON DELETE SET NULL;
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS product_filter_source TEXT;
 
+-- Summary buffer memory (conversation history summarization)
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS history_summary TEXT;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS summary_up_to_message_id INT;
+
 -- Chat messages
 CREATE TABLE IF NOT EXISTS chat_messages (
     id SERIAL PRIMARY KEY,

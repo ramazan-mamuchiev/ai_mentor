@@ -156,6 +156,8 @@ class ChatSession(Base):
     product_filter_source: Mapped[str | None] = mapped_column(Text, nullable=True)
     version_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
     doc_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    history_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_up_to_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
