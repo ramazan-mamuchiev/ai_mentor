@@ -617,17 +617,20 @@ async def build_rag_prompt(
                 scope_hint = (
                     f"⚠️ CRITICAL SCOPE RESTRICTION: This conversation is LOCKED to product \"{product_filter}\". "
                     f"The search was restricted to this product only and found NO relevant information. "
-                    f"You MUST respond with: \"В документации {product_filter} нет информации по этому вопросу. "
-                    f"Возможно, вы спрашиваете о другом продукте. Снимите блокировку продукта или переключитесь на нужный продукт.\"\n\n"
+                    f"You MUST respond EXACTLY with this message (in Russian, preserve formatting):\n\n"
+                    f"\"В документации {product_filter} нет информации по этому вопросу.\n\n"
+                    f"💡 Чат работает в режиме фокусировки на продукте «{product_filter}». "
+                    f"Чтобы получить информацию по другим продуктам, снимите блокировку — нажмите на «LOCKED» рядом с названием продукта.\"\n\n"
                 )
             else:
                 scope_hint = (
                     f"⚠️ SCOPE RESTRICTION: This conversation is locked to product \"{product_filter}\". "
                     f"You MUST answer ONLY using the provided source chunks (which are all from \"{product_filter}\"). "
                     f"Do NOT use your general knowledge to answer about other products. "
-                    f"If the sources do not contain relevant information, say: "
-                    f"\"В документации {product_filter} нет информации по этому вопросу. "
-                    f"Попробуйте переключить фильтр продукта.\"\n\n"
+                    f"If the sources do not contain relevant information, respond with:\n\n"
+                    f"\"В документации {product_filter} нет информации по этому вопросу.\n\n"
+                    f"💡 Чат работает в режиме фокусировки на продукте «{product_filter}». "
+                    f"Чтобы искать по другим продуктам, снимите блокировку.\"\n\n"
                 )
 
         citation_reminder = "Important: Do NOT include any citation links, footnotes, or [N] references in your answer.\n\n"

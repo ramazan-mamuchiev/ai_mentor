@@ -74,6 +74,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
                 }}
                 aria-label={t('session.options')}
                 data-tooltip={t('session.options')}
+                data-tooltip-align="right"
               >
                 <MoreHorizontal size={16} />
               </button>
