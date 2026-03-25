@@ -530,6 +530,71 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         toggleGrouping={toggleGrouping}
         resetSettings={handleResetAll}
       />
+
+      {/* Mobile: Cards */}
+      <div className="docs-cards">
+        {products
+          .filter(p => {
+            if (formatFilter.size > 0 && !p.formats.some(f => formatFilter.has(f.format))) return false
+            if (statusFilter.size > 0 && !statusFilter.has(getProductStatus(p))) return false
+            if (!globalFilter) return true
+            const q = globalFilter.toLowerCase()
+            return (
+              p.name.toLowerCase().includes(q) ||
+              (p.display_name || '').toLowerCase().includes(q) ||
+              p.manufacturer.toLowerCase().includes(q) ||
+              p.version.toLowerCase().includes(q)
+            )
+          })
+          .map(p => (
+            <div
+              className="docs-card"
+              key={p.firmware_version_id ? `${p.id}-${p.firmware_version_id}` : p.id}
+              onClick={() => navigate(`/app/products/${p.manufacturer_slug}/${p.slug}`)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="docs-card-header">
+                <div className="docs-card-title">
+                  {p.display_name || p.name}
+                  {p.manufacturer && <div className="docs-filename">{p.manufacturer}</div>}
+                </div>
+                <ProductStatusBadge product={p} onCancel={() => setCancelTarget(p)} />
+              </div>
+              <div className="docs-card-meta">
+                <span>{t('products.table.documents')}: {p.total_documents}</span>
+                <span>{formatBytes(p.total_file_size_bytes)}</span>
+              </div>
+              {p.formats.length > 0 && (
+                <div className="docs-card-meta" style={{ marginTop: 4 }}>
+                  {p.formats.map(f => (
+                    <span key={f.format} className="docs-format-badge">
+                      {f.format.toUpperCase()} {f.count > 1 && <span className="docs-format-count">{f.count}</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="docs-card-actions" onClick={e => e.stopPropagation()}>
+                <button
+                  className={`docs-action-btn docs-debug-toggle${debugPanel?.id === p.id ? ' docs-debug-toggle--active' : ''}`}
+                  onClick={() => openDebug(p)}
+                  data-tooltip={t('products.actions.debug')}
+                >
+                  <Bug size={16} />
+                </button>
+                <button className="docs-action-btn" onClick={() => setReingestTarget(p)} data-tooltip={t('products.actions.reindex')}>
+                  <RefreshCw size={16} />
+                </button>
+                <button className="docs-action-btn" onClick={() => setEditTarget(p)} data-tooltip={t('products.actions.edit')}>
+                  <Pencil size={16} />
+                </button>
+                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)} data-tooltip={t('products.actions.delete')}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          ))
+        }
+      </div>
       </div>
 
       {debugPanel && (
