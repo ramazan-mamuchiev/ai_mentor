@@ -1,6 +1,6 @@
-# IPCodex — Database Schema & Data Model
+# Plexicode — Database Schema & Data Model
 
-> Part of [IPCodex Architecture](PLAN.md)
+> Part of [Plexicode Architecture](PLAN.md)
 
 ---
 

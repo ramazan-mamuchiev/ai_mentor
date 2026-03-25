@@ -1,6 +1,6 @@
-# IPCodex — Deployment, Security & Operations
+# Plexicode — Deployment, Security & Operations
 
-> Part of [IPCodex Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
+> Part of [Plexicode Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
 
 ---
 

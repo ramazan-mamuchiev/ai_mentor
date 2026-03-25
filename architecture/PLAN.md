@@ -1,4 +1,4 @@
-# IPCodex SaaS Platform — Architecture & Implementation Plan
+# Plexicode SaaS Platform — Architecture & Implementation Plan
 
 > **Status**: Draft v1.0 — March 15, 2026
 > **Author**: Oleg Voitekhovich
@@ -20,14 +20,14 @@
 | [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) | Go-to-market strategy: vendor partnerships, co-marketing playbook, target vendors, KPIs | ~430 |
 | [GTM_STRATEGY.md](GTM_STRATEGY.md) | AI-first positioning, messaging framework, 12-month execution roadmap, channel priorities, budget | ~400 |
 | [MONITORING.md](MONITORING.md) | Monitoring stack (Grafana + Loki + Promtail), dashboards, alert rules, structured logging | ~200 |
-| [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 IPCodex slogan candidates (EN/RU), next steps for partner review | ~130 |
+| [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 Plexicode slogan candidates (EN/RU), next steps for partner review | ~130 |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Design system: colors, typography, icons, components, logo, animations, UI/UX competitor analysis | ~310 |
 
 ---
 
 ## Product Summary
 
-**IPCodex** is a commercial SaaS platform that transforms chaotic product documentation — for both hardware devices (IP cameras, access controllers, intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs) — into a structured knowledge base with semantic search, and serves as a distribution hub for firmware, SDKs, and tools — enabling AI coding assistants (Cursor, Windsurf, GitHub Copilot) to write accurate integration code via RAG + MCP.
+**Plexicode** is a commercial SaaS platform that transforms chaotic product documentation — for both hardware devices (IP cameras, access controllers, intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs) — into a structured knowledge base with semantic search, and serves as a distribution hub for firmware, SDKs, and tools — enabling AI coding assistants (Cursor, Windsurf, GitHub Copilot) to write accurate integration code via RAG + MCP.
 
 **Target scale**: 1000+ developer tenants + 100+ device vendors. Two-sided marketplace with hybrid monetization (subscription + overage for developers, tiered plans for vendors).
 

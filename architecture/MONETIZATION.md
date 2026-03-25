@@ -1,6 +1,6 @@
-# IPCodex — Monetization & Pricing
+# Plexicode — Monetization & Pricing
 
-> Part of [IPCodex Architecture](PLAN.md)
+> Part of [Plexicode Architecture](PLAN.md)
 >
 > **Pricing rationale, market sizing, competitive analysis, and revenue projections**: see [Market Research & Competitive Analysis](MARKET_RESEARCH.md)
 >
@@ -10,14 +10,14 @@
 
 ## Two-Sided Marketplace
 
-IPCodex is a two-sided marketplace with a network effect (flywheel):
+Plexicode is a two-sided marketplace with a network effect (flywheel):
 
 ```
   SUPPLY (Vendors)                              DEMAND (Developers)
   ─────────────────                             ────────────────────
   Hikvision ──┐                                 ┌── Solo developers
   Dahua    ───┤    publish docs     search      ├── Integration companies
-  Axis     ───┼──────────────► IPCodex ────────►├── Enterprise SI
+  Axis     ───┼──────────────► Plexicode ────────►├── Enterprise SI
   Bosch    ───┤    firmware,        via MCP      └── Device manufacturers
   100+ more ──┘    API specs        + REST API
 
@@ -65,7 +65,7 @@ IPCodex is a two-sided marketplace with a network effect (flywheel):
 
 ## AI Model Tiers
 
-IPCodex offers two LLM models for AI Chat. The model determines answer quality and cost. Different developer tiers get different default models.
+Plexicode offers two LLM models for AI Chat. The model determines answer quality and cost. Different developer tiers get different default models.
 
 ### Model Pricing (user-facing)
 
@@ -325,7 +325,7 @@ Vendor documentation hosting is **free forever** — this is a strategic decisio
 
 Many device manufacturers publish API documentation on custom websites, proprietary portals, or non-standard formats (HTML tables, .chm files, custom wikis). Standard parsers cannot extract structured endpoint information from these sources.
 
-With the Platinum tier, the IPCodex engineering team:
+With the Platinum tier, the Plexicode engineering team:
 1. Analyzes the vendor's documentation portal structure
 2. Develops a **custom scraper/parser** tailored to the vendor's site
 3. Deploys it as a Celery task with **scheduled auto-sync** (daily/weekly)
@@ -362,7 +362,7 @@ Converting to Swagger manually would cost $100,000+ in engineering time.
 For $4,999/mo (~$60K/year) we get:
   - Full documentation indexed for AI code assistants (automatic)
   - Auto-sync: new firmware docs available to developers within 24h
-  - No engineering effort on our side — IPCodex handles everything
+  - No engineering effort on our side — Plexicode handles everything
   - Dedicated engineer who understands our doc structure
   - Featured placement in the developer catalog
 
@@ -376,7 +376,7 @@ hire a team to maintain Swagger specs."
 Vendor marketing manager reasoning:
 
 "We spend $50,000/mo on marketing to integrators.
-For $499/mo with IPCodex we learn:
+For $499/mo with Plexicode we learn:
   - 342 developers searched our cameras this week
   - Top query: 'night vision API DS-2CD2347' → need to improve those docs
   - Firmware V5.6 still in 40% of searches → don't drop support yet

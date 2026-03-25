@@ -1,12 +1,12 @@
-# IPCodex — Prompt Routing Architecture
+# Plexicode — Prompt Routing Architecture
 
-> Part of [IPCodex Architecture](PLAN.md) | See also: [Data Flows](FLOWS.md), [API Reference](API.md)
+> Part of [Plexicode Architecture](PLAN.md) | See also: [Data Flows](FLOWS.md), [API Reference](API.md)
 
 ---
 
 ## Overview
 
-Instead of a single universal system prompt, IPCodex uses **prompt routing** — a lightweight LLM classifier determines the type of user question, and the system selects a specialized prompt optimized for that type.
+Instead of a single universal system prompt, Plexicode uses **prompt routing** — a lightweight LLM classifier determines the type of user question, and the system selects a specialized prompt optimized for that type.
 
 ```
 User query: "расскажи про DataLen"
@@ -131,7 +131,7 @@ system_prompt = base.md + "\n\n" + {query_type}.md
 
 ### base.md Contents
 
-- `<role>` — IPCodex AI identity and grounding statement
+- `<role>` — Plexicode AI identity and grounding statement
 - `<constraints>` — 10 rules (factual grounding, no hallucination, use all sources)
 - `<format_rules>` — language matching, markdown formatting, no source citations
 

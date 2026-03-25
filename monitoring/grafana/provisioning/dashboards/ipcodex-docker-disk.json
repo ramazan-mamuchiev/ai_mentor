@@ -1,6 +1,6 @@
 {
   "uid": "ipcodex-docker-disk",
-  "title": "IPCodex Docker Disk Usage",
+  "title": "Plexicode Docker Disk Usage",
   "tags": ["ipcodex", "docker", "disk"],
   "timezone": "browser",
   "schemaVersion": 39,

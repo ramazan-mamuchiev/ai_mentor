@@ -1,6 +1,6 @@
 {
   "uid": "ipcodex-ai-chat",
-  "title": "IPCodex AI Chat",
+  "title": "Plexicode AI Chat",
   "tags": ["ipcodex", "chat", "llm"],
   "timezone": "browser",
   "editable": true,
@@ -648,13 +648,13 @@
   "annotations": { "list": [] },
   "links": [
     {
-      "title": "IPCodex Overview",
+      "title": "Plexicode Overview",
       "url": "/d/ipcodex-overview",
       "type": "link",
       "icon": "dashboard"
     },
     {
-      "title": "IPCodex System",
+      "title": "Plexicode System",
       "url": "/d/ipcodex-system",
       "type": "link",
       "icon": "dashboard"

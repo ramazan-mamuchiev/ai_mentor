@@ -1,6 +1,6 @@
-# IPCodex — Monitoring, Logging & Alerting
+# Plexicode — Monitoring, Logging & Alerting
 
-> Part of [IPCodex Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
+> Part of [Plexicode Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
 
 ---
 
@@ -121,7 +121,7 @@ Extracted labels (`level`, `logger`) enable efficient Loki queries like:
 
 ## Grafana Dashboards
 
-9 provisioned dashboards in the `IPCodex` folder:
+9 provisioned dashboards in the `Plexicode` folder:
 
 | Dashboard | File | Key Panels |
 |-----------|------|------------|

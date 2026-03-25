@@ -1,6 +1,6 @@
-# IPCodex — API Reference & MCP Tools
+# Plexicode — API Reference & MCP Tools
 
-> Part of [IPCodex Architecture](PLAN.md) | See also: [Database Schema](DATABASE.md)
+> Part of [Plexicode Architecture](PLAN.md) | See also: [Database Schema](DATABASE.md)
 
 ---
 
@@ -179,7 +179,7 @@
 
 ## MCP Tools ✅
 
-IPCodex exposes **3 tools** via the Model Context Protocol. The MCP server is focused on its core purpose: helping AI coding assistants find documentation for writing integration code.
+Plexicode exposes **3 tools** via the Model Context Protocol. The MCP server is focused on its core purpose: helping AI coding assistants find documentation for writing integration code.
 
 Ingestion tools (`ingest_document`, `ingest_url`) were intentionally excluded from MCP — they are administrative operations available via REST API only.
 
@@ -191,9 +191,9 @@ async def tool_search_documentation(
     version: str | None = None,
     limit: int = 5,
 ) -> str:
-    """Search IPCodex knowledge base for product integration documentation.
+    """Search Plexicode knowledge base for product integration documentation.
 
-    IPCodex indexes API documentation for hardware devices (IP cameras, access controllers,
+    Plexicode indexes API documentation for hardware devices (IP cameras, access controllers,
     intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs).
 
     Use this tool when you need to write integration code and need to find:
@@ -231,7 +231,7 @@ async def tool_list_products(
     category: str | None = None,
     query: str | None = None,
 ) -> str:
-    """List products with indexed documentation available in IPCodex.
+    """List products with indexed documentation available in Plexicode.
 
     Call this FIRST to discover what products are available before using search_documentation.
 
@@ -305,7 +305,7 @@ Response 201:
 
 → DB: insert into vendors + vendor_api_keys
 → Email: welcome email with documentation upload guide
-→ Admin: notify IPCodex team for review (optional manual verification)
+→ Admin: notify Plexicode team for review (optional manual verification)
 ```
 
 ---

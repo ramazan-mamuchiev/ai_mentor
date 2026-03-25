@@ -1,4 +1,4 @@
-# IPCodex — Partnership Marketing Strategy
+# Plexicode — Partnership Marketing Strategy
 
 > **Status**: v1.0 — March 18, 2026
 > **Author**: Oleg Voitekhovich
@@ -10,14 +10,14 @@
 
 ## 1. Why Partnership Marketing
 
-IPCodex is a **two-sided marketplace**: vendors (supply) and developers (demand). This creates a unique leverage point that most developer tools don't have.
+Plexicode is a **two-sided marketplace**: vendors (supply) and developers (demand). This creates a unique leverage point that most developer tools don't have.
 
 ```
 Traditional developer tool:
   Marketing budget → Ads/Content → Developers
 
-IPCodex partnership model:
-  1 vendor partnership → vendor's 1,000+ integrator partners → developers discover IPCodex
+Plexicode partnership model:
+  1 vendor partnership → vendor's 1,000+ integrator partners → developers discover Plexicode
                        → vendor publishes docs → more content → more developers → more vendors
 ```
 
@@ -41,10 +41,10 @@ IPCodex partnership model:
 
 **Goal**: fill the platform with documentation to create value for developers.
 
-| What vendor gets | What IPCodex gets |
+| What vendor gets | What Plexicode gets |
 |------------------|-------------------|
 | Free documentation hosting and indexing | Content that attracts developers |
-| "Listed on IPCodex" badge for marketing | Vendor brand in search results |
+| "Listed on Plexicode" badge for marketing | Vendor brand in search results |
 | Basic search analytics (monthly email) | Platform credibility |
 
 **Target**: 50-100 vendors in Year 1.
@@ -59,7 +59,7 @@ IPCodex partnership model:
 
 **Goal**: convert Content Partners into paying customers through analytics value.
 
-| What vendor gets | What IPCodex gets |
+| What vendor gets | What Plexicode gets |
 |------------------|-------------------|
 | Everything in Tier 1 | $499/mo recurring revenue |
 | "Verified Vendor" badge | Stronger vendor commitment |
@@ -78,7 +78,7 @@ IPCodex partnership model:
 
 **Goal**: deep integration with top-tier manufacturers. Each strategic partner is a growth multiplier.
 
-| What vendor gets | What IPCodex gets |
+| What vendor gets | What Plexicode gets |
 |------------------|-------------------|
 | Everything in Tier 2 | $2K-5K/mo recurring revenue |
 | Custom documentation importer | Exclusive content moat |
@@ -97,14 +97,14 @@ IPCodex partnership model:
 
 ## 3. Founding Strategic Partner: AxxonSoft
 
-AxxonSoft is a **friendly company** to the IPCodex project and the ideal first strategic partner. This partnership should be activated before any other vendor outreach.
+AxxonSoft is a **friendly company** to the Plexicode project and the ideal first strategic partner. This partnership should be activated before any other vendor outreach.
 
 ### Why AxxonSoft is the #1 partner
 
 | Factor | Details |
 |--------|---------|
 | **Relationship** | Friendly to the project — no cold outreach needed, direct access to decision-makers |
-| **Product fit** | VMS/PSIM platform that integrates 10,000+ IP device models — their integrators are IPCodex's exact target audience |
+| **Product fit** | VMS/PSIM platform that integrates 10,000+ IP device models — their integrators are Plexicode's exact target audience |
 | **Rich API surface** | HTTP API, gRPC API, WebSocket, IIDK, ActiveX — complex documentation that developers struggle with |
 | **Documentation** | Extensive docs on docs.axxonsoft.com (Confluence) — ready for indexing |
 | **Partner network** | Active integrator partner program with training, co-branding, lead generation |
@@ -117,18 +117,18 @@ AxxonSoft is a **friendly company** to the IPCodex project and the ideal first s
 Level 1 (immediate):
   - Index Axxon One SDK documentation (HTTP API, gRPC, WebSocket)
   - Index Axxon PSIM integration guides (IIDK, ActiveX, HTTP Server)
-  - AxxonSoft developers become first beta users of IPCodex
+  - AxxonSoft developers become first beta users of Plexicode
   - Validate product-market fit on real integration scenarios
 
 Level 2 (month 2-3):
-  - AxxonSoft recommends IPCodex to their integrator partners:
-    "Use IPCodex to integrate third-party devices with Axxon One faster"
-  - Joint blog post: "AI-powered device integration with Axxon One + IPCodex"
-  - AxxonSoft's partner training includes IPCodex as a recommended tool
+  - AxxonSoft recommends Plexicode to their integrator partners:
+    "Use Plexicode to integrate third-party devices with Axxon One faster"
+  - Joint blog post: "AI-powered device integration with Axxon One + Plexicode"
+  - AxxonSoft's partner training includes Plexicode as a recommended tool
 
 Level 3 (month 4-6):
-  - Custom importer for docs.axxonsoft.com (Confluence → IPCodex auto-sync)
-  - Co-branded landing page: "IPCodex for Axxon One Integrators"
+  - Custom importer for docs.axxonsoft.com (Confluence → Plexicode auto-sync)
+  - Co-branded landing page: "Plexicode for Axxon One Integrators"
   - Joint webinar for AxxonSoft partner network
   - AxxonSoft becomes the first published case study
 
@@ -136,8 +136,8 @@ Level 4 (month 6+):
   - AxxonSoft as "Founding Strategic Partner" — featured placement
   - Joint presence at ISC West / IFSEC
   - AxxonSoft's device integration partners (Axis, Hikvision, Dahua etc.)
-    introduced to IPCodex through AxxonSoft's network
-  - Potential: AxxonSoft bundles IPCodex access for their Enterprise customers
+    introduced to Plexicode through AxxonSoft's network
+  - Potential: AxxonSoft bundles Plexicode access for their Enterprise customers
 ```
 
 ### What AxxonSoft gets
@@ -151,7 +151,7 @@ Level 4 (month 6+):
 | Co-marketing content | Blog posts, webinars, case studies at zero cost |
 | Competitive edge | Their integrators are more productive than competitors' |
 
-### What IPCodex gets
+### What Plexicode gets
 
 | Benefit | Value |
 |---------|-------|
@@ -166,19 +166,19 @@ Level 4 (month 6+):
 
 | Week | Action | Owner |
 |:----:|--------|-------|
-| 1 | Meet with AxxonSoft contact, present IPCodex vision and partnership proposal | Founder |
-| 2-3 | Index Axxon One SDK docs (HTTP API, gRPC) into IPCodex | Engineering |
+| 1 | Meet with AxxonSoft contact, present Plexicode vision and partnership proposal | Founder |
+| 2-3 | Index Axxon One SDK docs (HTTP API, gRPC) into Plexicode | Engineering |
 | 3-4 | Demo to AxxonSoft team: "here's your documentation searchable via Cursor MCP" | Founder |
 | 4-6 | AxxonSoft shares with 5-10 integrator partners for beta testing | AxxonSoft |
 | 6-8 | Collect feedback, iterate on product | Engineering |
 | 8-10 | Joint blog post + announce partnership | Both |
-| 10-12 | AxxonSoft includes IPCodex in partner communications | AxxonSoft |
+| 10-12 | AxxonSoft includes Plexicode in partner communications | AxxonSoft |
 
 ---
 
 ## 3b. Founding Strategic Partner: Grundig Security
 
-Grundig Security is a **friendly company** to the IPCodex project and a technology partner of AxxonSoft. Together with AxxonSoft, Grundig forms the initial partnership foundation for IPCodex.
+Grundig Security is a **friendly company** to the Plexicode project and a technology partner of AxxonSoft. Together with AxxonSoft, Grundig forms the initial partnership foundation for Plexicode.
 
 ### Company profile
 
@@ -192,15 +192,15 @@ Grundig Security is a **friendly company** to the IPCodex project and a technolo
 | **Global presence** | Operations on 5 continents |
 | **AxxonSoft integration** | Axxon One VMS integrates Grundig SMART line cameras — edge analytics, Quick Smart Search with Auto-Configuration |
 
-### Why Grundig is a strategic partner for IPCodex
+### Why Grundig is a strategic partner for Plexicode
 
-**1. Hardware vendor perspective.** AxxonSoft is a software (VMS) vendor. Grundig is a hardware (camera) vendor. Together they give IPCodex both sides of the integration story — the platform developers build on (Axxon One) and the devices they integrate (Grundig cameras).
+**1. Hardware vendor perspective.** AxxonSoft is a software (VMS) vendor. Grundig is a hardware (camera) vendor. Together they give Plexicode both sides of the integration story — the platform developers build on (Axxon One) and the devices they integrate (Grundig cameras).
 
-**2. Edge AI documentation.** Grundig SMART line cameras have rich AI analytics (LPR, face recognition, crowd analysis, audio analysis, etc.) that require detailed integration documentation. Developers integrating these cameras with Axxon One or other VMS platforms need exactly what IPCodex provides.
+**2. Edge AI documentation.** Grundig SMART line cameras have rich AI analytics (LPR, face recognition, crowd analysis, audio analysis, etc.) that require detailed integration documentation. Developers integrating these cameras with Axxon One or other VMS platforms need exactly what Plexicode provides.
 
-**3. Existing AxxonSoft partnership.** Grundig is already an AxxonSoft Solution Partner. This creates a natural three-way collaboration: AxxonSoft (VMS) + Grundig (cameras) + IPCodex (documentation & AI search).
+**3. Existing AxxonSoft partnership.** Grundig is already an AxxonSoft Solution Partner. This creates a natural three-way collaboration: AxxonSoft (VMS) + Grundig (cameras) + Plexicode (documentation & AI search).
 
-**4. European market entry.** Grundig has strong presence in Europe (German roots, 5 continents). Partnership opens a path to European integrators — a market segment IPCodex hasn't addressed yet.
+**4. European market entry.** Grundig has strong presence in Europe (German roots, 5 continents). Partnership opens a path to European integrators — a market segment Plexicode hasn't addressed yet.
 
 ### Partnership model with Grundig
 
@@ -212,17 +212,17 @@ Level 1 (immediate):
 
 Level 2 (month 2-4):
   - Joint content: "How to integrate Grundig SMART cameras with AI analytics"
-  - Grundig recommends IPCodex to their installers and integrators
-  - Three-way case study: AxxonSoft + Grundig + IPCodex
+  - Grundig recommends Plexicode to their installers and integrators
+  - Three-way case study: AxxonSoft + Grundig + Plexicode
 
 Level 3 (month 4-6):
-  - Grundig becomes "Founding Hardware Partner" — featured in IPCodex catalog
-  - Joint demo: Grundig camera → Axxon One VMS → IPCodex MCP search
-  - Grundig includes IPCodex link in their partner/support materials
+  - Grundig becomes "Founding Hardware Partner" — featured in Plexicode catalog
+  - Joint demo: Grundig camera → Axxon One VMS → Plexicode MCP search
+  - Grundig includes Plexicode link in their partner/support materials
 
 Level 4 (month 6+):
   - Expand to full Grundig product line (Essential, Professional, Premium)
-  - Grundig analytics documentation as showcase for IPCodex AI search
+  - Grundig analytics documentation as showcase for Plexicode AI search
   - Joint presence at European security trade shows (IFSEC, Security Essen)
 ```
 
@@ -236,25 +236,25 @@ Level 4 (month 6+):
 | Three-way marketing with AxxonSoft | Amplified reach through combined networks |
 | European integrators adopt faster | Reduced integration friction = more Grundig deployments |
 
-### What IPCodex gets
+### What Plexicode gets
 
 | Benefit | Value |
 |---------|-------|
-| First hardware vendor partner | Proves IPCodex works for camera documentation, not just VMS |
+| First hardware vendor partner | Proves Plexicode works for camera documentation, not just VMS |
 | European market credibility | German brand with 70+ year legacy |
 | Rich AI analytics content | Edge AI documentation is complex and high-value for developers |
-| Three-way partnership story | "AxxonSoft + Grundig + IPCodex" is a compelling narrative |
+| Three-way partnership story | "AxxonSoft + Grundig + Plexicode" is a compelling narrative |
 | Access to Grundig's installer network | New developer-customer channel |
 
 ### Action plan
 
 | Week | Action | Owner |
 |:----:|--------|-------|
-| 1-2 | Intro via AxxonSoft contact, present IPCodex + partnership proposal | Founder |
+| 1-2 | Intro via AxxonSoft contact, present Plexicode + partnership proposal | Founder |
 | 3-4 | Index Grundig SMART line documentation + Axxon One integration guides | Engineering |
 | 4-5 | Demo to Grundig team: "your camera docs searchable via AI" | Founder |
 | 6-8 | Joint content with AxxonSoft + Grundig (blog post or webinar) | All three |
-| 8-12 | Grundig includes IPCodex in installer communications | Grundig |
+| 8-12 | Grundig includes Plexicode in installer communications | Grundig |
 
 ---
 
@@ -327,9 +327,9 @@ KPIs:
 ```
 Actions:
   1. Publish founding partners case study:
-     — "How AxxonSoft + Grundig integrators reduced integration time by X% with IPCodex"
-     — Three-way blog post: AxxonSoft blog + Grundig blog + IPCodex blog
-     — Narrative: VMS (AxxonSoft) + Cameras (Grundig) + AI Search (IPCodex) = faster integration
+     — "How AxxonSoft + Grundig integrators reduced integration time by X% with Plexicode"
+     — Three-way blog post: AxxonSoft blog + Grundig blog + Plexicode blog
+     — Narrative: VMS (AxxonSoft) + Cameras (Grundig) + AI Search (Plexicode) = faster integration
   2. Collect 3 months of analytics for founding partners
   3. Create "Partner Impact Report":
      — "Your docs were searched 1,200 times by 89 unique developers"
@@ -339,7 +339,7 @@ Actions:
   5. Use AxxonSoft case study + Impact Reports to pitch 10 more vendors
   6. Launch co-marketing with AxxonSoft:
      — Joint webinar: "AI-powered device integration with Axxon One"
-     — AxxonSoft includes IPCodex in partner newsletter
+     — AxxonSoft includes Plexicode in partner newsletter
 
 KPIs:
   - 2-3 founding partners converted to paid
@@ -355,7 +355,7 @@ KPIs:
 Actions:
   1. Hire part-time Partner Manager (or founder dedicates 50% time)
   2. Attend ISC West or IFSEC (not as exhibitor — as networker)
-     — Meet vendor product managers, pitch IPCodex
+     — Meet vendor product managers, pitch Plexicode
      — Cost: $2-3K (travel + badge), not $15K+ for a booth
   3. Launch Vendor Partner Program page on website:
      — Benefits by tier, application form, success stories
@@ -379,13 +379,13 @@ KPIs:
 
 ```
 Actions:
-  1. Vendors start referring their integrators to IPCodex organically
-     — "Use IPCodex to integrate our cameras — it has our full API docs"
-  2. Launch "IPCodex Certified" program:
-     — Vendor certifies their docs are complete and up-to-date on IPCodex
-     — Badge on vendor's website: "Documentation available on IPCodex"
+  1. Vendors start referring their integrators to Plexicode organically
+     — "Use Plexicode to integrate our cameras — it has our full API docs"
+  2. Launch "Plexicode Certified" program:
+     — Vendor certifies their docs are complete and up-to-date on Plexicode
+     — Badge on vendor's website: "Documentation available on Plexicode"
      — Developers trust certified vendors → more searches → more value for vendor
-  3. Annual "IPCodex Partner Summit" (virtual):
+  3. Annual "Plexicode Partner Summit" (virtual):
      — Vendor presentations, roadmap, networking
      — Strengthens relationships, generates content
   4. Expand to adjacent verticals:
@@ -410,10 +410,10 @@ KPIs:
 
 | Format | Effort | Reach | Frequency |
 |--------|:------:|:-----:|:---------:|
-| Blog post: "How to integrate [Vendor] with IPCodex" | 4-8 hrs | Vendor's blog + IPCodex blog | 1-2/month |
+| Blog post: "How to integrate [Vendor] with Plexicode" | 4-8 hrs | Vendor's blog + Plexicode blog | 1-2/month |
 | Social media cross-post (LinkedIn, Twitter) | 1 hr | Both audiences | Weekly |
-| "Integration spotlight" email to IPCodex developers | 2 hrs | All IPCodex developers | Monthly |
-| Vendor includes IPCodex in their newsletter | 0 hrs (vendor does it) | Vendor's mailing list | Quarterly |
+| "Integration spotlight" email to Plexicode developers | 2 hrs | All Plexicode developers | Monthly |
+| Vendor includes Plexicode in their newsletter | 0 hrs (vendor does it) | Vendor's mailing list | Quarterly |
 
 ### 5.2 Joint Events (medium effort, high conversion)
 
@@ -427,8 +427,8 @@ KPIs:
 
 | Program | Description | Value |
 |---------|-------------|-------|
-| "IPCodex Certified Documentation" | Vendor certifies docs are complete on IPCodex | Trust signal for developers |
-| "Preferred Integration Partner" | IPCodex recommends vendor's devices | Vendor pays premium for placement |
+| "Plexicode Certified Documentation" | Vendor certifies docs are complete on Plexicode | Trust signal for developers |
+| "Preferred Integration Partner" | Plexicode recommends vendor's devices | Vendor pays premium for placement |
 | "Integration Bounty" | Vendor sponsors prizes for developers who build integrations | Developer engagement + vendor content |
 
 ---
@@ -452,7 +452,7 @@ Indexed (free)  →  Contacted  →  Content Partner  →  Paid Partner  →  St
 | Vendor MRR | $2K | $15K | $60K |
 | Developers acquired via vendor referral | 50 | 300 | 1,000 |
 | Co-marketing campaigns executed | 3 | 12 | 24 |
-| "IPCodex Certified" vendors | 0 | 5 | 20 |
+| "Plexicode Certified" vendors | 0 | 5 | 20 |
 
 ### Revenue attribution
 
@@ -505,6 +505,6 @@ Indexed (free)  →  Contacted  →  Content Partner  →  Paid Partner  →  St
 - 5+ Strategic Partners (Enterprise/Platinum)
 
 **Year 3 — Flywheel spinning:**
-- Vendors proactively refer integrators to IPCodex
-- "IPCodex Certified" becomes an industry standard
+- Vendors proactively refer integrators to Plexicode
+- "Plexicode Certified" becomes an industry standard
 - Partnership-attributed revenue > 40% of total

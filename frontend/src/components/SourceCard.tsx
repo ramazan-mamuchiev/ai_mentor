@@ -2,6 +2,14 @@ import { Eye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { SourceInfo } from '../types'
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_~`#\\]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 interface Props {
   source: SourceInfo
   index: number
@@ -37,7 +45,7 @@ export function SourceCard({ source, index, onPreview }: Props) {
         </div>
       </div>
       {source.content_preview && (
-        <div className="source-card-snippet">{source.content_preview}</div>
+        <div className="source-card-snippet">{stripMarkdown(source.content_preview)}</div>
       )}
     </div>
   )

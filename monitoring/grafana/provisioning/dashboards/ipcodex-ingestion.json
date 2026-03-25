@@ -1,6 +1,6 @@
 {
   "uid": "ipcodex-ingestion",
-  "title": "IPCodex Ingestion Pipeline",
+  "title": "Plexicode Ingestion Pipeline",
   "tags": ["ipcodex", "ingestion"],
   "timezone": "browser",
   "editable": true,
