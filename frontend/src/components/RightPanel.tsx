@@ -162,7 +162,7 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
       {hasRag && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.ragSection')}</div>
-          <div className="debug-row"><span>{t('debug.chunks')}</span><code>{fmt(debug.chunks_found)}</code></div>
+          <div className="debug-row"><span>{t('debug.chunks')}</span><code>{fmt(debug.chunks_found)}{debug.effective_top_k ? ` / ${debug.effective_top_k}` : ''}</code></div>
           <div className="debug-row"><span>{t('debug.topSim')}</span><code>{fmtPct(debug.top_similarity)}</code></div>
           <div className="debug-row"><span>{t('debug.minSim')}</span><code>{fmtPct(debug.min_similarity)}</code></div>
           <div className="debug-row"><span>{t('debug.historyMsgs')}</span><code>{fmt(debug.history_messages)}</code></div>
