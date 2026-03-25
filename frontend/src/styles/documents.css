@@ -1748,7 +1748,7 @@ td:has(.docs-actions) {
   color: var(--text-secondary);
 }
 
-.md-preview-large-warning svg {
+.md-preview-large-warning > svg {
   color: #f59e0b;
 }
 
