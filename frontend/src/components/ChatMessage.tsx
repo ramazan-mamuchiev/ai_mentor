@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bot, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw, User } from 'lucide-react'
+import { AlertTriangle, Bot, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -94,9 +94,11 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
 
   return (
     <div className={`message ${message.role}`}>
-      <div className="message-avatar">
-        {isUser ? <User size={16} /> : <Bot size={16} />}
-      </div>
+      {!isUser && (
+        <div className="message-avatar">
+          <Bot size={16} />
+        </div>
+      )}
       <div className="message-body">
         {isEditing ? (
           <div className="message-edit-mode">
@@ -128,6 +130,30 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
           </div>
         ) : (
           <div className="message-content">
+            {isUser && !isEditing && (
+              <div className="message-actions">
+                <button
+                  className="message-action-btn"
+                  onClick={handleCopy}
+                  data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
+                  aria-label={t('chat.copy')}
+                  type="button"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+                {onEditMessage && (
+                  <button
+                    className="message-action-btn"
+                    onClick={handleEditStart}
+                    data-tooltip={t('chat.edit')}
+                    aria-label={t('chat.edit')}
+                    type="button"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+              </div>
+            )}
             {isError ? (
               <div className="message-error">
                 <AlertTriangle size={16} />
@@ -151,30 +177,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 content={content}
                 isStreaming={isStreaming}
               />
-            )}
-          </div>
-        )}
-        {isUser && !isEditing && (
-          <div className="message-actions">
-            <button
-              className="message-action-btn"
-              onClick={handleCopy}
-              data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
-              aria-label={t('chat.copy')}
-              type="button"
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-            </button>
-            {onEditMessage && (
-              <button
-                className="message-action-btn"
-                onClick={handleEditStart}
-                data-tooltip={t('chat.edit')}
-                aria-label={t('chat.edit')}
-                type="button"
-              >
-                <Pencil size={14} />
-              </button>
             )}
           </div>
         )}
