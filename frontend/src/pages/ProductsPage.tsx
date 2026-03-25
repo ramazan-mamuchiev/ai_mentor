@@ -371,6 +371,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
               className="docs-action-btn docs-action-btn--danger"
               onClick={() => setDeleteTarget(p)}
               data-tooltip={t('products.actions.delete')}
+              data-tooltip-align="right"
             >
               <Trash2 size={16} />
             </button>

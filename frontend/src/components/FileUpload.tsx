@@ -182,7 +182,7 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
         <div className="file-upload-header">
           <h3>{t('upload.title')}</h3>
           {onClose && (
-            <button className="file-upload-close" onClick={onClose} data-tooltip={t('upload.close')}>
+            <button className="file-upload-close" onClick={onClose} data-tooltip={t('upload.close')} data-tooltip-align="right">
               <X size={18} />
             </button>
           )}
@@ -230,7 +230,7 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                 <strong>{state.file.name}</strong>
                 <span>{formatSize(state.file.size)}</span>
               </div>
-              <button type="button" className="file-upload-remove" onClick={() => setState(prev => ({ ...prev, file: null }))} data-tooltip={t('upload.removeFile')}>
+              <button type="button" className="file-upload-remove" onClick={() => setState(prev => ({ ...prev, file: null }))} data-tooltip={t('upload.removeFile')} data-tooltip-align="right">
                 <X size={16} />
               </button>
             </div>

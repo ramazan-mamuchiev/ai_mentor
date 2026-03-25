@@ -163,6 +163,9 @@ button {
   transition: opacity 0.12s ease, transform 0.12s ease;
   z-index: 9999;
   line-height: 1.4;
+  /* Prevent tooltip from being clipped by overflow:hidden containers */
+  width: max-content;
+  max-width: min(250px, calc(100vw - 20px));
 }
 
 [data-tooltip]:hover::after {
@@ -182,6 +185,16 @@ button {
 }
 
 [data-tooltip-align="right"]:hover::after {
+  transform: translateX(0) scale(1);
+}
+
+/* Tooltip aligned to the left edge (for elements near left boundary) */
+[data-tooltip-align="left"]::after {
+  left: 0;
+  transform: translateX(0) scale(0.95);
+}
+
+[data-tooltip-align="left"]:hover::after {
   transform: translateX(0) scale(1);
 }
 

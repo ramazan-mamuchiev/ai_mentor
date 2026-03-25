@@ -71,7 +71,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
         <div className="file-upload-header">
           <h3>{t('urlImport.title')}</h3>
           {onClose && (
-            <button className="file-upload-close" onClick={onClose} data-tooltip={t('upload.close')}>
+            <button className="file-upload-close" onClick={onClose} data-tooltip={t('upload.close')} data-tooltip-align="right">
               <X size={18} />
             </button>
           )}

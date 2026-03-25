@@ -438,7 +438,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                 <RefreshCw size={16} />
               </button>
             )}
-            <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')}>
+            <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')} data-tooltip-align="right">
               <Trash2 size={16} />
             </button>
           </div>
@@ -666,7 +666,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                     <RefreshCw size={16} />
                   </button>
                 )}
-                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')}>
+                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')} data-tooltip-align="right">
                   <Trash2 size={16} />
                 </button>
               </div>

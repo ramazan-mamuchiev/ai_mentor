@@ -74,7 +74,7 @@ export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }
           rows={1}
         />
         {isStreaming ? (
-          <button className="chat-send-btn active" onClick={onCancel} data-tooltip={t('input.stop')}>
+          <button className="chat-send-btn active" onClick={onCancel} data-tooltip={t('input.stop')} data-tooltip-align="right">
             <Square size={16} />
           </button>
         ) : (
@@ -83,6 +83,7 @@ export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }
             onClick={handleSubmit}
             disabled={!hasText}
             data-tooltip={t('input.send')}
+            data-tooltip-align="right"
           >
             <ArrowUp size={18} />
           </button>

@@ -110,7 +110,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
             >
               {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
-            <button className="md-preview-close-btn" onClick={onClose} data-tooltip={t('docDebug.collapse')}>
+            <button className="md-preview-close-btn" onClick={onClose} data-tooltip={t('docDebug.collapse')} data-tooltip-align="right">
               <X size={14} />
             </button>
           </div>

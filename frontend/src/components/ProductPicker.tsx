@@ -87,7 +87,7 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
         <div className="product-picker-header">
           <h3>{t('productPicker.title')}</h3>
           {onClose && (
-            <button className="product-picker-close" onClick={onClose} data-tooltip={t('productPicker.close')}>
+            <button className="product-picker-close" onClick={onClose} data-tooltip={t('productPicker.close')} data-tooltip-align="right">
               <X size={16} />
             </button>
           )}
@@ -197,6 +197,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
         className="product-badge-clear"
         onClick={onClear}
         data-tooltip={t('productBadge.clear')}
+        data-tooltip-align="right"
       >
         <X size={12} />
       </button>

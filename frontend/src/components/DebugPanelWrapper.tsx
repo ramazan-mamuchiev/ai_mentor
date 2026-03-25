@@ -13,7 +13,7 @@ export function DebugPanelWrapper({ children, onCollapse, className }: Props) {
   return (
     <div className={`debug-panel-box ${className ?? ''}`}>
       {onCollapse && (
-        <button className="debug-panel-close-btn" onClick={onCollapse} data-tooltip={t('docDebug.collapse')}>
+        <button className="debug-panel-close-btn" onClick={onCollapse} data-tooltip={t('docDebug.collapse')} data-tooltip-align="right">
           <X size={14} />
         </button>
       )}
