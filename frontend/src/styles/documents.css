@@ -1646,22 +1646,22 @@ td:has(.docs-actions) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 .md-preview-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   flex: 1;
 }
 
 .md-preview-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   margin: 0;
   white-space: nowrap;
@@ -1672,12 +1672,12 @@ td:has(.docs-actions) {
 .md-preview-header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .md-preview-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -1705,10 +1705,10 @@ td:has(.docs-actions) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--bg);
   color: var(--text-secondary);
   cursor: pointer;
