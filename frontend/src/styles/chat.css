@@ -669,7 +669,7 @@
 
 .message-edit-wrapper {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   border: 1px solid var(--border);
   border-radius: 26px;
   background: var(--surface);
@@ -712,7 +712,6 @@
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  padding-bottom: 2px;
 }
 
 .message-edit-cancel {
