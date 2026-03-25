@@ -37,32 +37,27 @@ CONTINUE_PROMPT = (
     "4) You MUST complete the response fully — finish all lists, tables, and sentences."
 )
 
-_INCOMPLETE_ENDINGS = re.compile(
-    r"(?:"
-    r"[,;:]\s*$"                    # ends with comma, semicolon, colon
-    r"|\b(?:и|а|но|или|что|для|от|из|на|по|к|с|в|о|об|за|при|не|более|менее)\s*$"  # trailing RU conjunctions/prepositions
-    r"|\b(?:and|or|but|the|a|an|of|for|to|in|is|are|was|with|that|which|more|less)\s*$"  # trailing EN articles/conjunctions
-    r"|\|\s*$"                       # ends mid-table row
-    r"|```\w*\s*$"                   # opened code block never closed
-    r"|\*\*[^*]+$"                   # opened bold never closed
-    r"|- \S.*[^.!?)\]>]\s*$"        # list item without terminal punctuation
-    r")"
-)
+_NORMAL_ENDING = re.compile(r"[.!?,;:)\]>|`\"'\u2019\u201d*#\u2014\u2013-]\s*$")
 
 
 def _looks_incomplete(text: str) -> bool:
-    """Heuristic: check if the response appears to have been cut off mid-sentence."""
-    if not text or len(text) < 40:
+    """Heuristic: check if the response appears to have been cut off mid-flow.
+
+    A well-formed response ends on punctuation, a closing bracket, a code
+    fence, or similar terminal character.  If the last non-whitespace
+    character is a regular letter/digit, the response was almost certainly
+    truncated.
+    """
+    if not text or len(text) < 60:
         return False
     trimmed = text.rstrip()
     if not trimmed:
         return False
-    if _INCOMPLETE_ENDINGS.search(trimmed):
+    if trimmed.count("```") % 2 != 0:
         return True
-    open_blocks = trimmed.count("```")
-    if open_blocks % 2 != 0:
-        return True
-    return False
+    if _NORMAL_ENDING.search(trimmed):
+        return False
+    return True
 
 logger = logging.getLogger(__name__)
 
