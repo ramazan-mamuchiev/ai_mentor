@@ -96,7 +96,6 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
                 </span>
                 <button className="md-preview-download-btn" onClick={handleDownload} data-tooltip={t('docs.preview.download')}>
                   <Download size={16} />
-                  <span>{t('docs.preview.download')}</span>
                 </button>
               </>
             )}
