@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, ChevronDown, X, Globe, Box, Lock, Unlock } from 'lucide-react'
+import { Search, ChevronDown, X, Globe, Box } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { listProducts } from '../api/products'
 import type { ProductListItem } from '../types'
@@ -169,32 +169,30 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
 
   return (
     <div className={`product-badge${locked ? ' product-badge--locked' : ''}`}>
+      {autoDetected && !locked && (
+        <span
+          className="product-badge-auto"
+          onClick={e => { e.stopPropagation(); onLock?.() }}
+          data-tooltip={t('productBadge.lock')}
+        >
+          {t('productBadge.autoDetected')}
+        </span>
+      )}
+      {locked && (
+        <span
+          className="product-badge-locked-label"
+          onClick={e => { e.stopPropagation(); onUnlock?.() }}
+          data-tooltip={t('productBadge.unlock')}
+        >
+          {t('productBadge.locked')}
+        </span>
+      )}
       <span className="product-badge-label" onClick={onEdit} data-tooltip={t('productBadge.change')}>
-        {autoDetected && !locked && <span className="product-badge-auto">{t('productBadge.autoDetected')}</span>}
-        {locked && <span className="product-badge-locked-label">{t('productBadge.locked')}</span>}
         <Box size={13} className="product-badge-icon" />
         <span className="product-badge-name">{productFilter}</span>
         {versionFilter && <span className="product-badge-version">{versionFilter}</span>}
         <ChevronDown size={14} className="product-badge-chevron" />
       </span>
-      {autoDetected && !locked && onLock && (
-        <button
-          className="product-badge-lock-btn"
-          onClick={onLock}
-          data-tooltip={t('productBadge.lock')}
-        >
-          <Lock size={14} />
-        </button>
-      )}
-      {locked && onUnlock && (
-        <button
-          className="product-badge-lock-btn product-badge-lock-btn--active"
-          onClick={onUnlock}
-          data-tooltip={t('productBadge.unlock')}
-        >
-          <Unlock size={14} />
-        </button>
-      )}
       <button
         className="product-badge-clear"
         onClick={onClear}

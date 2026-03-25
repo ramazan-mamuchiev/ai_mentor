@@ -29,7 +29,6 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   const { t } = useTranslation()
   const [data, setData] = useState<DocumentMarkdownPreview | null>(null)
   const [loading, setLoading] = useState(true)
-  const [rendering, setRendering] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
 
@@ -42,12 +41,6 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
         if (!cancelled) {
           setData(result)
           setLoading(false)
-          setRendering(true)
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              if (!cancelled) setRendering(false)
-            }, 50)
-          })
         }
       })
       .catch(err => {
@@ -78,7 +71,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
     URL.revokeObjectURL(url)
   }, [data, documentId])
 
-  const showSpinner = loading || rendering
+  const showSpinner = loading
 
   return (
     <div className="confirm-overlay" onClick={onClose}>
@@ -124,7 +117,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
           {showSpinner && (
             <div className="md-preview-placeholder">
               <Loader2 size={32} className="spin-icon" />
-              <span>{t(rendering ? 'docs.preview.rendering' : 'docs.preview.loading')}</span>
+              <span>{t('docs.preview.loading')}</span>
             </div>
           )}
           {error && (

@@ -2054,6 +2054,13 @@
   padding: 1px 5px;
   background: rgba(37, 99, 235, 0.1);
   border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.12s, background 0.12s;
+}
+
+.product-badge-auto:hover {
+  opacity: 1;
+  background: rgba(37, 99, 235, 0.2);
 }
 
 .product-badge-locked-label {
@@ -2065,11 +2072,21 @@
   background: rgba(16, 185, 129, 0.15);
   color: rgb(16, 163, 115);
   border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.product-badge-locked-label:hover {
+  background: rgba(16, 185, 129, 0.28);
 }
 
 [data-theme='dark'] .product-badge-locked-label {
   background: rgba(52, 211, 153, 0.15);
   color: rgb(52, 211, 153);
+}
+
+[data-theme='dark'] .product-badge-locked-label:hover {
+  background: rgba(52, 211, 153, 0.28);
 }
 
 .product-badge-icon {
@@ -2114,60 +2131,6 @@
 .product-badge-clear:hover {
   opacity: 1;
   background: rgba(37, 99, 235, 0.12);
-}
-
-.product-badge-lock-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(37, 99, 235, 0.08);
-  color: var(--accent);
-  cursor: pointer;
-  opacity: 0.85;
-  transition: opacity 0.12s, background 0.12s, color 0.12s, transform 0.12s;
-}
-
-.product-badge-lock-btn:hover {
-  opacity: 1;
-  background: rgba(37, 99, 235, 0.18);
-  color: var(--accent);
-  transform: scale(1.1);
-}
-
-.product-badge-lock-btn--active {
-  color: rgb(16, 185, 129);
-  background: rgba(16, 185, 129, 0.1);
-  opacity: 0.9;
-}
-
-.product-badge-lock-btn--active:hover {
-  color: rgb(16, 185, 129);
-  background: rgba(16, 185, 129, 0.18);
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-[data-theme='dark'] .product-badge-lock-btn {
-  background: rgba(96, 165, 250, 0.12);
-  color: rgb(96, 165, 250);
-}
-
-[data-theme='dark'] .product-badge-lock-btn:hover {
-  background: rgba(96, 165, 250, 0.22);
-}
-
-[data-theme='dark'] .product-badge-lock-btn--active {
-  color: rgb(52, 211, 153);
-  background: rgba(52, 211, 153, 0.12);
-}
-
-[data-theme='dark'] .product-badge-lock-btn--active:hover {
-  color: rgb(52, 211, 153);
-  background: rgba(52, 211, 153, 0.2);
 }
 
 /* ── Product Badge in Chat Header area ── */

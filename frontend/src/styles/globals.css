@@ -116,7 +116,7 @@ button {
 }
 
 .debug-panel-close-btn {
-  position: absolute;
+  position: absolute !important;
   top: 4px;
   right: 4px;
   display: flex;
@@ -147,7 +147,7 @@ button {
 [data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%) scale(0.95);
   padding: 4px 10px;
@@ -172,4 +172,14 @@ button {
 
 [data-tooltip=""]::after {
   display: none;
+}
+
+/* ── Global spinner ── */
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
