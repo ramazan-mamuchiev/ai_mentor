@@ -37,10 +37,12 @@ function useIsMobile() {
 
 interface Props {
   sources: SourceInfo[]
+  sessionId?: number
+  messageId?: number
   onClose: () => void
 }
 
-export function SourcesPanel({ sources, onClose }: Props) {
+export function SourcesPanel({ sources, sessionId, messageId, onClose }: Props) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
@@ -95,9 +97,18 @@ export function SourcesPanel({ sources, onClose }: Props) {
       )}
       <div ref={containerRef} className="sources-panel" style={panelStyle}>
         <div className="sources-panel-header">
-          <span className="sources-panel-title">
-            {t('chat.sourcesPanel.title', { count: sources.length })}
-          </span>
+          <div className="sources-panel-header-content">
+            <span className="sources-panel-title">
+              {t('chat.sourcesPanel.title', { count: sources.length })}
+            </span>
+            {(sessionId != null || messageId != null) && (
+              <span className="sources-panel-ids">
+                {sessionId != null && `S#${sessionId}`}
+                {sessionId != null && messageId != null && ' '}
+                {messageId != null && `M#${messageId}`}
+              </span>
+            )}
+          </div>
           <button className="sources-panel-close" onClick={onClose}>
             <X size={16} />
           </button>

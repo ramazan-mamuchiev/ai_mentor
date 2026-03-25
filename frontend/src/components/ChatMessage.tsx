@@ -178,7 +178,7 @@ interface Props {
   streamingContent?: string
   streamingSources?: SourceInfo[]
   onRetry?: () => void
-  onShowSources?: (sources: SourceInfo[]) => void
+  onShowSources?: (sources: SourceInfo[], sessionId?: number, messageId?: number) => void
 }
 
 export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, onRetry, onShowSources }: Props) {
@@ -227,7 +227,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
           <div className="sources-container">
             <button
               className="sources-toggle"
-              onClick={() => onShowSources?.(sources)}
+              onClick={() => onShowSources?.(sources, message.debug?.session_id, message.debug?.message_id)}
             >
               <FileSearch size={14} />
               <span className="sources-label">{t('chat.sources', { count: sources.length })}</span>

@@ -827,17 +827,29 @@
 
 .sources-panel-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 10px 8px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
+.sources-panel-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .sources-panel-title {
   font-weight: 600;
   font-size: 14px;
   color: var(--text);
+}
+
+.sources-panel-ids {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, monospace);
 }
 
 .sources-panel-close {

@@ -117,10 +117,10 @@ export function ChatWindow({
     [onSend],
   )
 
-  const [panelSources, setPanelSources] = useState<SourceInfo[] | null>(null)
+  const [panelSources, setPanelSources] = useState<{ sources: SourceInfo[]; sessionId?: number; messageId?: number } | null>(null)
 
-  const handleShowSources = useCallback((sources: SourceInfo[]) => {
-    setPanelSources(sources)
+  const handleShowSources = useCallback((sources: SourceInfo[], sessionId?: number, messageId?: number) => {
+    setPanelSources({ sources, sessionId, messageId })
   }, [])
 
   const { t } = useTranslation()
@@ -200,7 +200,9 @@ export function ChatWindow({
 
       {panelSources && (
         <SourcesPanel
-          sources={panelSources}
+          sources={panelSources.sources}
+          sessionId={panelSources.sessionId}
+          messageId={panelSources.messageId}
           onClose={() => setPanelSources(null)}
         />
       )}
