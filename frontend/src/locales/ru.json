@@ -18,6 +18,11 @@
   "chat.stopped": "*⏹ Генерация остановлена*",
   "chat.error": "Ошибка: {{message}}",
   "chat.retry": "Попробовать снова",
+  "chat.copy": "Копировать",
+  "chat.copied": "Скопировано",
+  "chat.edit": "Редактировать",
+  "chat.editCancel": "Отмена",
+  "chat.editSend": "Отправить",
 
   "error.badRequest": "AI-сервис отклонил запрос. Попробуйте ещё раз.",
   "error.authFailed": "Ошибка аутентификации AI-сервиса. Проверьте конфигурацию.",

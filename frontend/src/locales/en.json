@@ -18,6 +18,11 @@
   "chat.stopped": "*⏹ Generation stopped*",
   "chat.error": "Error: {{message}}",
   "chat.retry": "Try again",
+  "chat.copy": "Copy",
+  "chat.copied": "Copied",
+  "chat.edit": "Edit",
+  "chat.editCancel": "Cancel",
+  "chat.editSend": "Send",
 
   "error.badRequest": "The AI service rejected the request. Please try again.",
   "error.authFailed": "AI service authentication failed. Please check the configuration.",

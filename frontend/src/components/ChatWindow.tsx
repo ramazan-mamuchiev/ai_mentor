@@ -133,6 +133,10 @@ export function ChatWindow({
     setRightPanel({ mode: 'debug', debug, sessionId, messageId })
   }, [])
 
+  const handleEditMessage = useCallback((content: string) => {
+    handleSend(content)
+  }, [handleSend])
+
   const { t } = useTranslation()
   const isEmpty = messages.length === 0 && !streamingContent
 
@@ -178,6 +182,7 @@ export function ChatWindow({
                   onRetry={msg.error_code && idx === messages.length - 1 ? onRetry : undefined}
                   onShowSources={handleShowSources}
                   onShowDebug={handleShowDebug}
+                  onEditMessage={msg.role === 'user' ? handleEditMessage : undefined}
                 />
               ))}
               {status === 'streaming' && (
