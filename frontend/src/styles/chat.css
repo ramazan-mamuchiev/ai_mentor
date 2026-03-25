@@ -488,33 +488,6 @@
   text-decoration: underline;
 }
 
-.doc-ref-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  margin: 0 1px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  vertical-align: super;
-  position: relative;
-  top: -2px;
-  transition: background 0.15s, transform 0.1s;
-  user-select: none;
-}
-
-.doc-ref-badge:hover {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
-  transform: scale(1.15);
-}
-
 .message-footer {
   display: flex;
   align-items: center;
