@@ -613,7 +613,8 @@ async def build_rag_prompt(
                 f"Попробуйте переключить фильтр продукта.\"\n\n"
             )
 
-        messages.append({"role": "user", "content": f"{hint}{scope_hint}Based on the documentation above, answer the following question:\n\n{query}"})
+        citation_reminder = "Important: Do NOT include any citation links, footnotes, or [N] references in your answer.\n\n"
+        messages.append({"role": "user", "content": f"{hint}{scope_hint}{citation_reminder}Based on the documentation above, answer the following question:\n\n{query}"})
 
     sources = [
         {
