@@ -416,6 +416,11 @@
   justify-content: flex-end;
 }
 
+.message.user .message-body {
+  flex: 0 1 auto;
+  max-width: 85%;
+}
+
 .message-avatar {
   width: 28px;
   height: 28px;
@@ -447,7 +452,8 @@
   background: #3b82f6;
   color: #fff;
   border-radius: 18px 18px 4px 18px;
-  padding-right: 70px;
+  padding-right: 60px;
+  overflow: visible;
 }
 
 [data-theme="dark"] .message.user .message-content {
