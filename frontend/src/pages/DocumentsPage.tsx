@@ -18,7 +18,7 @@ import {
   ExternalLink,
   Eye,
 } from 'lucide-react'
-import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
+import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
 import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
@@ -152,6 +152,18 @@ function OverflowCell({ children, className }: { children: React.ReactNode; clas
     >
       {children}
     </div>
+  )
+}
+
+const docGlobalFilter: FilterFn<DocumentListItem> = (row, _columnId, filterValue) => {
+  const q = String(filterValue).toLowerCase()
+  if (!q) return true
+  const d = row.original
+  return (
+    d.title.toLowerCase().includes(q) ||
+    d.original_filename.toLowerCase().includes(q) ||
+    (d.source_container || '').toLowerCase().includes(q) ||
+    (d.source_path || '').toLowerCase().includes(q)
   )
 }
 
@@ -464,6 +476,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     columnFilters,
     globalFilter,
     onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: docGlobalFilter,
   })
 
   const handleResetAll = useCallback(() => {
@@ -604,8 +617,6 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
             return (
               doc.title.toLowerCase().includes(q) ||
               doc.original_filename.toLowerCase().includes(q) ||
-              doc.format.toLowerCase().includes(q) ||
-              (doc.product_name || '').toLowerCase().includes(q) ||
               (doc.source_container || '').toLowerCase().includes(q) ||
               (doc.source_path || '').toLowerCase().includes(q)
             )
