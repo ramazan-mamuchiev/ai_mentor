@@ -989,6 +989,7 @@ td:has(.docs-actions) {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   border-radius: 6px;
   border: none;
   background: none;
@@ -1932,9 +1933,6 @@ td:has(.docs-actions) {
 .docs-debug-toggle {
   opacity: 0.5;
   transition: opacity 0.15s, background 0.15s;
-  border: none;
-  background: none;
-  padding: 0;
 }
 
 .docs-debug-toggle:hover {
