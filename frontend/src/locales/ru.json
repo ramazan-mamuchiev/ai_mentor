@@ -455,5 +455,8 @@
   "productPicker.close": "Закрыть",
   "sidebar.menu": "Меню",
   "chat.scrollToBottom": "Прокрутить вниз",
-  "chat.sources.preview": "Просмотреть документ"
+  "chat.sources.preview": "Просмотреть документ",
+  "productAutocomplete.noProducts": "Нет загруженных продуктов",
+  "productAutocomplete.createNew": "Создать «{{name}}»",
+  "upload.productOrCreate": "Продукт *"
 }

@@ -114,6 +114,33 @@ export type SSEEvent =
 
 export type StreamStatus = 'idle' | 'streaming' | 'error'
 
+export interface SharedLinkResponse {
+  token: string
+  url: string
+  share_type: 'session' | 'message'
+  title: string
+  view_count: number
+  is_active: boolean
+  created_at: string
+}
+
+export interface SharedMessageSnapshot {
+  role: 'user' | 'assistant'
+  content: string
+  sources?: Record<string, unknown>[] | null
+  created_at: string
+}
+
+export interface SharedContentResponse {
+  share_type: 'session' | 'message'
+  title: string
+  product_filter: string | null
+  version_filter: string | null
+  messages: SharedMessageSnapshot[]
+  created_at: string
+  view_count: number
+}
+
 export type DocumentStatusValue = 'pending' | 'processing' | 'ready' | 'error' | 'cancelled'
 
 export interface DocumentListItem {
@@ -215,6 +242,9 @@ export interface ProductListItem {
   slug: string
   manufacturer_slug: string
   created_at: string
+  firmware_version_id: number | null
+  version: string
+  display_name: string
   total_documents: number
   pending_documents: number
   processing_documents: number

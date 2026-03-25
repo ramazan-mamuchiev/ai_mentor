@@ -20,6 +20,10 @@ class ProductListItem(BaseModel):
     manufacturer_slug: str = ""
     created_at: datetime
 
+    firmware_version_id: int | None = None
+    version: str = ""
+    display_name: str = ""
+
     total_documents: int = 0
     pending_documents: int = 0
     processing_documents: int = 0

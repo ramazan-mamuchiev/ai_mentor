@@ -47,7 +47,10 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
     if (!search.trim()) return products
     const q = search.toLowerCase()
     return products.filter(
-      p => p.name.toLowerCase().includes(q) || p.manufacturer.toLowerCase().includes(q),
+      p => p.display_name.toLowerCase().includes(q)
+        || p.name.toLowerCase().includes(q)
+        || p.manufacturer.toLowerCase().includes(q)
+        || p.version.toLowerCase().includes(q),
     )
   }, [products, search])
 
@@ -73,7 +76,7 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
           productId: product.id,
           productName: product.name,
           manufacturer: product.manufacturer,
-          versionFilter: null,
+          versionFilter: product.version || null,
         })
       }
       onClose?.()
@@ -124,13 +127,17 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
               <div className="product-picker-group-label">{group.manufacturer}</div>
               {group.products.map(p => {
                 const isActive = value.productName === p.name
+                  && (value.versionFilter ?? '') === (p.version ?? '')
+                const itemKey = p.firmware_version_id
+                  ? `${p.id}-${p.firmware_version_id}`
+                  : String(p.id)
                 return (
                   <button
-                    key={p.id}
+                    key={itemKey}
                     className={`product-picker-item${isActive ? ' active' : ''}`}
                     onClick={() => handleSelect(p)}
                   >
-                    <span className="product-picker-item-name">{p.name}</span>
+                    <span className="product-picker-item-name">{p.display_name || p.name}</span>
                     <span className="product-picker-item-meta">
                       {p.total_documents} docs · {p.total_chunks} chunks
                     </span>

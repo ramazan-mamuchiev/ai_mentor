@@ -36,11 +36,12 @@ async def _get_product_by_slugs(session, manufacturer_slug: str, product_slug: s
 
 @router.get("", response_model=list[ProductListItem])
 async def list_products():
-    """List all products with aggregated document stats."""
+    """List all products with aggregated document stats, one row per (product, firmware_version)."""
     async with async_session() as session:
         agg = (
             select(
                 Document.product_id,
+                Document.firmware_version_id,
                 func.count().label("total_documents"),
                 func.sum(case((Document.status == "pending", 1), else_=0)).label("pending_documents"),
                 func.sum(case((Document.status == "processing", 1), else_=0)).label("processing_documents"),
@@ -53,17 +54,18 @@ async def list_products():
                 func.max(Document.indexed_at).label("indexed_at"),
                 func.sum(Document.progress_percent).label("sum_progress"),
             )
-            .group_by(Document.product_id)
+            .group_by(Document.product_id, Document.firmware_version_id)
             .subquery()
         )
 
         fmt_agg = (
             select(
                 Document.product_id,
+                Document.firmware_version_id,
                 Document.format,
                 func.count().label("cnt"),
             )
-            .group_by(Document.product_id, Document.format)
+            .group_by(Document.product_id, Document.firmware_version_id, Document.format)
             .subquery()
         )
 
@@ -77,6 +79,8 @@ async def list_products():
                 Product.slug,
                 Product.manufacturer_slug,
                 Product.created_at,
+                FirmwareVersion.id.label("firmware_version_id"),
+                FirmwareVersion.version.label("version"),
                 func.coalesce(agg.c.total_documents, 0).label("total_documents"),
                 func.coalesce(agg.c.pending_documents, 0).label("pending_documents"),
                 func.coalesce(agg.c.processing_documents, 0).label("processing_documents"),
@@ -89,23 +93,33 @@ async def list_products():
                 agg.c.indexed_at,
                 func.coalesce(agg.c.sum_progress, 0).label("sum_progress"),
             )
-            .outerjoin(agg, Product.id == agg.c.product_id)
-            .order_by(Product.name)
+            .join(FirmwareVersion, FirmwareVersion.product_id == Product.id)
+            .outerjoin(
+                agg,
+                (Product.id == agg.c.product_id) & (FirmwareVersion.id == agg.c.firmware_version_id),
+            )
+            .order_by(Product.name, FirmwareVersion.version)
         )
-        products = result.all()
+        rows = result.all()
 
         fmt_result = await session.execute(
-            select(fmt_agg.c.product_id, fmt_agg.c.format, fmt_agg.c.cnt)
+            select(
+                fmt_agg.c.product_id,
+                fmt_agg.c.firmware_version_id,
+                fmt_agg.c.format,
+                fmt_agg.c.cnt,
+            )
         )
         fmt_rows = fmt_result.all()
-        fmt_map: dict[int, list[FormatCount]] = {}
+        fmt_map: dict[tuple[int, int], list[FormatCount]] = {}
         for row in fmt_rows:
-            fmt_map.setdefault(row.product_id, []).append(
+            key = (row.product_id, row.firmware_version_id)
+            fmt_map.setdefault(key, []).append(
                 FormatCount(format=row.format, count=row.cnt)
             )
 
         items = []
-        for p in products:
+        for p in rows:
             total = p.total_documents
             progress_pct = round(p.sum_progress / total) if total > 0 else 0
 
@@ -127,6 +141,11 @@ async def list_products():
                 parts.append(f"{cancelled} cancelled")
             progress_detail = ", ".join(parts) if parts else ""
 
+            version_str = p.version or ""
+            display_name = f"{p.name} {version_str}".strip()
+
+            fmt_key = (p.id, p.firmware_version_id)
+
             items.append(ProductListItem(
                 id=p.id,
                 name=p.name,
@@ -136,6 +155,9 @@ async def list_products():
                 slug=p.slug,
                 manufacturer_slug=p.manufacturer_slug,
                 created_at=p.created_at,
+                firmware_version_id=p.firmware_version_id,
+                version=version_str,
+                display_name=display_name,
                 total_documents=total,
                 pending_documents=pending,
                 processing_documents=processing,
@@ -144,7 +166,7 @@ async def list_products():
                 cancelled_documents=cancelled,
                 total_file_size_bytes=p.total_file_size_bytes,
                 total_chunks=p.total_chunks,
-                formats=fmt_map.get(p.id, []),
+                formats=fmt_map.get(fmt_key, []),
                 uploaded_at=p.uploaded_at,
                 indexed_at=p.indexed_at,
                 progress_percent=progress_pct,

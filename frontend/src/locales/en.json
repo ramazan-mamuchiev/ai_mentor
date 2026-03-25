@@ -455,5 +455,8 @@
   "productPicker.close": "Close",
   "sidebar.menu": "Menu",
   "chat.scrollToBottom": "Scroll to bottom",
-  "chat.sources.preview": "View full document"
+  "chat.sources.preview": "View full document",
+  "productAutocomplete.noProducts": "No products yet",
+  "productAutocomplete.createNew": "Create \"{{name}}\"",
+  "upload.productOrCreate": "Product *"
 }

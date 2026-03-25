@@ -377,7 +377,11 @@ def ingest_archive_task(
 
             if not force:
                 dup = session.execute(
-                    sa_select(Document).where(Document.source_hash == entry_hash).limit(1)
+                    sa_select(Document).where(
+                        Document.source_hash == entry_hash,
+                        Document.product_id == product_row.id,
+                        Document.firmware_version_id == fw_row.id,
+                    ).limit(1)
                 ).scalar_one_or_none()
                 if dup is not None:
                     logger.info("Archive entry duplicate skipped", extra={
@@ -521,7 +525,11 @@ def ingest_archive_from_s3_task(
 
             if not force:
                 dup = session.execute(
-                    sa_select(Document).where(Document.source_hash == entry_hash).limit(1)
+                    sa_select(Document).where(
+                        Document.source_hash == entry_hash,
+                        Document.product_id == product_row.id,
+                        Document.firmware_version_id == fw_row.id,
+                    ).limit(1)
                 ).scalar_one_or_none()
                 if dup is not None:
                     logger.info("Archive entry duplicate skipped", extra={
@@ -828,6 +836,8 @@ def ingest_confluence_task(self, document_id: int):
                 existing = s.execute(
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
+                        Document.product_id == product_id,
+                        Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
                 if existing is not None:

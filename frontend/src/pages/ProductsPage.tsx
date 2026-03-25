@@ -180,7 +180,9 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     if (!deleteTarget) return
     try {
       await deleteProduct(deleteTarget.manufacturer_slug, deleteTarget.slug)
-      setProducts(prev => prev.filter(p => p.id !== deleteTarget.id))
+      setProducts(prev => prev.filter(p =>
+        !(p.manufacturer_slug === deleteTarget.manufacturer_slug && p.slug === deleteTarget.slug)
+      ))
     } catch { /* ignore */ }
     finally { setDeleteTarget(null) }
   }, [deleteTarget])
@@ -255,7 +257,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const columns = useMemo<ColumnDef<ProductListItem, unknown>[]>(() => [
     {
       id: 'name',
-      accessorFn: row => row.name,
+      accessorFn: row => row.display_name || row.name,
       header: () => t('products.table.name'),
       cell: ({ row }) => (
         <div
@@ -263,7 +265,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           style={{ cursor: 'pointer' }}
           onClick={() => navigate(`/app/products/${row.original.manufacturer_slug}/${row.original.slug}`)}
         >
-          <span className="docs-name">{row.original.name}</span>
+          <span className="docs-name">{row.original.display_name || row.original.name}</span>
           {row.original.manufacturer && (
             <span className="docs-filename">{row.original.manufacturer}</span>
           )}
@@ -393,7 +395,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     columns,
     storageKey: STORAGE_KEY,
     defaultColumnOrder: DEFAULT_COLUMN_ORDER,
-    getRowId: row => String(row.id),
+    getRowId: row => row.firmware_version_id ? `${row.id}-${row.firmware_version_id}` : String(row.id),
     columnFilters,
     globalFilter,
     onGlobalFilterChange: setGlobalFilter,

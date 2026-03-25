@@ -92,8 +92,11 @@ async def ingest_document(
     )
 
     async with async_session() as session:
+        product = await _get_or_create_product(session, product_name, manufacturer)
+        fw = await _get_or_create_firmware(session, product.id, firmware_version)
+
         if not force:
-            existing = await _find_by_hash(session, source_hash)
+            existing = await _find_by_hash(session, source_hash, product.id, fw.id)
             if existing is not None:
                 logger.info(
                     "Duplicate document skipped",
@@ -116,9 +119,6 @@ async def ingest_document(
                     existing_document_id=existing.id,
                     existing_document_title=existing.title,
                 )
-
-        product = await _get_or_create_product(session, product_name, manufacturer)
-        fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
         doc = Document(
             product_id=product.id,
@@ -972,10 +972,16 @@ async def reingest_documents(
     }
 
 
-async def _find_by_hash(session, source_hash: str) -> Document | None:
-    """Find an existing document with the same content hash."""
+async def _find_by_hash(
+    session, source_hash: str, product_id: int, firmware_version_id: int
+) -> Document | None:
+    """Find an existing document with the same content hash within the same product+version."""
     result = await session.execute(
-        select(Document).where(Document.source_hash == source_hash).limit(1)
+        select(Document).where(
+            Document.source_hash == source_hash,
+            Document.product_id == product_id,
+            Document.firmware_version_id == firmware_version_id,
+        ).limit(1)
     )
     return result.scalar_one_or_none()
 

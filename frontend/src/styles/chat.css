@@ -2330,3 +2330,133 @@
   flex-shrink: 0;
   opacity: 0.6;
 }
+
+/* ── Product Autocomplete ── */
+.product-autocomplete {
+  position: relative;
+}
+
+.product-autocomplete-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.product-autocomplete-input-wrap input {
+  width: 100%;
+  padding: 8px 52px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.product-autocomplete-input-wrap input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.product-autocomplete-input-wrap input.product-autocomplete-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+
+.product-autocomplete-clear,
+.product-autocomplete-toggle {
+  position: absolute;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.product-autocomplete-clear {
+  right: 24px;
+}
+
+.product-autocomplete-toggle {
+  right: 4px;
+}
+
+.product-autocomplete-clear:hover,
+.product-autocomplete-toggle:hover {
+  color: var(--text);
+}
+
+.product-autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-elevated, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 4px;
+}
+
+.product-autocomplete-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.product-autocomplete-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.product-autocomplete-option:hover {
+  background: var(--bg-hover, rgba(128, 128, 128, 0.08));
+}
+
+.product-autocomplete-option-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-autocomplete-option-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.product-autocomplete-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 8px;
+}
+
+.product-autocomplete-create {
+  color: var(--accent);
+  gap: 6px;
+}
+
+.product-autocomplete-create:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
