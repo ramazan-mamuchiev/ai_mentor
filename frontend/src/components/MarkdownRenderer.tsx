@@ -18,7 +18,9 @@ interface Props {
 /**
  * Normalize citation links that LLM may produce in various forms:
  * - [N](ipcodex:doc:ID) — already correct
- * - [N](ID) or bare superscript numbers — need rewriting
+ * - [N](ID) — numeric-only href
+ * - [N](any-url) — LLM sometimes wraps index in a random URL
+ * - [N] — bare bracket reference without href
  * Uses the sources array to build a sourceIndex→documentId map.
  */
 function normalizeCitations(md: string, sources?: SourceInfo[]): string {
@@ -29,9 +31,11 @@ function normalizeCitations(md: string, sources?: SourceInfo[]): string {
     if (s.document_id) indexToDocId.set(i + 1, s.document_id)
   })
 
+  const maxIdx = sources.length
+
   let result = md.replace(
     /\[(\d+)\]\(ipcodex:doc:(\d+)\)/g,
-    (full, _n, id) => `[${_n}](ipcodex:doc:${id})`,
+    (_full, n, id) => `[${n}](ipcodex:doc:${id})`,
   )
 
   result = result.replace(
@@ -40,6 +44,30 @@ function normalizeCitations(md: string, sources?: SourceInfo[]): string {
       const num = parseInt(n, 10)
       const docId = indexToDocId.get(num) ?? parseInt(rawId, 10)
       return `[${n}](ipcodex:doc:${docId})`
+    },
+  )
+
+  result = result.replace(
+    /\[(\d+)\]\((?!ipcodex:doc:)[^)]+\)/g,
+    (_full, n) => {
+      const num = parseInt(n, 10)
+      if (num >= 1 && num <= maxIdx) {
+        const docId = indexToDocId.get(num)
+        if (docId) return `[${n}](ipcodex:doc:${docId})`
+      }
+      return _full
+    },
+  )
+
+  result = result.replace(
+    /\[(\d+)\](?!\()/g,
+    (_full, n) => {
+      const num = parseInt(n, 10)
+      if (num >= 1 && num <= maxIdx) {
+        const docId = indexToDocId.get(num)
+        if (docId) return `[${n}](ipcodex:doc:${docId})`
+      }
+      return _full
     },
   )
 
