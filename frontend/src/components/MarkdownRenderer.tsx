@@ -3,34 +3,14 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './CodeBlock'
 import { fixBrokenTables } from '../utils/fixBrokenTables'
-import type { SourceInfo } from '../types'
 
 interface Props {
   content: string
   isStreaming?: boolean
-  sources?: SourceInfo[]
 }
 
-/**
- * Remove all citation links from markdown so the chat text stays clean.
- * Handles formats: [N](ipcodex:doc:ID), [N](ID), [N](url), [N], and
- * comma-separated groups like [1, 3, 8].
- */
-function stripCitations(md: string, sources?: SourceInfo[]): string {
-  if (!sources?.length) return md
-  let result = md
-  result = result.replace(/\[[\d,\s]+\]\([^)]*\)/g, '')
-  result = result.replace(/\[[\d,\s]+\](?!\()/g, '')
-  result = result.replace(/ {2,}/g, ' ')
-  result = result.replace(/ ([.,;:!?])/g, '$1')
-  return result
-}
-
-export function MarkdownRenderer({ content, isStreaming, sources }: Props) {
-  const processed = useMemo(
-    () => stripCitations(fixBrokenTables(content), sources),
-    [content, sources],
-  )
+export function MarkdownRenderer({ content, isStreaming }: Props) {
+  const processed = useMemo(() => fixBrokenTables(content), [content])
 
   return (
     <div className={isStreaming ? 'streaming-content' : undefined}>

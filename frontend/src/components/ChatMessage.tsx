@@ -220,7 +220,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             <MarkdownRenderer
               content={content}
               isStreaming={isStreaming}
-              sources={sources}
             />
           )}
         </div>
