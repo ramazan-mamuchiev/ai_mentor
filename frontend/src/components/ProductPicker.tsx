@@ -173,7 +173,6 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
         <span
           className="product-badge-auto"
           onClick={e => { e.stopPropagation(); onLock?.() }}
-          data-tooltip={t('productBadge.lock')}
         >
           {t('productBadge.autoDetected')}
         </span>
@@ -182,7 +181,6 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
         <span
           className="product-badge-locked-label"
           onClick={e => { e.stopPropagation(); onUnlock?.() }}
-          data-tooltip={t('productBadge.unlock')}
         >
           {t('productBadge.locked')}
         </span>
