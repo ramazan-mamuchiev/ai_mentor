@@ -43,6 +43,18 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
     searchRef.current?.focus()
   }, [])
 
+  useEffect(() => {
+    if (!onClose) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const filtered = useMemo(() => {
     if (!search.trim()) return products
     const q = search.toLowerCase()
