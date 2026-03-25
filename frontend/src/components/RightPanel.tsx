@@ -260,7 +260,7 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
         <div className="sources-panel-header">
           <div className="sources-panel-header-content">
             <span className="sources-panel-title">
-              <Icon size={14} />
+              <Icon size={12} />
               {title}
             </span>
             {(sessionId != null || messageId != null) && (
@@ -272,7 +272,7 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
             )}
           </div>
           <button className="sources-panel-close" onClick={onClose}>
-            <X size={16} />
+            <X size={14} />
           </button>
         </div>
         <div className="sources-panel-body">
