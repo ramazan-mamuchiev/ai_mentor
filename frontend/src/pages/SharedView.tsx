@@ -77,10 +77,10 @@ export function SharedView() {
           <img src="/logo-on-dark.svg" alt="Plexicode" className="logo-dark" />
         </Link>
         <div className="shared-view-meta">
-          <h1 className="shared-view-title">{data.title}</h1>
           {data.product_filter && (
             <span className="shared-view-product">{data.product_filter}</span>
           )}
+          <h1 className="shared-view-title">{data.title}</h1>
         </div>
         <Link to="/app" className="shared-view-cta">
           <ExternalLink size={14} />

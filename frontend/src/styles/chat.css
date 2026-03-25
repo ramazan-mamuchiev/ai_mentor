@@ -2733,8 +2733,9 @@
 }
 
 .shared-view-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -2742,11 +2743,11 @@
 }
 
 .shared-view-product {
-  font-size: 12px;
-  color: var(--text-muted);
-  background: var(--bg-hover);
-  padding: 2px 8px;
-  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+  margin-top: 2px;
 }
 
 .shared-view-cta {
@@ -2805,10 +2806,16 @@
 }
 
 .shared-message.user .shared-message-body {
-  background: var(--user-msg-bg, var(--bg-secondary));
-  border-radius: 16px 16px 4px 16px;
+  background: #3b82f6;
+  color: #fff;
+  border-radius: 18px 18px 4px 18px;
   padding: 10px 16px;
   max-width: 80%;
+  word-break: break-word;
+}
+
+[data-theme="dark"] .shared-message.user .shared-message-body {
+  background: #60a5fa;
 }
 
 .shared-message.assistant .shared-message-body {
@@ -2819,6 +2826,88 @@
 .shared-message-content {
   font-size: 14px;
   line-height: 1.6;
+  overflow-x: auto;
+}
+
+/* Markdown tables in shared view */
+.shared-message-content table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: auto;
+  display: block;
+  max-width: 100%;
+}
+
+.shared-message-content thead {
+  background: var(--bg-secondary, #f1f5f9);
+}
+
+.shared-message-content th,
+.shared-message-content td {
+  border: 1px solid var(--border-color, #e2e8f0);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.shared-message-content th {
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary, #64748b);
+}
+
+.shared-message-content tbody tr:nth-child(even) {
+  background: var(--bg-tertiary, #f8fafc);
+}
+
+.shared-message-content tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.shared-message-content td code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* Markdown code blocks in shared view */
+.shared-message-content pre {
+  background: var(--bg-secondary, #f1f5f9);
+  border-radius: 8px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.shared-message-content code {
+  font-family: var(--font-mono, 'Fira Code', monospace);
+  font-size: 13px;
+}
+
+.shared-message-content p code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.shared-message-content h1,
+.shared-message-content h2,
+.shared-message-content h3,
+.shared-message-content h4 {
+  margin: 16px 0 8px;
+}
+
+.shared-message-content ul,
+.shared-message-content ol {
+  padding-left: 20px;
+  margin: 8px 0;
 }
 
 .shared-view-footer {
