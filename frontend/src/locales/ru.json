@@ -285,7 +285,7 @@
   "docs.preview.rendering": "Рендеринг Markdown...",
   "docs.preview.expand": "Развернуть на весь экран",
   "docs.preview.collapse": "Свернуть",
-  "docs.preview.download": "Скачать .md",
+  "docs.preview.download": "Скачать",
 
   "docDebug.file": "Файл",
   "docDebug.format": "Формат",

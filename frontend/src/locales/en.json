@@ -285,7 +285,7 @@
   "docs.preview.rendering": "Rendering Markdown...",
   "docs.preview.expand": "Fullscreen",
   "docs.preview.collapse": "Exit fullscreen",
-  "docs.preview.download": "Download .md",
+  "docs.preview.download": "Download",
 
   "docDebug.file": "File",
   "docDebug.format": "Format",
