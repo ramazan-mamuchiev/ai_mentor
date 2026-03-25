@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Cpu, ArrowDown } from 'lucide-react'
-import type { SourceInfo, StreamStatus } from '../types'
+import type { SourceInfo, StreamStatus, DebugInfo } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
-import { SourcesPanel } from './SourcesPanel'
+import { RightPanel } from './RightPanel'
 
 const SCROLL_THRESHOLD = 100
 const USER_INTERACTION_TTL = 200
@@ -117,10 +117,20 @@ export function ChatWindow({
     [onSend],
   )
 
-  const [panelSources, setPanelSources] = useState<{ sources: SourceInfo[]; sessionId?: number; messageId?: number } | null>(null)
+  const [rightPanel, setRightPanel] = useState<{
+    mode: 'sources' | 'debug'
+    sources?: SourceInfo[]
+    debug?: DebugInfo
+    sessionId?: number
+    messageId?: number
+  } | null>(null)
 
   const handleShowSources = useCallback((sources: SourceInfo[], sessionId?: number, messageId?: number) => {
-    setPanelSources({ sources, sessionId, messageId })
+    setRightPanel({ mode: 'sources', sources, sessionId, messageId })
+  }, [])
+
+  const handleShowDebug = useCallback((debug: DebugInfo, sessionId?: number, messageId?: number) => {
+    setRightPanel({ mode: 'debug', debug, sessionId, messageId })
   }, [])
 
   const { t } = useTranslation()
@@ -167,6 +177,7 @@ export function ChatWindow({
                   message={msg}
                   onRetry={msg.error_code && idx === messages.length - 1 ? onRetry : undefined}
                   onShowSources={handleShowSources}
+                  onShowDebug={handleShowDebug}
                 />
               ))}
               {status === 'streaming' && (
@@ -182,6 +193,7 @@ export function ChatWindow({
                   streamingContent={streamingContent}
                   streamingSources={streamingSources}
                   onShowSources={handleShowSources}
+                  onShowDebug={handleShowDebug}
                 />
               )}
               <div ref={bottomRef} />
@@ -198,12 +210,16 @@ export function ChatWindow({
         <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} onUploadClick={onUploadClick} />
       </div>
 
-      {panelSources && (
-        <SourcesPanel
-          sources={panelSources.sources}
-          sessionId={panelSources.sessionId}
-          messageId={panelSources.messageId}
-          onClose={() => setPanelSources(null)}
+      {rightPanel && (
+        <RightPanel
+          content={
+            rightPanel.mode === 'sources'
+              ? { mode: 'sources', sources: rightPanel.sources! }
+              : { mode: 'debug', debug: rightPanel.debug! }
+          }
+          sessionId={rightPanel.sessionId}
+          messageId={rightPanel.messageId}
+          onClose={() => setRightPanel(null)}
         />
       )}
     </div>

@@ -921,6 +921,24 @@
   to   { opacity: 1; }
 }
 
+/* Debug content in right panel - single column layout */
+.right-panel-debug {
+  grid-template-columns: 1fr !important;
+  gap: 8px;
+}
+
+.right-panel-debug .debug-section {
+  padding: 8px 10px;
+  background: var(--surface);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.right-panel-debug .debug-context-grid {
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+
 .source-card {
   background: var(--surface);
   border: 1px solid var(--border);
