@@ -28,7 +28,40 @@ from app.llm.client import LLMError, stream_chat_completion
 from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Product
 
 MAX_CONTINUATIONS = settings.llm_max_continuations
-CONTINUE_PROMPT = "Continue exactly where you stopped. RULES: 1) Do NOT repeat ANY text, tables, headers, or code blocks already written. 2) Do NOT re-output table column headers. 3) No preamble — continue the text seamlessly."
+CONTINUE_PROMPT = (
+    "Continue exactly where you stopped. RULES: "
+    "1) Do NOT repeat ANY text, tables, headers, or code blocks already written. "
+    "2) Do NOT re-output table column headers. "
+    "3) No preamble — continue the text seamlessly. "
+    "4) You MUST complete the response fully — finish all lists, tables, and sentences."
+)
+
+_INCOMPLETE_ENDINGS = re.compile(
+    r"(?:"
+    r"[,;:]\s*$"                    # ends with comma, semicolon, colon
+    r"|\b(?:и|а|но|или|что|для|от|из|на|по|к|с|в|о|об|за|при|не|более|менее)\s*$"  # trailing RU conjunctions/prepositions
+    r"|\b(?:and|or|but|the|a|an|of|for|to|in|is|are|was|with|that|which|more|less)\s*$"  # trailing EN articles/conjunctions
+    r"|\|\s*$"                       # ends mid-table row
+    r"|```\w*\s*$"                   # opened code block never closed
+    r"|\*\*[^*]+$"                   # opened bold never closed
+    r"|- \S.*[^.!?)\]>]\s*$"        # list item without terminal punctuation
+    r")"
+)
+
+
+def _looks_incomplete(text: str) -> bool:
+    """Heuristic: check if the response appears to have been cut off mid-sentence."""
+    if not text or len(text) < 40:
+        return False
+    trimmed = text.rstrip()
+    if not trimmed:
+        return False
+    if _INCOMPLETE_ENDINGS.search(trimmed):
+        return True
+    open_blocks = trimmed.count("```")
+    if open_blocks % 2 != 0:
+        return True
+    return False
 
 logger = logging.getLogger(__name__)
 
@@ -340,6 +373,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 history = msgs_result.scalars().all()
 
                 current_summary = chat_session.history_summary
+                summary_meta: dict = {}
                 history_list = list(history)
                 if (
                     settings.summary_enabled
@@ -353,7 +387,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         or m.id > chat_session.summary_up_to_message_id
                     ]
                     if new_to_summarize:
-                        updated_summary = await summarize_history(
+                        updated_summary, summary_meta = await summarize_history(
                             new_to_summarize, existing_summary=current_summary,
                         )
                         if updated_summary:
@@ -374,6 +408,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     history_summary=current_summary,
                 )
                 rag_ms = round((time.perf_counter() - t_rag) * 1000, 1)
+                if summary_meta:
+                    rag_debug.update(summary_meta)
 
                 auto_prod = rag_debug.get("auto_product")
                 if auto_prod and chat_session.product_filter != auto_prod:
@@ -617,6 +653,20 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         completion_tokens=0,
                         query_text=req.content,
                         duration_ms=rag_debug.get("rephrase_ms", 0),
+                    )
+
+                if summary_meta.get("summary_total_tokens", 0) > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="history_summarize",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=summary_meta.get("summary_model", ""),
+                        prompt_tokens=summary_meta.get("summary_prompt_tokens", 0),
+                        completion_tokens=summary_meta.get("summary_completion_tokens", 0),
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=summary_meta.get("summary_ms", 0),
                     )
 
                 logger.info(

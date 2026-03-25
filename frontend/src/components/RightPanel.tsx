@@ -118,6 +118,16 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           {debug.prompt_hash && <div className="debug-row debug-row-config"><span>{t('debug.promptHash')}</span><code>{debug.prompt_hash}</code></div>}
         </div>
       )}
+      {(debug.summary_total_tokens ?? 0) > 0 && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.summaryCost')}</div>
+          <div className="debug-row"><span>{t('debug.summaryPromptTokens')}</span><code>{fmt(debug.summary_prompt_tokens)}</code></div>
+          <div className="debug-row"><span>{t('debug.summaryCompletionTokens')}</span><code>{fmt(debug.summary_completion_tokens)}</code></div>
+          <div className="debug-row debug-row-total"><span>{t('debug.summaryTotalTokens')}</span><code>{fmt(debug.summary_total_tokens)}</code></div>
+          {debug.summary_model && <div className="debug-row debug-row-config"><span>{t('debug.summaryModel')}</span><code>{debug.summary_model}</code></div>}
+          {debug.summary_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.summaryTime')}</span><code>{(debug.summary_ms / 1000).toFixed(2)}s</code></div>}
+        </div>
+      )}
       {debug.retry_used && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.retryUsed')}</div>

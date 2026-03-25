@@ -61,6 +61,11 @@ export interface DebugInfo {
   classify_total_tokens?: number
   classify_raw?: string
   prompt_hash?: string
+  summary_model?: string
+  summary_ms?: number
+  summary_prompt_tokens?: number
+  summary_completion_tokens?: number
+  summary_total_tokens?: number
   retry_used?: boolean
   rephrase_ms?: number
   rephrase_query?: string | null

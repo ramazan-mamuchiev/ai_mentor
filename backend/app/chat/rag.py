@@ -409,15 +409,17 @@ async def _rephrase_for_retry(query: str) -> str | None:
 async def summarize_history(
     messages: list[ChatMessage],
     existing_summary: str | None = None,
-) -> str | None:
+) -> tuple[str | None, dict]:
     """Summarize older chat messages into a compact summary using Flash.
 
     If *existing_summary* is provided, the LLM merges it with new messages
     instead of re-summarizing everything from scratch.
-    Returns the summary text, or None on failure.
+    Returns (summary_text, usage_meta) where usage_meta contains token counts
+    and timing for billing and debug panel.
     """
+    empty_meta: dict = {}
     if not messages:
-        return existing_summary
+        return existing_summary, empty_meta
 
     parts: list[str] = []
     if existing_summary:
@@ -454,19 +456,27 @@ async def summarize_history(
 
         summary = data["choices"][0]["message"]["content"].strip()
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+        usage = data.get("usage", {})
+        meta = {
+            "summary_model": settings.summary_model,
+            "summary_ms": elapsed_ms,
+            "summary_prompt_tokens": usage.get("prompt_tokens", 0),
+            "summary_completion_tokens": usage.get("completion_tokens", 0),
+            "summary_total_tokens": usage.get("total_tokens", 0),
+        }
         logger.info(
             "History summarized",
             extra={
                 "messages_count": len(messages),
                 "had_existing_summary": bool(existing_summary),
                 "summary_length": len(summary),
-                "summary_ms": elapsed_ms,
+                **meta,
             },
         )
-        return summary
+        return summary, meta
     except Exception:
         logger.warning("History summarization failed, continuing without summary", exc_info=True)
-        return existing_summary
+        return existing_summary, empty_meta
 
 
 async def build_rag_prompt(
