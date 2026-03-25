@@ -11,9 +11,11 @@ import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select as sa_select
+
 from app.config import settings
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
-from app.models import ChatMessage
+from app.models import ChatMessage, Product
 from app.search.service import search_documents
 
 logger = logging.getLogger(__name__)
@@ -488,12 +490,24 @@ async def build_rag_prompt(
     t_search = time.perf_counter()
     search_meta: dict = {}
 
-    is_explicit_lock = product_filter_source == "explicit" and product_id is not None
+    effective_product_id = product_id
+    if product_filter_source == "explicit" and product_id is None and product_filter:
+        product = await db.scalar(
+            sa_select(Product).where(Product.name == product_filter)
+        )
+        if product:
+            effective_product_id = product.id
+            logger.info(
+                "Resolved product_id from product_filter for explicit lock",
+                extra={"product_filter": product_filter, "product_id": effective_product_id},
+            )
+
+    is_explicit_lock = product_filter_source == "explicit" and effective_product_id is not None
 
     chunks = await search_documents(
         session=db,
         query=search_query,
-        product_id=product_id if is_explicit_lock else None,
+        product_id=effective_product_id if is_explicit_lock else None,
         product=product_filter if not is_explicit_lock else None,
         version=version_filter,
         doc_context=doc_context,
@@ -537,7 +551,7 @@ async def build_rag_prompt(
             retry_chunks = await search_documents(
                 session=db,
                 query=rephrased,
-                product_id=product_id if is_explicit_lock else None,
+                product_id=effective_product_id if is_explicit_lock else None,
                 product=product_filter if not is_explicit_lock else None,
                 version=version_filter,
                 doc_context=doc_context,
@@ -676,7 +690,7 @@ async def build_rag_prompt(
         "history_messages": len(history) if history else 0,
         "prompt_messages": len(messages),
         "embedding_model": _embedding_model_name(),
-        "product_id": product_id,
+        "product_id": effective_product_id,
         "product_filter": product_filter,
         "product_filter_source": product_filter_source,
         "version_filter": version_filter,

@@ -25,7 +25,7 @@ from app.chat.schemas import (
 from app.config import settings
 from app.database import async_session
 from app.llm.client import LLMError, stream_chat_completion
-from app.models import ChatMessage, ChatMessageAnalytics, ChatSession
+from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Product
 
 MAX_CONTINUATIONS = settings.llm_max_continuations
 CONTINUE_PROMPT = "Continue exactly where you stopped. RULES: 1) Do NOT repeat ANY text, tables, headers, or code blocks already written. 2) Do NOT re-output table column headers. 3) No preamble — continue the text seamlessly."
@@ -100,6 +100,25 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
             chat_session.product_filter_source = req.product_filter_source or None
         if req.version_filter is not None:
             chat_session.version_filter = req.version_filter or None
+
+        if (
+            chat_session.product_filter_source == "explicit"
+            and chat_session.product_id is None
+            and chat_session.product_filter
+        ):
+            product = await session.scalar(
+                select(Product).where(Product.name == chat_session.product_filter)
+            )
+            if product:
+                chat_session.product_id = product.id
+                logger.info(
+                    "Auto-resolved product_id for explicit lock",
+                    extra={
+                        "session_id": session_id,
+                        "product_filter": chat_session.product_filter,
+                        "product_id": product.id,
+                    },
+                )
 
         if product_changed:
             chat_session.doc_context = None
