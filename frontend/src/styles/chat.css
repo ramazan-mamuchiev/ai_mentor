@@ -640,12 +640,15 @@
 }
 
 /* ── Message edit mode ── */
+.message.user:has(.message-edit-mode) .message-body {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
 .message-edit-mode {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 85%;
-  margin-left: auto;
+  gap: 6px;
 }
 
 .message-edit-textarea {
