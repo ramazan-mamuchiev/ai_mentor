@@ -19,7 +19,7 @@ import {
   Eye,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
-import { listDocuments, downloadDocument, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
+import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
 import { DocumentDebugPanel } from '../components/DocumentDebugPanel'
@@ -200,10 +200,16 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [documents, fetchDocs])
 
-  const handleDownload = useCallback(async (id: number) => {
+  const handleDownload = useCallback(async (doc: DocumentListItem) => {
     try {
-      const result = await downloadDocument(id)
-      window.open(result.download_url, '_blank')
+      const result = await previewMarkdown(doc.id)
+      const blob = new Blob([result.markdown], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${result.title || `document-${doc.id}`}.md`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch { /* ignore */ }
   }, [])
 
@@ -423,7 +429,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               </button>
             )}
             {doc.status === 'ready' && (
-              <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} data-tooltip={t('docs.actions.download')}>
+              <button className="docs-action-btn" onClick={() => handleDownload(doc)} data-tooltip={t('docs.actions.download')}>
                 <Download size={16} />
               </button>
             )}
@@ -651,7 +657,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                   </button>
                 )}
                 {doc.status === 'ready' && (
-                  <button className="docs-action-btn" onClick={() => handleDownload(doc.id)} data-tooltip={t('docs.actions.download')}>
+                  <button className="docs-action-btn" onClick={() => handleDownload(doc)} data-tooltip={t('docs.actions.download')}>
                     <Download size={16} />
                   </button>
                 )}
