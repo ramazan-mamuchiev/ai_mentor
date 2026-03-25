@@ -286,6 +286,8 @@
   "docs.preview.expand": "Развернуть на весь экран",
   "docs.preview.collapse": "Свернуть",
   "docs.preview.download": "Скачать",
+  "docs.preview.largeFile": "Большой файл ({{size}}). Отображение может замедлить браузер.",
+  "docs.preview.openAnyway": "Открыть всё равно",
 
   "docDebug.file": "Файл",
   "docDebug.format": "Формат",

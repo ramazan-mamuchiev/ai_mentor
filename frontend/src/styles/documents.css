@@ -1744,6 +1744,50 @@ td:has(.docs-actions) {
   color: #ef4444;
 }
 
+.md-preview-large-warning {
+  color: var(--text-secondary);
+}
+
+.md-preview-large-warning svg {
+  color: #f59e0b;
+}
+
+.md-preview-large-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.md-preview-large-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.md-preview-large-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--text-muted);
+}
+
+.md-preview-large-btn--primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.md-preview-large-btn--primary:hover {
+  opacity: 0.9;
+  border-color: var(--accent);
+}
+
 .md-preview-content {
   font-size: 14px;
   line-height: 1.7;

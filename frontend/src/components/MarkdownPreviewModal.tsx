@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Download, Loader2, AlertCircle, FileText, Maximize2, Minimize2 } from 'lucide-react'
+import { X, Download, Loader2, AlertCircle, FileText, Maximize2, Minimize2, AlertTriangle } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { previewMarkdown } from '../api/documents'
 import type { DocumentMarkdownPreview } from '../types'
@@ -19,6 +19,8 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
 }
 
+const LARGE_FILE_THRESHOLD = 200 * 1024
+
 const SOURCE_LABELS: Record<string, string> = {
   s3_converted: 'S3 (converted)',
   s3_original: 'S3 (original)',
@@ -31,6 +33,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const [largeFileConfirmed, setLargeFileConfirmed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -72,6 +75,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   }, [data, documentId])
 
   const showSpinner = loading
+  const isLargeFile = data != null && data.size_bytes > LARGE_FILE_THRESHOLD && !largeFileConfirmed
 
   return (
     <div className="confirm-overlay" onClick={onClose}>
@@ -125,7 +129,22 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
               <span>{error}</span>
             </div>
           )}
-          {data && !showSpinner && (
+          {isLargeFile && (
+            <div className="md-preview-placeholder md-preview-large-warning">
+              <AlertTriangle size={32} />
+              <span>{t('docs.preview.largeFile', { size: formatBytes(data!.size_bytes) })}</span>
+              <div className="md-preview-large-actions">
+                <button className="md-preview-large-btn md-preview-large-btn--primary" onClick={handleDownload}>
+                  <Download size={16} />
+                  {t('docs.preview.download')}
+                </button>
+                <button className="md-preview-large-btn" onClick={() => setLargeFileConfirmed(true)}>
+                  {t('docs.preview.openAnyway')}
+                </button>
+              </div>
+            </div>
+          )}
+          {data && !showSpinner && !isLargeFile && (
             <div className="md-preview-content">
               <MarkdownRenderer content={data.markdown} />
             </div>

@@ -286,6 +286,8 @@
   "docs.preview.expand": "Fullscreen",
   "docs.preview.collapse": "Exit fullscreen",
   "docs.preview.download": "Download",
+  "docs.preview.largeFile": "This file is large ({{size}}). Rendering may slow down the browser.",
+  "docs.preview.openAnyway": "Open anyway",
 
   "docDebug.file": "File",
   "docDebug.format": "Format",
