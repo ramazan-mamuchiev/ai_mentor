@@ -1,7 +1,7 @@
 {
   "empty.badge": "AI-платформа интеграции",
-  "empty.title": "IPCodex",
-  "empty.slogan": "Протоколы говорят. Codex переводит.",
+  "empty.title": "Plexicode",
+  "empty.slogan": "Сложные API. Простые ответы.",
   "empty.subslogan": "Из документации в код.",
   "empty.instantly": "Мгновенно.",
 
@@ -95,7 +95,7 @@
   "debug.statusError": "Ошибка",
 
   "sidebar.newChat": "Новый чат",
-  "sidebar.title": "IPCodex",
+  "sidebar.title": "Plexicode",
   "sidebar.collapse": "Свернуть панель",
   "sidebar.expand": "Развернуть панель",
 
@@ -157,8 +157,8 @@
   "landing.nav.openApp": "Начать",
 
   "landing.hero.badge": "AI-платформа интеграции",
-  "landing.hero.title": "IPCodex",
-  "landing.hero.slogan": "Протоколы говорят. Codex переводит.",
+  "landing.hero.title": "Plexicode",
+  "landing.hero.slogan": "Сложные API. Простые ответы.",
   "landing.hero.subslogan": "Из документации в код.",
   "landing.hero.instantly": "Мгновенно.",
   "landing.hero.description": "AI читает документацию устройств, чтобы разработчики писали код интеграции, а не искали информацию.",
@@ -166,7 +166,7 @@
   "landing.hero.author": "от",
 
   "landing.elevator.label": "Elevator Pitch",
-  "landing.elevator.text": "IPCodex превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в <strong>структурированную базу знаний</strong>, на основе которой <strong>AI-помощники пишут рабочий код интеграции</strong>. Прямых аналогов на рынке нет.",
+  "landing.elevator.text": "Plexicode превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в <strong>структурированную базу знаний</strong>, на основе которой <strong>AI-помощники пишут рабочий код интеграции</strong>. Прямых аналогов на рынке нет.",
 
   "landing.why.title": "Почему это важно",
   "landing.why.text": "Компании, интегрирующие физические устройства (IP-камеры, СКУД, POS), тратят огромное время на поиск и чтение документации от десятков производителей. Документация в разных форматах, разбросана по сайтам и PDF, без версий и недоступна AI-инструментам. Структурированная Markdown-документация нужна AI-ассистентам (Cursor, Windsurf, GitHub Copilot) для помощи в интеграции.",
@@ -214,7 +214,7 @@
   "landing.howItWorks.step5.text": "Разработчик в AI IDE спрашивает: «Как получить список камер через ISAPI?». MCP-сервер находит релевантные фрагменты, LLM генерирует рабочий код с правильными endpoints и параметрами.",
   "landing.howItWorks.step5.code": "// AI IDE → MCP Server → RAG → LLM\n\nimport requests\n\ndef get_channels(host, user, pwd):\n    url = f\"http://{host}/ISAPI/System/Video/inputs/channels\"\n    from requests.auth import HTTPDigestAuth\n    r = requests.get(url, auth=HTTPDigestAuth(user, pwd), verify=False)\n    return r.json()[\"VideoInputChannelList\"]\n\n# ✓ Endpoint verified from firmware 5.7.21 docs\n# ✓ Auth method: HTTP Digest (from ISAPI spec)",
 
-  "landing.footer.copyright": "© 2026 IPCodex",
+  "landing.footer.copyright": "© 2026 Plexicode",
   "landing.footer.by": "от",
   "landing.footer.author": "Aleh Vaitsekhovich",
 

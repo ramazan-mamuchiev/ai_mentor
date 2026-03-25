@@ -1,10 +1,10 @@
-# IPCodex
+# Plexicode
 
-> **Protocols speak. Codex translates.**
+> **Complex APIs. Simple answers.**
 >
 > *From docs to code. Instantly.*
 
-IPCodex is a platform that transforms chaotic product documentation (PDF, Swagger/OpenAPI, Markdown, web pages, Protobuf) into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
+Plexicode is a platform that transforms chaotic product documentation (PDF, Swagger/OpenAPI, Markdown, web pages, Protobuf) into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
 
 ## Why
 
@@ -112,7 +112,7 @@ Add to `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "ipcodex": {
+    "plexicode": {
       "url": "http://localhost:8000/mcp"
     }
   }

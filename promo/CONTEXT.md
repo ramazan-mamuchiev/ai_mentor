@@ -1,22 +1,22 @@
-# IPCodex — Project Context & Technical Specification
+# Plexicode — Project Context & Technical Specification
 
 ## Product Vision
 
-**IPCodex** — коммерческий standalone-продукт (платформа) для управления и версионирования API-документации физических устройств (IP-камеры, POS-терминалы, СКУД, IoT-устройства).
+**Plexicode** — коммерческий standalone-продукт (платформа) для управления и версионирования API-документации физических устройств (IP-камеры, POS-терминалы, СКУД, IoT-устройства).
 
 ### Brand Slogan
 
-> **"Protocols speak. Codex translates."**
-> *"Протоколы говорят. Codex переводит."*
+> **"Complex APIs. Simple answers."**
+> *"Сложные API. Простые ответы."*
 >
 > **"From docs to code. Instantly."**
 > *"Из документации в код. Мгновенно."*
 
 ### Ключевая идея
-Компании, интегрирующие физические устройства, тратят значительное время на работу с хаотичной документацией от производителей. IPCodex решает это, преобразуя документацию в структурированный Markdown, и делает её доступной для AI-помощников в IDE (Cursor, Antigravity, Windsurf, GitHub Copilot) через RAG + MCP.
+Компании, интегрирующие физические устройства, тратят значительное время на работу с хаотичной документацией от производителей. Plexicode решает это, преобразуя документацию в структурированный Markdown, и делает её доступной для AI-помощников в IDE (Cursor, Antigravity, Windsurf, GitHub Copilot) через RAG + MCP.
 
 ### Elevator Pitch
-IPCodex превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в **структурированную базу знаний**, на основе которой **AI-помощники пишут рабочий код интеграции**. Прямых аналогов на рынке нет.
+Plexicode превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в **структурированную базу знаний**, на основе которой **AI-помощники пишут рабочий код интеграции**. Прямых аналогов на рынке нет.
 
 ---
 
@@ -202,7 +202,7 @@ ipcodex/
 
 ### Adjacent Market Players
 
-| Product | Type | Funding | What They Do | IPCodex Difference |
+| Product | Type | Funding | What They Do | Plexicode Difference |
 |---------|------|---------|-------------|-------------------|
 | **Context7** (Upstash) | MCP for software libs | Upstash-backed | Доставляет документацию софтверных библиотек (React, Next.js) в AI IDE через MCP | Только софт-библиотеки. Нет PDF/OCR, нет устройств, нет конвертации |
 | **Documentation.AI** | Docs creation platform | #1 Product Hunt | AI-платформа для создания документации продуктов. AI-агент, MCP, llms.txt | Пользователи пишут свои docs. Нет импорта из PDF, нет OCR, нет версионирования по прошивкам |
@@ -211,13 +211,13 @@ ipcodex/
 | **ReadMe.com** | API docs | $9M raised | API-документация с playground, Swagger import, analytics | Нет PDF/OCR, нет firmware versioning, нет MCP |
 
 ### Ключевой вывод
-Рынок AI-документации **валидирован** хорошо профинансированными компаниями (Mintlify $21.3M, ReadMe $9M). Они доказывают, что разработчики платят за инструменты документации. IPCodex занимает **незанятую вертикаль** — документация физических устройств — применяя проверенные паттерны (MCP, RAG, AI Chat) к рынку без специализированного решения.
+Рынок AI-документации **валидирован** хорошо профинансированными компаниями (Mintlify $21.3M, ReadMe $9M). Они доказывают, что разработчики платят за инструменты документации. Plexicode занимает **незанятую вертикаль** — документация физических устройств — применяя проверенные паттерны (MCP, RAG, AI Chat) к рынку без специализированного решения.
 
 ### Потенциальные партнёрства
-- **Context7**: IPCodex-документация устройств может быть проиндексирована Context7, делая hardware APIs доступными через их MCP рядом с софтверными библиотеками
-- **Documentation.AI**: Вендоры могут использовать Documentation.AI для публикации документации устройств, пока IPCodex обрабатывает конвертацию и AI-обогащение
+- **Context7**: Plexicode-документация устройств может быть проиндексирована Context7, делая hardware APIs доступными через их MCP рядом с софтверными библиотеками
+- **Documentation.AI**: Вендоры могут использовать Documentation.AI для публикации документации устройств, пока Plexicode обрабатывает конвертацию и AI-обогащение
 
-Подробный анализ: `IPCodex/comparison.html`
+Подробный анализ: `Plexicode/comparison.html`
 
 ---
 
@@ -266,7 +266,7 @@ ipcodex/
 ## File Structure (Current)
 
 ```
-IPCodex/
+Plexicode/
 ├── ipcodex.html              # Интерактивная презентация (EN/RU, light/dark)
 ├── comparison.html            # Детальный конкурентный анализ
 ├── (логотипы встроены inline SVG в HTML, исходники в frontend/public/)
@@ -292,7 +292,7 @@ IPCodex/
 ## GitHub Pages
 
 - **URL**: https://olegvphoenix.github.io/mcp-servers/
-- **index.html** в корне репозитория делает redirect на `IPCodex/ipcodex.html`
+- **index.html** в корне репозитория делает redirect на `Plexicode/ipcodex.html`
 - Ветка: `main`, папка: `/` (root)
 
 ---
@@ -346,7 +346,7 @@ IPCodex/
 
 #### Ключевой вывод по MCP-серверам конкурентов:
 
-Mintlify и GitBook **имеют** MCP-серверы, но они ограничены работой с документацией, созданной на их собственных платформах. IPCodex отличается тем, что:
+Mintlify и GitBook **имеют** MCP-серверы, но они ограничены работой с документацией, созданной на их собственных платформах. Plexicode отличается тем, что:
 - Конвертирует **внешнюю** документацию (PDF, Swagger, URL) в формат, пригодный для MCP
 - Поддерживает **firmware-based versioning** — уникальная функция для физических устройств
 - Работает с **любой** документацией, а не только с той, что создана на платформе
@@ -357,7 +357,7 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 - MCP-сервер для доставки документации open-source библиотек в AI IDE
 - За спиной Upstash — инфраструктурная компания с серьёзным финансированием
 - Только софтверные библиотеки, нет поддержки физических устройств
-- **Потенциальный партнёр**: IPCodex-документация может быть проиндексирована Context7
+- **Потенциальный партнёр**: Plexicode-документация может быть проиндексирована Context7
 
 #### Documentation.AI
 - #1 Product Hunt, AI-платформа для создания документации
@@ -390,7 +390,7 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 - Карточки игроков (`.player`) получили цветные градиенты слева (blue, purple, pink, green, amber)
 - Блоки Strengths/Limitations — цветные фоны (green/red) с иконками
 - Таблица сравнения — sticky first column для мобильных
-- Market Map — выделение IPCodex карточки градиентной рамкой
+- Market Map — выделение Plexicode карточки градиентной рамкой
 - Conclusion — градиентная верхняя граница, выделение ключевых цифр `<strong>`
 
 #### Выравнивание стилей с ipcodex.html
@@ -449,15 +449,15 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 
 | Файл | Назначение |
 |------|-----------|
-| `IPCodex/ipcodex.html` | Основная интерактивная презентация (лендинг для инвесторов) |
-| `IPCodex/comparison.html` | Детальный конкурентный анализ |
-| `IPCodex/CONTEXT.md` | Техническая спецификация и контекст проекта |
+| `Plexicode/ipcodex.html` | Основная интерактивная презентация (лендинг для инвесторов) |
+| `Plexicode/comparison.html` | Детальный конкурентный анализ |
+| `Plexicode/CONTEXT.md` | Техническая спецификация и контекст проекта |
 | `doc2md-mcp/server.py` | Готовые функции конвертации (PDF, Swagger, URL → Markdown) |
-| `index.html` | Redirect на IPCodex/ipcodex.html для GitHub Pages |
+| `index.html` | Redirect на Plexicode/ipcodex.html для GitHub Pages |
 
 ### 7. GitHub Pages
 
 - URL: https://olegvphoenix.github.io/mcp-servers/
-- Основная страница: `IPCodex/ipcodex.html`
-- Конкурентный анализ: `IPCodex/comparison.html`
+- Основная страница: `Plexicode/ipcodex.html`
+- Конкурентный анализ: `Plexicode/comparison.html`
 - Ветка: `main`, папка: `/` (root)

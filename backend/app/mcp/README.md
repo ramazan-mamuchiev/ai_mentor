@@ -1,10 +1,10 @@
-# IPCodex MCP Server
+# Plexicode MCP Server
 
-> **Protocols speak. Codex translates.**
+> **Complex APIs. Simple answers.**
 >
 > *From docs to code. Instantly.*
 
-IPCodex is an MCP server that gives your AI coding assistant instant access to API documentation for hardware devices (IP cameras, access controllers, intercoms) and software platforms (VMS, PSIM, IoT platforms, SDKs) — so it can write accurate integration code instead of hallucinating APIs.
+Plexicode is an MCP server that gives your AI coding assistant instant access to API documentation for hardware devices (IP cameras, access controllers, intercoms) and software platforms (VMS, PSIM, IoT platforms, SDKs) — so it can write accurate integration code instead of hallucinating APIs.
 
 ## The Problem
 
@@ -19,14 +19,14 @@ Developers integrating physical security and IoT products waste hours reading ch
 
 ## The Solution
 
-IPCodex indexes product documentation (PDF, Swagger/OpenAPI, Markdown, web pages) into a semantic knowledge base and serves it to AI assistants via MCP.
+Plexicode indexes product documentation (PDF, Swagger/OpenAPI, Markdown, web pages) into a semantic knowledge base and serves it to AI assistants via MCP.
 
 ```
 Developer in Cursor:
   "Write Python code to stream video from a Hikvision camera
    and register it in Axxon One with analytics metadata"
 
-IPCodex returns:
+Plexicode returns:
   — Hikvision RTSP streaming endpoint (from camera docs)
   — Hikvision authentication method (from camera docs)
   — Axxon One gRPC camera registration API (from VMS SDK docs)
@@ -50,7 +50,7 @@ Add to your `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "ipcodex": {
+    "plexicode": {
       "url": "http://localhost:8000/mcp"
     }
   }
@@ -73,11 +73,11 @@ Show me the ONVIF PTZ continuous move command for pan and tilt.
 What's the RTSP stream URL format for Hikvision DS-2CD2347G2-LU?
 ```
 
-IPCodex automatically provides the relevant documentation to your AI assistant.
+Plexicode automatically provides the relevant documentation to your AI assistant.
 
 ## MCP Tools
 
-IPCodex exposes 3 tools via the Model Context Protocol:
+Plexicode exposes 3 tools via the Model Context Protocol:
 
 ### `search_documentation`
 
@@ -183,7 +183,7 @@ Integration tests use Testcontainers (PostgreSQL + pgvector) — Docker must be 
 
 ## Compared to Context7
 
-| | Context7 | IPCodex |
+| | Context7 | Plexicode |
 |---|---|---|
 | **Domain** | Open-source software libraries (React, Next.js) | Hardware devices + software platforms (cameras, VMS, access control) |
 | **Sources** | Public GitHub repos | PDF, Swagger, web pages, vendor portals |
