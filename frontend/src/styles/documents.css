@@ -1777,15 +1777,21 @@ td:has(.docs-actions) {
   border-color: var(--text-muted);
 }
 
-.md-preview-large-btn--primary {
+.md-preview-large-btn--primary,
+.md-preview-large-btn--primary:hover,
+.md-preview-large-btn--primary:focus,
+.md-preview-large-btn--primary:active {
   background: var(--accent);
-  color: #fff;
+  color: #fff !important;
   border-color: var(--accent);
 }
 
 .md-preview-large-btn--primary:hover {
   opacity: 0.9;
-  border-color: var(--accent);
+}
+
+.md-preview-large-btn--primary svg {
+  color: #fff !important;
 }
 
 .md-preview-content {
