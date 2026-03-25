@@ -2805,6 +2805,9 @@
 .shared-message.assistant .shared-message-body {
   flex: 1;
   min-width: 0;
+  background: var(--bg-tertiary);
+  border-radius: 18px 18px 18px 4px;
+  padding: 10px 16px;
 }
 
 .shared-message-content {
