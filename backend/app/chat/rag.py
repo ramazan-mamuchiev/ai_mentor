@@ -645,7 +645,18 @@ async def build_rag_prompt(
 
         scope_hint = ""
         if is_explicit_lock:
-            if not chunks:
+            asking_about_different_product = auto_product and auto_product.lower() != product_filter.lower()
+            
+            if asking_about_different_product:
+                scope_hint = (
+                    f"⚠️ CRITICAL: The user is asking about product \"{auto_product}\" but the chat is LOCKED to \"{product_filter}\". "
+                    f"You MUST start your response with this notice (in Russian):\n\n"
+                    f"\"⚠️ **Внимание:** Вы спрашиваете про **{auto_product}**, но чат работает в режиме фокусировки на **{product_filter}**.\n\n"
+                    f"Для информации про {auto_product} снимите блокировку — нажмите «LOCKED» рядом с названием продукта.\"\n\n"
+                    f"After this notice, if the sources contain ANY relevant information, provide it briefly. "
+                    f"If sources have nothing relevant, just show the notice above without adding anything else.\n\n"
+                )
+            elif not chunks:
                 scope_hint = (
                     f"⚠️ CRITICAL SCOPE RESTRICTION: This conversation is LOCKED to product \"{product_filter}\". "
                     f"The search was restricted to this product only and found NO relevant information. "
