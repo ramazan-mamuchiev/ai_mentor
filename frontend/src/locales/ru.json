@@ -13,7 +13,7 @@
   "chat.searching": "Поиск по документации и генерация ответа...",
   "chat.sources": "Источники ({{count}})",
   "chat.sourcesPanel.title": "Источники ({{count}})",
-  "chat.debugPanel.title": "Отладка",
+  "chat.debugPanel.title": "Debug",
   "chat.debug": "Отладочная информация",
   "chat.stopped": "*⏹ Генерация остановлена*",
   "chat.error": "Ошибка: {{message}}",
@@ -290,7 +290,7 @@
   "docs.preview.largeFile": "Большой файл ({{size}}). Отображение может замедлить браузер.",
   "docs.preview.openAnyway": "Открыть всё равно",
 
-  "docDebug.title": "Отладка",
+  "docDebug.title": "Debug",
   "docDebug.file": "Файл",
   "docDebug.format": "Формат",
   "docDebug.size": "Размер",

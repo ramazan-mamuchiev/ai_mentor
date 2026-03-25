@@ -13,7 +13,7 @@
   "chat.searching": "Searching documentation & generating response...",
   "chat.sources": "Sources ({{count}})",
   "chat.sourcesPanel.title": "Sources ({{count}})",
-  "chat.debugPanel.title": "Debug Info",
+  "chat.debugPanel.title": "Debug",
   "chat.debug": "Debug info",
   "chat.stopped": "*⏹ Generation stopped*",
   "chat.error": "Error: {{message}}",
@@ -290,7 +290,7 @@
   "docs.preview.largeFile": "This file is large ({{size}}). Rendering may slow down the browser.",
   "docs.preview.openAnyway": "Open anyway",
 
-  "docDebug.title": "Debug Info",
+  "docDebug.title": "Debug",
   "docDebug.file": "File",
   "docDebug.format": "Format",
   "docDebug.size": "Size",
