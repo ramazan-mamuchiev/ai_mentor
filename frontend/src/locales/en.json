@@ -354,6 +354,7 @@
   "docDebug.totalSize": "Total size",
   "docDebug.avgSize": "Avg size",
   "docDebug.avgChunksPerDoc": "Avg chunks/doc",
+  "docDebug.lastIndexedAt": "Last indexed",
   "docDebug.formats": "Formats",
   "docDebug.statuses": "Statuses",
 

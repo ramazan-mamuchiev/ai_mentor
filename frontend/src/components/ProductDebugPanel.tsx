@@ -86,12 +86,16 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
     const byFormat = new Map<string, number>()
     let totalSize = 0
     let totalChunks = 0
+    let lastIndexed: string | null = null
 
     for (const d of docs) {
       byStatus.set(d.status, (byStatus.get(d.status) ?? 0) + 1)
       byFormat.set(d.format, (byFormat.get(d.format) ?? 0) + 1)
       totalSize += d.file_size_bytes
       totalChunks += d.total_chunks
+      if (d.indexed_at && (!lastIndexed || d.indexed_at > lastIndexed)) {
+        lastIndexed = d.indexed_at
+      }
     }
 
     return {
@@ -102,6 +106,7 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
       totalChunks,
       avgSize: totalSize / docs.length,
       avgChunks: totalChunks / docs.length,
+      lastIndexed,
     }
   }, [debug?.documents])
 
@@ -183,6 +188,7 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
             <div className="doc-debug-row"><span>{t('docDebug.totalSize')}</span><code>{fmtBytes(docsSummary.totalSize)}</code></div>
             <div className="doc-debug-row"><span>{t('docDebug.avgSize')}</span><code>{fmtBytes(docsSummary.avgSize)}</code></div>
             <div className="doc-debug-row"><span>{t('docDebug.avgChunksPerDoc')}</span><code>{docsSummary.avgChunks.toFixed(1)}</code></div>
+            <div className="doc-debug-row"><span>{t('docDebug.lastIndexedAt')}</span><code>{docsSummary.lastIndexed ? new Date(docsSummary.lastIndexed).toLocaleString() : '—'}</code></div>
             {docsSummary.byFormat.length > 0 && (
               <div className="doc-debug-row"><span>{t('docDebug.formats')}</span><code>{docsSummary.byFormat.map(([f, c]) => `${f} (${c})`).join(', ')}</code></div>
             )}

@@ -354,6 +354,7 @@
   "docDebug.totalSize": "Общий размер",
   "docDebug.avgSize": "Средний размер",
   "docDebug.avgChunksPerDoc": "Среднее чанков/док",
+  "docDebug.lastIndexedAt": "Последняя индексация",
   "docDebug.formats": "Форматы",
   "docDebug.statuses": "Статусы",
 
