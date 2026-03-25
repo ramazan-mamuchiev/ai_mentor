@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { FileSearch, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { SourceInfo } from '../types'
 import { SourceCard } from './SourceCard'
@@ -99,6 +99,7 @@ export function SourcesPanel({ sources, sessionId, messageId, onClose }: Props) 
         <div className="sources-panel-header">
           <div className="sources-panel-header-content">
             <span className="sources-panel-title">
+              <FileSearch size={14} />
               {t('chat.sourcesPanel.title', { count: sources.length })}
             </span>
             {(sessionId != null || messageId != null) && (

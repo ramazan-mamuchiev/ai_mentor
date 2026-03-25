@@ -490,6 +490,15 @@ async def build_rag_prompt(
     t_search = time.perf_counter()
     search_meta: dict = {}
 
+    logger.info(
+        "RAG search params",
+        extra={
+            "product_id": product_id,
+            "product_filter": product_filter,
+            "product_filter_source": product_filter_source,
+        },
+    )
+
     effective_product_id = product_id
     if product_filter_source == "explicit" and product_id is None and product_filter:
         product = await db.scalar(
