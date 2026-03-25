@@ -924,14 +924,43 @@
 /* Debug content in right panel - single column layout */
 .right-panel-debug {
   grid-template-columns: 1fr !important;
-  gap: 8px;
+  gap: 6px;
 }
 
 .right-panel-debug .debug-section {
-  padding: 8px 10px;
+  padding: 6px 10px;
   background: var(--surface);
   border-radius: 6px;
   border: 1px solid var(--border);
+}
+
+.right-panel-debug .debug-section-title {
+  font-size: 9px;
+  margin-bottom: 3px;
+}
+
+.right-panel-debug .debug-row {
+  font-size: 11px;
+  gap: 6px;
+}
+
+.right-panel-debug .debug-row span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.right-panel-debug .debug-row code {
+  font-size: 11px;
+  color: var(--primary, var(--accent));
+}
+
+.right-panel-debug .debug-row-sub span {
+  font-size: 10px;
+  padding-left: 6px;
+}
+
+.right-panel-debug .debug-row-sub code {
+  font-size: 10px !important;
 }
 
 .right-panel-debug .debug-context-grid {
