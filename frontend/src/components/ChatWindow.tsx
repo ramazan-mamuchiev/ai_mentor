@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Cpu, ArrowDown } from 'lucide-react'
+import { Cpu, ArrowDown, Share2 } from 'lucide-react'
 import type { SourceInfo, StreamStatus, DebugInfo } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
 import { RightPanel } from './RightPanel'
+import { ShareModal } from './ShareModal'
 
 const SCROLL_THRESHOLD = 100
 const USER_INTERACTION_TTL = 200
@@ -29,6 +30,7 @@ interface Props {
   onClearProduct?: () => void
   onLockProduct?: () => void
   onUnlockProduct?: () => void
+  sessionId?: number | null
 }
 
 export function ChatWindow({
@@ -49,6 +51,7 @@ export function ChatWindow({
   onClearProduct,
   onLockProduct,
   onUnlockProduct,
+  sessionId,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -137,6 +140,16 @@ export function ChatWindow({
     handleSend(content)
   }, [handleSend])
 
+  const [shareModal, setShareModal] = useState<{ type: 'session' | 'message'; id: number } | null>(null)
+
+  const handleShareMessage = useCallback((messageId: number) => {
+    setShareModal({ type: 'message', id: messageId })
+  }, [])
+
+  const handleShareSession = useCallback(() => {
+    if (sessionId) setShareModal({ type: 'session', id: sessionId })
+  }, [sessionId])
+
   const { t } = useTranslation()
   const isEmpty = messages.length === 0 && !streamingContent
 
@@ -155,6 +168,17 @@ export function ChatWindow({
               onLock={onLockProduct}
               onUnlock={onUnlockProduct}
             />
+            {sessionId && messages.length > 0 && (
+              <button
+                className="share-chat-btn"
+                onClick={handleShareSession}
+                data-tooltip={t('share.shareChat')}
+                aria-label={t('share.shareChat')}
+                type="button"
+              >
+                <Share2 size={14} />
+              </button>
+            )}
           </div>
         )}
         <div className="messages-container" ref={containerRef} onScroll={handleScroll}>
@@ -183,6 +207,7 @@ export function ChatWindow({
                   onShowSources={handleShowSources}
                   onShowDebug={handleShowDebug}
                   onEditMessage={msg.role === 'user' ? handleEditMessage : undefined}
+                  onShareMessage={handleShareMessage}
                 />
               ))}
               {status === 'streaming' && (
@@ -225,6 +250,14 @@ export function ChatWindow({
           sessionId={rightPanel.sessionId}
           messageId={rightPanel.messageId}
           onClose={() => setRightPanel(null)}
+        />
+      )}
+
+      {shareModal && (
+        <ShareModal
+          type={shareModal.type}
+          id={shareModal.id}
+          onClose={() => setShareModal(null)}
         />
       )}
     </div>

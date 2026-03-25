@@ -390,3 +390,20 @@ CREATE INDEX IF NOT EXISTS idx_usage_log_action ON usage_log (action, created_at
 CREATE INDEX IF NOT EXISTS idx_usage_log_request ON usage_log (request_id);
 CREATE INDEX IF NOT EXISTS idx_usage_log_tenant ON usage_log (tenant_id, created_at) WHERE tenant_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_usage_log_model ON usage_log (llm_model, created_at) WHERE llm_model IS NOT NULL;
+
+-- Shared links (public snapshots of chat sessions or individual messages)
+CREATE TABLE IF NOT EXISTS shared_links (
+    id SERIAL PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    message_id INT REFERENCES chat_messages(id) ON DELETE CASCADE,
+    share_type TEXT NOT NULL,           -- 'session' | 'message'
+    title TEXT NOT NULL DEFAULT '',
+    snapshot_json JSONB NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    view_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shared_links_token ON shared_links(token);
+CREATE INDEX IF NOT EXISTS idx_shared_links_session ON shared_links(session_id);

@@ -458,5 +458,24 @@
   "chat.sources.preview": "Просмотреть документ",
   "productAutocomplete.noProducts": "Нет загруженных продуктов",
   "productAutocomplete.createNew": "Создать «{{name}}»",
-  "upload.productOrCreate": "Продукт *"
+  "upload.productOrCreate": "Продукт *",
+
+  "share.share": "Поделиться",
+  "share.shareChat": "Поделиться чатом",
+  "share.shareAnswer": "Поделиться ответом",
+  "share.creating": "Создание ссылки...",
+  "share.linkCreated": "Ссылка создана",
+  "share.copyLink": "Скопировать ссылку",
+  "share.linkCopied": "Ссылка скопирована!",
+  "share.deactivate": "Деактивировать ссылку",
+  "share.deactivated": "Ссылка деактивирована",
+  "share.views": "{{count}} просмотров",
+  "share.poweredBy": "Работает на Plexicode",
+  "share.tryIt": "Попробовать Plexicode",
+  "share.notFound": "Расшаренный контент не найден",
+  "share.inactive": "Эта ссылка больше не активна",
+  "share.error": "Не удалось создать ссылку",
+  "share.sharedChat": "Общий чат",
+  "share.sharedAnswer": "Общий ответ",
+  "share.close": "Закрыть"
 }

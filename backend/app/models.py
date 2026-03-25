@@ -308,6 +308,34 @@ class ChatMessageAnalytics(Base):
         }
 
 
+class SharedLink(Base):
+    __tablename__ = "shared_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(Text, unique=True, index=True, nullable=False)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    message_id: Mapped[int | None] = mapped_column(
+        ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=True
+    )
+    share_type: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, default="")
+    snapshot_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    session: Mapped["ChatSession"] = relationship()
+
+    __table_args__ = (
+        Index("idx_shared_links_token", "token"),
+        Index("idx_shared_links_session", "session_id"),
+    )
+
+
 class SearchAnalytics(Base):
     __tablename__ = "search_analytics"
 

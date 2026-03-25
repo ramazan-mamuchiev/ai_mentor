@@ -2476,3 +2476,328 @@
 .product-autocomplete-create:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
+
+/* ── Share Modal ── */
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.share-modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 460px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.share-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.share-modal-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.share-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.share-modal-close:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.share-modal-body {
+  padding: 16px;
+}
+
+.share-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.share-spinner {
+  animation: spin 1s linear infinite;
+}
+
+.share-error {
+  color: var(--error);
+  font-size: 13px;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.share-error p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.share-success-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+
+.share-link-field {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.share-link-input {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  min-width: 0;
+}
+
+.share-link-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.share-copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.share-copy-btn:hover {
+  opacity: 0.9;
+}
+
+.share-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.share-deactivate-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.share-deactivate-btn:hover {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.share-deactivated-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* Share button in chat header */
+.share-chat-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  transition: all 0.15s;
+  margin-left: 8px;
+}
+
+.share-chat-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Share button in message footer */
+.share-action-btn {
+  margin-left: 4px;
+}
+
+/* ── Shared View (public page) ── */
+.shared-view {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+
+.shared-view-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+.shared-view-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.shared-view-logo img {
+  height: 28px;
+}
+
+.shared-view-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.shared-view-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shared-view-product {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.shared-view-cta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.shared-view-cta:hover {
+  opacity: 0.9;
+  color: white;
+}
+
+.shared-view-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 24px;
+}
+
+.shared-view-error h2 {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.shared-view-messages {
+  flex: 1;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+  width: 100%;
+}
+
+.shared-message {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.shared-message.user {
+  justify-content: flex-end;
+}
+
+.shared-message.user .shared-message-body {
+  background: var(--user-msg-bg, var(--bg-secondary));
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 16px;
+  max-width: 80%;
+}
+
+.shared-message.assistant .shared-message-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.shared-message-content {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.shared-view-footer {
+  text-align: center;
+  padding: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}

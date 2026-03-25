@@ -226,6 +226,7 @@ export function ChatApp() {
       onClearProduct={handleClearProduct}
       onLockProduct={handleLockProduct}
       onUnlockProduct={handleUnlockProduct}
+      sessionId={activeSessionId}
     />
   )
 

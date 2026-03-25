@@ -16,6 +16,7 @@ from app.chat.router import router as chat_router
 from app.documents.router import router as documents_router
 from app.products.router import router as products_router
 from app.reindex.router import router as reindex_router
+from app.share.router import router as share_router
 from app.uploads.router import router as uploads_router
 from app.logging_config import setup_logging, active_requests_count
 from app.middleware.request_logging import RequestLoggingMiddleware
@@ -458,6 +459,7 @@ app.include_router(documents_router, prefix="/api/v1")
 app.include_router(products_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(reindex_router, prefix="/api/v1")
+app.include_router(share_router, prefix="/api/v1")
 app.include_router(uploads_router, prefix="/api/v1")
 app.router.routes.append(Mount("/mcp", app=mcp.streamable_http_app()))
 

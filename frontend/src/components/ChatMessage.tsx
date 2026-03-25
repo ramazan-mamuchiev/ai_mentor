@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bot, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Bot, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -13,9 +13,10 @@ interface Props {
   onShowSources?: (sources: SourceInfo[], sessionId?: number, messageId?: number) => void
   onShowDebug?: (debug: DebugInfo, sessionId?: number, messageId?: number) => void
   onEditMessage?: (content: string) => void
+  onShareMessage?: (messageId: number) => void
 }
 
-export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, onRetry, onShowSources, onShowDebug, onEditMessage }: Props) {
+export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, onRetry, onShowSources, onShowDebug, onEditMessage, onShareMessage }: Props) {
   const { t } = useTranslation()
   const content = isStreaming ? (streamingContent || '') : message.content
   const sources = isStreaming ? (streamingSources || []) : (message.sources || [])
@@ -69,12 +70,12 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
 
   const handleEditSend = useCallback(() => {
     const trimmed = editText.trim()
-    if (trimmed && trimmed !== content && onEditMessage) {
+    if (trimmed && onEditMessage) {
       onEditMessage(trimmed)
     }
     setIsEditing(false)
     setEditText('')
-  }, [editText, content, onEditMessage])
+  }, [editText, onEditMessage])
 
   const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -122,7 +123,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 <button
                   className="message-edit-send"
                   onClick={handleEditSend}
-                  disabled={!editText.trim() || editText.trim() === content}
+                  disabled={!editText.trim()}
                   type="button"
                 >
                   {t('chat.editSend')}
@@ -221,6 +222,17 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                   <Bug size={12} />
                 </button>
               </>
+            )}
+            {onShareMessage && message.id > 0 && (
+              <button
+                className="message-action-btn share-action-btn"
+                onClick={() => onShareMessage(message.id)}
+                data-tooltip={t('share.shareAnswer')}
+                aria-label={t('share.shareAnswer')}
+                type="button"
+              >
+                <Share2 size={12} />
+              </button>
             )}
           </div>
         )}

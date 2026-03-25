@@ -458,5 +458,24 @@
   "chat.sources.preview": "View full document",
   "productAutocomplete.noProducts": "No products yet",
   "productAutocomplete.createNew": "Create \"{{name}}\"",
-  "upload.productOrCreate": "Product *"
+  "upload.productOrCreate": "Product *",
+
+  "share.share": "Share",
+  "share.shareChat": "Share chat",
+  "share.shareAnswer": "Share answer",
+  "share.creating": "Creating link...",
+  "share.linkCreated": "Link created",
+  "share.copyLink": "Copy link",
+  "share.linkCopied": "Link copied!",
+  "share.deactivate": "Deactivate link",
+  "share.deactivated": "Link deactivated",
+  "share.views": "{{count}} views",
+  "share.poweredBy": "Powered by Plexicode",
+  "share.tryIt": "Try Plexicode",
+  "share.notFound": "Shared content not found",
+  "share.inactive": "This link is no longer active",
+  "share.error": "Failed to create share link",
+  "share.sharedChat": "Shared chat",
+  "share.sharedAnswer": "Shared answer",
+  "share.close": "Close"
 }
