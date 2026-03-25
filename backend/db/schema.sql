@@ -411,3 +411,7 @@ CREATE TABLE IF NOT EXISTS shared_links (
 
 CREATE INDEX IF NOT EXISTS idx_shared_links_token ON shared_links(token);
 CREATE INDEX IF NOT EXISTS idx_shared_links_session ON shared_links(session_id);
+
+-- Completion tracking (finish_reason + continuations for truncation diagnostics)
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS finish_reason TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS continuations INT NOT NULL DEFAULT 0;

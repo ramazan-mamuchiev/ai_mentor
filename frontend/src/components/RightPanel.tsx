@@ -155,6 +155,8 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           <div className="debug-row"><span>{t('debug.tokens')}</span><code>{fmt(debug.token_count)}</code></div>
           <div className="debug-row debug-row-config"><span>{t('debug.temperature')}</span><code>{debug.temperature ?? '—'}</code></div>
           <div className="debug-row debug-row-config"><span>{t('debug.maxTokens')}</span><code>{fmt(debug.max_tokens)}</code></div>
+          {debug.finish_reason && <div className="debug-row debug-row-config"><span>{t('debug.finishReason')}</span><code className={debug.finish_reason !== 'stop' ? 'debug-warning-badge' : ''}>{debug.finish_reason}</code></div>}
+          {(debug.continuations ?? 0) > 0 && <div className="debug-row debug-row-config"><span>{t('debug.continuations')}</span><code className="debug-warning-badge">{debug.continuations}</code></div>}
         </div>
       )}
       {hasRag && (

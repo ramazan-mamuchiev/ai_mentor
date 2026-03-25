@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -467,6 +468,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 continuations = 0
                 llm_messages = list(messages)
 
+                final_finish_reason = "stop"
+
                 while True:
                     llm_meta_chunk: dict = {}
                     async for token in stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk):
@@ -479,11 +482,29 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     else:
                         llm_meta["first_token_ms"] = llm_meta.get("first_token_ms", 0)
 
-                    if llm_meta_chunk.get("finish_reason") != "length":
+                    chunk_finish = llm_meta_chunk.get("finish_reason", "stop")
+                    needs_continuation = chunk_finish == "length"
+
+                    if not needs_continuation and chunk_finish == "stop":
+                        partial_text = "".join(full_response)
+                        if _looks_incomplete(partial_text):
+                            needs_continuation = True
+                            logger.info(
+                                "Heuristic detected incomplete response despite finish_reason=stop",
+                                extra={
+                                    "session_id": session_id,
+                                    "tokens_so_far": token_count,
+                                    "tail": partial_text[-80:],
+                                },
+                            )
+
+                    if not needs_continuation:
+                        final_finish_reason = chunk_finish
                         break
 
                     continuations += 1
                     if continuations > MAX_CONTINUATIONS:
+                        final_finish_reason = "max_continuations"
                         logger.warning(
                             "Max continuations reached",
                             extra={"session_id": session_id, "continuations": continuations},
@@ -496,6 +517,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                             "session_id": session_id,
                             "continuation": continuations,
                             "tokens_so_far": token_count,
+                            "reason": chunk_finish,
                         },
                     )
                     partial = "".join(full_response)
@@ -545,6 +567,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     "temperature": llm_meta.get("temperature", 0),
                     "max_tokens": llm_meta.get("max_tokens", 0),
                     "first_token_ms": llm_meta.get("first_token_ms", 0),
+                    "finish_reason": final_finish_reason,
+                    "continuations": continuations,
                     "rag_ms": rag_ms,
                     "llm_ms": llm_ms,
                     "total_ms": duration_ms,
@@ -596,6 +620,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     llm_prompt_tokens=llm_prompt_tokens,
                     llm_completion_tokens=llm_completion_tokens,
                     llm_total_tokens=llm_total_tokens,
+                    finish_reason=final_finish_reason,
+                    continuations=continuations,
                 )
                 db.add(analytics)
                 await db.commit()
@@ -687,6 +713,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         "llm_completion_tokens": llm_completion_tokens,
                         "user_input_tokens": user_input_tokens,
                         "user_output_tokens": user_output_tokens,
+                        "finish_reason": final_finish_reason,
+                        "continuations": continuations,
                     },
                 )
 

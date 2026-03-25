@@ -47,6 +47,8 @@
   "debug.response": "Response",
   "debug.temperature": "Temperature",
   "debug.maxTokens": "Max tokens",
+  "debug.finishReason": "Finish reason",
+  "debug.continuations": "Continuations",
   "debug.timing": "Timing",
   "debug.total": "Total",
   "debug.rag": "RAG",

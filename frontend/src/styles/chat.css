@@ -556,6 +556,20 @@
   color: #ffc107;
 }
 
+.debug-warning-badge {
+  background: var(--warning-bg, #fff3cd);
+  color: var(--warning-text, #856404);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .debug-warning-badge {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+}
+
 .debug-error-badge {
   background: var(--error-bg, #f8d7da);
   color: var(--error-text, #721c24);

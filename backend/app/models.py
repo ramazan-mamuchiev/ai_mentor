@@ -247,6 +247,9 @@ class ChatMessageAnalytics(Base):
     llm_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     llm_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
 
+    finish_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    continuations: Mapped[int] = mapped_column(Integer, default=0)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -307,6 +310,8 @@ class ChatMessageAnalytics(Base):
             "llm_prompt_tokens": self.llm_prompt_tokens,
             "llm_completion_tokens": self.llm_completion_tokens,
             "llm_total_tokens": self.llm_total_tokens,
+            "finish_reason": self.finish_reason,
+            "continuations": self.continuations,
         }
 
 

@@ -66,6 +66,8 @@ export interface DebugInfo {
   summary_prompt_tokens?: number
   summary_completion_tokens?: number
   summary_total_tokens?: number
+  finish_reason?: string
+  continuations?: number
   retry_used?: boolean
   rephrase_ms?: number
   rephrase_query?: string | null

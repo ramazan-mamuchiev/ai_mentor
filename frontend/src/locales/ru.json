@@ -47,6 +47,8 @@
   "debug.response": "Ответ",
   "debug.temperature": "Temperature",
   "debug.maxTokens": "Макс. токенов",
+  "debug.finishReason": "Причина остановки",
+  "debug.continuations": "Продолжений",
   "debug.timing": "Время",
   "debug.total": "Всего",
   "debug.rag": "RAG",
