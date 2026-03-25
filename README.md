@@ -94,6 +94,31 @@ cp .env.example .env    # adjust settings if needed
 docker compose up -d
 ```
 
+**LLM Provider Selection:**
+
+By default, the stack uses **Google Gemini API** (`LLM_PROVIDER=gemini`). You can switch to alternative providers:
+
+```bash
+# Option 1: Google Gemini (default)
+echo "GEMINI_API_KEY=AIza_your_key" >> .env
+echo "LLM_PROVIDER=gemini" >> .env
+
+# Option 2: BotHub aggregator API (https://bothub.ru)
+echo "BOTHUB_API_KEY=your_bothub_key" >> .env
+echo "BOTHUB_LLM_MODEL=gpt-4.5-turbo" >> .env
+echo "LLM_PROVIDER=bothub" >> .env
+
+# Option 3: Local Ollama (development only)
+echo "LLM_PROVIDER=ollama" >> .env
+echo "LLM_MODEL=qwen2.5-coder:7b" >> .env
+```
+
+Then restart:
+```bash
+docker compose down
+docker compose up -d
+```
+
 Services:
 
 | Service | URL |

@@ -288,25 +288,32 @@ EMBEDDING_MODEL_GEMINI=gemini-embedding-2-preview
 # Gemini: gemini-embedding-2-preview — uses GEMINI_API_KEY, MTEB Multilingual leader
 
 # === LLM (RAG Chat) — Tiered Model Strategy ===
-# Default provider for production (Gemini via OpenAI-compatible API):
-LLM_PROVIDER=openai                          # ollama | openai
+# LLM Provider Options:
+#   - "gemini" (default): Google Gemini API via OpenAI-compatible endpoint
+#   - "bothub": BotHub aggregator API (https://bothub.ru) — alternative provider
+#   - "ollama": Local Ollama server (development only)
+
+LLM_PROVIDER=gemini                              # gemini | bothub | ollama
 LLM_MAX_TOKENS=4096
 LLM_TEMPERATURE=0.2
-LLM_TIMEOUT=600                              # seconds
-LLM_REASONING_EFFORT=none                    # none | low | medium | high — Gemini thinking budget (none = disabled for speed)
+LLM_TIMEOUT=600                                  # seconds
+LLM_REASONING_EFFORT=none                        # none | low | medium | high — Gemini thinking budget (none = disabled for speed)
 
-# Gemini Flash — default for Free & Pro tiers ($0.30/$2.50 per 1M tokens)
+# === Gemini (Google) — Default ($0.30/$2.50 per 1M tokens) ===
 OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 OPENAI_LLM_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=AIza...                           # Get from https://aistudio.google.com/apikey
 
-# Ollama — development fallback only ($0 cost):
+# === BotHub Aggregator — Alternative ($depends on selected model) ===
+# BotHub: https://bothub.ru — unified API for GPT, Claude, Gemini, etc.
+# Sign up, get API key, select available models via dashboard
+BOTHUB_API_KEY=                                  # Get from https://bothub.ru
+BOTHUB_BASE_URL=https://api.bothub.ru/v1         # BotHub API endpoint
+BOTHUB_LLM_MODEL=gpt-4.5-turbo                   # Model name available in your BotHub account
+
+# === Ollama — Development Fallback ($0 cost) ===
 OLLAMA_URL=http://ollama:11434
-LLM_MODEL=qwen2.5-coder:7b                  # Ollama model name
-
-# Claude Opus 4.6 — default for Team & Enterprise tiers ($5/$25 per 1M tokens)
-OPUS_BASE_URL=https://api.anthropic.com/v1
-OPUS_API_KEY=...
-OPUS_MODEL=claude-opus-4-6-20260319
+LLM_MODEL=qwen2.5-coder:7b                       # Ollama model name
 
 # Per-model billing: input+output tokens metered separately per model.
 # Model routing by tier: Free/Pro → OPENAI_LLM_MODEL, Team/Ent → OPUS_MODEL.
