@@ -259,17 +259,19 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
       <div ref={containerRef} className="sources-panel" style={panelStyle}>
         <div className="sources-panel-header">
           <div className="sources-panel-header-content">
-            <span className="sources-panel-title">
-              <Icon size={12} />
-              {title}
-            </span>
-            {(sessionId != null || messageId != null) && (
-              <span className="sources-panel-ids">
-                {sessionId != null && `S#${sessionId}`}
-                {sessionId != null && messageId != null && ' '}
-                {messageId != null && `M#${messageId}`}
-              </span>
-            )}
+            <div className="sources-panel-header-icon">
+              <Icon size={14} />
+            </div>
+            <div className="sources-panel-header-text">
+              <span className="sources-panel-title">{title}</span>
+              {(sessionId != null || messageId != null) && (
+                <span className="sources-panel-ids">
+                  {sessionId != null && `S#${sessionId}`}
+                  {sessionId != null && messageId != null && ' '}
+                  {messageId != null && `M#${messageId}`}
+                </span>
+              )}
+            </div>
           </div>
           <button className="sources-panel-close" onClick={onClose}>
             <X size={14} />

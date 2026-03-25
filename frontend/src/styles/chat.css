@@ -827,7 +827,7 @@
 
 .sources-panel-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
@@ -836,23 +836,36 @@
 
 .sources-panel-header-content {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.sources-panel-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  color: var(--text-secondary);
+}
+
+.sources-panel-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .sources-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 5px;
   font-weight: 600;
   font-size: 12px;
   color: var(--text);
+  line-height: 1.3;
 }
 
 .sources-panel-ids {
   font-size: 10px;
   color: var(--text-muted);
   font-family: var(--font-mono, monospace);
+  line-height: 1.3;
 }
 
 .sources-panel-close {
@@ -951,7 +964,7 @@
 
 .right-panel-debug .debug-row code {
   font-size: 11px;
-  color: var(--primary, var(--accent));
+  color: var(--text);
 }
 
 .right-panel-debug .debug-row-sub span {
