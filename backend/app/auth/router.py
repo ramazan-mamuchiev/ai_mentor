@@ -226,7 +226,7 @@ async def oauth_callback(
     import httpx
 
     if provider == "google":
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             token_resp = await client.post(
                 "https://oauth2.googleapis.com/token",
                 data={
@@ -250,7 +250,7 @@ async def oauth_callback(
             email = userinfo["email"]
 
     elif provider == "github":
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             token_resp = await client.post(
                 "https://github.com/login/oauth/access_token",
                 json={
