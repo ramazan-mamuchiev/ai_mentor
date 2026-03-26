@@ -24,7 +24,7 @@ from app.documents.schemas import (
     UrlIngestRequest,
     UrlIngestResponse,
 )
-from app.models import Chunk, DocumentUsageLog, Product, Document, FirmwareVersion
+from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, FirmwareVersion
 from app.s3 import delete_file, generate_presigned_url, s3_key_for_document, upload_file
 from app.config import settings
 
@@ -587,6 +587,20 @@ async def get_document_usage_stats(document_id: int, limit: int = 20):
         )
         agg = agg_result.one()
 
+        fb_result = await session.execute(
+            select(
+                func.count().filter(ChatMessage.feedback == "up").label("thumbs_up"),
+                func.count().filter(ChatMessage.feedback == "down").label("thumbs_down"),
+                func.count(func.distinct(ChatMessage.id)).filter(
+                    ChatMessage.feedback.is_not(None)
+                ).label("total_rated"),
+            )
+            .select_from(DocumentUsageLog)
+            .join(ChatMessage, ChatMessage.id == DocumentUsageLog.message_id)
+            .where(DocumentUsageLog.document_id == document_id)
+        )
+        fb = fb_result.one()
+
         heading_result = await session.execute(
             select(
                 DocumentUsageLog.heading_path,
@@ -634,6 +648,9 @@ async def get_document_usage_stats(document_id: int, limit: int = 20):
             avg_similarity=float(agg.avg_similarity) if agg.avg_similarity else None,
             first_used_at=agg.first_used_at,
             last_used_at=agg.last_used_at,
+            thumbs_up=fb.thumbs_up or 0,
+            thumbs_down=fb.thumbs_down or 0,
+            total_rated=fb.total_rated or 0,
             top_headings=top_headings,
             recent_usages=recent,
         )

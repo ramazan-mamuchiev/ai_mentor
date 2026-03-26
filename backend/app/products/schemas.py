@@ -89,6 +89,8 @@ class ProductDocumentUsage(BaseModel):
     total_charge_usd: float = 0
     avg_similarity: float | None = None
     last_used_at: datetime | None = None
+    thumbs_up: int = 0
+    thumbs_down: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -104,6 +106,9 @@ class ProductUsageStats(BaseModel):
     avg_similarity: float | None = None
     first_used_at: datetime | None = None
     last_used_at: datetime | None = None
+    thumbs_up: int = 0
+    thumbs_down: int = 0
+    total_rated: int = 0
     documents: list[ProductDocumentUsage] = []
 
     model_config = {"from_attributes": True}

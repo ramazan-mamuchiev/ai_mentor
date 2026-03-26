@@ -192,6 +192,13 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
               <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.totalUsages')}</span><code>{fmt(usage.total_usages)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.uniqueSessions')}</span><code>{fmt(usage.unique_sessions)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.uniqueDocuments')}</span><code>{fmt(usage.unique_documents)}</code></div>
+              {(usage.thumbs_up > 0 || usage.thumbs_down > 0) && (
+                <>
+                  <div className="doc-debug-row"><span>{t('docDebug.thumbsUp')}</span><code>{fmt(usage.thumbs_up)}</code></div>
+                  <div className="doc-debug-row"><span>{t('docDebug.thumbsDown')}</span><code>{fmt(usage.thumbs_down)}</code></div>
+                  <div className="doc-debug-row"><span>{t('docDebug.totalRated')}</span><code>{fmt(usage.total_rated)}</code></div>
+                </>
+              )}
               <div className="doc-debug-row"><span>{t('docDebug.totalContextTokens')}</span><code>{fmt(usage.total_context_tokens)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.totalChargeUsd')}</span><code>${usage.total_charge_usd.toFixed(6)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.avgSimilarity')}</span><code>{fmtPct(usage.avg_similarity)}</code></div>
@@ -202,7 +209,7 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
                   <span>Top documents</span>
                   <code className="debug-query-value">
                     {usage.documents.slice(0, 10).map(d =>
-                      `#${d.document_id} ${d.title} — ${d.total_usages} uses, ${fmt(d.total_context_tokens)} tok`
+                      `#${d.document_id} ${d.title} — ${d.total_usages} uses, ${fmt(d.total_context_tokens)} tok${d.thumbs_up || d.thumbs_down ? `, +${d.thumbs_up} / -${d.thumbs_down}` : ''}`
                     ).join('\n')}
                   </code>
                 </div>

@@ -137,6 +137,9 @@ class DocumentUsageStats(BaseModel):
     avg_similarity: float | None = None
     first_used_at: datetime | None = None
     last_used_at: datetime | None = None
+    thumbs_up: int = 0
+    thumbs_down: int = 0
+    total_rated: int = 0
     top_headings: list[dict] = []
     recent_usages: list[DocumentUsageEntry] = []
 

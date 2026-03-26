@@ -354,6 +354,9 @@ export interface DocumentUsageStats {
   avg_similarity: number | null
   first_used_at: string | null
   last_used_at: string | null
+  thumbs_up: number
+  thumbs_down: number
+  total_rated: number
   top_headings: { heading_path: string; count: number }[]
   recent_usages: DocumentUsageEntry[]
 }
@@ -366,6 +369,8 @@ export interface ProductDocumentUsage {
   total_charge_usd: number
   avg_similarity: number | null
   last_used_at: string | null
+  thumbs_up: number
+  thumbs_down: number
 }
 
 export interface ProductUsageStats {
@@ -379,6 +384,9 @@ export interface ProductUsageStats {
   avg_similarity: number | null
   first_used_at: string | null
   last_used_at: string | null
+  thumbs_up: number
+  thumbs_down: number
+  total_rated: number
   documents: ProductDocumentUsage[]
 }
 

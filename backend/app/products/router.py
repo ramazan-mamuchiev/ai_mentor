@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import case, func, select
 
 from app.database import async_session
-from app.models import Chunk, Document, DocumentUsageLog, FirmwareVersion, Product, SuggestionTemplate
+from app.models import ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion, Product, SuggestionTemplate
 from app.products.schemas import (
     FormatCount,
     ProductDebugInfo,
@@ -567,6 +567,20 @@ async def get_product_usage_stats(manufacturer_slug: str, product_slug: str):
         )
         agg = agg_result.one()
 
+        fb_result = await session.execute(
+            select(
+                func.count().filter(ChatMessage.feedback == "up").label("thumbs_up"),
+                func.count().filter(ChatMessage.feedback == "down").label("thumbs_down"),
+                func.count(func.distinct(ChatMessage.id)).filter(
+                    ChatMessage.feedback.is_not(None)
+                ).label("total_rated"),
+            )
+            .select_from(DocumentUsageLog)
+            .join(ChatMessage, ChatMessage.id == DocumentUsageLog.message_id)
+            .where(DocumentUsageLog.product_id == product_id)
+        )
+        fb = fb_result.one()
+
         doc_agg_result = await session.execute(
             select(
                 DocumentUsageLog.document_id,
@@ -576,8 +590,11 @@ async def get_product_usage_stats(manufacturer_slug: str, product_slug: str):
                 func.sum(DocumentUsageLog.charge_usd).label("total_charge_usd"),
                 func.avg(DocumentUsageLog.similarity).label("avg_similarity"),
                 func.max(DocumentUsageLog.created_at).label("last_used_at"),
+                func.count().filter(ChatMessage.feedback == "up").label("thumbs_up"),
+                func.count().filter(ChatMessage.feedback == "down").label("thumbs_down"),
             )
             .join(Document, DocumentUsageLog.document_id == Document.id)
+            .outerjoin(ChatMessage, ChatMessage.id == DocumentUsageLog.message_id)
             .where(DocumentUsageLog.product_id == product_id)
             .group_by(DocumentUsageLog.document_id, Document.title)
             .order_by(func.count().desc())
@@ -591,6 +608,8 @@ async def get_product_usage_stats(manufacturer_slug: str, product_slug: str):
                 total_charge_usd=float(row.total_charge_usd or 0),
                 avg_similarity=float(row.avg_similarity) if row.avg_similarity else None,
                 last_used_at=row.last_used_at,
+                thumbs_up=row.thumbs_up or 0,
+                thumbs_down=row.thumbs_down or 0,
             )
             for row in doc_agg_result.all()
         ]
@@ -606,5 +625,8 @@ async def get_product_usage_stats(manufacturer_slug: str, product_slug: str):
             avg_similarity=float(agg.avg_similarity) if agg.avg_similarity else None,
             first_used_at=agg.first_used_at,
             last_used_at=agg.last_used_at,
+            thumbs_up=fb.thumbs_up or 0,
+            thumbs_down=fb.thumbs_down or 0,
+            total_rated=fb.total_rated or 0,
             documents=doc_usages,
         )
