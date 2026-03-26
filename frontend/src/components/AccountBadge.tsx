@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LogOut, Key, ChevronUp } from 'lucide-react'
+import { LogOut, Key, ChevronUp, Moon, Sun, Languages } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useTranslation } from 'react-i18next'
 
@@ -12,9 +12,15 @@ function getInitials(email: string, name?: string | null): string {
   return local.slice(0, 2).toUpperCase()
 }
 
-export function AccountBadge({ collapsed }: { collapsed: boolean }) {
+interface AccountBadgeProps {
+  collapsed: boolean
+  theme: 'light' | 'dark'
+  onToggleTheme: () => void
+}
+
+export function AccountBadge({ collapsed, theme, onToggleTheme }: AccountBadgeProps) {
   const { user, logout } = useAuth()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -30,6 +36,9 @@ export function AccountBadge({ collapsed }: { collapsed: boolean }) {
   if (!user) return null
 
   const initials = getInitials(user.email, user.name)
+  const currentLang = i18n.language?.startsWith('ru') ? 'ru' : 'en'
+  const nextLang = currentLang === 'ru' ? 'en' : 'ru'
+  const langLabel = currentLang === 'ru' ? 'English' : 'Русский'
 
   return (
     <div className="account-badge" ref={ref}>
@@ -56,6 +65,16 @@ export function AccountBadge({ collapsed }: { collapsed: boolean }) {
             <Key size={16} />
             {t('auth.apiKeys')}
           </button>
+          <div className="account-dropdown-divider" />
+          <button onClick={() => onToggleTheme()}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            {t('theme.toggle')}
+          </button>
+          <button onClick={() => { i18n.changeLanguage(nextLang); setOpen(false) }}>
+            <Languages size={16} />
+            {langLabel}
+          </button>
+          <div className="account-dropdown-divider" />
           <button onClick={() => { logout(); setOpen(false) }}>
             <LogOut size={16} />
             {t('auth.signOut')}

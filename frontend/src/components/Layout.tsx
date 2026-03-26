@@ -6,9 +6,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 import { AccountBadge } from './AccountBadge'
-import { LanguageToggle } from './LanguageToggle'
 import { SessionList } from './SessionList'
-import { ThemeToggle } from './ThemeToggle'
 import { SidebarMenuIcon, SidebarCollapseIcon, SidebarExpandIcon } from './icons'
 
 const MOBILE_BP = 768
@@ -216,9 +214,7 @@ export function Layout({
         )}
 
         <div className="sidebar-footer">
-          <AccountBadge collapsed={collapsed && !isMobile} />
-          <LanguageToggle />
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          <AccountBadge collapsed={collapsed && !isMobile} theme={theme} onToggleTheme={onToggleTheme} />
         </div>
       </aside>
       {!isMobile && !collapsed && (
