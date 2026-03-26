@@ -5,7 +5,7 @@ import { ProductDebugContent } from './ProductDebugPanel'
 import { DocumentDebugContent } from './DocumentDebugPanel'
 
 const MOBILE_BP = 768
-const RATIO_KEY = 'ipcodex-docs-panel-ratio'
+const RATIO_KEY = 'lexiro-docs-panel-ratio'
 const DEFAULT_RATIO = 0.35
 const MIN_RATIO = 0.2
 const MAX_RATIO = 0.55

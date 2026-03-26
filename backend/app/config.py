@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://ipcodex:ipcodex_dev@localhost:5432/ipcodex"
+    database_url: str = "postgresql+asyncpg://lexiro:lexiro_dev@localhost:5432/lexiro"
 
     api_key: str = "ipx_dev_key_12345"
 
@@ -14,11 +14,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "ipcodex"
-    s3_secret_key: str = "ipcodex_dev"
-    s3_bucket: str = "ipcodex-storage"
+    s3_access_key: str = "lexiro"
+    s3_secret_key: str = "lexiro_dev"
+    s3_bucket: str = "lexiro-storage"
 
-    database_url_sync: str = "postgresql://ipcodex:ipcodex_dev@localhost:5432/ipcodex"
+    database_url_sync: str = "postgresql://lexiro:lexiro_dev@localhost:5432/lexiro"
 
     max_upload_size_mb: int = 50
     max_archive_size_mb: int = 350

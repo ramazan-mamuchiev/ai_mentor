@@ -1,7 +1,7 @@
 {
-  "uid": "ipcodex-ingestion",
+  "uid": "lexiro-ingestion",
   "title": "Lexiro Ingestion Pipeline",
-  "tags": ["ipcodex", "ingestion"],
+  "tags": ["lexiro", "ingestion"],
   "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,
@@ -33,7 +33,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed|Ingestion failed|URL ingestion failed\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed|Ingestion failed|URL ingestion failed\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -76,7 +76,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -119,7 +119,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion failed|URL ingestion failed|PDF conversion failed|Swagger conversion failed|URL conversion failed\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion failed|URL ingestion failed|PDF conversion failed|Swagger conversion failed|URL conversion failed\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -163,7 +163,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap chunks [$__range]) by ()",
+          "expr": "sum_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap chunks [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -214,7 +214,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap duration_sec",
+          "expr": "{container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap duration_sec",
           "legendFormat": "{{file_path}}{{url}}",
           "queryType": "range"
         }
@@ -271,7 +271,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap convert_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap convert_ms [$__interval]) by ()",
           "legendFormat": "convert_ms",
           "queryType": "range"
         },
@@ -279,7 +279,7 @@
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap parse_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap parse_ms [$__interval]) by ()",
           "legendFormat": "parse_ms",
           "queryType": "range"
         },
@@ -287,7 +287,7 @@
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap embed_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap embed_ms [$__interval]) by ()",
           "legendFormat": "embed_ms",
           "queryType": "range"
         },
@@ -295,7 +295,7 @@
           "refId": "D",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap db_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed\" | unwrap db_ms [$__interval]) by ()",
           "legendFormat": "db_ms",
           "queryType": "range"
         }
@@ -359,7 +359,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum by (format) (count_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" [$__range]))",
+          "expr": "sum by (format) (count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -395,7 +395,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed|Ingestion failed|URL ingestion failed\"",
+          "expr": "{container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed|Ingestion failed|URL ingestion failed\"",
           "queryType": "range"
         }
       ],
@@ -509,7 +509,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{container=\"/ipcodex-api-1\"} | json | event = \"Document upload received\" | unwrap file_size_bytes",
+          "expr": "{container=\"/lexiro-api-1\"} | json | event = \"Document upload received\" | unwrap file_size_bytes",
           "legendFormat": "{{original_filename}}",
           "queryType": "range"
         }
@@ -554,7 +554,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap duration_sec [$__range]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap duration_sec [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -595,7 +595,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "max_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap duration_sec [$__range]) by ()",
+          "expr": "max_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Ingestion completed|URL ingestion completed\" | unwrap duration_sec [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -636,7 +636,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Document upload received\" | unwrap file_size_bytes [$__range]) by ()",
+          "expr": "sum_over_time({container=\"/lexiro-api-1\"} | json | event = \"Document upload received\" | unwrap file_size_bytes [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -675,7 +675,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{container=\"/ipcodex-api-1\"} | json | event = \"Document upload received\"",
+          "expr": "{container=\"/lexiro-api-1\"} | json | event = \"Document upload received\"",
           "queryType": "range"
         }
       ],
@@ -744,7 +744,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{container=\"/ipcodex-api-1\"} | json | event = \"PDF conversion completed\"",
+          "expr": "{container=\"/lexiro-api-1\"} | json | event = \"PDF conversion completed\"",
           "queryType": "range"
         }
       ],
@@ -833,7 +833,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{container=\"/ipcodex-api-1\"} | json | event = \"Swagger conversion completed\"",
+          "expr": "{container=\"/lexiro-api-1\"} | json | event = \"Swagger conversion completed\"",
           "queryType": "range"
         }
       ],
@@ -928,7 +928,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "last_over_time({container=\"/ipcodex-worker-1\"} | json | event = \"Queue snapshot\" | unwrap pending_count [$__range])",
+          "expr": "last_over_time({container=\"/lexiro-worker-1\"} | json | event = \"Queue snapshot\" | unwrap pending_count [$__range])",
           "queryType": "instant"
         }
       ],
@@ -968,7 +968,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "last_over_time({container=\"/ipcodex-worker-1\"} | json | event = \"Queue snapshot\" | unwrap processing_count [$__range])",
+          "expr": "last_over_time({container=\"/lexiro-worker-1\"} | json | event = \"Queue snapshot\" | unwrap processing_count [$__range])",
           "queryType": "instant"
         }
       ],
@@ -1008,7 +1008,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({container=\"/ipcodex-worker-1\"} | json | event = \"Task picked from queue\" | unwrap queue_wait_ms [$__range])",
+          "expr": "avg_over_time({container=\"/lexiro-worker-1\"} | json | event = \"Task picked from queue\" | unwrap queue_wait_ms [$__range])",
           "queryType": "instant"
         }
       ],
@@ -1049,7 +1049,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "max_over_time({container=\"/ipcodex-worker-1\"} | json | event = \"Queue snapshot\" | unwrap pending_count [$__interval])",
+          "expr": "max_over_time({container=\"/lexiro-worker-1\"} | json | event = \"Queue snapshot\" | unwrap pending_count [$__interval])",
           "legendFormat": "Pending",
           "queryType": "range"
         },
@@ -1057,7 +1057,7 @@
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "max_over_time({container=\"/ipcodex-worker-1\"} | json | event = \"Queue snapshot\" | unwrap processing_count [$__interval])",
+          "expr": "max_over_time({container=\"/lexiro-worker-1\"} | json | event = \"Queue snapshot\" | unwrap processing_count [$__interval])",
           "legendFormat": "Processing",
           "queryType": "range"
         }
@@ -1104,7 +1104,7 @@
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "max_over_time({container=\"/ipcodex-worker-1\"} | json | event = \"Task picked from queue\" | unwrap queue_wait_ms [$__interval])",
+          "expr": "max_over_time({container=\"/lexiro-worker-1\"} | json | event = \"Task picked from queue\" | unwrap queue_wait_ms [$__interval])",
           "legendFormat": "Wait time",
           "queryType": "range"
         }

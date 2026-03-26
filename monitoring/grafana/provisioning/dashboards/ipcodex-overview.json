@@ -1,7 +1,7 @@
 {
-  "uid": "ipcodex-overview",
+  "uid": "lexiro-overview",
   "title": "Lexiro Overview",
-  "tags": ["ipcodex"],
+  "tags": ["lexiro"],
   "timezone": "browser",
   "refresh": "30s",
   "time": {
@@ -30,7 +30,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json [5m])) / 300",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\", logger=\"access\"} | json [5m])) / 300",
           "queryType": "range"
         }
       ],
@@ -71,14 +71,14 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json | status_code >= 400 [5m]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\", logger=\"access\"} | json | status_code >= 400 [5m]))",
           "queryType": "range",
           "hide": true
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json [5m]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\", logger=\"access\"} | json [5m]))",
           "queryType": "range",
           "hide": true
         },
@@ -128,7 +128,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [5m]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\", logger=\"access\"} | json | unwrap duration_ms [5m]) by ()",
           "queryType": "range"
         }
       ],
@@ -171,7 +171,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\", logger=\"system\"} | json | unwrap active_requests [5m]) by ()",
+          "expr": "last_over_time({container=\"/lexiro-api-1\", logger=\"system\"} | json | unwrap active_requests [5m]) by ()",
           "queryType": "range"
         }
       ],
@@ -212,7 +212,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\", logger=\"system\"} | json | unwrap uptime_sec [5m]) by ()",
+          "expr": "last_over_time({container=\"/lexiro-api-1\", logger=\"system\"} | json | unwrap uptime_sec [5m]) by ()",
           "queryType": "range"
         }
       ],
@@ -260,21 +260,21 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json | status_code >= 200, status_code < 300 [$__interval]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\", logger=\"access\"} | json | status_code >= 200, status_code < 300 [$__interval]))",
           "legendFormat": "2xx",
           "queryType": "range"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json | status_code >= 400, status_code < 500 [$__interval]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\", logger=\"access\"} | json | status_code >= 400, status_code < 500 [$__interval]))",
           "legendFormat": "4xx",
           "queryType": "range"
         },
         {
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json | status_code >= 500 [$__interval]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\", logger=\"access\"} | json | status_code >= 500 [$__interval]))",
           "legendFormat": "5xx",
           "queryType": "range"
         }
@@ -341,21 +341,21 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.5, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
+          "expr": "quantile_over_time(0.5, {container=\"/lexiro-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
           "legendFormat": "p50",
           "queryType": "range"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.95, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
+          "expr": "quantile_over_time(0.95, {container=\"/lexiro-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
           "legendFormat": "p95",
           "queryType": "range"
         },
         {
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.99, {container=\"/ipcodex-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
+          "expr": "quantile_over_time(0.99, {container=\"/lexiro-api-1\", logger=\"access\"} | json | unwrap duration_ms [$__interval]) by ()",
           "legendFormat": "p99",
           "queryType": "range"
         }
@@ -413,7 +413,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "topk(10, sum by (path) (count_over_time({container=\"/ipcodex-api-1\", logger=\"access\"} | json [$__range])))",
+          "expr": "topk(10, sum by (path) (count_over_time({container=\"/lexiro-api-1\", logger=\"access\"} | json [$__range])))",
           "queryType": "range"
         }
       ],
@@ -454,7 +454,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/ipcodex-api-1\"} | json | level = \"error\" or level = \"warning\"",
+          "expr": "{container=\"/lexiro-api-1\"} | json | level = \"error\" or level = \"warning\"",
           "queryType": "range",
           "maxLines": 50
         }
@@ -530,7 +530,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/ipcodex-api-1\"} | json",
+          "expr": "{container=\"/lexiro-api-1\"} | json",
           "queryType": "range"
         }
       ],

@@ -14,8 +14,8 @@
 ```json
 {
   "mcpServers": {
-    "ipcodex": {
-      "url": "https://api.ipcodex.dev/mcp/sse",
+    "lexiro": {
+      "url": "https://api.lexiro.dev/mcp/sse",
       "headers": { "Authorization": "Bearer ipx_a1b2c3d4e5f6..." }
     }
   }

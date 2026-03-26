@@ -6,7 +6,7 @@ import { SourceCard } from './SourceCard'
 import { MarkdownPreviewModal } from './MarkdownPreviewModal'
 
 const MOBILE_BP = 768
-const RATIO_KEY = 'ipcodex-right-panel-ratio'
+const RATIO_KEY = 'lexiro-right-panel-ratio'
 const DEFAULT_RATIO = 0.3
 const MIN_RATIO = 0.15
 const MAX_RATIO = 0.55

@@ -367,7 +367,7 @@ import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 
 const DEFAULT_COLUMN_ORDER = ['name', 'status', 'size', 'actions']
-const STORAGE_KEY = 'ipcodex-my-table'
+const STORAGE_KEY = 'lexiro-my-table'
 
 // В компоненте:
 const { table, columnOrder, grouping, handleColumnOrderChange,
@@ -398,8 +398,8 @@ const { table, columnOrder, grouping, handleColumnOrderChange,
 
 | Страница | `storageKey` | Колонки |
 |----------|-------------|---------|
-| `DocumentsPage` | `ipcodex-docs-table` | title, format, status, size, chunks, product, uploaded, indexed, actions |
-| `ProductsPage` | `ipcodex-products-table` | name, documents, format, status, size, chunks, uploaded, indexed, actions |
+| `DocumentsPage` | `lexiro-docs-table` | title, format, status, size, chunks, product, uploaded, indexed, actions |
+| `ProductsPage` | `lexiro-products-table` | name, documents, format, status, size, chunks, uploaded, indexed, actions |
 
 #### Правило
 

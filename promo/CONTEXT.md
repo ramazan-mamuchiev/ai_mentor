@@ -103,7 +103,7 @@ Lexiro превращает хаотичную документацию физи
 ## S3 Key Structure
 
 ```
-ipcodex/
+lexiro/
   devices/{device_id}/
     {firmware_version}/{document_title}/
       v1.md
@@ -270,7 +270,7 @@ Lexiro/
 ├── lexiro.html               # Интерактивная презентация (EN/RU, light/dark)
 ├── comparison.html            # Детальный конкурентный анализ
 ├── (логотипы встроены inline SVG в HTML, исходники в frontend/public/)
-├── ipcodex-plan-backup.html   # Резервная копия ранней версии
+├── ipcodex-plan-backup.html   # Резервная копия ранней версии (legacy name)
 ├── CONTEXT.md                 # Этот файл — полный контекст проекта
 ```
 

@@ -427,7 +427,7 @@ describe('i18n localStorage persistence', () => {
         interpolation: { escapeValue: false },
         detection: {
           order: ['localStorage', 'navigator'],
-          lookupLocalStorage: 'ipcodex-lang',
+          lookupLocalStorage: 'lexiro-lang',
           caches: ['localStorage'],
         },
       })
@@ -435,17 +435,17 @@ describe('i18n localStorage persistence', () => {
 
   it('saves language to localStorage on change', async () => {
     await act(() => detectorI18n.changeLanguage('ru'))
-    expect(localStorage.getItem('ipcodex-lang')).toBe('ru')
+    expect(localStorage.getItem('lexiro-lang')).toBe('ru')
   })
 
   it('saves back to en', async () => {
     await act(() => detectorI18n.changeLanguage('ru'))
     await act(() => detectorI18n.changeLanguage('en'))
-    expect(localStorage.getItem('ipcodex-lang')).toBe('en')
+    expect(localStorage.getItem('lexiro-lang')).toBe('en')
   })
 
   it('restores language from localStorage on init', async () => {
-    localStorage.setItem('ipcodex-lang', 'ru')
+    localStorage.setItem('lexiro-lang', 'ru')
 
     const { default: i18nCore2 } = await import('i18next')
     const { initReactI18next: iri } = await import('react-i18next')
@@ -464,7 +464,7 @@ describe('i18n localStorage persistence', () => {
         interpolation: { escapeValue: false },
         detection: {
           order: ['localStorage', 'navigator'],
-          lookupLocalStorage: 'ipcodex-lang',
+          lookupLocalStorage: 'lexiro-lang',
           caches: ['localStorage'],
         },
       })

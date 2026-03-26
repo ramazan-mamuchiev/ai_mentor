@@ -333,7 +333,7 @@ THE SOLUTION:
 
   Time saved: 12 hours → 1.5 hours.
 
-TRY FREE: ipcodex.com
+TRY FREE: lexiro.ai
 ```
 
 **For integration company CTO:**
@@ -354,7 +354,7 @@ THE SOLUTION:
     — Monthly value per developer: $500-2,000 in saved time
     — Lexiro cost: $99/developer/month (ROI: 5-20x)
 
-BOOK A DEMO: ipcodex.com/enterprise
+BOOK A DEMO: lexiro.ai/enterprise
 ```
 
 **For device vendors:**
@@ -376,7 +376,7 @@ THE SOLUTION:
     — Analytics: see what developers search for (product feedback)
     — "Verified on Lexiro" badge = developer trust signal
 
-BECOME A PARTNER: ipcodex.com/vendors
+BECOME A PARTNER: lexiro.ai/vendors
 ```
 
 ### 4.4 Key metrics for pitches
@@ -453,7 +453,7 @@ PARTNERSHIPS:
   Week 8-12: First co-marketing content with AxxonSoft
 
 PRODUCT:
-  Week 1-2:  Landing page live (ipcodex.com)
+  Week 1-2:  Landing page live (lexiro.ai)
   Week 2-4:  Self-service sign-up + free tier working
   Week 4-8:  Iterate based on AxxonSoft integrator feedback
 

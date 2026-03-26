@@ -15,7 +15,7 @@ param(
 )
 
 $VPS = "root@82.38.66.177"
-$REMOTE_DIR = "/opt/ipcodex"
+$REMOTE_DIR = "/opt/lexiro"
 $ErrorActionPreference = "Stop"
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }

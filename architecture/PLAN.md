@@ -264,7 +264,7 @@ Full details: [FLOWS.md — Supported Document Formats](FLOWS.md#supported-docum
 - Default language: **en** (English) — used as the reference locale and fallback
 - Translation files: flat JSON in `frontend/src/locales/{lang}.json` (one file per language)
 - Language detection order: `localStorage` → browser `navigator` preference
-- User's language choice persisted in `localStorage` under `ipcodex-lang` key
+- User's language choice persisted in `localStorage` under `lexiro-lang` key
 - All UI strings extracted to translation keys — no hardcoded text in components
 - Adding a new language requires only a new `{lang}.json` file; tests auto-discover all locale files and validate structure, key completeness, and interpolation placeholder consistency against the reference locale
 

@@ -28,7 +28,7 @@ import { useDataTable } from '../hooks/useDataTable'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
 
 const POLL_INTERVAL = 2000
-const STORAGE_KEY = 'ipcodex-docs-table'
+const STORAGE_KEY = 'lexiro-docs-table'
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
