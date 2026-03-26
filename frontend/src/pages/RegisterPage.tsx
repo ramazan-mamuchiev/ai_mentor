@@ -55,13 +55,14 @@ export function RegisterPage() {
           {currentLang.toUpperCase()}
         </button>
         <button className="theme-toggle" onClick={toggleTheme} aria-label={t('theme.toggle')}>
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
       </div>
       <div className="auth-card">
         <div className="auth-logo">
           <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
           <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+          <div className="auth-brand-name">Lexiro</div>
         </div>
         <h1 className="auth-title">{t('auth.createAccount')}</h1>
         <p className="auth-subtitle">{t('auth.registerSubtitle')}</p>

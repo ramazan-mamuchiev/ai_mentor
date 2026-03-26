@@ -55,13 +55,14 @@ export function LoginPage() {
           {currentLang.toUpperCase()}
         </button>
         <button className="theme-toggle" onClick={toggleTheme} aria-label={t('theme.toggle')}>
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
       </div>
       <div className="auth-card">
         <div className="auth-logo">
           <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
           <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+          <div className="auth-brand-name">Lexiro</div>
         </div>
         <h1 className="auth-title">{t('auth.signIn')}</h1>
         <p className="auth-subtitle">{t('auth.loginSubtitle')}</p>
@@ -111,7 +112,10 @@ export function LoginPage() {
             />
           </div>
           <div className="auth-field">
-            <label className="auth-label" htmlFor="login-password">{t('auth.passwordLabel')}</label>
+            <div className="auth-label-row">
+              <label className="auth-label" htmlFor="login-password">{t('auth.passwordLabel')}</label>
+              <a href="/forgot-password" className="auth-forgot">{t('auth.forgotPassword')}</a>
+            </div>
             <div className="auth-input-wrapper">
               <input
                 id="login-password"
@@ -134,7 +138,6 @@ export function LoginPage() {
               </button>
             </div>
           </div>
-          <a href="/forgot-password" className="auth-forgot">{t('auth.forgotPassword')}</a>
           <button type="submit" className="auth-submit" disabled={loading}>
             {loading ? t('auth.signingIn') : t('auth.signIn')}
           </button>
