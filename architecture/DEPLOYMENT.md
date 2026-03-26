@@ -367,9 +367,12 @@ SENDGRID_API_KEY=SG....
 ## Security
 
 ### Transport
-- **HTTPS only** in production (TLS 1.2+)
+- **HTTPS only** in production — GlobalSign AlphaSSL certificate (valid until Oct 2026)
+- TLS 1.2 + TLS 1.3, HTTP/2 enabled
+- HTTP → HTTPS redirect (301) for all requests
+- HSTS: `max-age=63072000; includeSubDomains; preload`
+- SSL files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
 - HTTP allowed only in development (`APP_ENV=development`)
-- HSTS headers in production
 
 ### CORS
 - Configurable `CORS_ORIGINS` via env variable

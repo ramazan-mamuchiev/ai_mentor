@@ -357,8 +357,9 @@ Lexiro occupies the unique intersection of **documentation intelligence** + **co
 
 ### Branding
 
-- [x] Register domain — **lexiro.io purchased**, DNS active
-- [ ] Register domains (lexiro.ai, lexiro.dev) — brand protection
+- [x] Register domain — **lexiro.io purchased**, DNS active, **HTTPS live** (GlobalSign AlphaSSL)
+- [x] Register domain — **lexiro.dev purchased**, DNS active, SSL pending
+- [ ] Register domain (lexiro.ai) — brand protection (deferred)
 - [ ] Register social accounts (@lexiro on GitHub, Twitter, LinkedIn, YouTube)
 - [ ] File trademark (FIPS, EUIPO, USPTO) — Classes 9, 42
 - [ ] Commission logo design (brief in BRAND.md §7)
