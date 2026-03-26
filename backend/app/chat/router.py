@@ -535,7 +535,20 @@ async def send_message(session_id: int, req: SendMessageRequest):
 
                 while True:
                     llm_meta_chunk: dict = {}
-                    async for token in stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk, reasoning_effort=effective_reasoning):
+                    got_first_token = False
+                    token_iter = stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk, reasoning_effort=effective_reasoning).__aiter__()
+                    while True:
+                        try:
+                            if not got_first_token:
+                                token = await asyncio.wait_for(token_iter.__anext__(), timeout=10.0)
+                            else:
+                                token = await token_iter.__anext__()
+                        except asyncio.TimeoutError:
+                            yield ": keepalive\n\n"
+                            continue
+                        except StopAsyncIteration:
+                            break
+                        got_first_token = True
                         full_response.append(token)
                         token_count += 1
                         yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
@@ -842,6 +855,18 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     },
                 )
 
+        except asyncio.CancelledError:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            logger.warning(
+                "Chat stream cancelled (client disconnected)",
+                extra={
+                    "session_id": session_id,
+                    "duration_ms": duration_ms,
+                    "token_count": token_count,
+                    "request_id": request_id,
+                },
+            )
+            return
         except LLMError as e:
             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
             logger.exception(

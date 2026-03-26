@@ -9,6 +9,7 @@ No local models or heavy dependencies (PyTorch, sentence-transformers) required.
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -89,6 +90,31 @@ def _build_chunks_text(results: list[dict]) -> str:
 
 _MAX_RERANK_ATTEMPTS = 2
 
+_FLOAT_RE = re.compile(r"[\d]+\.?[\d]*")
+
+
+def _parse_scores(content: str, expected_count: int) -> list[float] | None:
+    """Parse rerank scores from LLM output, tolerating formatting quirks."""
+    try:
+        scores = json.loads(content)
+        if isinstance(scores, list) and len(scores) == expected_count:
+            return [float(s) for s in scores]
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    numbers = _FLOAT_RE.findall(content)
+    if len(numbers) == expected_count:
+        try:
+            return [min(max(float(n), 0.0), 1.0) for n in numbers]
+        except ValueError:
+            pass
+
+    logger.warning(
+        "Gemini rerank returned unparseable format",
+        extra={"expected": expected_count, "extracted": len(numbers), "raw": content[:200]},
+    )
+    return None
+
 
 async def _call_rerank_api(
     prompt: str,
@@ -131,16 +157,11 @@ async def _call_rerank_api(
         if content.startswith("```"):
             content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
-        scores = json.loads(content)
-
-        if not isinstance(scores, list) or len(scores) != expected_count:
-            logger.warning(
-                "Gemini rerank returned unexpected format",
-                extra={"expected": expected_count, "got": len(scores) if isinstance(scores, list) else type(scores).__name__},
-            )
+        scores = _parse_scores(content, expected_count)
+        if scores is None:
             return None
 
-        return [float(s) for s in scores]
+        return scores
 
     except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, ValueError) as e:
         logger.warning("Gemini rerank call failed", extra={"error": str(e)})
