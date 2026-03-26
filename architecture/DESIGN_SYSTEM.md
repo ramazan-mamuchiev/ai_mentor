@@ -32,7 +32,7 @@
   ```
 - **Empty state (чат)**: `frontend/src/components/ChatWindow.tsx` — 72×72px, с `drop-shadow`
 - **Landing hero**: `frontend/src/pages/LandingPage.tsx` — 80px, с `drop-shadow` glow, переключение по теме (✅ реализовано)
-- **Promo**: `promo/comparison.html`, `promo/ipcodex.html` — inline SVG, 72×80px / 88px
+- **Promo**: `promo/comparison.html`, `promo/lexiro.html` — inline SVG, 72×80px / 88px
 
 ### Правила
 
