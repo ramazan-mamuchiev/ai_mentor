@@ -172,7 +172,7 @@ Production environment.
 | OS | Ubuntu (Docker pre-installed) |
 | Access | `ssh root@lexiro.io` |
 | Project path | `/opt/lexiro` |
-| Repository | `https://github.com/olegvphoenix/lexiro.git` (branch: `main`) |
+| Repository | [`github.com/olegvphoenix/lexiro`](https://github.com/olegvphoenix/lexiro) (branch: `main`) |
 
 ### Running Services
 

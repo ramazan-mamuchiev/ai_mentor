@@ -38,4 +38,4 @@ When the user asks to publish/deploy changes to VPS (lexiro.io):
 - If only frontend changed, build `web` and restart only `web`.
 - If only backend changed, build `api` and restart `api` + `worker` + `beat`.
 - If both changed, build `api web` and restart `api worker beat web`.
-- `worker` and `beat` have NO `build:` directive — they use `image: ipcodex-backend` built by `api`.
+- `worker` and `beat` have NO `build:` directive — they use `image: lexiro-backend` built by `api`.

@@ -13,7 +13,7 @@ Developers integrating physical security and IoT products waste hours reading ve
 ## Project Structure
 
 ```
-ipcodex/
+lexiro/
 ├── backend/              Python backend (FastAPI + Celery)
 │   ├── app/
 │   │   ├── mcp/          MCP server — AI coding assistant integration
@@ -89,7 +89,7 @@ Grafana dashboards with Loki log aggregation via Promtail.
 
 ```bash
 git clone <repo-url>
-cd ipcodex
+cd lexiro
 cp .env.example .env    # adjust settings if needed
 docker compose up -d
 ```

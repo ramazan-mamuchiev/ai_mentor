@@ -161,7 +161,7 @@ Cursor / AI IDE                    Lexiro Server
 ```bash
 # Clone and start infrastructure
 git clone <repo-url>
-cd ipcodex
+cd lexiro
 docker compose up -d
 
 # Install backend dependencies

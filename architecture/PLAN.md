@@ -294,7 +294,7 @@ Full partitioning DDL and details: [DATABASE.md — Vector Search Scaling](DATAB
 ## Project Structure
 
 ```
-ipcodex/
+lexiro/
   backend/
     app/
       main.py                # FastAPI app + FastMCP registration + lifespan

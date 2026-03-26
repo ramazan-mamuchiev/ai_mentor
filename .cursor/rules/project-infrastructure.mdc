@@ -3,7 +3,7 @@ description: Project infrastructure and Docker setup context
 alwaysApply: true
 ---
 
-# IPCodex — Infrastructure Context
+# Lexiro — Infrastructure Context
 
 ## Stack
 
@@ -29,9 +29,9 @@ The project is fully Dockerized. Do NOT re-explore Docker setup each time.
 | Service  | Port | Image               | Notes |
 |----------|------|---------------------|-------|
 | web      | 80   | frontend (nginx)    | |
-| api      | 8000 | ipcodex-backend     | builds the shared backend image |
-| worker   | -    | ipcodex-backend     | no build, reuses api image |
-| beat     | -    | ipcodex-backend     | no build, reuses api image |
+| api      | 8000 | lexiro-backend      | builds the shared backend image |
+| worker   | -    | lexiro-backend      | no build, reuses api image |
+| beat     | -    | lexiro-backend      | no build, reuses api image |
 | postgres | 5432 | pgvector/pgvector:pg16 | |
 | redis    | 6379 | redis:7-alpine      | |
 | minio    | 9000/9001 | minio/minio    | |
