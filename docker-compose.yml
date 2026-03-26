@@ -113,6 +113,14 @@ services:
       RAG_HISTORY_MESSAGES: ${RAG_HISTORY_MESSAGES:-6}
       RAG_HISTORY_MAX_TOKENS: ${RAG_HISTORY_MAX_TOKENS:-8000}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:80}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-onboarding@resend.dev}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs
@@ -155,6 +163,8 @@ services:
       EMBEDDING_MODEL_GEMINI: ${EMBEDDING_MODEL_GEMINI:-gemini-embedding-2-preview}
       EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:80}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs

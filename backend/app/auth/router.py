@@ -104,6 +104,19 @@ async def me(tenant: Tenant = Depends(get_current_tenant)):
 
 
 # ---------------------------------------------------------------------------
+# Auth providers info (public, no auth required)
+# ---------------------------------------------------------------------------
+
+@router.get("/auth/providers")
+async def auth_providers():
+    """Return which OAuth providers are configured."""
+    return {
+        "google": bool(settings.google_client_id),
+        "github": bool(settings.github_client_id),
+    }
+
+
+# ---------------------------------------------------------------------------
 # API Keys CRUD
 # ---------------------------------------------------------------------------
 

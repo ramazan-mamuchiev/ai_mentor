@@ -1,7 +1,13 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useTranslation } from 'react-i18next'
+import { Eye, EyeOff } from 'lucide-react'
+
+interface OAuthProviders {
+  google: boolean
+  github: boolean
+}
 
 export function RegisterPage() {
   const { register } = useAuth()
@@ -10,8 +16,19 @@ export function RegisterPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [providers, setProviders] = useState<OAuthProviders | null>(null)
+
+  useEffect(() => {
+    fetch('/api/v1/auth/providers')
+      .then(r => r.json())
+      .then(setProviders)
+      .catch(() => setProviders({ google: false, github: false }))
+  }, [])
+
+  const hasOAuth = providers && (providers.google || providers.github)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -34,52 +51,79 @@ export function RegisterPage() {
           <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
           <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
         </div>
+        <div className="auth-brand-name">Lexiro</div>
         <h1 className="auth-title">{t('auth.createAccount')}</h1>
         <p className="auth-subtitle">{t('auth.registerSubtitle')}</p>
 
-        <div className="auth-social">
-          <a href="/api/v1/oauth/google/authorize" className="auth-social-btn">
-            <svg viewBox="0 0 24 24" width="20" height="20">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            {t('auth.continueGoogle')}
-          </a>
-          <a href="/api/v1/oauth/github/authorize" className="auth-social-btn">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
-            </svg>
-            {t('auth.continueGithub')}
-          </a>
-        </div>
-
-        <div className="auth-divider">
-          <span>{t('auth.orEmail')}</span>
-        </div>
+        {hasOAuth && (
+          <>
+            <div className="auth-social">
+              {providers!.google && (
+                <a href="/api/v1/oauth/google/authorize" className="auth-social-btn">
+                  <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  {t('auth.continueGoogle')}
+                </a>
+              )}
+              {providers!.github && (
+                <a href="/api/v1/oauth/github/authorize" className="auth-social-btn">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+                  </svg>
+                  {t('auth.continueGithub')}
+                </a>
+              )}
+            </div>
+            <div className="auth-divider">
+              <span>{t('auth.orEmail')}</span>
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <div className="auth-error">{error}</div>}
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder={t('auth.emailPlaceholder')}
-            required
-            className="auth-input"
-            autoComplete="email"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder={t('auth.passwordPlaceholder')}
-            required
-            minLength={8}
-            className="auth-input"
-            autoComplete="new-password"
-          />
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="register-email">{t('auth.emailLabel')}</label>
+            <input
+              id="register-email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder={t('auth.emailPlaceholder')}
+              required
+              className="auth-input"
+              autoComplete="email"
+            />
+          </div>
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="register-password">{t('auth.passwordLabel')}</label>
+            <div className="auth-input-wrapper">
+              <input
+                id="register-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={t('auth.passwordPlaceholder')}
+                required
+                minLength={8}
+                className="auth-input"
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                className="auth-password-toggle"
+                onClick={() => setShowPassword(v => !v)}
+                tabIndex={-1}
+                aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
           <button type="submit" className="auth-submit" disabled={loading}>
             {loading ? t('auth.creating') : t('auth.createAccount')}
           </button>
