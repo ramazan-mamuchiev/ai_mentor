@@ -32,9 +32,11 @@ from app.models import Tenant
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
 
+_COOKIE_SECURE = settings.app_base_url.startswith("https")
+
 _COOKIE_OPTS: dict = {
     "httponly": True,
-    "secure": settings.app_env != "development",
+    "secure": _COOKIE_SECURE,
     "samesite": "lax",
     "path": "/",
 }
@@ -204,7 +206,7 @@ async def oauth_authorize(provider: str, request: Request):
 
     from starlette.responses import RedirectResponse
     resp = RedirectResponse(url, status_code=302)
-    resp.set_cookie("oauth_state", state, max_age=600, httponly=True, samesite="lax")
+    resp.set_cookie("oauth_state", state, max_age=600, **_COOKIE_OPTS)
     return resp
 
 
