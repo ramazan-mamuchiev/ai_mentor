@@ -97,13 +97,18 @@ QUERY_TYPES = tuple(_TYPE_PROMPTS.keys())
 def _build_classify_prompt() -> str:
     lines = [
         "Classify the user question and detect the product mentioned.",
-        "Return ONLY a JSON object with two fields, no other text:",
-        '  {{"category": "<category>", "product": "<exact_product_name or null>"}}',
+        "Return ONLY a JSON object with three fields, no other text:",
+        '  {{"category": "<category>", "product": "<exact_product_name or null>", "web_search": <true or false>}}',
         "",
         "Rules for product field:",
         "- Copy the product name EXACTLY as written in the list below (preserve spelling, spacing, capitalization).",
         "- If the user mentions a product by any variation (abbreviation, translation, misspelling), map it to the EXACT name from the list.",
         "- If no product is mentioned or cannot be determined, return null.",
+        "",
+        "Rules for web_search field:",
+        '- Set to true when the user explicitly or implicitly asks to search external sources (web, internet, Google, etc.).',
+        '- Also set to true when the question is about general industry knowledge, market trends, competitors, or information unlikely to exist in product documentation.',
+        '- Set to false for questions that can be answered from product documentation alone.',
         "",
         "Categories:",
     ]
@@ -197,6 +202,7 @@ async def _classify_query(db: AsyncSession, query: str, product_names: list[str]
 
         query_type = "overview"
         detected_product: str | None = None
+        classify_web_search = False
 
         try:
             clean = raw
@@ -217,6 +223,7 @@ async def _classify_query(db: AsyncSession, query: str, product_names: list[str]
                             if pn.lower() == prod.lower():
                                 detected_product = pn
                                 break
+                classify_web_search = bool(parsed.get("web_search"))
         except (json_lib.JSONDecodeError, KeyError):
             raw_lower = raw.lower().strip()
             query_type = raw_lower if raw_lower in QUERY_TYPES else "overview"
@@ -229,6 +236,7 @@ async def _classify_query(db: AsyncSession, query: str, product_names: list[str]
             "classify_total_tokens": usage.get("total_tokens", 0),
             "query_type": query_type,
             "classify_product": detected_product,
+            "classify_web_search": classify_web_search,
             "classify_input": query,
             "classify_raw": raw,
         }
@@ -1059,16 +1067,13 @@ async def build_rag_prompt(
     web_search_context = ""
     web_search_meta: dict = {}
     has_low_confidence = not chunks or (chunks and chunks[0]["similarity"] < 0.5)
-    user_requests_web = bool(re.search(
-        r"(?:поищи|найди|поиск|ищи|search|find|look\s*up|google).*(?:в\s*(?:веб|web|интернет|сети|google)|online|on\s*the\s*web|internet)",
-        query, re.IGNORECASE,
-    ))
+    classifier_wants_web = classify_meta.get("classify_web_search", False)
 
-    if query_type != "chitchat" and (has_low_confidence or user_requests_web) and settings.web_search_enabled:
+    if query_type != "chitchat" and (has_low_confidence or classifier_wants_web) and settings.web_search_enabled:
         await _emit("web_searching")
         web_search_context, web_search_meta = await _web_search_grounding(search_query)
-        if user_requests_web:
-            web_search_meta["web_search_trigger"] = "user_request"
+        if classifier_wants_web:
+            web_search_meta["web_search_trigger"] = "classifier"
 
     detected_product = auto_product or product_filter
     detected_doc = doc_context
