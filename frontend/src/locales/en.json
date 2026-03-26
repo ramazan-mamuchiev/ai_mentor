@@ -195,6 +195,8 @@
   "code.copy": "Copy",
   "code.download": "Download",
   "theme.toggle": "Toggle theme",
+  "theme.light": "Light theme",
+  "theme.dark": "Dark theme",
   "lang.toggle": "Switch language",
 
   "match": "{{value}}% match",

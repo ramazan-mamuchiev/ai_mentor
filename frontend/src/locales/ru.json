@@ -195,6 +195,8 @@
   "code.copy": "Копировать",
   "code.download": "Скачать",
   "theme.toggle": "Сменить тему",
+  "theme.light": "Светлая тема",
+  "theme.dark": "Тёмная тема",
   "lang.toggle": "Сменить язык",
 
   "match": "{{value}}% совпадение",

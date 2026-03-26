@@ -66,9 +66,9 @@ export function AccountBadge({ collapsed, theme, onToggleTheme }: AccountBadgePr
             {t('auth.apiKeys')}
           </button>
           <div className="account-dropdown-divider" />
-          <button onClick={() => onToggleTheme()}>
+          <button onClick={() => { onToggleTheme(); setOpen(false) }}>
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            {t('theme.toggle')}
+            {theme === 'dark' ? t('theme.light') : t('theme.dark')}
           </button>
           <button onClick={() => { i18n.changeLanguage(nextLang); setOpen(false) }}>
             <Languages size={16} />
