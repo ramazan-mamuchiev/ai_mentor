@@ -32,20 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })
 
   const refreshUser = useCallback(async () => {
-    try {
-      const user = await getMe()
-      setState(prev => ({ ...prev, user, loading: false }))
-    } catch {
-      setState(prev => ({ ...prev, user: null, loading: false }))
-    }
+    const user = await getMe()
+    setState(prev => ({ ...prev, user, loading: false }))
   }, [])
 
   useEffect(() => {
-    refreshUser().catch(() => {
+    refreshUser().catch(() =>
       refreshToken()
         .then(() => refreshUser())
-        .catch(() => setState(prev => ({ ...prev, loading: false })))
-    })
+        .catch(() => setState(prev => ({ ...prev, user: null, loading: false })))
+    )
   }, [refreshUser])
 
   const login = useCallback(async (email: string, password: string) => {
