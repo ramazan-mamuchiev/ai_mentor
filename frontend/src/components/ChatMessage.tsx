@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw, Share2, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { AlertTriangle, Bug, Check, Copy, FileSearch, Globe, Loader2, Pencil, RefreshCw, Share2, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -175,10 +175,18 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 <span>{t(streamingStage && STAGE_I18N[streamingStage] ? STAGE_I18N[streamingStage] : 'chat.searching')}</span>
               </div>
             ) : (
-              <MarkdownRenderer
-                content={content}
-                isStreaming={isStreaming}
-              />
+              <>
+                {debug?.web_search_used && (
+                  <div className="message-source-banner message-source-banner--web">
+                    <Globe size={14} />
+                    <span>{t('chat.webSearchBanner')}</span>
+                  </div>
+                )}
+                <MarkdownRenderer
+                  content={content}
+                  isStreaming={isStreaming}
+                />
+              </>
             )}
           </div>
         )}

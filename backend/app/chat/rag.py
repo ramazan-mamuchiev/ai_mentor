@@ -479,14 +479,11 @@ async def _web_search_grounding(query: str) -> tuple[str, dict]:
         client = _get_grounding_client()
 
         grounding_prompt = (
-            f"Explain the following industry/technical term or concept concisely. "
-            f"Search the web for current, authoritative definitions. "
-            f"Focus on what it means in the context of video surveillance, VMS, "
-            f"and security systems integration.\n\n"
-            f"Term/Question: {query}\n\n"
-            f"Provide a clear, factual explanation in 3-5 sentences. "
-            f"Include what the term means, why it matters, and examples of how "
-            f"vendors typically implement it."
+            f"Search the web and answer the following question thoroughly.\n\n"
+            f"Question: {query}\n\n"
+            f"Provide a detailed, factual answer based on web search results. "
+            f"Include specific names, numbers, links, and examples where available. "
+            f"If the question is about companies, partners, or products — list as many as you can find."
         )
 
         def _call():
@@ -1135,9 +1132,9 @@ async def build_rag_prompt(
     if web_search_context:
         context_block += (
             "\n\n<web_search_context>\n"
-            "The following information was retrieved from the web to help understand "
-            "industry terminology used in the question. Use it to bridge concepts to "
-            "the product documentation above.\n\n"
+            "The following information was retrieved from the web to help answer "
+            "the user's question. Use it as a primary source when the documentation "
+            "above does not contain the needed information.\n\n"
             f"{web_search_context}\n"
             "</web_search_context>"
         )

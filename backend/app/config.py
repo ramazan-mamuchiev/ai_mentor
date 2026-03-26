@@ -84,8 +84,8 @@ class Settings(BaseSettings):
 
     web_search_enabled: bool = True
     web_search_model: str = "gemini-2.5-flash"
-    web_search_max_tokens: int = 500
-    web_search_max_context_chars: int = 2000
+    web_search_max_tokens: int = 1500
+    web_search_max_context_chars: int = 5000
 
     model_max_input_tokens: int = 1_000_000
 

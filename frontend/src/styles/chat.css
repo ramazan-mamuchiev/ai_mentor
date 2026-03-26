@@ -464,6 +464,37 @@
   border-radius: 18px 18px 18px 4px;
 }
 
+.message-source-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.message-source-banner--web {
+  background: rgba(59, 130, 246, 0.08);
+  border-left: 3px solid #3b82f6;
+}
+
+[data-theme="dark"] .message-source-banner--web {
+  background: rgba(96, 165, 250, 0.1);
+  border-left-color: #60a5fa;
+}
+
+.message-source-banner svg {
+  flex-shrink: 0;
+  color: #3b82f6;
+}
+
+[data-theme="dark"] .message-source-banner svg {
+  color: #60a5fa;
+}
+
 .message-content p {
   margin-bottom: 5px;
 }
@@ -494,7 +525,24 @@
 .message-content h4, .message-content h5, .message-content h6 { font-size: 1em; }
 
 .message-content a {
+  color: #3b82f6;
   text-decoration: underline;
+  text-decoration-color: rgba(59, 130, 246, 0.3);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s;
+}
+
+.message-content a:hover {
+  text-decoration-color: #3b82f6;
+}
+
+[data-theme="dark"] .message-content a {
+  color: #60a5fa;
+  text-decoration-color: rgba(96, 165, 250, 0.3);
+}
+
+[data-theme="dark"] .message-content a:hover {
+  text-decoration-color: #60a5fa;
 }
 
 .message-footer {
