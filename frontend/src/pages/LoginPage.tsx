@@ -2,7 +2,8 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useTranslation } from 'react-i18next'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Moon, Sun } from 'lucide-react'
+import { useTheme } from '../hooks/useTheme'
 
 interface OAuthProviders {
   google: boolean
@@ -12,7 +13,10 @@ interface OAuthProviders {
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const { theme, toggle: toggleTheme } = useTheme()
+  const currentLang = i18n.language?.startsWith('ru') ? 'ru' : 'en'
+  const nextLang = currentLang === 'ru' ? 'en' : 'ru'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -46,12 +50,19 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
+      <div className="auth-header-actions">
+        <button className="lang-toggle" onClick={() => i18n.changeLanguage(nextLang)} aria-label={t('lang.toggle')}>
+          {currentLang.toUpperCase()}
+        </button>
+        <button className="theme-toggle" onClick={toggleTheme} aria-label={t('theme.toggle')}>
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      </div>
       <div className="auth-card">
         <div className="auth-logo">
           <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
           <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
         </div>
-        <div className="auth-brand-name">Lexiro</div>
         <h1 className="auth-title">{t('auth.signIn')}</h1>
         <p className="auth-subtitle">{t('auth.loginSubtitle')}</p>
 
