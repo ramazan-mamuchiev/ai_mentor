@@ -47,8 +47,17 @@ export function MarkdownRenderer({ content, isStreaming }: Props) {
               )
             }
 
+            let language = match?.[1] || ''
+            let filename: string | undefined
+
+            const metaMatch = /language-(\w+):(.+)/.exec(className || '')
+            if (metaMatch) {
+              language = metaMatch[1]
+              filename = metaMatch[2]
+            }
+
             return (
-              <CodeBlock language={match?.[1] || ''}>
+              <CodeBlock language={language} filename={filename}>
                 {String(children).replace(/\n$/, '')}
               </CodeBlock>
             )
