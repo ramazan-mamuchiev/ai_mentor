@@ -191,13 +191,17 @@ export function ChatWindow({
               <span className="empty-badge"><Cpu size={14} />{t('empty.badge')}</span>
               <h1 className="empty-title">{t('empty.title')}</h1>
               <p className="empty-slogan">{t('empty.slogan')}</p>
-              <div className="empty-divider">
-                <span /><span className="empty-dot">·</span><span />
-              </div>
               <p className="empty-subslogan">
                 <Trans i18nKey="empty.subslogan">From docs to code.</Trans>{' '}
                 <em>{t('empty.instantly')}</em>
               </p>
+              <div className="empty-suggestions">
+                {(['empty.suggestion1', 'empty.suggestion2', 'empty.suggestion3', 'empty.suggestion4'] as const).map(key => (
+                  <button key={key} className="empty-suggestion-chip" onClick={() => onSend(t(key))}>
+                    {t(key)}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             <>

@@ -220,9 +220,9 @@ describe('ChatWindow language switching', () => {
 
   it('switches placeholder to Russian', async () => {
     renderEmpty()
-    expect(screen.getByPlaceholderText(/Ask about device/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Ask anything about your docs/)).toBeInTheDocument()
     await act(() => i18n.changeLanguage('ru'))
-    expect(screen.getByPlaceholderText(/Спросите об интеграции/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Задайте вопрос по документации/)).toBeInTheDocument()
   })
 })
 
@@ -231,13 +231,13 @@ describe('ChatWindow language switching', () => {
 describe('ChatInput language switching', () => {
   it('shows English placeholder by default', () => {
     render(<ChatInput onSend={() => {}} onCancel={() => {}} status="idle" />)
-    expect(screen.getByPlaceholderText('Ask about device integration...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Ask anything about your docs...')).toBeInTheDocument()
   })
 
   it('switches placeholder to Russian', async () => {
     render(<ChatInput onSend={() => {}} onCancel={() => {}} status="idle" />)
     await act(() => i18n.changeLanguage('ru'))
-    expect(screen.getByPlaceholderText('Спросите об интеграции устройств...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Задайте вопрос по документации...')).toBeInTheDocument()
   })
 
   it('switches button titles to Russian', async () => {

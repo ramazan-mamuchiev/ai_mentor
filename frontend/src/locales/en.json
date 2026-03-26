@@ -4,6 +4,10 @@
   "empty.slogan": "Ask, don't search.",
   "empty.subslogan": "From documentation to code.",
   "empty.instantly": "Instantly.",
+  "empty.suggestion1": "How to authenticate via API?",
+  "empty.suggestion2": "Show me the list of endpoints",
+  "empty.suggestion3": "Give me a code example for event subscription",
+  "empty.suggestion4": "What formats does the API support?",
 
   "input.placeholder": "Ask anything about your docs...",
   "input.upload": "Upload documentation",

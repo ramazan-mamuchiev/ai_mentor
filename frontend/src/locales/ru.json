@@ -4,6 +4,10 @@
   "empty.slogan": "Спрашивай, не ищи.",
   "empty.subslogan": "Из документации в код.",
   "empty.instantly": "Мгновенно.",
+  "empty.suggestion1": "Как авторизоваться через API?",
+  "empty.suggestion2": "Покажи список эндпоинтов",
+  "empty.suggestion3": "Дай пример кода для подписки на события",
+  "empty.suggestion4": "Какие форматы поддерживает API?",
 
   "input.placeholder": "Задайте вопрос по документации...",
   "input.upload": "Загрузить документацию",

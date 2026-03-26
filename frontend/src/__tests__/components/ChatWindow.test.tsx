@@ -183,7 +183,7 @@ describe('ChatWindow smart auto-scroll', () => {
       />,
     )
 
-    const input = screen.getByPlaceholderText(/Ask about device/i)
+    const input = screen.getByPlaceholderText(/Ask anything about your docs/i)
     await user.type(input, 'follow up{Enter}')
 
     const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
