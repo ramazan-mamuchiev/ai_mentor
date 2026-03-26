@@ -349,12 +349,16 @@
 /* Mobile */
 @media (max-width: 480px) {
   .auth-page {
+    align-items: flex-start;
     padding: 1rem;
     padding-top: 3.5rem;
   }
   .auth-card {
     padding: 1.25rem;
     border-radius: 12px;
+    border: none;
+    box-shadow: none;
+    background: transparent;
   }
   .auth-page::before,
   .auth-page::after {
