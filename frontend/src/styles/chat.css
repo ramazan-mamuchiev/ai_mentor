@@ -1602,8 +1602,13 @@
   padding: 8px 10px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  gap: 2px;
   border-top: 1px solid var(--border);
+}
+
+.sidebar-footer .account-badge {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ── File Upload ── */
