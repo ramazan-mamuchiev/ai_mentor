@@ -206,7 +206,7 @@ describe('ChatWindow language switching', () => {
   it('shows English empty state by default', () => {
     renderEmpty()
     expect(screen.getByText('AI Integration Platform')).toBeInTheDocument()
-    expect(screen.getByText(/Ask, don't read/)).toBeInTheDocument()
+    expect(screen.getByText(/Ask, don't search/)).toBeInTheDocument()
     expect(screen.getByText('Instantly.')).toBeInTheDocument()
   })
 
@@ -214,7 +214,7 @@ describe('ChatWindow language switching', () => {
     renderEmpty()
     await act(() => i18n.changeLanguage('ru'))
     expect(screen.getByText('AI-платформа интеграции')).toBeInTheDocument()
-    expect(screen.getByText(/Спрашивай, не читай/)).toBeInTheDocument()
+    expect(screen.getByText(/Спрашивай, не ищи/)).toBeInTheDocument()
     expect(screen.getByText('Мгновенно.')).toBeInTheDocument()
   })
 

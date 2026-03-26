@@ -1,11 +1,11 @@
 {
   "empty.badge": "AI-платформа интеграции",
   "empty.title": "Lexiro",
-  "empty.slogan": "Спрашивай, не читай.",
+  "empty.slogan": "Спрашивай, не ищи.",
   "empty.subslogan": "Из документации в код.",
   "empty.instantly": "Мгновенно.",
 
-  "input.placeholder": "Спросите об интеграции устройств...",
+  "input.placeholder": "Задайте вопрос по документации...",
   "input.upload": "Загрузить документацию",
   "input.send": "Отправить сообщение",
   "input.stop": "Остановить генерацию",

@@ -29,7 +29,7 @@ describe('ChatWindow', () => {
   it('shows empty state when no messages', () => {
     renderChatWindow()
     expect(screen.getByText('Lexiro')).toBeInTheDocument()
-    expect(screen.getByText(/Ask, don't read/)).toBeInTheDocument()
+    expect(screen.getByText(/Ask, don't search/)).toBeInTheDocument()
   })
 
   it('renders messages when present', () => {

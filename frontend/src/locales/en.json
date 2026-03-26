@@ -1,11 +1,11 @@
 {
   "empty.badge": "AI Integration Platform",
   "empty.title": "Lexiro",
-  "empty.slogan": "Ask, don't read.",
+  "empty.slogan": "Ask, don't search.",
   "empty.subslogan": "From documentation to code.",
   "empty.instantly": "Instantly.",
 
-  "input.placeholder": "Ask about device integration...",
+  "input.placeholder": "Ask anything about your docs...",
   "input.upload": "Upload documentation",
   "input.send": "Send message",
   "input.stop": "Stop generating",

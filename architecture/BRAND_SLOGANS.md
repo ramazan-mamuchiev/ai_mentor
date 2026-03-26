@@ -51,8 +51,8 @@
 
 > **✅ Welcome Screen / Empty State**
 >
-> **EN: "Ask, don't read."**
-> **RU: "Спрашивай, не читай."**
+> **EN: "Ask, don't search."**
+> **RU: "Спрашивай, не ищи."**
 >
 > Короткая, действенная, сразу объясняет суть продукта и подталкивает к действию.
 
@@ -76,7 +76,7 @@
 |-------|------|----|----|
 | **Landing H1** | Hero tagline | Complex docs. Simple code. | Сложная документация. Простой код. |
 | **Landing H2** | Subtitle | From documentation to code. Instantly. | Из документации в код. Мгновенно. |
-| **Product** | Welcome / Empty | Ask, don't read. | Спрашивай, не читай. |
+| **Product** | Welcome / Empty | Ask, don't search. | Спрашивай, не ищи. |
 | **Community** | Brand verb | Don't read it. Lex it. | Не читай. Лексирни. |
 | **Sales** | Elevator pitch | We read the docs so you don't have to. | Мы читаем документацию, чтобы вам не пришлось. |
 
@@ -155,7 +155,7 @@ I.R.O. — Intelligent Response Orchestration
 
 | # | EN | RU |
 |---|----|----|
-| 9 | Ask, don't read. | Спрашивай, не читай. |
+| 9 | Ask, don't search. | Спрашивай, не ищи. |
 | 10 | Docs to code. Instantly. | Из документации — в код. Мгновенно. |
 | 11 | API, decoded. | API — расшифровано. |
 | 12 | Every API. One question. | Любой API. Один вопрос. |
