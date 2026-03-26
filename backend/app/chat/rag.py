@@ -1059,10 +1059,16 @@ async def build_rag_prompt(
     web_search_context = ""
     web_search_meta: dict = {}
     has_low_confidence = not chunks or (chunks and chunks[0]["similarity"] < 0.5)
+    user_requests_web = bool(re.search(
+        r"(?:поищи|найди|поиск|ищи|search|find|look\s*up|google).*(?:в\s*(?:веб|web|интернет|сети|google)|online|on\s*the\s*web|internet)",
+        query, re.IGNORECASE,
+    ))
 
-    if query_type != "chitchat" and has_low_confidence and settings.web_search_enabled:
+    if query_type != "chitchat" and (has_low_confidence or user_requests_web) and settings.web_search_enabled:
         await _emit("web_searching")
         web_search_context, web_search_meta = await _web_search_grounding(search_query)
+        if user_requests_web:
+            web_search_meta["web_search_trigger"] = "user_request"
 
     detected_product = auto_product or product_filter
     detected_doc = doc_context
