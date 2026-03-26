@@ -774,6 +774,21 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         duration_ms=rag_debug.get("decompose_ms", 0),
                     )
 
+                web_search_total = rag_debug.get("web_search_total_tokens", 0)
+                if web_search_total > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="web_search_grounding",
+                        request_id=request_id,
+                        llm_provider="google",
+                        llm_model=rag_debug.get("web_search_model", ""),
+                        prompt_tokens=rag_debug.get("web_search_prompt_tokens", 0),
+                        completion_tokens=rag_debug.get("web_search_completion_tokens", 0),
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=rag_debug.get("web_search_ms", 0),
+                    )
+
                 if sources:
                     try:
                         total_ctx = rag_debug.get("context_tokens", 0)

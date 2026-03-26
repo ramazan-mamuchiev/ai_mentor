@@ -163,6 +163,31 @@ export function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           {debug.summary_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.summaryTime')}</span><code>{(debug.summary_ms / 1000).toFixed(2)}s</code></div>}
         </div>
       )}
+      {debug.web_search_used && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.webSearchCost')}</div>
+          <div className="debug-row"><span>{t('debug.webSearchUsed')}</span><code>✓</code></div>
+          {debug.web_search_queries && debug.web_search_queries.length > 0 && (
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.webSearchQueries')}</span>
+              <code className="debug-query-value">{debug.web_search_queries.join('\n')}</code>
+            </div>
+          )}
+          {(debug.web_search_sources_count ?? 0) > 0 && (
+            <div className="debug-row"><span>{t('debug.webSearchSources')}</span><code>{fmt(debug.web_search_sources_count)}</code></div>
+          )}
+          {(debug.web_search_total_tokens ?? 0) > 0 && (
+            <>
+              <div className="debug-row"><span>{t('debug.webSearchPromptTokens')}</span><code>{fmt(debug.web_search_prompt_tokens)}</code></div>
+              <div className="debug-row"><span>{t('debug.webSearchCompletionTokens')}</span><code>{fmt(debug.web_search_completion_tokens)}</code></div>
+              <div className="debug-row debug-row-total"><span>{t('debug.webSearchTotalTokens')}</span><code>{fmt(debug.web_search_total_tokens)}</code></div>
+            </>
+          )}
+          {debug.web_search_model && <div className="debug-row debug-row-config"><span>{t('debug.webSearchModel')}</span><code>{debug.web_search_model}</code></div>}
+          {debug.web_search_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.webSearchTime')}</span><code>{(debug.web_search_ms / 1000).toFixed(2)}s</code></div>}
+          {(debug.web_search_context_length ?? 0) > 0 && <div className="debug-row debug-row-config"><span>{t('debug.webSearchCtxLen')}</span><code>{fmt(debug.web_search_context_length)} chars</code></div>}
+        </div>
+      )}
       {debug.retry_used && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.retryUsed')}</div>

@@ -82,6 +82,16 @@ export interface DebugInfo {
   decompose_prompt_tokens?: number
   decompose_completion_tokens?: number
   decompose_total_tokens?: number
+  web_search_used?: boolean
+  web_search_model?: string
+  web_search_ms?: number
+  web_search_prompt_tokens?: number
+  web_search_completion_tokens?: number
+  web_search_total_tokens?: number
+  web_search_queries?: string[]
+  web_search_sources_count?: number
+  web_search_sources?: { title: string; uri: string }[]
+  web_search_context_length?: number
   status?: 'success' | 'stopped' | 'error'
   status_detail?: string
 }

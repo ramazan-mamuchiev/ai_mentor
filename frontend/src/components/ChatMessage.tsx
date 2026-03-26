@@ -24,6 +24,7 @@ const STAGE_I18N: Record<string, string> = {
   classifying: 'chat.stageClassifying',
   decomposing: 'chat.stageDecomposing',
   searching: 'chat.stageSearching',
+  web_searching: 'chat.stageWebSearching',
   generating: 'chat.stageGenerating',
 }
 

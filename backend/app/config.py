@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     decompose_model: str = "gemini-2.5-flash"
     decompose_max_sub_queries: int = 4
 
+    web_search_enabled: bool = True
+    web_search_model: str = "gemini-2.5-flash"
+    web_search_max_tokens: int = 500
+    web_search_max_context_chars: int = 2000
+
     model_max_input_tokens: int = 1_000_000
 
     ocr_enabled: bool = True

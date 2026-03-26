@@ -151,7 +151,11 @@ def _embedding_model_name() -> str:
 
 
 from app.chat.prompts import REWRITE_PROMPT as _REWRITE_PROMPT_IMPORTED
-from app.chat.prompts import REPHRASE_FOR_SEARCH_PROMPT, SUMMARIZE_HISTORY_PROMPT, SYSTEM_PROMPT_NO_DOCS
+from app.chat.prompts import (
+    REPHRASE_FOR_SEARCH_PROMPT,
+    SUMMARIZE_HISTORY_PROMPT,
+    SYSTEM_PROMPT_NO_DOCS,
+)
 
 async def _classify_query(db: AsyncSession, query: str, product_names: list[str] | None = None) -> tuple[str, str | None, dict]:
     """Classify user query and detect product using a single LLM call.
@@ -435,6 +439,112 @@ async def _rephrase_for_retry(query: str) -> str | None:
     except Exception:
         logger.warning("Query rephrase for retry failed", exc_info=True)
     return None
+
+
+_grounding_genai_client = None
+
+
+def _get_grounding_client():
+    """Lazy-init a google-genai Client for grounding calls (reuses embedder key)."""
+    global _grounding_genai_client
+    if _grounding_genai_client is None:
+        from google import genai
+        _grounding_genai_client = genai.Client(api_key=settings.gemini_api_key)
+        logger.info("Gemini grounding client initialized")
+    return _grounding_genai_client
+
+
+async def _web_search_grounding(query: str) -> tuple[str, dict]:
+    """Use Gemini Grounding with Google Search to get web context for the query.
+
+    Makes a single Gemini call with google_search tool enabled.
+    Returns (formatted_context, usage_meta).
+    """
+    if not settings.web_search_enabled or not settings.gemini_api_key:
+        return "", {}
+
+    try:
+        from google.genai import types
+        import asyncio
+
+        t0 = time.perf_counter()
+        client = _get_grounding_client()
+
+        grounding_prompt = (
+            f"Explain the following industry/technical term or concept concisely. "
+            f"Search the web for current, authoritative definitions. "
+            f"Focus on what it means in the context of video surveillance, VMS, "
+            f"and security systems integration.\n\n"
+            f"Term/Question: {query}\n\n"
+            f"Provide a clear, factual explanation in 3-5 sentences. "
+            f"Include what the term means, why it matters, and examples of how "
+            f"vendors typically implement it."
+        )
+
+        def _call():
+            return client.models.generate_content(
+                model=settings.web_search_model,
+                contents=grounding_prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.1,
+                    max_output_tokens=settings.web_search_max_tokens,
+                ),
+            )
+
+        response = await asyncio.to_thread(_call)
+        ws_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        context_text = response.text or ""
+
+        grounding_meta = response.candidates[0].grounding_metadata if response.candidates else None
+        search_queries = []
+        grounding_sources = []
+        if grounding_meta:
+            search_queries = list(grounding_meta.web_search_queries or [])
+            if grounding_meta.grounding_chunks:
+                for gc in grounding_meta.grounding_chunks:
+                    if gc.web:
+                        grounding_sources.append({
+                            "title": gc.web.title or "",
+                            "uri": gc.web.uri or "",
+                        })
+
+        usage = response.usage_metadata
+        prompt_tokens = usage.prompt_token_count if usage else 0
+        completion_tokens = usage.candidates_token_count if usage else 0
+        total_tokens = usage.total_token_count if usage else 0
+
+        if len(context_text) > settings.web_search_max_context_chars:
+            context_text = context_text[: settings.web_search_max_context_chars] + "\n..."
+
+        meta = {
+            "web_search_ms": ws_ms,
+            "web_search_model": settings.web_search_model,
+            "web_search_prompt_tokens": prompt_tokens,
+            "web_search_completion_tokens": completion_tokens,
+            "web_search_total_tokens": total_tokens,
+            "web_search_queries": search_queries,
+            "web_search_sources_count": len(grounding_sources),
+            "web_search_sources": grounding_sources[:5],
+            "web_search_context_length": len(context_text),
+        }
+        logger.info(
+            "Gemini grounding search completed",
+            extra={
+                "query": query[:200],
+                "search_queries": search_queries,
+                "sources": len(grounding_sources),
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "ms": ws_ms,
+            },
+        )
+        return context_text, meta
+
+    except Exception:
+        logger.warning("Gemini grounding search failed", exc_info=True)
+        return "", {}
 
 
 def _load_decompose_prompt() -> str:
@@ -946,6 +1056,14 @@ async def build_rag_prompt(
                     extra={"chunks_found": len(chunks), "top_sim": chunks[0]["similarity"]},
                 )
 
+    web_search_context = ""
+    web_search_meta: dict = {}
+    has_low_confidence = not chunks or (chunks and chunks[0]["similarity"] < 0.5)
+
+    if query_type != "chitchat" and has_low_confidence and settings.web_search_enabled:
+        await _emit("web_searching")
+        web_search_context, web_search_meta = await _web_search_grounding(search_query)
+
     detected_product = auto_product or product_filter
     detected_doc = doc_context
     if not doc_context and chunks:
@@ -1002,6 +1120,16 @@ async def build_rag_prompt(
 
     context_header += "\n"
     context_block = f"{context_header}{context}\n</documentation_context>"
+
+    if web_search_context:
+        context_block += (
+            "\n\n<web_search_context>\n"
+            "The following information was retrieved from the web to help understand "
+            "industry terminology used in the question. Use it to bridge concepts to "
+            "the product documentation above.\n\n"
+            f"{web_search_context}\n"
+            "</web_search_context>"
+        )
 
     system_prompt = _build_system_prompt(query_type)
     prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:12]
@@ -1140,8 +1268,10 @@ async def build_rag_prompt(
         "decompose_used": decompose_result is not None and bool(decompose_result.sub_queries),
         "decompose_sub_queries": decompose_result.sub_queries if decompose_result else [],
         "decompose_sub_products": decompose_result.sub_products if decompose_result else [],
+        "web_search_used": bool(web_search_context),
         **(decompose_result.meta if decompose_result else {}),
         **classify_meta,
+        **web_search_meta,
     }
 
     logger.info(
