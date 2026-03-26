@@ -120,7 +120,6 @@
 }
 
 .auth-brand-name {
-  display: inline-block;
   margin-top: 0.25rem;
   font-size: 0.95rem;
   font-weight: 600;
@@ -130,6 +129,9 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: transparent;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .auth-title {
