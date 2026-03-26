@@ -211,7 +211,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               className="sources-toggle"
               onClick={() => onShowSources?.(sources, message.debug?.session_id, message.debug?.message_id)}
             >
-              <FileSearch size={14} />
+              <FileSearch size={16} />
               <span className="sources-label">{t('chat.sources', { count: sources.length })}</span>
             </button>
           </div>

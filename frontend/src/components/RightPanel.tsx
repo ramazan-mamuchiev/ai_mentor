@@ -308,7 +308,7 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
         <div className="sources-panel-header">
           <div className="sources-panel-header-content">
             <div className="sources-panel-header-icon">
-              <Icon size={14} />
+              <Icon size={18} />
             </div>
             <div className="sources-panel-header-text">
               <span className="sources-panel-title">{title}</span>
