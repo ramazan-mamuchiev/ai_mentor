@@ -533,25 +533,53 @@ async def send_message(session_id: int, req: SendMessageRequest):
 
                 final_finish_reason = "stop"
 
+                _HEARTBEAT_INTERVAL = 10.0
+
                 while True:
                     llm_meta_chunk: dict = {}
                     got_first_token = False
-                    token_iter = stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk, reasoning_effort=effective_reasoning).__aiter__()
-                    while True:
+                    token_queue: asyncio.Queue[str | None] = asyncio.Queue()
+                    _llm_msgs = llm_messages
+                    _eff_max = effective_max_tokens
+                    _eff_reas = effective_reasoning
+
+                    async def _fill_queue() -> None:
                         try:
-                            if not got_first_token:
-                                token = await asyncio.wait_for(token_iter.__anext__(), timeout=10.0)
-                            else:
-                                token = await token_iter.__anext__()
-                        except asyncio.TimeoutError:
-                            yield ": keepalive\n\n"
-                            continue
-                        except StopAsyncIteration:
-                            break
-                        got_first_token = True
-                        full_response.append(token)
-                        token_count += 1
-                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                            async for tok in stream_chat_completion(_llm_msgs, max_tokens=_eff_max, metadata=llm_meta_chunk, reasoning_effort=_eff_reas):
+                                await token_queue.put(tok)
+                        finally:
+                            await token_queue.put(None)
+
+                    fill_task = asyncio.create_task(_fill_queue())
+                    try:
+                        while True:
+                            try:
+                                timeout = _HEARTBEAT_INTERVAL if not got_first_token else None
+                                token = await asyncio.wait_for(token_queue.get(), timeout=timeout)
+                            except asyncio.TimeoutError:
+                                if fill_task.done():
+                                    exc = fill_task.exception()
+                                    if exc:
+                                        raise exc
+                                yield ": keepalive\n\n"
+                                continue
+                            if token is None:
+                                if fill_task.done():
+                                    exc = fill_task.exception()
+                                    if exc:
+                                        raise exc
+                                break
+                            got_first_token = True
+                            full_response.append(token)
+                            token_count += 1
+                            yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    finally:
+                        if not fill_task.done():
+                            fill_task.cancel()
+                            try:
+                                await fill_task
+                            except (asyncio.CancelledError, Exception):
+                                pass
 
                     if not llm_meta:
                         llm_meta.update(llm_meta_chunk)
