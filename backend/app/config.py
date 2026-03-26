@@ -42,12 +42,12 @@ class Settings(BaseSettings):
 
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     gemini_api_key: str = ""
-    openai_llm_model: str = "gemini-3.1-pro-preview"
+    openai_llm_model: str = "gemini-2.5-pro"
 
     llm_reasoning_effort: str = "low"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 
     classifier_enabled: bool = True
-    classifier_model: str = "gemini-3-flash-preview"
+    classifier_model: str = "gemini-2.5-flash"
 
     rag_top_k: int = 10
     rag_min_similarity: float = 0.35
@@ -56,12 +56,12 @@ class Settings(BaseSettings):
 
     summary_enabled: bool = True
     summary_threshold: int = 8
-    summary_model: str = "gemini-3-flash-preview"
+    summary_model: str = "gemini-2.5-flash"
     summary_max_tokens: int = 500
 
     rerank_enabled: bool = True
     rerank_candidates: int = 20
-    rerank_model: str = "gemini-3-flash-preview"
+    rerank_model: str = "gemini-2.5-flash"
 
     hybrid_search_enabled: bool = True
     hybrid_bm25_weight: float = 0.3
@@ -73,19 +73,19 @@ class Settings(BaseSettings):
     chunk_overlap_paragraphs: int = 2
 
     metadata_extraction_enabled: bool = True
-    metadata_extraction_model: str = "gemini-3-flash-preview"
+    metadata_extraction_model: str = "gemini-2.5-flash"
     metadata_extraction_batch_size: int = 5
 
     search_retry_enabled: bool = True
 
     decompose_enabled: bool = True
-    decompose_model: str = "gemini-3-flash-preview"
+    decompose_model: str = "gemini-2.5-flash"
     decompose_max_sub_queries: int = 4
 
     model_max_input_tokens: int = 1_000_000
 
     ocr_enabled: bool = True
-    ocr_lang_detect_model: str = "gemini-3-flash-preview"
+    ocr_lang_detect_model: str = "gemini-2.5-flash"
 
     app_env: str = "development"
     app_log_level: str = "INFO"

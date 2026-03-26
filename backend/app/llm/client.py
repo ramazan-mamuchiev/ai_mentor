@@ -16,7 +16,7 @@ import httpx
 _RETRYABLE_STATUS_CODES = {429, 500, 503}
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 2.0
-_FALLBACK_MODEL = "gemini-3-flash-preview"
+_FALLBACK_MODEL = "gemini-2.5-flash"
 _FALLBACK_REASONING_EFFORT = "none"
 
 from app.config import settings
@@ -182,7 +182,7 @@ async def _stream_openai_compatible(
 
     Retries on 429/500/503 with exponential backoff. If all retries fail and
     the primary model is not the fallback, automatically falls back to
-    gemini-3-flash-preview (Google's recommendation for 503 on Pro).
+    gemini-2.5-flash (Google's recommendation for 503 on Pro).
     """
     model = model or settings.openai_llm_model
     temperature = temperature if temperature is not None else settings.llm_temperature
