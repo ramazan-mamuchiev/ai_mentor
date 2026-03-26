@@ -21,7 +21,6 @@ import {
   ArrowRight,
   Sun,
   Moon,
-  Globe,
   Rocket,
 } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
@@ -94,13 +93,13 @@ export function LandingPage() {
         </nav>
 
         <div className="landing-header-actions">
-          <button className="landing-btn-ghost" onClick={toggleLang} aria-label={t('lang.toggle')} data-tooltip={t('lang.toggle')}>
-            <Globe size={18} />
+          <button className="landing-toggle-btn" onClick={toggleLang} aria-label={t('lang.toggle')}>
+            {i18n.language?.startsWith('ru') ? 'RU' : 'EN'}
           </button>
-          <button className="landing-btn-ghost" onClick={toggleTheme} aria-label={t('theme.toggle')} data-tooltip={t('theme.toggle')}>
+          <button className="landing-toggle-btn" onClick={toggleTheme} aria-label={t('theme.toggle')}>
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <Link to="/app" className="landing-btn-primary">
+          <Link to="/app" className="landing-btn-primary landing-header-cta">
             {t('landing.nav.openApp')}
             <ArrowRight size={16} />
           </Link>
@@ -116,16 +115,23 @@ export function LandingPage() {
 
       {/* Mobile nav overlay */}
       <div className={`landing-mobile-nav${mobileMenuOpen ? ' open' : ''}`}>
-        <a href="#problems" onClick={e => handleAnchorClick(e, 'problems')}>
-          {t('landing.nav.problems')}
-        </a>
-        <a href="#goals" onClick={e => handleAnchorClick(e, 'goals')}>
-          {t('landing.nav.goals')}
-        </a>
-        <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
-          {t('landing.nav.howItWorks')}
-        </a>
-        <Link to="/app" className="landing-btn-primary" style={{ marginTop: 12, justifyContent: 'center' }}>
+        <nav className="landing-mobile-links">
+          <a href="#problems" onClick={e => handleAnchorClick(e, 'problems')}>
+            {t('landing.nav.problems')}
+          </a>
+          <a href="#goals" onClick={e => handleAnchorClick(e, 'goals')}>
+            {t('landing.nav.goals')}
+          </a>
+          <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
+            {t('landing.nav.howItWorks')}
+          </a>
+        </nav>
+        <div className="landing-mobile-divider" />
+        <Link
+          to="/app"
+          className="landing-btn-primary landing-mobile-cta"
+          onClick={() => setMobileMenuOpen(false)}
+        >
           {t('landing.nav.openApp')}
           <ArrowRight size={16} />
         </Link>

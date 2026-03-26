@@ -75,21 +75,30 @@
   gap: 12px;
 }
 
-.landing-header-actions .landing-btn-ghost {
-  padding: 6px 8px;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 6px;
-  display: flex;
+.landing-toggle-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
   align-items: center;
-  transition: background 0.15s, color 0.15s;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.landing-header-actions .landing-btn-ghost:hover {
+.landing-toggle-btn:hover {
   background: var(--surface-hover);
+  border-color: var(--text-muted);
   color: var(--text);
+}
+
+.landing-header-cta {
+  padding: 8px 20px;
 }
 
 .landing-btn-primary {
@@ -155,27 +164,53 @@
   top: 64px;
   left: 0;
   right: 0;
-  bottom: 0;
-  background: var(--bg);
+  background: var(--surface);
   z-index: 99;
-  padding: 20px;
-  gap: 8px;
+  padding: 12px;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   animation: menu-fade-in 0.15s ease-out;
 }
 
-.landing-mobile-nav a {
-  display: block;
-  padding: 14px 16px;
-  font-size: 16px;
+.landing-mobile-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.landing-mobile-links a {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text);
   text-decoration: none;
-  border-radius: 8px;
+  border-radius: 10px;
   transition: background 0.15s;
 }
 
-.landing-mobile-nav a:hover {
+.landing-mobile-links a:hover {
   background: var(--surface-hover);
+}
+
+.landing-mobile-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0;
+}
+
+.landing-mobile-toggles {
+  display: none;
+}
+
+.landing-mobile-cta {
+  justify-content: center;
+  width: 100%;
+  color: #fff !important;
+  padding: 12px 24px;
+  font-size: 15px;
 }
 
 /* --- Hero --- */
@@ -568,6 +603,10 @@
   }
 
   .landing-nav {
+    display: none;
+  }
+
+  .landing-header-cta {
     display: none;
   }
 
