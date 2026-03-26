@@ -86,7 +86,7 @@
   "debug.userInputTokens": "Входящие (запрос)",
   "debug.userOutputTokens": "Исходящие (ответ)",
   "debug.userTotalTokens": "Итого к оплате",
-  "debug.llmCost": "Токены LLM (внутр.)",
+  "debug.llmCost": "Генерация ответа (внутр.)",
   "debug.queryTokens": "Запрос",
   "debug.historyTokens": "История",
   "debug.systemTokens": "Системный промпт",
