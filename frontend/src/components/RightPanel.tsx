@@ -85,6 +85,7 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
       </div>
       <div className="debug-section">
         <div className="debug-section-title">{t('debug.llmCost')}</div>
+        {debug.model && <div className="debug-row debug-row-config"><span>{t('debug.model')}</span><code>{debug.model}</code></div>}
         <div className="debug-row debug-row-sub"><span>{t('debug.queryTokens')}</span><code>{fmt(debug.query_tokens)}</code></div>
         <div className="debug-row debug-row-sub"><span>{t('debug.ctxTokens')}</span><code>{fmt(debug.context_tokens)}</code></div>
         <div className="debug-row debug-row-sub"><span>{t('debug.historyTokens')}</span><code>{fmt(debug.history_tokens)}</code></div>

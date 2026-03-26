@@ -86,7 +86,7 @@
   "debug.userInputTokens": "Input (query)",
   "debug.userOutputTokens": "Output (response)",
   "debug.userTotalTokens": "Total billable",
-  "debug.llmCost": "LLM Cost (internal)",
+  "debug.llmCost": "LLM Tokens (internal)",
   "debug.queryTokens": "Query",
   "debug.historyTokens": "History",
   "debug.systemTokens": "System prompt",
