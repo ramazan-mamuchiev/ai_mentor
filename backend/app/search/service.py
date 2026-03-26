@@ -318,10 +318,10 @@ async def search_documents(
 
     if results:
         try:
-            await _update_rag_hit_counts(session, results)
+            async with session.begin_nested():
+                await _update_rag_hit_counts(session, results)
         except Exception:
             logger.warning("Failed to update RAG hit counts", exc_info=True)
-            await session.rollback()
 
     return results
 
