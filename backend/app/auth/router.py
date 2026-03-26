@@ -291,7 +291,7 @@ async def oauth_callback(
     access, refresh = await create_token_pair(tenant.id, session)
 
     from starlette.responses import RedirectResponse
-    redirect_path = "/" if not is_new else "/?onboarding=true"
+    redirect_path = "/app" if not is_new else "/app?onboarding=true"
     resp = RedirectResponse(redirect_path, status_code=302)
     _set_tokens(resp, access, refresh)
     resp.delete_cookie("oauth_state", path="/")
