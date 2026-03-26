@@ -617,21 +617,11 @@
 }
 
 .debug-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  color: var(--text-muted);
-  opacity: 0.5;
-  transition: opacity 0.15s, background 0.15s;
-  cursor: pointer;
+  opacity: 0.6;
 }
 
 .debug-toggle:hover {
   opacity: 1;
-  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
 }
 
 /* ── Message actions (Copy, Edit) ── */

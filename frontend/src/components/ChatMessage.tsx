@@ -241,7 +241,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             <div className="message-footer-actions">
               {debug && (
                 <button
-                  className="debug-toggle"
+                  className="message-action-btn debug-toggle"
                   onClick={() => onShowDebug?.(debug, debug.session_id, debug.message_id)}
                   data-tooltip={t('chat.debug')}
                 >
