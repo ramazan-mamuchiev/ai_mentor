@@ -239,6 +239,15 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               </>
             )}
             <div className="message-footer-actions">
+              {debug && (
+                <button
+                  className="debug-toggle"
+                  onClick={() => onShowDebug?.(debug, debug.session_id, debug.message_id)}
+                  data-tooltip={t('chat.debug')}
+                >
+                  <Bug size={12} />
+                </button>
+              )}
               <button
                 className={`message-action-btn feedback-btn${currentFeedback === 'up' ? ' feedback-btn--active' : ''}`}
                 onClick={() => handleFeedback('up')}
@@ -257,15 +266,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               >
                 <ThumbsDown size={12} />
               </button>
-              {debug && (
-                <button
-                  className="debug-toggle"
-                  onClick={() => onShowDebug?.(debug, debug.session_id, debug.message_id)}
-                  data-tooltip={t('chat.debug')}
-                >
-                  <Bug size={12} />
-                </button>
-              )}
               <button
                 className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
                 onClick={handleCopy}
