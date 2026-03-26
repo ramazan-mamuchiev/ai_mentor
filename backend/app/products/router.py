@@ -16,6 +16,7 @@ from app.products.schemas import (
     ProductListItem,
     ProductUpdate,
     ProductUsageStats,
+    SuggestionChip,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,58 @@ async def _get_product_by_slugs(session, manufacturer_slug: str, product_slug: s
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
+
+
+_SUGGESTION_TEMPLATES = [
+    ("Tell me about {product}", "Расскажи про {product}"),
+    ("What API methods does {product} have?", "Какие API-методы есть у {product}?"),
+    ("How does authentication work in {product}?", "Как устроена авторизация в {product}?"),
+    ("What events does {product} support?", "Какие события поддерживает {product}?"),
+]
+
+
+@router.get("/suggestions", response_model=list[SuggestionChip])
+async def get_suggestions():
+    """Return up to 4 suggestion chips based on top products by RAG usage."""
+    async with async_session() as session:
+        stmt = (
+            select(
+                Product.name,
+                Product.manufacturer_slug,
+                Product.slug,
+                FirmwareVersion.version,
+                func.sum(Document.rag_hit_count).label("hits"),
+            )
+            .join(FirmwareVersion, FirmwareVersion.product_id == Product.id)
+            .join(
+                Document,
+                (Document.product_id == Product.id)
+                & (Document.firmware_version_id == FirmwareVersion.id),
+            )
+            .where(Document.status == "ready")
+            .group_by(
+                Product.id,
+                Product.name,
+                Product.manufacturer_slug,
+                Product.slug,
+                FirmwareVersion.version,
+            )
+            .order_by(func.sum(Document.rag_hit_count).desc())
+            .limit(4)
+        )
+        rows = (await session.execute(stmt)).all()
+
+    chips: list[SuggestionChip] = []
+    for idx, row in enumerate(rows):
+        display = f"{row.name} {row.version}".strip()
+        tpl_en, tpl_ru = _SUGGESTION_TEMPLATES[idx % len(_SUGGESTION_TEMPLATES)]
+        chips.append(SuggestionChip(
+            text_en=tpl_en.format(product=display),
+            text_ru=tpl_ru.format(product=display),
+            product_filter=f"{row.manufacturer_slug}/{row.slug}",
+        ))
+
+    return chips
 
 
 @router.get("", response_model=list[ProductListItem])

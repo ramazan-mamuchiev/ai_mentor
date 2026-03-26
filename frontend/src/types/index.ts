@@ -380,6 +380,12 @@ export interface ProductUsageStats {
   documents: ProductDocumentUsage[]
 }
 
+export interface SuggestionChip {
+  text_en: string
+  text_ru: string
+  product_filter: string
+}
+
 export type ReindexMode = 'reingest' | 'reembed' | 'extract_metadata'
 export type ReindexStatus = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed'
 

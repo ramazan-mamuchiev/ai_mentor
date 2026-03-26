@@ -109,6 +109,12 @@ class ProductUsageStats(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SuggestionChip(BaseModel):
+    text_en: str
+    text_ru: str
+    product_filter: str
+
+
 class ProductDebugInfo(BaseModel):
     product_id: int
     product_name: str

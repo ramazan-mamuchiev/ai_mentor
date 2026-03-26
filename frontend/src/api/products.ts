@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { ProductListItem, ProductDetail, ProductDebugInfo, ProductUsageStats } from '../types'
+import type { ProductListItem, ProductDetail, ProductDebugInfo, ProductUsageStats, SuggestionChip } from '../types'
 
 export async function listProducts(): Promise<ProductListItem[]> {
   return apiFetch<ProductListItem[]>('/products')
@@ -38,4 +38,8 @@ export async function getProductDebug(manufacturerSlug: string, productSlug: str
 
 export async function getProductUsageStats(manufacturerSlug: string, productSlug: string): Promise<ProductUsageStats> {
   return apiFetch<ProductUsageStats>(`/products/${manufacturerSlug}/${productSlug}/usage-stats`)
+}
+
+export async function getSuggestions(): Promise<SuggestionChip[]> {
+  return apiFetch<SuggestionChip[]>('/products/suggestions')
 }

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Cpu, ArrowDown, Share2 } from 'lucide-react'
-import type { SourceInfo, StreamStatus, DebugInfo } from '../types'
+import type { SourceInfo, StreamStatus, DebugInfo, SuggestionChip } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
+import { getSuggestions } from '../api/products'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
@@ -152,8 +153,19 @@ export function ChatWindow({
     if (sessionId) setShareModal({ type: 'session', id: sessionId })
   }, [sessionId])
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const isEmpty = messages.length === 0 && !streamingContent
+
+  const [dynamicChips, setDynamicChips] = useState<SuggestionChip[] | null>(null)
+
+  useEffect(() => {
+    if (!isEmpty) return
+    let cancelled = false
+    getSuggestions()
+      .then(chips => { if (!cancelled && chips.length) setDynamicChips(chips) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isEmpty])
 
   return (
     <div className="main-area">
@@ -196,11 +208,21 @@ export function ChatWindow({
                 <em>{t('empty.instantly')}</em>
               </p>
               <div className="empty-suggestions">
-                {(['empty.suggestion1', 'empty.suggestion2', 'empty.suggestion3', 'empty.suggestion4'] as const).map(key => (
-                  <button key={key} className="empty-suggestion-chip" onClick={() => onSend(t(key))}>
-                    {t(key)}
-                  </button>
-                ))}
+                {dynamicChips
+                  ? dynamicChips.map((chip, idx) => {
+                      const text = i18n.language === 'ru' ? chip.text_ru : chip.text_en
+                      return (
+                        <button key={idx} className="empty-suggestion-chip" onClick={() => onSend(text)}>
+                          {text}
+                        </button>
+                      )
+                    })
+                  : (['empty.suggestion1', 'empty.suggestion2', 'empty.suggestion3', 'empty.suggestion4'] as const).map(key => (
+                      <button key={key} className="empty-suggestion-chip" onClick={() => onSend(t(key))}>
+                        {t(key)}
+                      </button>
+                    ))
+                }
               </div>
             </div>
           ) : (
