@@ -1,6 +1,6 @@
 # Prompt Templates
 
-This directory contains prompt templates for the Plexicode RAG chat. The system automatically scans all `.md` files at startup and registers them as query types.
+This directory contains prompt templates for the Lexiro RAG chat. The system automatically scans all `.md` files at startup and registers them as query types.
 
 ## Adding a New Query Type
 

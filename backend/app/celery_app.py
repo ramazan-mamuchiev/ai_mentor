@@ -32,7 +32,7 @@ def _on_after_setup_logger(logger=None, **kw):
     """Re-apply our JSON logging after Celery replaces the root logger config."""
     setup_logging()
 
-celery = Celery("ipcodex", broker=settings.redis_url, backend=settings.redis_url)
+celery = Celery("lexiro", broker=settings.redis_url, backend=settings.redis_url)
 celery.conf.update(
     task_serializer="json",
     accept_content=["json"],
@@ -46,6 +46,7 @@ celery.conf.update(
         "cleanup_expired_uploads": {"queue": "monitoring"},
         "check_stale_reindex_jobs": {"queue": "monitoring"},
         "ensure_usage_partitions": {"queue": "monitoring"},
+        "cleanup_expired_shares": {"queue": "monitoring"},
     },
     beat_schedule={
         "cleanup-expired-uploads": {
@@ -62,6 +63,10 @@ celery.conf.update(
         },
         "ensure-usage-partitions": {
             "task": "ensure_usage_partitions",
+            "schedule": 86400.0,
+        },
+        "cleanup-expired-shares": {
+            "task": "cleanup_expired_shares",
             "schedule": 86400.0,
         },
     },
@@ -377,7 +382,11 @@ def ingest_archive_task(
 
             if not force:
                 dup = session.execute(
-                    sa_select(Document).where(Document.source_hash == entry_hash).limit(1)
+                    sa_select(Document).where(
+                        Document.source_hash == entry_hash,
+                        Document.product_id == product_row.id,
+                        Document.firmware_version_id == fw_row.id,
+                    ).limit(1)
                 ).scalar_one_or_none()
                 if dup is not None:
                     logger.info("Archive entry duplicate skipped", extra={
@@ -521,7 +530,11 @@ def ingest_archive_from_s3_task(
 
             if not force:
                 dup = session.execute(
-                    sa_select(Document).where(Document.source_hash == entry_hash).limit(1)
+                    sa_select(Document).where(
+                        Document.source_hash == entry_hash,
+                        Document.product_id == product_row.id,
+                        Document.firmware_version_id == fw_row.id,
+                    ).limit(1)
                 ).scalar_one_or_none()
                 if dup is not None:
                     logger.info("Archive entry duplicate skipped", extra={
@@ -828,6 +841,8 @@ def ingest_confluence_task(self, document_id: int):
                 existing = s.execute(
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
+                        Document.product_id == product_id,
+                        Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
                 if existing is not None:
@@ -1257,3 +1272,36 @@ def ensure_usage_partitions_task(self):
         "Usage partitions ensured",
         extra={"event": "usage_partitions", "partitions": created},
     )
+
+
+@celery.task(name="cleanup_expired_shares", bind=True)
+def cleanup_expired_shares_task(self):
+    """Periodic task: delete expired and old deactivated shared links."""
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select, or_, and_
+    from app.models import SharedLink
+
+    engine = _get_sync_engine()
+    now = datetime.now(timezone.utc)
+    deactivated_cutoff = now - timedelta(days=30)
+    deleted = 0
+
+    with Session(engine) as session:
+        rows = session.execute(
+            select(SharedLink).where(
+                or_(
+                    and_(SharedLink.expires_at.isnot(None), SharedLink.expires_at < now),
+                    and_(SharedLink.is_active.is_(False), SharedLink.created_at < deactivated_cutoff),
+                )
+            )
+        ).scalars().all()
+
+        for link in rows:
+            session.delete(link)
+            deleted += 1
+
+        if deleted:
+            session.commit()
+
+    if deleted:
+        logger.info("Cleaned up expired/deactivated shared links", extra={"count": deleted})

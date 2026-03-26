@@ -20,6 +20,10 @@ class ProductListItem(BaseModel):
     manufacturer_slug: str = ""
     created_at: datetime
 
+    firmware_version_id: int | None = None
+    version: str = ""
+    display_name: str = ""
+
     total_documents: int = 0
     pending_documents: int = 0
     processing_documents: int = 0
@@ -75,6 +79,45 @@ class ProductDocumentSummary(BaseModel):
     total_chunks: int
     status: str
     indexed_at: datetime | None = None
+
+
+class ProductDocumentUsage(BaseModel):
+    document_id: int
+    title: str
+    total_usages: int = 0
+    total_context_tokens: int = 0
+    total_charge_usd: float = 0
+    avg_similarity: float | None = None
+    last_used_at: datetime | None = None
+    thumbs_up: int = 0
+    thumbs_down: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class ProductUsageStats(BaseModel):
+    product_id: int
+    product_name: str
+    total_usages: int = 0
+    unique_sessions: int = 0
+    unique_documents: int = 0
+    total_context_tokens: int = 0
+    total_charge_usd: float = 0
+    avg_similarity: float | None = None
+    first_used_at: datetime | None = None
+    last_used_at: datetime | None = None
+    thumbs_up: int = 0
+    thumbs_down: int = 0
+    total_rated: int = 0
+    documents: list[ProductDocumentUsage] = []
+
+    model_config = {"from_attributes": True}
+
+
+class SuggestionChip(BaseModel):
+    text_en: str
+    text_ru: str
+    product_filter: str
 
 
 class ProductDebugInfo(BaseModel):

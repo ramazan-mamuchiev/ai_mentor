@@ -1,14 +1,14 @@
-# Plexicode
+# Lexiro
 
-> **Complex APIs. Simple answers.**
+> **Complex docs. Simple code.**
 >
-> *From docs to code. Instantly.*
+> *From documentation to code. Instantly.*
 
-Plexicode is a platform that transforms chaotic product documentation (PDF, Swagger/OpenAPI, Markdown, web pages, Protobuf) into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
+Lexiro is a platform that transforms chaotic product documentation (PDF, Swagger/OpenAPI, Markdown, web pages, Protobuf) into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
 
 ## Why
 
-Developers integrating physical security and IoT products waste hours reading vendor documentation: 180-page PDFs with no search, scattered Swagger specs, outdated SDK examples. Plexicode indexes it all and serves relevant documentation to your AI assistant in real time.
+Developers integrating physical security and IoT products waste hours reading vendor documentation: 180-page PDFs with no search, scattered Swagger specs, outdated SDK examples. Lexiro indexes it all and serves relevant documentation to your AI assistant in real time.
 
 ## Project Structure
 
@@ -34,7 +34,7 @@ ipcodex/
 
 ### MCP Server
 
-The core of Plexicode — an MCP server that gives AI coding assistants (Cursor, Windsurf, GitHub Copilot) instant access to indexed product documentation.
+The core of Lexiro — an MCP server that gives AI coding assistants (Cursor, Windsurf, GitHub Copilot) instant access to indexed product documentation.
 
 3 tools: `search_documentation`, `get_api_endpoint`, `list_products`.
 
@@ -137,7 +137,7 @@ Add to `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "plexicode": {
+    "lexiro": {
       "url": "http://localhost:8000/mcp"
     }
   }

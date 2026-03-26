@@ -1,6 +1,6 @@
-# Plexicode — Deployment, Security & Operations
+# Lexiro — Deployment, Security & Operations
 
-> Part of [Plexicode Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
+> Part of [Lexiro Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
 
 ---
 
@@ -14,9 +14,9 @@ services:
     image: pgvector/pgvector:pg16
     ports: ["5432:5432"]
     environment:
-      POSTGRES_DB: ipcodex
-      POSTGRES_USER: ipcodex
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ipcodex_dev}
+      POSTGRES_DB: lexiro
+      POSTGRES_USER: lexiro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexiro_dev}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -30,16 +30,16 @@ services:
     ports: ["9000:9000", "9001:9001"]
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-ipcodex}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-ipcodex_dev}
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-lexiro}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-lexiro_dev}
 
   api:
     build: ./backend
     ports: ["8000:8000"]
     depends_on: [postgres, redis, minio, ollama]
     environment:
-      DATABASE_URL: postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
-      DATABASE_URL_SYNC: postgresql://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
+      DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT: http://minio:9000
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-gemini}
@@ -123,9 +123,9 @@ services:
     image: pgvector/pgvector:pg16
     ports: ["5432:5432"]
     environment:
-      POSTGRES_DB: ipcodex
-      POSTGRES_USER: ipcodex
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ipcodex_dev}
+      POSTGRES_DB: lexiro
+      POSTGRES_USER: lexiro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexiro_dev}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -170,8 +170,8 @@ Current staging environment for testing and demos.
 | IP | `82.38.66.177` |
 | OS | Ubuntu (Docker pre-installed) |
 | Access | `ssh root@82.38.66.177` |
-| Project path | `/opt/ipcodex` |
-| Repository | `https://github.com/olegvphoenix/ipcodex.git` (branch: `main`) |
+| Project path | `/opt/lexiro` |
+| Repository | `https://github.com/olegvphoenix/lexiro.git` (branch: `main`) |
 
 ### Running Services
 
@@ -192,25 +192,25 @@ Monitoring stack (Loki, Promtail, Grafana) and Ollama are not deployed on stagin
 **Full stack rebuild (backend + frontend):**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api web && docker compose up -d api worker beat web"
+ssh root@82.38.66.177 "cd /opt/lexiro && git pull && docker compose build api web && docker compose up -d api worker beat web"
 ```
 
 **Frontend only:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build web && docker compose up -d web"
+ssh root@82.38.66.177 "cd /opt/lexiro && git pull && docker compose build web && docker compose up -d web"
 ```
 
 **Backend only:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api && docker compose up -d api worker beat"
+ssh root@82.38.66.177 "cd /opt/lexiro && git pull && docker compose build api && docker compose up -d api worker beat"
 ```
 
 **View logs:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose logs -f web api"
+ssh root@82.38.66.177 "cd /opt/lexiro && docker compose logs -f web api"
 ```
 
 ---
@@ -218,7 +218,7 @@ ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose logs -f web api"
 ## S3 Key Structure
 
 ```
-ipcodex-storage/
+lexiro-storage/
   tenants/
     {tenant_id}/
       documents/
@@ -262,17 +262,17 @@ File naming convention: `source.{ext}` where `ext` matches the original format (
 
 ```bash
 # === Database ===
-DATABASE_URL=postgresql+asyncpg://ipcodex:password@postgres:5432/ipcodex
-DATABASE_URL_SYNC=postgresql://ipcodex:password@postgres:5432/ipcodex
+DATABASE_URL=postgresql+asyncpg://lexiro:password@postgres:5432/lexiro
+DATABASE_URL_SYNC=postgresql://lexiro:password@postgres:5432/lexiro
 
 # === Redis ===
 REDIS_URL=redis://redis:6379/0
 
 # === S3 / MinIO ===
 S3_ENDPOINT=http://minio:9000
-S3_ACCESS_KEY=ipcodex
-S3_SECRET_KEY=ipcodex_dev
-S3_BUCKET=ipcodex-storage
+S3_ACCESS_KEY=lexiro
+S3_SECRET_KEY=lexiro_dev
+S3_BUCKET=lexiro-storage
 
 # === Auth ===
 API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-tenancy yet)
@@ -379,7 +379,7 @@ SENDGRID_API_KEY=SG....
 
 ### CORS
 - Configurable `CORS_ORIGINS` via env variable
-- Production: only `https://app.ipcodex.dev` and customer domains
+- Production: only `https://app.lexiro.dev` and customer domains
 - Credentials mode: `allow_credentials=True` (for JWT cookies)
 
 ### Input Validation

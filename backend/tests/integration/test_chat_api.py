@@ -29,7 +29,7 @@ def _create_chat_app(db_engine):
     async def lifespan(app: FastAPI):
         yield
 
-    app = FastAPI(title="IPCodex-Chat-Test", lifespan=lifespan)
+    app = FastAPI(title="Lexiro-Chat-Test", lifespan=lifespan)
     app.include_router(chat_router, prefix="/api/v1")
 
     return app

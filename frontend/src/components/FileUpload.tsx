@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Upload as UploadIcon, X, Pause, Play, CheckCircle, AlertCircle, FileText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import * as tus from 'tus-js-client'
+import { ProductAutocomplete, type ProductSelection } from './ProductAutocomplete'
 
 export interface ProductContext {
   name: string
@@ -37,10 +38,16 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
     documentId: null,
     uploadInstance: null,
   })
-  const [productName, setProductName] = useState(productContext?.name ?? '')
-  const [firmwareVersion, setFirmwareVersion] = useState('1.0')
-  const [manufacturer, setManufacturer] = useState(productContext?.manufacturer ?? '')
   const hasProductContext = !!productContext?.name
+  const [productSel, setProductSel] = useState<ProductSelection>({
+    productName: productContext?.name ?? '',
+    manufacturer: productContext?.manufacturer ?? '',
+    firmwareVersion: '1.0',
+    isExisting: false,
+  })
+  const productName = productSel.productName
+  const firmwareVersion = productSel.firmwareVersion
+  const manufacturer = productSel.manufacturer
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const startTimeRef = useRef<number>(0)
@@ -236,26 +243,36 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
             </div>
 
             <div className="file-upload-fields">
-              <label>
-                {t('upload.productName')}
-                <input
-                  type="text"
-                  value={productName}
-                  onChange={e => setProductName(e.target.value)}
-                  placeholder={t('upload.productPlaceholder')}
-                  readOnly={hasProductContext}
-                  className={hasProductContext ? 'input-readonly' : ''}
-                  autoFocus={!hasProductContext}
-                />
-              </label>
+              {hasProductContext ? (
+                <label>
+                  {t('upload.productName')}
+                  <input
+                    type="text"
+                    value={productName}
+                    readOnly
+                    className="input-readonly"
+                  />
+                </label>
+              ) : (
+                <label>
+                  {t('upload.productOrCreate')}
+                  <ProductAutocomplete
+                    value={productSel}
+                    onChange={setProductSel}
+                    autoFocus={!hasProductContext}
+                  />
+                </label>
+              )}
               <div className="file-upload-row">
                 <label>
                   {t('upload.version')}
                   <input
                     type="text"
                     value={firmwareVersion}
-                    onChange={e => setFirmwareVersion(e.target.value)}
+                    onChange={e => setProductSel(prev => ({ ...prev, firmwareVersion: e.target.value }))}
                     placeholder={t('upload.versionPlaceholder')}
+                    readOnly={productSel.isExisting}
+                    className={productSel.isExisting ? 'input-readonly' : ''}
                     autoFocus={hasProductContext}
                   />
                 </label>
@@ -264,10 +281,10 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                   <input
                     type="text"
                     value={manufacturer}
-                    onChange={e => setManufacturer(e.target.value)}
+                    onChange={e => setProductSel(prev => ({ ...prev, manufacturer: e.target.value }))}
                     placeholder={t('upload.manufacturerPlaceholder')}
-                    readOnly={hasProductContext && !!productContext?.manufacturer}
-                    className={hasProductContext && !!productContext?.manufacturer ? 'input-readonly' : ''}
+                    readOnly={productSel.isExisting || (hasProductContext && !!productContext?.manufacturer)}
+                    className={productSel.isExisting || (hasProductContext && !!productContext?.manufacturer) ? 'input-readonly' : ''}
                   />
                 </label>
               </div>

@@ -40,6 +40,18 @@ export async function updateSession(
   })
 }
 
+export async function submitFeedback(
+  sessionId: number,
+  messageId: number,
+  feedback: 'up' | 'down',
+  comment?: string,
+): Promise<{ status: string; message_id: number; feedback: string }> {
+  return apiFetch(`/chat/sessions/${sessionId}/messages/${messageId}/feedback`, {
+    method: 'POST',
+    body: JSON.stringify({ feedback, comment: comment || null }),
+  })
+}
+
 export async function* streamMessage(
   sessionId: number,
   content: string,

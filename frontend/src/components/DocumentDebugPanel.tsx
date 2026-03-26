@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getDocumentDebug } from '../api/documents'
-import type { DocumentDebugInfo } from '../types'
+import { getDocumentDebug, getDocumentUsageStats } from '../api/documents'
+import type { DocumentDebugInfo, DocumentUsageStats } from '../types'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 
 function fmt(n: number | undefined | null): string {
@@ -80,31 +80,37 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
   )
 }
 
-interface Props {
-  documentId: number
-  onCollapse?: () => void
+interface ContentProps {
+  documentId?: number
+  initialDebug?: DocumentDebugInfo
+  initialUsage?: DocumentUsageStats | null
 }
 
-export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
+export function DocumentDebugContent({ documentId, initialDebug, initialUsage }: ContentProps) {
   const { t } = useTranslation()
-  const [debug, setDebug] = useState<DocumentDebugInfo | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [debug, setDebug] = useState<DocumentDebugInfo | null>(initialDebug ?? null)
+  const [usage, setUsage] = useState<DocumentUsageStats | null>(initialUsage ?? null)
+  const [loading, setLoading] = useState(!initialDebug)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (initialDebug || documentId == null) return
     let cancelled = false
     setLoading(true)
     setError(null)
-    getDocumentDebug(documentId)
-      .then(data => { if (!cancelled) setDebug(data) })
+    Promise.all([
+      getDocumentDebug(documentId),
+      getDocumentUsageStats(documentId).catch(() => null),
+    ])
+      .then(([d, u]) => { if (!cancelled) { setDebug(d); setUsage(u) } })
       .catch(e => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [documentId])
+  }, [documentId, initialDebug])
 
   if (loading) {
     return (
-      <div className="debug-panel-box doc-debug-loading">
+      <div className="doc-debug-loading">
         <Loader2 size={16} className="spin-icon" />
       </div>
     )
@@ -112,7 +118,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
 
   if (error || !debug) {
     return (
-      <div className="debug-panel-box doc-debug-error">
+      <div className="doc-debug-error">
         {error || 'Failed to load debug info'}
       </div>
     )
@@ -129,8 +135,7 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
   ]
 
   return (
-    <DebugPanelWrapper onCollapse={onCollapse}>
-      <div className="doc-debug-grid">
+    <div className="doc-debug-grid right-panel-doc-debug">
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.file')}</div>
           <div className="doc-debug-row"><span>{t('docDebug.format')}</span><code>{debug.format}</code></div>
@@ -214,12 +219,64 @@ export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
         </div>
 
         <div className="doc-debug-section">
+          <div className="doc-debug-section-title">{t('docDebug.usageAnalytics')}</div>
+          {usage && usage.total_usages > 0 ? (
+            <>
+              <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.totalUsages')}</span><code>{fmt(usage.total_usages)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.uniqueSessions')}</span><code>{fmt(usage.unique_sessions)}</code></div>
+              {(usage.thumbs_up > 0 || usage.thumbs_down > 0) && (
+                <>
+                  <div className="doc-debug-row"><span>{t('docDebug.thumbsUp')}</span><code>{fmt(usage.thumbs_up)}</code></div>
+                  <div className="doc-debug-row"><span>{t('docDebug.thumbsDown')}</span><code>{fmt(usage.thumbs_down)}</code></div>
+                  <div className="doc-debug-row"><span>{t('docDebug.totalRated')}</span><code>{fmt(usage.total_rated)}</code></div>
+                </>
+              )}
+              <div className="doc-debug-row"><span>{t('docDebug.totalContextTokens')}</span><code>{fmt(usage.total_context_tokens)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.totalChargeUsd')}</span><code>${usage.total_charge_usd.toFixed(6)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.avgSimilarity')}</span><code>{fmtPct(usage.avg_similarity)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.firstUsedAt')}</span><code>{fmtDate(usage.first_used_at)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.lastUsedAt')}</span><code>{fmtDate(usage.last_used_at)}</code></div>
+              {usage.top_headings.length > 0 && (
+                <div className="doc-debug-row doc-debug-row-wide">
+                  <span>{t('docDebug.topHeadings')}</span>
+                  <code className="debug-query-value">{usage.top_headings.map(h => `${h.heading_path} (${h.count})`).join('\n')}</code>
+                </div>
+              )}
+              {usage.recent_usages.length > 0 && (
+                <div className="doc-debug-row doc-debug-row-wide">
+                  <span>{t('docDebug.recentUsages')}</span>
+                  <code className="debug-query-value">
+                    {usage.recent_usages.slice(0, 5).map(u =>
+                      `${fmtDate(u.created_at)} | S#${u.session_id} | ${u.query_type ?? '—'} | sim=${fmtPct(u.similarity)} | ${u.context_tokens}tok`
+                    ).join('\n')}
+                  </code>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="doc-debug-row"><span>{t('docDebug.noUsageData')}</span><code>—</code></div>
+          )}
+        </div>
+
+        <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.identifiers')}</div>
           <div className="doc-debug-row"><span>{t('docDebug.documentId')}</span><code>#{debug.document_id}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.product')}</span><code>{debug.product_name || '—'}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.firmware')}</span><code>{debug.firmware_version || '—'}</code></div>
         </div>
-      </div>
+    </div>
+  )
+}
+
+interface Props {
+  documentId: number
+  onCollapse?: () => void
+}
+
+export function DocumentDebugPanel({ documentId, onCollapse }: Props) {
+  return (
+    <DebugPanelWrapper onCollapse={onCollapse}>
+      <DocumentDebugContent documentId={documentId} />
     </DebugPanelWrapper>
   )
 }

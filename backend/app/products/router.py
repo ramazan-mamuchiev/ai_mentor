@@ -6,14 +6,17 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import case, func, select
 
 from app.database import async_session
-from app.models import Chunk, Document, FirmwareVersion, Product
+from app.models import ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion, Product, SuggestionTemplate
 from app.products.schemas import (
     FormatCount,
     ProductDebugInfo,
     ProductDetail,
     ProductDocumentSummary,
+    ProductDocumentUsage,
     ProductListItem,
     ProductUpdate,
+    ProductUsageStats,
+    SuggestionChip,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,13 +37,85 @@ async def _get_product_by_slugs(session, manufacturer_slug: str, product_slug: s
     return product
 
 
+@router.get("/suggestions", response_model=list[SuggestionChip])
+async def get_suggestions():
+    """Return up to 4 suggestion chips based on top products by RAG usage.
+
+    Templates are read from the `suggestion_templates` table and selected
+    randomly so each page load shows different questions.
+    """
+    async with async_session() as session:
+        products_stmt = (
+            select(
+                Product.name,
+                Product.manufacturer_slug,
+                Product.slug,
+                FirmwareVersion.version,
+                func.sum(Document.rag_hit_count).label("hits"),
+            )
+            .join(FirmwareVersion, FirmwareVersion.product_id == Product.id)
+            .join(
+                Document,
+                (Document.product_id == Product.id)
+                & (Document.firmware_version_id == FirmwareVersion.id),
+            )
+            .where(Document.status == "ready")
+            .group_by(
+                Product.id,
+                Product.name,
+                Product.manufacturer_slug,
+                Product.slug,
+                FirmwareVersion.version,
+            )
+            .order_by(func.sum(Document.rag_hit_count).desc())
+            .limit(4)
+        )
+        product_rows = (await session.execute(products_stmt)).all()
+        if not product_rows:
+            return []
+
+        need = len(product_rows)
+
+        tpl_base = (
+            select(SuggestionTemplate.template)
+            .where(
+                SuggestionTemplate.role == "default",
+                SuggestionTemplate.is_active.is_(True),
+            )
+        )
+
+        en_rows = (await session.execute(
+            tpl_base.where(SuggestionTemplate.lang == "en")
+            .order_by(func.random()).limit(need)
+        )).scalars().all()
+
+        ru_rows = (await session.execute(
+            tpl_base.where(SuggestionTemplate.lang == "ru")
+            .order_by(func.random()).limit(need)
+        )).scalars().all()
+
+    chips: list[SuggestionChip] = []
+    for idx, row in enumerate(product_rows):
+        display = f"{row.name} {row.version}".strip()
+        tpl_en = en_rows[idx] if idx < len(en_rows) else "Tell me about {product}"
+        tpl_ru = ru_rows[idx] if idx < len(ru_rows) else "Расскажи про {product}"
+        chips.append(SuggestionChip(
+            text_en=tpl_en.format(product=display),
+            text_ru=tpl_ru.format(product=display),
+            product_filter=f"{row.manufacturer_slug}/{row.slug}",
+        ))
+
+    return chips
+
+
 @router.get("", response_model=list[ProductListItem])
 async def list_products():
-    """List all products with aggregated document stats."""
+    """List all products with aggregated document stats, one row per (product, firmware_version)."""
     async with async_session() as session:
         agg = (
             select(
                 Document.product_id,
+                Document.firmware_version_id,
                 func.count().label("total_documents"),
                 func.sum(case((Document.status == "pending", 1), else_=0)).label("pending_documents"),
                 func.sum(case((Document.status == "processing", 1), else_=0)).label("processing_documents"),
@@ -53,17 +128,18 @@ async def list_products():
                 func.max(Document.indexed_at).label("indexed_at"),
                 func.sum(Document.progress_percent).label("sum_progress"),
             )
-            .group_by(Document.product_id)
+            .group_by(Document.product_id, Document.firmware_version_id)
             .subquery()
         )
 
         fmt_agg = (
             select(
                 Document.product_id,
+                Document.firmware_version_id,
                 Document.format,
                 func.count().label("cnt"),
             )
-            .group_by(Document.product_id, Document.format)
+            .group_by(Document.product_id, Document.firmware_version_id, Document.format)
             .subquery()
         )
 
@@ -77,6 +153,8 @@ async def list_products():
                 Product.slug,
                 Product.manufacturer_slug,
                 Product.created_at,
+                FirmwareVersion.id.label("firmware_version_id"),
+                FirmwareVersion.version.label("version"),
                 func.coalesce(agg.c.total_documents, 0).label("total_documents"),
                 func.coalesce(agg.c.pending_documents, 0).label("pending_documents"),
                 func.coalesce(agg.c.processing_documents, 0).label("processing_documents"),
@@ -89,23 +167,33 @@ async def list_products():
                 agg.c.indexed_at,
                 func.coalesce(agg.c.sum_progress, 0).label("sum_progress"),
             )
-            .outerjoin(agg, Product.id == agg.c.product_id)
-            .order_by(Product.name)
+            .join(FirmwareVersion, FirmwareVersion.product_id == Product.id)
+            .outerjoin(
+                agg,
+                (Product.id == agg.c.product_id) & (FirmwareVersion.id == agg.c.firmware_version_id),
+            )
+            .order_by(Product.name, FirmwareVersion.version)
         )
-        products = result.all()
+        rows = result.all()
 
         fmt_result = await session.execute(
-            select(fmt_agg.c.product_id, fmt_agg.c.format, fmt_agg.c.cnt)
+            select(
+                fmt_agg.c.product_id,
+                fmt_agg.c.firmware_version_id,
+                fmt_agg.c.format,
+                fmt_agg.c.cnt,
+            )
         )
         fmt_rows = fmt_result.all()
-        fmt_map: dict[int, list[FormatCount]] = {}
+        fmt_map: dict[tuple[int, int], list[FormatCount]] = {}
         for row in fmt_rows:
-            fmt_map.setdefault(row.product_id, []).append(
+            key = (row.product_id, row.firmware_version_id)
+            fmt_map.setdefault(key, []).append(
                 FormatCount(format=row.format, count=row.cnt)
             )
 
         items = []
-        for p in products:
+        for p in rows:
             total = p.total_documents
             progress_pct = round(p.sum_progress / total) if total > 0 else 0
 
@@ -127,6 +215,11 @@ async def list_products():
                 parts.append(f"{cancelled} cancelled")
             progress_detail = ", ".join(parts) if parts else ""
 
+            version_str = p.version or ""
+            display_name = f"{p.name} {version_str}".strip()
+
+            fmt_key = (p.id, p.firmware_version_id)
+
             items.append(ProductListItem(
                 id=p.id,
                 name=p.name,
@@ -136,6 +229,9 @@ async def list_products():
                 slug=p.slug,
                 manufacturer_slug=p.manufacturer_slug,
                 created_at=p.created_at,
+                firmware_version_id=p.firmware_version_id,
+                version=version_str,
+                display_name=display_name,
                 total_documents=total,
                 pending_documents=pending,
                 processing_documents=processing,
@@ -144,7 +240,7 @@ async def list_products():
                 cancelled_documents=cancelled,
                 total_file_size_bytes=p.total_file_size_bytes,
                 total_chunks=p.total_chunks,
-                formats=fmt_map.get(p.id, []),
+                formats=fmt_map.get(fmt_key, []),
                 uploaded_at=p.uploaded_at,
                 indexed_at=p.indexed_at,
                 progress_percent=progress_pct,
@@ -447,4 +543,90 @@ async def get_product_debug(manufacturer_slug: str, product_slug: str):
             avg_rag_similarity=float(agg.avg_rag_similarity) if agg.avg_rag_similarity else None,
             last_rag_used_at=agg.last_rag_used_at,
             documents=docs,
+        )
+
+
+@router.get("/{manufacturer_slug}/{product_slug}/usage-stats", response_model=ProductUsageStats)
+async def get_product_usage_stats(manufacturer_slug: str, product_slug: str):
+    """Get aggregated usage analytics for all documents of a product."""
+    async with async_session() as session:
+        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
+        product_id = product.id
+
+        agg_result = await session.execute(
+            select(
+                func.count().label("total_usages"),
+                func.count(func.distinct(DocumentUsageLog.session_id)).label("unique_sessions"),
+                func.count(func.distinct(DocumentUsageLog.document_id)).label("unique_documents"),
+                func.sum(DocumentUsageLog.context_tokens).label("total_context_tokens"),
+                func.sum(DocumentUsageLog.charge_usd).label("total_charge_usd"),
+                func.avg(DocumentUsageLog.similarity).label("avg_similarity"),
+                func.min(DocumentUsageLog.created_at).label("first_used_at"),
+                func.max(DocumentUsageLog.created_at).label("last_used_at"),
+            ).where(DocumentUsageLog.product_id == product_id)
+        )
+        agg = agg_result.one()
+
+        fb_result = await session.execute(
+            select(
+                func.count().filter(ChatMessage.feedback == "up").label("thumbs_up"),
+                func.count().filter(ChatMessage.feedback == "down").label("thumbs_down"),
+                func.count(func.distinct(ChatMessage.id)).filter(
+                    ChatMessage.feedback.is_not(None)
+                ).label("total_rated"),
+            )
+            .select_from(DocumentUsageLog)
+            .join(ChatMessage, ChatMessage.id == DocumentUsageLog.message_id)
+            .where(DocumentUsageLog.product_id == product_id)
+        )
+        fb = fb_result.one()
+
+        doc_agg_result = await session.execute(
+            select(
+                DocumentUsageLog.document_id,
+                Document.title,
+                func.count().label("total_usages"),
+                func.sum(DocumentUsageLog.context_tokens).label("total_context_tokens"),
+                func.sum(DocumentUsageLog.charge_usd).label("total_charge_usd"),
+                func.avg(DocumentUsageLog.similarity).label("avg_similarity"),
+                func.max(DocumentUsageLog.created_at).label("last_used_at"),
+                func.count().filter(ChatMessage.feedback == "up").label("thumbs_up"),
+                func.count().filter(ChatMessage.feedback == "down").label("thumbs_down"),
+            )
+            .join(Document, DocumentUsageLog.document_id == Document.id)
+            .outerjoin(ChatMessage, ChatMessage.id == DocumentUsageLog.message_id)
+            .where(DocumentUsageLog.product_id == product_id)
+            .group_by(DocumentUsageLog.document_id, Document.title)
+            .order_by(func.count().desc())
+        )
+        doc_usages = [
+            ProductDocumentUsage(
+                document_id=row.document_id,
+                title=row.title,
+                total_usages=row.total_usages,
+                total_context_tokens=row.total_context_tokens or 0,
+                total_charge_usd=float(row.total_charge_usd or 0),
+                avg_similarity=float(row.avg_similarity) if row.avg_similarity else None,
+                last_used_at=row.last_used_at,
+                thumbs_up=row.thumbs_up or 0,
+                thumbs_down=row.thumbs_down or 0,
+            )
+            for row in doc_agg_result.all()
+        ]
+
+        return ProductUsageStats(
+            product_id=product_id,
+            product_name=product.name,
+            total_usages=agg.total_usages or 0,
+            unique_sessions=agg.unique_sessions or 0,
+            unique_documents=agg.unique_documents or 0,
+            total_context_tokens=agg.total_context_tokens or 0,
+            total_charge_usd=float(agg.total_charge_usd or 0),
+            avg_similarity=float(agg.avg_similarity) if agg.avg_similarity else None,
+            first_used_at=agg.first_used_at,
+            last_used_at=agg.last_used_at,
+            thumbs_up=fb.thumbs_up or 0,
+            thumbs_down=fb.thumbs_down or 0,
+            total_rated=fb.total_rated or 0,
+            documents=doc_usages,
         )

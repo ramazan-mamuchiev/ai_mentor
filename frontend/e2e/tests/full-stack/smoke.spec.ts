@@ -7,8 +7,8 @@ test.describe('Full-stack smoke @slow', () => {
 
   test('loads the application', async ({ page }) => {
     await page.goto(FULL_STACK_URL)
-    await expect(page.locator('.messages-empty-title')).toHaveText('Plexicode AI', { timeout: 15000 })
-    await expect(page.locator('.sidebar-title')).toHaveText('Plexicode')
+    await expect(page.locator('.messages-empty-title')).toHaveText('Lexiro', { timeout: 15000 })
+    await expect(page.locator('.sidebar-title')).toHaveText('Lexiro')
   })
 
   test('sends a real message and gets LLM response', async ({ page }) => {

@@ -152,7 +152,7 @@ BEGIN
         END LOOP;
     END IF;
 
-    NEW.tsv := to_tsvector('english',
+    NEW.tsv := to_tsvector('simple',
         COALESCE(NEW.heading_path, '') || ' ' ||
         COALESCE(NEW.doc_type, '') || ' ' ||
         entity_text || ' ' ||
@@ -165,8 +165,8 @@ DROP TRIGGER IF EXISTS trg_chunks_tsv ON chunks;
 CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path, doc_type, entities ON chunks
     FOR EACH ROW EXECUTE FUNCTION chunks_tsv_trigger();
 
--- Backfill existing rows
-UPDATE chunks SET tsv = to_tsvector('english',
+-- Backfill existing rows (using 'simple' config for multilingual support)
+UPDATE chunks SET tsv = to_tsvector('simple',
     COALESCE(heading_path, '') || ' ' ||
     COALESCE(doc_type, '') || ' ' ||
     COALESCE(content_clean, content, ''));
@@ -196,6 +196,10 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS product_id INT REFERENCES products(id) ON DELETE SET NULL;
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS product_filter_source TEXT;
 
+-- Summary buffer memory (conversation history summarization)
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS history_summary TEXT;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS summary_up_to_message_id INT;
+
 -- Chat messages
 CREATE TABLE IF NOT EXISTS chat_messages (
     id SERIAL PRIMARY KEY,
@@ -208,6 +212,10 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
+
+-- Feedback on assistant messages (thumbs up/down + optional comment)
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS feedback TEXT CHECK (feedback IN ('up', 'down'));
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS feedback_comment TEXT;
 
 -- Chat message analytics (per-response debug/metrics for RAG answers)
 CREATE TABLE IF NOT EXISTS chat_message_analytics (
@@ -390,3 +398,108 @@ CREATE INDEX IF NOT EXISTS idx_usage_log_action ON usage_log (action, created_at
 CREATE INDEX IF NOT EXISTS idx_usage_log_request ON usage_log (request_id);
 CREATE INDEX IF NOT EXISTS idx_usage_log_tenant ON usage_log (tenant_id, created_at) WHERE tenant_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_usage_log_model ON usage_log (llm_model, created_at) WHERE llm_model IS NOT NULL;
+
+-- Shared links (public snapshots of chat sessions or individual messages)
+CREATE TABLE IF NOT EXISTS shared_links (
+    id SERIAL PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    message_id INT REFERENCES chat_messages(id) ON DELETE CASCADE,
+    share_type TEXT NOT NULL,           -- 'session' | 'message'
+    title TEXT NOT NULL DEFAULT '',
+    snapshot_json JSONB NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    view_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shared_links_token ON shared_links(token);
+CREATE INDEX IF NOT EXISTS idx_shared_links_session ON shared_links(session_id);
+
+-- Migration: make session_id nullable (debug shares may not have a session)
+ALTER TABLE shared_links ALTER COLUMN session_id DROP NOT NULL;
+
+-- Migration: add TTL support for debug shares (NULL = permanent)
+ALTER TABLE shared_links ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+
+-- Completion tracking (finish_reason + continuations for truncation diagnostics)
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS finish_reason TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS continuations INT NOT NULL DEFAULT 0;
+
+-- Document usage log (per-document attribution for author remuneration)
+CREATE TABLE IF NOT EXISTS document_usage_log (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    request_id TEXT NOT NULL,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    message_id INT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    document_id INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(id) ON DELETE SET NULL,
+
+    chunk_id BIGINT,
+    heading_path TEXT NOT NULL DEFAULT '',
+    similarity FLOAT NOT NULL DEFAULT 0,
+    context_tokens INT NOT NULL DEFAULT 0,
+
+    query_text TEXT,
+    query_type TEXT,
+    sub_query TEXT,
+
+    charge_usd NUMERIC(12,8) NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_dul_request ON document_usage_log(request_id);
+CREATE INDEX IF NOT EXISTS idx_dul_document ON document_usage_log(document_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_dul_product ON document_usage_log(product_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_dul_session ON document_usage_log(session_id);
+CREATE INDEX IF NOT EXISTS idx_dul_created ON document_usage_log(created_at);
+
+-- Suggestion templates (question templates with {product} placeholder for empty-state chips)
+CREATE TABLE IF NOT EXISTS suggestion_templates (
+    id SERIAL PRIMARY KEY,
+    role TEXT NOT NULL DEFAULT 'default',
+    lang TEXT NOT NULL DEFAULT 'en',
+    template TEXT NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (role, lang, template)
+);
+CREATE INDEX IF NOT EXISTS idx_st_role_lang ON suggestion_templates(role, lang, is_active);
+
+-- Seed suggestion templates (idempotent)
+INSERT INTO suggestion_templates (role, lang, template, sort_order) VALUES
+    ('default', 'en', 'Tell me about {product}', 1),
+    ('default', 'ru', 'Расскажи про {product}', 1),
+    ('default', 'en', 'What API methods does {product} have?', 2),
+    ('default', 'ru', 'Какие API-методы есть у {product}?', 2),
+    ('default', 'en', 'How does authentication work in {product}?', 3),
+    ('default', 'ru', 'Как устроена авторизация в {product}?', 3),
+    ('default', 'en', 'What events does {product} support?', 4),
+    ('default', 'ru', 'Какие события поддерживает {product}?', 4),
+    ('default', 'en', 'How to get started with {product}?', 5),
+    ('default', 'ru', 'Как начать работу с {product}?', 5),
+    ('default', 'en', 'What data formats does {product} use?', 6),
+    ('default', 'ru', 'Какие форматы данных использует {product}?', 6),
+    ('default', 'en', 'What are the API rate limits in {product}?', 7),
+    ('default', 'ru', 'Какие ограничения API у {product}?', 7),
+    ('default', 'en', 'How to handle errors in {product}?', 8),
+    ('default', 'ru', 'Как обрабатывать ошибки в {product}?', 8),
+    ('default', 'en', 'Does {product} support webhooks?', 9),
+    ('default', 'ru', 'Поддерживает ли {product} вебхуки?', 9),
+    ('default', 'en', 'How to subscribe to events in {product}?', 10),
+    ('default', 'ru', 'Как подписаться на события в {product}?', 10),
+    ('default', 'en', 'What SDK or libraries does {product} provide?', 11),
+    ('default', 'ru', 'Какие SDK или библиотеки есть у {product}?', 11),
+    ('default', 'en', 'How to configure {product} via API?', 12),
+    ('default', 'ru', 'Как настроить {product} через API?', 12),
+    ('default', 'en', 'What security features does {product} have?', 13),
+    ('default', 'ru', 'Какие функции безопасности есть у {product}?', 13),
+    ('default', 'en', 'How to migrate between versions of {product}?', 14),
+    ('default', 'ru', 'Как мигрировать между версиями {product}?', 14),
+    ('default', 'en', 'What protocols does {product} support?', 15),
+    ('default', 'ru', 'Какие протоколы поддерживает {product}?', 15),
+    ('default', 'en', 'Show the architecture of {product}', 16),
+    ('default', 'ru', 'Покажи архитектуру {product}', 16)
+ON CONFLICT (role, lang, template) DO NOTHING;

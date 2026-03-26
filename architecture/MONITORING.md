@@ -1,6 +1,6 @@
-# Plexicode — Monitoring, Logging & Alerting
+# Lexiro — Monitoring, Logging & Alerting
 
-> Part of [Plexicode Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
+> Part of [Lexiro Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
 
 ---
 
@@ -104,7 +104,7 @@ scrape_configs:
 Extracted labels (`level`, `logger`) enable efficient Loki queries like:
 
 ```logql
-{container="/ipcodex-api-1", logger="mcp"} | json
+{container="/lexiro-api-1", logger="mcp"} | json
 ```
 
 ---
@@ -121,19 +121,19 @@ Extracted labels (`level`, `logger`) enable efficient Loki queries like:
 
 ## Grafana Dashboards
 
-9 provisioned dashboards in the `Plexicode` folder:
+9 provisioned dashboards in the `Lexiro` folder:
 
 | Dashboard | File | Key Panels |
 |-----------|------|------------|
-| **Overview** | `ipcodex-overview.json` | Request rate, error rate, avg response time, uptime, traffic by status code, latency percentiles, top endpoints, live logs |
-| **System Health** | `ipcodex-system.json` | Uptime, DB pool usage, active requests, errors/min, embedding duration, log volume by level/logger |
-| **Ingestion Pipeline** | `ipcodex-ingestion.json` | Ingestion count, chunks created, timing (5 stages: read/convert/parse/embed/db), format breakdown (PDF/Swagger/Markdown/Proto), queue depth, upload size, converter details, parallel PDF workers, progress tracking |
-| **Document Audit** | `ipcodex-doc-audit.json` | Uploads over time, ingestion timing, embedding speed, search latency, similarity score distribution |
-| **Queue Monitor** | `ipcodex-queue.json` | Celery pending/processing (4 workers), queue depth, wait time, task lifecycle, worker health, task runtime, Beat heartbeat |
-| **AI Chat** | `ipcodex-ai-chat.json` | Chat requests, errors, response time, tokens/sec, RAG context build time, Ollama health, error log |
-| **Search Quality** | `ipcodex-search.json` | Total/empty searches, avg similarity, avg results per query, search duration, low-similarity searches |
-| **MCP Tools** | `ipcodex-mcp-tools.json` | Tool calls by instrument, duration, errors, live tool logs |
-| **Alerts & SLA** | `ipcodex-alerts.json` | Availability %, latency SLA compliance, error budget burn, threshold lines, alert status |
+| **Overview** | `lexiro-overview.json` | Request rate, error rate, avg response time, uptime, traffic by status code, latency percentiles, top endpoints, live logs |
+| **System Health** | `lexiro-system.json` | Uptime, DB pool usage, active requests, errors/min, embedding duration, log volume by level/logger |
+| **Ingestion Pipeline** | `lexiro-ingestion.json` | Ingestion count, chunks created, timing (5 stages: read/convert/parse/embed/db), format breakdown (PDF/Swagger/Markdown/Proto), queue depth, upload size, converter details, parallel PDF workers, progress tracking |
+| **Document Audit** | `lexiro-doc-audit.json` | Uploads over time, ingestion timing, embedding speed, search latency, similarity score distribution |
+| **Queue Monitor** | `lexiro-queue.json` | Celery pending/processing (4 workers), queue depth, wait time, task lifecycle, worker health, task runtime, Beat heartbeat |
+| **AI Chat** | `lexiro-ai-chat.json` | Chat requests, errors, response time, tokens/sec, RAG context build time, Ollama health, error log |
+| **Search Quality** | `lexiro-search.json` | Total/empty searches, avg similarity, avg results per query, search duration, low-similarity searches |
+| **MCP Tools** | `lexiro-mcp-tools.json` | Tool calls by instrument, duration, errors, live tool logs |
+| **Alerts & SLA** | `lexiro-alerts.json` | Availability %, latency SLA compliance, error budget burn, threshold lines, alert status |
 
 All dashboards use Loki as the sole datasource. Panels use LogQL queries with `json` parser, `unwrap` for numeric aggregations, and `count_over_time` / `quantile_over_time` for statistics.
 
@@ -170,15 +170,15 @@ monitoring/
         │   └── loki.yml                     Loki datasource for Grafana
         ├── dashboards/
         │   ├── provider.yml                 Dashboard provisioning config
-        │   ├── ipcodex-overview.json        Overview dashboard
-        │   ├── ipcodex-system.json          System Health dashboard
-        │   ├── ipcodex-ingestion.json       Ingestion Pipeline dashboard
-        │   ├── ipcodex-doc-audit.json       Document Audit dashboard
-        │   ├── ipcodex-queue.json           Queue Monitor dashboard
-        │   ├── ipcodex-ai-chat.json         AI Chat dashboard
-        │   ├── ipcodex-search.json          Search Quality dashboard
-        │   ├── ipcodex-mcp-tools.json       MCP Tools dashboard
-        │   └── ipcodex-alerts.json          Alerts & SLA dashboard
+        │   ├── lexiro-overview.json        Overview dashboard
+        │   ├── lexiro-system.json          System Health dashboard
+        │   ├── lexiro-ingestion.json       Ingestion Pipeline dashboard
+        │   ├── lexiro-doc-audit.json       Document Audit dashboard
+        │   ├── lexiro-queue.json           Queue Monitor dashboard
+        │   ├── lexiro-ai-chat.json         AI Chat dashboard
+        │   ├── lexiro-search.json          Search Quality dashboard
+        │   ├── lexiro-mcp-tools.json       MCP Tools dashboard
+        │   └── lexiro-alerts.json          Alerts & SLA dashboard
         └── alerting/
             └── rules.yml                    8 alert rules (YAML)
 ```

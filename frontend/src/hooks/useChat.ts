@@ -23,6 +23,7 @@ interface UseChatReturn {
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
   streamingContent: string
   streamingSources: SourceInfo[]
+  streamingStage: string
   status: StreamStatus
   lastUserPrompt: string
   sendMessage: (sessionId: number, content: string) => Promise<void>
@@ -35,6 +36,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [streamingContent, setStreamingContent] = useState('')
   const [streamingSources, setStreamingSources] = useState<SourceInfo[]>([])
+  const [streamingStage, setStreamingStage] = useState('')
   const [status, setStatus] = useState<StreamStatus>('idle')
   const [lastUserPrompt, setLastUserPrompt] = useState('')
   const abortRef = useRef<AbortController | null>(null)
@@ -43,6 +45,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
   const lastPromptRef = useRef('')
   const streamStartRef = useRef(0)
   const partialDebugRef = useRef<Partial<DebugInfo> | null>(null)
+  const stageRef = useRef('')
 
   const cancel = useCallback(() => {
     abortRef.current?.abort()
@@ -83,12 +86,14 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
 
     setStreamingContent('')
     setStreamingSources([])
+    setStreamingStage('')
     setStatus('idle')
     setLastUserPrompt(lastPromptRef.current)
     contentRef.current = ''
     sourcesRef.current = []
     streamStartRef.current = 0
     partialDebugRef.current = null
+    stageRef.current = ''
   }, [])
 
   const reset = useCallback(() => {
@@ -97,11 +102,13 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
     setMessages([])
     setStreamingContent('')
     setStreamingSources([])
+    setStreamingStage('')
     setStatus('idle')
     setLastUserPrompt('')
     contentRef.current = ''
     sourcesRef.current = []
     lastPromptRef.current = ''
+    stageRef.current = ''
   }, [])
 
   const sendMessage = useCallback(async (sessionId: number, content: string) => {
@@ -115,10 +122,12 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
     setMessages(prev => [...prev, userMsg])
     setStreamingContent('')
     setStreamingSources([])
+    setStreamingStage('')
     setStatus('streaming')
     setLastUserPrompt('')
     contentRef.current = ''
     sourcesRef.current = []
+    stageRef.current = ''
     lastPromptRef.current = content
 
     const controller = new AbortController()
@@ -136,7 +145,15 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
 
       for await (const event of streamMessage(sessionId, content, controller.signal)) {
         switch (event.type) {
+          case 'progress':
+            stageRef.current = event.stage
+            setStreamingStage(event.stage)
+            break
           case 'token':
+            if (stageRef.current) {
+              stageRef.current = ''
+              setStreamingStage('')
+            }
             fullContent += event.content
             tokenCount++
             contentRef.current = fullContent
@@ -186,10 +203,12 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
             setMessages(prev => [...prev, errorMsg])
             setStreamingContent('')
             setStreamingSources([])
+            setStreamingStage('')
             setStatus('idle')
             setLastUserPrompt(lastPromptRef.current)
             contentRef.current = ''
             sourcesRef.current = []
+            stageRef.current = ''
             streamStartRef.current = 0
             partialDebugRef.current = null
             return
@@ -210,9 +229,11 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
       setMessages(prev => [...prev, assistantMsg])
       setStreamingContent('')
       setStreamingSources([])
+      setStreamingStage('')
       setStatus('idle')
       contentRef.current = ''
       sourcesRef.current = []
+      stageRef.current = ''
       streamStartRef.current = 0
       partialDebugRef.current = null
     } catch (err) {
@@ -237,10 +258,12 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
         setMessages(prev => [...prev, errorMsg])
         setStreamingContent('')
         setStreamingSources([])
+        setStreamingStage('')
         setStatus('idle')
         setLastUserPrompt(lastPromptRef.current)
         contentRef.current = ''
         sourcesRef.current = []
+        stageRef.current = ''
         streamStartRef.current = 0
         partialDebugRef.current = null
       }
@@ -260,5 +283,5 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
     sendMessage(sessionId, prompt)
   }, [sendMessage])
 
-  return { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast }
+  return { messages, setMessages, streamingContent, streamingSources, streamingStage, status, lastUserPrompt, sendMessage, cancel, reset, retryLast }
 }

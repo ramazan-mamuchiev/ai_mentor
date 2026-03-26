@@ -20,14 +20,14 @@ import {
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listProducts, deleteProduct, reingestProduct, cancelProductIngestion } from '../api/products'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ProductDebugPanel } from '../components/ProductDebugPanel'
+import { DocsRightPanel } from '../components/DocsRightPanel'
 import { ProductEditDialog } from '../components/ProductEditDialog'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { ProductListItem, DocumentStatusValue } from '../types'
 
 const POLL_INTERVAL = 2000
-const STORAGE_KEY = 'ipcodex-products-table'
+const STORAGE_KEY = 'lexiro-products-table'
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -148,7 +148,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const [editTarget, setEditTarget] = useState<ProductListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<ProductListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<ProductListItem | null>(null)
-  const [debugExpandedIds, setDebugExpandedIds] = useState<Set<number>>(new Set())
+  const [debugPanel, setDebugPanel] = useState<ProductListItem | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -180,7 +180,9 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     if (!deleteTarget) return
     try {
       await deleteProduct(deleteTarget.manufacturer_slug, deleteTarget.slug)
-      setProducts(prev => prev.filter(p => p.id !== deleteTarget.id))
+      setProducts(prev => prev.filter(p =>
+        !(p.manufacturer_slug === deleteTarget.manufacturer_slug && p.slug === deleteTarget.slug)
+      ))
     } catch { /* ignore */ }
     finally { setDeleteTarget(null) }
   }, [deleteTarget])
@@ -203,13 +205,12 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     finally { setCancelTarget(null) }
   }, [cancelTarget, fetchProducts])
 
-  const toggleDebug = useCallback((id: number) => {
-    setDebugExpandedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const openDebug = useCallback((product: ProductListItem) => {
+    setDebugPanel(product)
+  }, [])
+
+  const closeDebug = useCallback(() => {
+    setDebugPanel(null)
   }, [])
 
   const formatCounts = useMemo(() => {
@@ -256,7 +257,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const columns = useMemo<ColumnDef<ProductListItem, unknown>[]>(() => [
     {
       id: 'name',
-      accessorFn: row => row.name,
+      accessorFn: row => row.display_name || row.name,
       header: () => t('products.table.name'),
       cell: ({ row }) => (
         <div
@@ -264,7 +265,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           style={{ cursor: 'pointer' }}
           onClick={() => navigate(`/app/products/${row.original.manufacturer_slug}/${row.original.slug}`)}
         >
-          <span className="docs-name">{row.original.name}</span>
+          <span className="docs-name">{row.original.display_name || row.original.name}</span>
           {row.original.manufacturer && (
             <span className="docs-filename">{row.original.manufacturer}</span>
           )}
@@ -343,12 +344,12 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       cell: ({ row }) => {
         const p = row.original
-        const isDebugOpen = debugExpandedIds.has(p.id)
+        const isDebugOpen = debugPanel?.id === p.id
         return (
           <div className="docs-actions">
             <button
               className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
-              onClick={() => toggleDebug(p.id)}
+              onClick={() => openDebug(p)}
               data-tooltip={t('products.actions.debug')}
             >
               <Bug size={16} />
@@ -379,7 +380,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         )
       },
     },
-  ], [t, navigate, debugExpandedIds, toggleDebug])
+  ], [t, navigate, debugPanel, openDebug])
 
   const {
     table,
@@ -394,7 +395,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     columns,
     storageKey: STORAGE_KEY,
     defaultColumnOrder: DEFAULT_COLUMN_ORDER,
-    getRowId: row => String(row.id),
+    getRowId: row => row.firmware_version_id ? `${row.id}-${row.firmware_version_id}` : String(row.id),
     columnFilters,
     globalFilter,
     onGlobalFilterChange: setGlobalFilter,
@@ -436,7 +437,8 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   }
 
   return (
-    <div className="docs-page">
+    <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
+      <div className="docs-page-main">
       <div className="docs-header">
         <h1 className="docs-page-title">
           <Box size={20} />
@@ -527,18 +529,83 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         removeGrouping={removeGrouping}
         toggleGrouping={toggleGrouping}
         resetSettings={handleResetAll}
-        renderExpandedRow={(row) => {
-          const p = row.original
-          if (!debugExpandedIds.has(p.id)) return null
-          return (
-            <ProductDebugPanel
-              manufacturerSlug={p.manufacturer_slug}
-              productSlug={p.slug}
-              onCollapse={() => toggleDebug(p.id)}
-            />
-          )
-        }}
       />
+
+      {/* Mobile: Cards */}
+      <div className="docs-cards">
+        {products
+          .filter(p => {
+            if (formatFilter.size > 0 && !p.formats.some(f => formatFilter.has(f.format))) return false
+            if (statusFilter.size > 0 && !statusFilter.has(getProductStatus(p))) return false
+            if (!globalFilter) return true
+            const q = globalFilter.toLowerCase()
+            return (
+              p.name.toLowerCase().includes(q) ||
+              (p.display_name || '').toLowerCase().includes(q) ||
+              p.manufacturer.toLowerCase().includes(q) ||
+              p.version.toLowerCase().includes(q)
+            )
+          })
+          .map(p => (
+            <div
+              className="docs-card"
+              key={p.firmware_version_id ? `${p.id}-${p.firmware_version_id}` : p.id}
+              onClick={() => navigate(`/app/products/${p.manufacturer_slug}/${p.slug}`)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="docs-card-header">
+                <div className="docs-card-title">
+                  {p.display_name || p.name}
+                  {p.manufacturer && <div className="docs-filename">{p.manufacturer}</div>}
+                </div>
+                <ProductStatusBadge product={p} onCancel={() => setCancelTarget(p)} />
+              </div>
+              <div className="docs-card-meta">
+                <span>{t('products.table.documents')}: {p.total_documents}</span>
+                <span>{formatBytes(p.total_file_size_bytes)}</span>
+              </div>
+              {p.formats.length > 0 && (
+                <div className="docs-card-meta" style={{ marginTop: 4 }}>
+                  {p.formats.map(f => (
+                    <span key={f.format} className="docs-format-badge">
+                      {f.format.toUpperCase()} {f.count > 1 && <span className="docs-format-count">{f.count}</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="docs-card-actions" onClick={e => e.stopPropagation()}>
+                <button
+                  className={`docs-action-btn docs-debug-toggle${debugPanel?.id === p.id ? ' docs-debug-toggle--active' : ''}`}
+                  onClick={() => openDebug(p)}
+                  data-tooltip={t('products.actions.debug')}
+                >
+                  <Bug size={16} />
+                </button>
+                <button className="docs-action-btn" onClick={() => setReingestTarget(p)} data-tooltip={t('products.actions.reindex')}>
+                  <RefreshCw size={16} />
+                </button>
+                <button className="docs-action-btn" onClick={() => setEditTarget(p)} data-tooltip={t('products.actions.edit')}>
+                  <Pencil size={16} />
+                </button>
+                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)} data-tooltip={t('products.actions.delete')}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+      </div>
+
+      {debugPanel && (
+        <DocsRightPanel
+          mode="product"
+          manufacturerSlug={debugPanel.manufacturer_slug}
+          productSlug={debugPanel.slug}
+          productName={debugPanel.name}
+          onClose={closeDebug}
+        />
+      )}
 
       {deleteTarget && (
         <ConfirmDialog

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bug, FileSearch, X } from 'lucide-react'
+import { Bug, FileSearch, Share2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { DebugInfo, SourceInfo } from '../types'
 import { SourceCard } from './SourceCard'
 import { MarkdownPreviewModal } from './MarkdownPreviewModal'
+import { ShareModal } from './ShareModal'
 
 const MOBILE_BP = 768
-const RATIO_KEY = 'ipcodex-right-panel-ratio'
+const RATIO_KEY = 'lexiro-right-panel-ratio'
 const DEFAULT_RATIO = 0.3
 const MIN_RATIO = 0.15
 const MAX_RATIO = 0.55
@@ -66,7 +67,7 @@ interface Props {
   onClose: () => void
 }
 
-function DebugPanelContent({ debug }: { debug: DebugInfo }) {
+export function DebugPanelContent({ debug }: { debug: DebugInfo }) {
   const { t } = useTranslation()
   const promptTotal = (debug.query_tokens ?? 0) + (debug.context_tokens ?? 0)
     + (debug.history_tokens ?? 0) + (debug.system_prompt_tokens ?? 0)
@@ -85,6 +86,7 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
       </div>
       <div className="debug-section">
         <div className="debug-section-title">{t('debug.llmCost')}</div>
+        {debug.model && <div className="debug-row debug-row-config"><span>{t('debug.model')}</span><code>{debug.model}</code></div>}
         <div className="debug-row debug-row-sub"><span>{t('debug.queryTokens')}</span><code>{fmt(debug.query_tokens)}</code></div>
         <div className="debug-row debug-row-sub"><span>{t('debug.ctxTokens')}</span><code>{fmt(debug.context_tokens)}</code></div>
         <div className="debug-row debug-row-sub"><span>{t('debug.historyTokens')}</span><code>{fmt(debug.history_tokens)}</code></div>
@@ -106,6 +108,12 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.classifyCost')}</div>
           <div className="debug-row"><span>{t('debug.queryType')}</span><code>{debug.query_type}</code></div>
+          {debug.classify_input && (
+            <div className="debug-row debug-row-wide"><span>{t('debug.classifyInput')}</span><code className="debug-query-value">{debug.classify_input}</code></div>
+          )}
+          {debug.classify_product && (
+            <div className="debug-row"><span>{t('debug.classifyProduct')}</span><code>{debug.classify_product}</code></div>
+          )}
           {(debug.classify_total_tokens ?? 0) > 0 && (
             <>
               <div className="debug-row"><span>{t('debug.classifyPromptTokens')}</span><code>{fmt(debug.classify_prompt_tokens)}</code></div>
@@ -116,6 +124,43 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           {debug.classify_model && <div className="debug-row debug-row-config"><span>{t('debug.classifyModel')}</span><code>{debug.classify_model}</code></div>}
           {debug.classify_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.classifyTime')}</span><code>{(debug.classify_ms / 1000).toFixed(2)}s</code></div>}
           {debug.prompt_hash && <div className="debug-row debug-row-config"><span>{t('debug.promptHash')}</span><code>{debug.prompt_hash}</code></div>}
+        </div>
+      )}
+      {debug.decompose_used && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.decompose')}</div>
+          <div className="debug-row"><span>{t('debug.decomposeUsed')}</span><code>✓</code></div>
+          {debug.decompose_sub_queries && debug.decompose_sub_queries.length > 0 && (
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.decomposeSubQueries')}</span>
+              <code className="debug-query-value">{debug.decompose_sub_queries.map((q, i) => `${i + 1}. ${q}`).join('\n')}</code>
+            </div>
+          )}
+          {debug.decompose_sub_products && debug.decompose_sub_products.some(Boolean) && (
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.decomposeSubProducts')}</span>
+              <code className="debug-query-value">{debug.decompose_sub_products.map((p, i) => `${i + 1}. ${p ?? '—'}`).join('\n')}</code>
+            </div>
+          )}
+          {(debug.decompose_total_tokens ?? 0) > 0 && (
+            <>
+              <div className="debug-row"><span>{t('debug.decomposePromptTokens')}</span><code>{fmt(debug.decompose_prompt_tokens)}</code></div>
+              <div className="debug-row"><span>{t('debug.decomposeCompletionTokens')}</span><code>{fmt(debug.decompose_completion_tokens)}</code></div>
+              <div className="debug-row debug-row-total"><span>{t('debug.decomposeTotalTokens')}</span><code>{fmt(debug.decompose_total_tokens)}</code></div>
+            </>
+          )}
+          {debug.decompose_model && <div className="debug-row debug-row-config"><span>{t('debug.decomposeModel')}</span><code>{debug.decompose_model}</code></div>}
+          {debug.decompose_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.decomposeTime')}</span><code>{(debug.decompose_ms / 1000).toFixed(2)}s</code></div>}
+        </div>
+      )}
+      {(debug.summary_total_tokens ?? 0) > 0 && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.summaryCost')}</div>
+          <div className="debug-row"><span>{t('debug.summaryPromptTokens')}</span><code>{fmt(debug.summary_prompt_tokens)}</code></div>
+          <div className="debug-row"><span>{t('debug.summaryCompletionTokens')}</span><code>{fmt(debug.summary_completion_tokens)}</code></div>
+          <div className="debug-row debug-row-total"><span>{t('debug.summaryTotalTokens')}</span><code>{fmt(debug.summary_total_tokens)}</code></div>
+          {debug.summary_model && <div className="debug-row debug-row-config"><span>{t('debug.summaryModel')}</span><code>{debug.summary_model}</code></div>}
+          {debug.summary_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.summaryTime')}</span><code>{(debug.summary_ms / 1000).toFixed(2)}s</code></div>}
         </div>
       )}
       {debug.retry_used && (
@@ -145,12 +190,14 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           <div className="debug-row"><span>{t('debug.tokens')}</span><code>{fmt(debug.token_count)}</code></div>
           <div className="debug-row debug-row-config"><span>{t('debug.temperature')}</span><code>{debug.temperature ?? '—'}</code></div>
           <div className="debug-row debug-row-config"><span>{t('debug.maxTokens')}</span><code>{fmt(debug.max_tokens)}</code></div>
+          {debug.finish_reason && <div className="debug-row debug-row-config"><span>{t('debug.finishReason')}</span><code className={debug.finish_reason !== 'stop' ? 'debug-warning-badge' : ''}>{debug.finish_reason}</code></div>}
+          {(debug.continuations ?? 0) > 0 && <div className="debug-row debug-row-config"><span>{t('debug.continuations')}</span><code className="debug-warning-badge">{debug.continuations}</code></div>}
         </div>
       )}
       {hasRag && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.ragSection')}</div>
-          <div className="debug-row"><span>{t('debug.chunks')}</span><code>{fmt(debug.chunks_found)}</code></div>
+          <div className="debug-row"><span>{t('debug.chunks')}</span><code>{fmt(debug.chunks_found)}{debug.effective_top_k ? ` / ${debug.effective_top_k}` : ''}</code></div>
           <div className="debug-row"><span>{t('debug.topSim')}</span><code>{fmtPct(debug.top_similarity)}</code></div>
           <div className="debug-row"><span>{t('debug.minSim')}</span><code>{fmtPct(debug.min_similarity)}</code></div>
           <div className="debug-row"><span>{t('debug.historyMsgs')}</span><code>{fmt(debug.history_messages)}</code></div>
@@ -201,6 +248,7 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
+  const [shareModal, setShareModal] = useState(false)
   const [ratio, setRatio] = useState(loadRatio)
   const dragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -273,9 +321,20 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
               )}
             </div>
           </div>
-          <button className="sources-panel-close" onClick={onClose}>
-            <X size={14} />
-          </button>
+          <div className="sources-panel-header-actions">
+            {!isSourcesMode && messageId != null && (
+              <button
+                className="sources-panel-share"
+                onClick={() => setShareModal(true)}
+                data-tooltip={t('share.shareDebug')}
+              >
+                <Share2 size={14} />
+              </button>
+            )}
+            <button className="sources-panel-close" onClick={onClose}>
+              <X size={14} />
+            </button>
+          </div>
         </div>
         <div className="sources-panel-body">
           {isSourcesMode ? (
@@ -296,6 +355,13 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
             documentId={previewTarget.id}
             documentTitle={previewTarget.title}
             onClose={() => setPreviewTarget(null)}
+          />
+        )}
+        {shareModal && messageId != null && (
+          <ShareModal
+            type="debug_chat"
+            id={messageId}
+            onClose={() => setShareModal(false)}
           />
         )}
       </div>

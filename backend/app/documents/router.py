@@ -18,11 +18,13 @@ from app.documents.schemas import (
     DocumentListItem,
     DocumentMarkdownPreview,
     DocumentStatus,
+    DocumentUsageEntry,
+    DocumentUsageStats,
     IngestResponse,
     UrlIngestRequest,
     UrlIngestResponse,
 )
-from app.models import Chunk, Product, Document, FirmwareVersion
+from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, FirmwareVersion
 from app.s3 import delete_file, generate_presigned_url, s3_key_for_document, upload_file
 from app.config import settings
 
@@ -92,8 +94,11 @@ async def ingest_document(
     )
 
     async with async_session() as session:
+        product = await _get_or_create_product(session, product_name, manufacturer)
+        fw = await _get_or_create_firmware(session, product.id, firmware_version)
+
         if not force:
-            existing = await _find_by_hash(session, source_hash)
+            existing = await _find_by_hash(session, source_hash, product.id, fw.id)
             if existing is not None:
                 logger.info(
                     "Duplicate document skipped",
@@ -116,9 +121,6 @@ async def ingest_document(
                     existing_document_id=existing.id,
                     existing_document_title=existing.title,
                 )
-
-        product = await _get_or_create_product(session, product_name, manufacturer)
-        fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
         doc = Document(
             product_id=product.id,
@@ -564,6 +566,96 @@ async def get_document_debug(document_id: int):
         return DocumentDebugInfo(**data)
 
 
+@router.get("/{document_id}/usage-stats", response_model=DocumentUsageStats)
+async def get_document_usage_stats(document_id: int, limit: int = 20):
+    """Get detailed usage analytics for a document from document_usage_log."""
+    async with async_session() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        agg_result = await session.execute(
+            select(
+                func.count().label("total_usages"),
+                func.count(func.distinct(DocumentUsageLog.session_id)).label("unique_sessions"),
+                func.sum(DocumentUsageLog.context_tokens).label("total_context_tokens"),
+                func.sum(DocumentUsageLog.charge_usd).label("total_charge_usd"),
+                func.avg(DocumentUsageLog.similarity).label("avg_similarity"),
+                func.min(DocumentUsageLog.created_at).label("first_used_at"),
+                func.max(DocumentUsageLog.created_at).label("last_used_at"),
+            ).where(DocumentUsageLog.document_id == document_id)
+        )
+        agg = agg_result.one()
+
+        fb_result = await session.execute(
+            select(
+                func.count().filter(ChatMessage.feedback == "up").label("thumbs_up"),
+                func.count().filter(ChatMessage.feedback == "down").label("thumbs_down"),
+                func.count(func.distinct(ChatMessage.id)).filter(
+                    ChatMessage.feedback.is_not(None)
+                ).label("total_rated"),
+            )
+            .select_from(DocumentUsageLog)
+            .join(ChatMessage, ChatMessage.id == DocumentUsageLog.message_id)
+            .where(DocumentUsageLog.document_id == document_id)
+        )
+        fb = fb_result.one()
+
+        heading_result = await session.execute(
+            select(
+                DocumentUsageLog.heading_path,
+                func.count().label("cnt"),
+            )
+            .where(DocumentUsageLog.document_id == document_id)
+            .group_by(DocumentUsageLog.heading_path)
+            .order_by(func.count().desc())
+            .limit(10)
+        )
+        top_headings = [
+            {"heading_path": row.heading_path, "count": row.cnt}
+            for row in heading_result.all()
+        ]
+
+        recent_result = await session.execute(
+            select(DocumentUsageLog)
+            .where(DocumentUsageLog.document_id == document_id)
+            .order_by(DocumentUsageLog.created_at.desc())
+            .limit(limit)
+        )
+        recent = [
+            DocumentUsageEntry(
+                created_at=r.created_at,
+                session_id=r.session_id,
+                message_id=r.message_id,
+                heading_path=r.heading_path,
+                similarity=r.similarity,
+                context_tokens=r.context_tokens,
+                query_text=r.query_text,
+                query_type=r.query_type,
+                sub_query=r.sub_query,
+                charge_usd=float(r.charge_usd),
+            )
+            for r in recent_result.scalars().all()
+        ]
+
+        return DocumentUsageStats(
+            document_id=document_id,
+            title=doc.title,
+            total_usages=agg.total_usages or 0,
+            unique_sessions=agg.unique_sessions or 0,
+            total_context_tokens=agg.total_context_tokens or 0,
+            total_charge_usd=float(agg.total_charge_usd or 0),
+            avg_similarity=float(agg.avg_similarity) if agg.avg_similarity else None,
+            first_used_at=agg.first_used_at,
+            last_used_at=agg.last_used_at,
+            thumbs_up=fb.thumbs_up or 0,
+            thumbs_down=fb.thumbs_down or 0,
+            total_rated=fb.total_rated or 0,
+            top_headings=top_headings,
+            recent_usages=recent,
+        )
+
+
 @router.get("/{document_id}/download", response_model=DocumentDownload)
 async def download_document(document_id: int):
     """Get a presigned URL to download the original document file."""
@@ -972,10 +1064,16 @@ async def reingest_documents(
     }
 
 
-async def _find_by_hash(session, source_hash: str) -> Document | None:
-    """Find an existing document with the same content hash."""
+async def _find_by_hash(
+    session, source_hash: str, product_id: int, firmware_version_id: int
+) -> Document | None:
+    """Find an existing document with the same content hash within the same product+version."""
     result = await session.execute(
-        select(Document).where(Document.source_hash == source_hash).limit(1)
+        select(Document).where(
+            Document.source_hash == source_hash,
+            Document.product_id == product_id,
+            Document.firmware_version_id == firmware_version_id,
+        ).limit(1)
     )
     return result.scalar_one_or_none()
 

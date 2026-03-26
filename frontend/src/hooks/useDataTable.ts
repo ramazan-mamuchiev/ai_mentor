@@ -14,6 +14,7 @@ import {
   type ExpandedState,
   type VisibilityState,
   type RowData,
+  type FilterFn,
 } from '@tanstack/react-table'
 
 export interface TableSettings {
@@ -47,6 +48,7 @@ export interface UseDataTableOptions<TData extends RowData> {
   columnFilters?: ColumnFiltersState
   globalFilter?: string
   onGlobalFilterChange?: (value: string) => void
+  globalFilterFn?: FilterFn<TData>
 }
 
 export function useDataTable<TData extends RowData>({
@@ -58,6 +60,7 @@ export function useDataTable<TData extends RowData>({
   columnFilters = [],
   globalFilter = '',
   onGlobalFilterChange,
+  globalFilterFn,
 }: UseDataTableOptions<TData>) {
   const saved = useMemo(() => loadSettings(storageKey), [storageKey])
 
@@ -125,6 +128,7 @@ export function useDataTable<TData extends RowData>({
     getExpandedRowModel: getExpandedRowModel(),
     enableMultiSort: true,
     getRowId,
+    ...(globalFilterFn ? { globalFilterFn } : {}),
   })
 
   const removeGrouping = useCallback((columnId: string) => {

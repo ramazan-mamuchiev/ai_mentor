@@ -36,7 +36,7 @@ export function ChatApp() {
     ))
   }, [])
 
-  const { messages, setMessages, streamingContent, streamingSources, status, lastUserPrompt, sendMessage, cancel, reset, retryLast } = useChat({
+  const { messages, setMessages, streamingContent, streamingSources, streamingStage, status, lastUserPrompt, sendMessage, cancel, reset, retryLast } = useChat({
     onProductDetected: handleProductDetected,
   })
 
@@ -204,6 +204,7 @@ export function ChatApp() {
       messages={messages}
       streamingContent={streamingContent}
       streamingSources={streamingSources}
+      streamingStage={streamingStage}
       status={status}
       onSend={handleSend}
       onCancel={cancel}
@@ -226,6 +227,7 @@ export function ChatApp() {
       onClearProduct={handleClearProduct}
       onLockProduct={handleLockProduct}
       onUnlockProduct={handleUnlockProduct}
+      sessionId={activeSessionId}
     />
   )
 

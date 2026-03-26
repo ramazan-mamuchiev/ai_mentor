@@ -33,9 +33,9 @@ beforeEach(() => {
 })
 
 describe('Layout', () => {
-  it('renders sidebar with Plexicode title', () => {
+  it('renders sidebar with Lexiro title', () => {
     renderLayout()
-    expect(screen.getByText('Plexicode')).toBeInTheDocument()
+    expect(screen.getByText('Lexiro')).toBeInTheDocument()
   })
 
   it('renders children in main area', () => {
@@ -62,21 +62,21 @@ describe('Layout splitter', () => {
   })
 
   it('restores sidebar width from localStorage', () => {
-    localStorage.setItem('ipcodex-sidebar-width', '350')
+    localStorage.setItem('lexiro-sidebar-width', '350')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('350px')
   })
 
   it('ignores invalid localStorage values and falls back to default', () => {
-    localStorage.setItem('ipcodex-sidebar-width', 'garbage')
+    localStorage.setItem('lexiro-sidebar-width', 'garbage')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('280px')
   })
 
   it('clamps localStorage value within min/max bounds', () => {
-    localStorage.setItem('ipcodex-sidebar-width', '50')
+    localStorage.setItem('lexiro-sidebar-width', '50')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('280px')
@@ -126,7 +126,7 @@ describe('Layout splitter', () => {
     fireEvent.pointerMove(splitter, { clientX: 400 })
     fireEvent.pointerUp(splitter)
 
-    expect(localStorage.getItem('ipcodex-sidebar-width')).toBe('400')
+    expect(localStorage.getItem('lexiro-sidebar-width')).toBe('400')
   })
 
   it('does not resize when pointer moves without prior pointerDown', () => {

@@ -384,8 +384,11 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
         )
         return None
 
+    product = await _get_or_create_product(session, us.product_name, us.manufacturer)
+    fw = await _get_or_create_firmware(session, product.id, us.firmware_version)
+
     if not us.force:
-        existing = await _find_by_hash(session, source_hash)
+        existing = await _find_by_hash(session, source_hash, product.id, fw.id)
         if existing is not None:
             logger.info(
                 "TUS upload completed but duplicate found",
@@ -396,9 +399,6 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
                 },
             )
             return existing.id
-
-    product = await _get_or_create_product(session, us.product_name, us.manufacturer)
-    fw = await _get_or_create_firmware(session, product.id, us.firmware_version)
 
     doc = Document(
         product_id=product.id,

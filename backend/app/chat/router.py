@@ -1,10 +1,13 @@
 """Chat REST API with SSE streaming."""
 
+import asyncio
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
@@ -12,10 +15,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
 from app.billing.usage_writer import write_usage_log
-from app.chat.rag import build_rag_prompt
+from app.chat.rag import build_rag_prompt, summarize_history
 from app.chat.schemas import (
     ChatMessageResponse,
     CreateSessionRequest,
+    FeedbackRequest,
     SendMessageRequest,
     SessionDetailResponse,
     SessionListItem,
@@ -25,10 +29,38 @@ from app.chat.schemas import (
 from app.config import settings
 from app.database import async_session
 from app.llm.client import LLMError, stream_chat_completion
-from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Product
+from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, DocumentUsageLog, Product
 
 MAX_CONTINUATIONS = settings.llm_max_continuations
-CONTINUE_PROMPT = "Continue exactly where you stopped. RULES: 1) Do NOT repeat ANY text, tables, headers, or code blocks already written. 2) Do NOT re-output table column headers. 3) No preamble — continue the text seamlessly."
+CONTINUE_PROMPT = (
+    "Continue exactly where you stopped. RULES: "
+    "1) Do NOT repeat ANY text, tables, headers, or code blocks already written. "
+    "2) Do NOT re-output table column headers. "
+    "3) No preamble — continue the text seamlessly. "
+    "4) You MUST complete the response fully — finish all lists, tables, and sentences."
+)
+
+_NORMAL_ENDING = re.compile(r"[.!?,;:)\]>|`\"'\u2019\u201d*#\u2014\u2013-]\s*$")
+
+
+def _looks_incomplete(text: str) -> bool:
+    """Heuristic: check if the response appears to have been cut off mid-flow.
+
+    A well-formed response ends on punctuation, a closing bracket, a code
+    fence, or similar terminal character.  If the last non-whitespace
+    character is a regular letter/digit, the response was almost certainly
+    truncated.
+    """
+    if not text or len(text) < 60:
+        return False
+    trimmed = text.rstrip()
+    if not trimmed:
+        return False
+    if trimmed.count("```") % 2 != 0:
+        return True
+    if _NORMAL_ENDING.search(trimmed):
+        return False
+    return True
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +300,8 @@ async def get_session(session_id: int):
                     content=m.content,
                     sources=m.sources,
                     duration_ms=m.duration_ms,
+                    feedback=m.feedback,
+                    feedback_comment=m.feedback_comment,
                     debug=analytics_map[m.id].to_debug_dict(
                         product_filter=chat_session.product_filter,
                         version_filter=chat_session.version_filter,
@@ -291,11 +325,38 @@ async def delete_session(session_id: int):
         logger.info("Chat session deleted", extra={"session_id": session_id})
 
 
+@router.post("/sessions/{session_id}/messages/{message_id}/feedback", status_code=200)
+async def submit_feedback(session_id: int, message_id: int, req: FeedbackRequest):
+    """Submit thumbs-up/down feedback on an assistant message."""
+    async with async_session() as session:
+        msg = await session.get(ChatMessage, message_id)
+        if not msg or msg.session_id != session_id:
+            raise HTTPException(status_code=404, detail="Message not found")
+        if msg.role != "assistant":
+            raise HTTPException(status_code=400, detail="Feedback is only allowed on assistant messages")
+
+        msg.feedback = req.feedback
+        msg.feedback_comment = req.comment
+        await session.commit()
+
+        logger.info(
+            "Message feedback submitted",
+            extra={
+                "session_id": session_id,
+                "message_id": message_id,
+                "feedback": req.feedback,
+                "has_comment": bool(req.comment),
+            },
+        )
+        return {"status": "ok", "message_id": message_id, "feedback": req.feedback}
+
+
 @router.post("/sessions/{session_id}/messages")
 async def send_message(session_id: int, req: SendMessageRequest):
     """Send a message and receive an SSE-streamed response.
 
     SSE events:
+    - {"type": "progress", "stage": "..."} — pipeline stage indicator
     - {"type": "token", "content": "..."} — incremental text tokens
     - {"type": "sources", "sources": [...]} — retrieved documentation sources
     - {"type": "done", "message_id": N, "duration_ms": F} — stream complete
@@ -339,18 +400,78 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 )
                 history = msgs_result.scalars().all()
 
+                current_summary = chat_session.history_summary
+                summary_meta: dict = {}
+                history_list = list(history)
+                if (
+                    settings.summary_enabled
+                    and len(history_list) > settings.summary_threshold
+                ):
+                    buffer_size = settings.rag_history_messages
+                    old_messages = history_list[:-buffer_size] if buffer_size < len(history_list) else []
+                    new_to_summarize = [
+                        m for m in old_messages
+                        if chat_session.summary_up_to_message_id is None
+                        or m.id > chat_session.summary_up_to_message_id
+                    ]
+                    if new_to_summarize:
+                        updated_summary, summary_meta = await summarize_history(
+                            new_to_summarize, existing_summary=current_summary,
+                        )
+                        if updated_summary:
+                            chat_session.history_summary = updated_summary
+                            chat_session.summary_up_to_message_id = old_messages[-1].id
+                            current_summary = updated_summary
+
+                progress_queue: asyncio.Queue[dict | None] = asyncio.Queue()
+
+                async def _on_progress(stage: str, meta: dict) -> None:
+                    await progress_queue.put({"type": "progress", "stage": stage, **meta})
+
+                rag_result_holder: dict = {}
+                rag_error_holder: list[BaseException] = []
+
+                async def _run_rag() -> None:
+                    try:
+                        msgs, srcs, dbg = await build_rag_prompt(
+                            db=db,
+                            query=req.content,
+                            history=history_list,
+                            product_id=chat_session.product_id,
+                            product_filter=chat_session.product_filter,
+                            version_filter=chat_session.version_filter,
+                            doc_context=chat_session.doc_context,
+                            product_filter_source=chat_session.product_filter_source,
+                            history_summary=current_summary,
+                            progress_callback=_on_progress,
+                        )
+                        rag_result_holder["messages"] = msgs
+                        rag_result_holder["sources"] = srcs
+                        rag_result_holder["rag_debug"] = dbg
+                    except BaseException as exc:
+                        rag_error_holder.append(exc)
+                    finally:
+                        await progress_queue.put(None)
+
                 t_rag = time.perf_counter()
-                messages, sources, rag_debug = await build_rag_prompt(
-                    db=db,
-                    query=req.content,
-                    history=list(history),
-                    product_id=chat_session.product_id,
-                    product_filter=chat_session.product_filter,
-                    version_filter=chat_session.version_filter,
-                    doc_context=chat_session.doc_context,
-                    product_filter_source=chat_session.product_filter_source,
-                )
+                rag_task = asyncio.create_task(_run_rag())
+
+                while True:
+                    event = await progress_queue.get()
+                    if event is None:
+                        break
+                    yield f"data: {json.dumps(event)}\n\n"
+
+                await rag_task
+                if rag_error_holder:
+                    raise rag_error_holder[0]
+
+                messages = rag_result_holder["messages"]
+                sources = rag_result_holder["sources"]
+                rag_debug = rag_result_holder["rag_debug"]
                 rag_ms = round((time.perf_counter() - t_rag) * 1000, 1)
+                if summary_meta:
+                    rag_debug.update(summary_meta)
 
                 auto_prod = rag_debug.get("auto_product")
                 if auto_prod and chat_session.product_filter != auto_prod:
@@ -402,15 +523,19 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 }
                 yield f"data: {json.dumps({'type': 'debug_partial', 'debug': debug_partial})}\n\n"
 
+                effective_reasoning = rag_debug.get("reasoning_effort")
+
                 t_llm = time.perf_counter()
                 full_response: list[str] = []
                 llm_meta: dict = {}
                 continuations = 0
                 llm_messages = list(messages)
 
+                final_finish_reason = "stop"
+
                 while True:
                     llm_meta_chunk: dict = {}
-                    async for token in stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk):
+                    async for token in stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk, reasoning_effort=effective_reasoning):
                         full_response.append(token)
                         token_count += 1
                         yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
@@ -420,11 +545,29 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     else:
                         llm_meta["first_token_ms"] = llm_meta.get("first_token_ms", 0)
 
-                    if llm_meta_chunk.get("finish_reason") != "length":
+                    chunk_finish = llm_meta_chunk.get("finish_reason", "stop")
+                    needs_continuation = chunk_finish == "length"
+
+                    if not needs_continuation and chunk_finish == "stop":
+                        partial_text = "".join(full_response)
+                        if _looks_incomplete(partial_text):
+                            needs_continuation = True
+                            logger.info(
+                                "Heuristic detected incomplete response despite finish_reason=stop",
+                                extra={
+                                    "session_id": session_id,
+                                    "tokens_so_far": token_count,
+                                    "tail": partial_text[-80:],
+                                },
+                            )
+
+                    if not needs_continuation:
+                        final_finish_reason = chunk_finish
                         break
 
                     continuations += 1
                     if continuations > MAX_CONTINUATIONS:
+                        final_finish_reason = "max_continuations"
                         logger.warning(
                             "Max continuations reached",
                             extra={"session_id": session_id, "continuations": continuations},
@@ -437,6 +580,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
                             "session_id": session_id,
                             "continuation": continuations,
                             "tokens_so_far": token_count,
+                            "reason": chunk_finish,
                         },
                     )
                     partial = "".join(full_response)
@@ -486,6 +630,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     "temperature": llm_meta.get("temperature", 0),
                     "max_tokens": llm_meta.get("max_tokens", 0),
                     "first_token_ms": llm_meta.get("first_token_ms", 0),
+                    "finish_reason": final_finish_reason,
+                    "continuations": continuations,
                     "rag_ms": rag_ms,
                     "llm_ms": llm_ms,
                     "total_ms": duration_ms,
@@ -537,6 +683,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     llm_prompt_tokens=llm_prompt_tokens,
                     llm_completion_tokens=llm_completion_tokens,
                     llm_total_tokens=llm_total_tokens,
+                    finish_reason=final_finish_reason,
+                    continuations=continuations,
                 )
                 db.add(analytics)
                 await db.commit()
@@ -596,6 +744,66 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         duration_ms=rag_debug.get("rephrase_ms", 0),
                     )
 
+                if summary_meta.get("summary_total_tokens", 0) > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="history_summarize",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=summary_meta.get("summary_model", ""),
+                        prompt_tokens=summary_meta.get("summary_prompt_tokens", 0),
+                        completion_tokens=summary_meta.get("summary_completion_tokens", 0),
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=summary_meta.get("summary_ms", 0),
+                    )
+
+                decompose_prompt_tokens = rag_debug.get("decompose_prompt_tokens", 0)
+                decompose_completion_tokens = rag_debug.get("decompose_completion_tokens", 0)
+                if decompose_prompt_tokens > 0 or decompose_completion_tokens > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="query_decompose",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=rag_debug.get("decompose_model", ""),
+                        prompt_tokens=decompose_prompt_tokens,
+                        completion_tokens=decompose_completion_tokens,
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=rag_debug.get("decompose_ms", 0),
+                    )
+
+                if sources:
+                    try:
+                        total_ctx = rag_debug.get("context_tokens", 0)
+                        for src in sources:
+                            doc_id = src.get("document_id")
+                            if not doc_id:
+                                continue
+                            preview_len = len(src.get("content_preview", ""))
+                            chunk_tokens = max(1, preview_len // 4)
+                            share = chunk_tokens / total_ctx if total_ctx > 0 else 0
+                            db.add(DocumentUsageLog(
+                                request_id=request_id,
+                                session_id=session_id,
+                                message_id=assistant_msg.id,
+                                document_id=doc_id,
+                                product_id=chat_session.product_id,
+                                heading_path=src.get("heading_path", ""),
+                                similarity=src.get("similarity", 0),
+                                context_tokens=chunk_tokens,
+                                query_text=req.content[:500],
+                                query_type=rag_debug.get("query_type"),
+                                sub_query=src.get("sub_query"),
+                                charge_usd=Decimal(str(round(
+                                    float(debug_info.get("charge_usd", 0) or 0) * share, 8
+                                ))),
+                            ))
+                        await db.commit()
+                    except Exception:
+                        logger.warning("Failed to write document_usage_log", exc_info=True)
+
                 logger.info(
                     "Chat message completed",
                     extra={
@@ -614,6 +822,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         "llm_completion_tokens": llm_completion_tokens,
                         "user_input_tokens": user_input_tokens,
                         "user_output_tokens": user_output_tokens,
+                        "finish_reason": final_finish_reason,
+                        "continuations": continuations,
                     },
                 )
 

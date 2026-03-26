@@ -1,7 +1,7 @@
 {
-  "uid": "ipcodex-search",
-  "title": "Plexicode Search Quality",
-  "tags": ["ipcodex", "search"],
+  "uid": "lexiro-search",
+  "title": "Lexiro Search Quality",
+  "tags": ["lexiro", "search"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -33,7 +33,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Search.*\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Search.*\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -74,7 +74,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search returned 0 results\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search returned 0 results\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -116,7 +116,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap top_similarity [$__range]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search completed\" | unwrap top_similarity [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -160,7 +160,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap result_count [$__range]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search completed\" | unwrap result_count [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -210,7 +210,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap top_similarity [5m]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search completed\" | unwrap top_similarity [5m]) by ()",
           "legendFormat": "avg top_similarity"
         }
       ],
@@ -257,13 +257,13 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search returned 0 results\" [5m]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search returned 0 results\" [5m]))",
           "legendFormat": "empty searches"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event =~ \"Search.*\" [5m]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"Search.*\" [5m]))",
           "legendFormat": "total searches"
         }
       ],
@@ -318,13 +318,13 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap embed_ms [5m]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search completed\" | unwrap embed_ms [5m]) by ()",
           "legendFormat": "embed_ms"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap db_ms [5m]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search completed\" | unwrap db_ms [5m]) by ()",
           "legendFormat": "db_ms"
         }
       ],
@@ -371,13 +371,13 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap duration_ms [5m]) by ()",
+          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "avg duration_ms"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | unwrap duration_ms [5m]) by ()",
+          "expr": "max_over_time({container=\"/lexiro-api-1\"} | json | event = \"Search completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "max duration_ms"
         }
       ],
@@ -432,7 +432,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/ipcodex-api-1\"} | json | event = \"Search completed\" | top_similarity < 0.3",
+          "expr": "{container=\"/lexiro-api-1\"} | json | event = \"Search completed\" | top_similarity < 0.3",
           "queryType": "range"
         }
       ],
@@ -500,7 +500,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/ipcodex-api-1\"} | json | event =~ \"Search.*\"",
+          "expr": "{container=\"/lexiro-api-1\"} | json | event =~ \"Search.*\"",
           "queryType": "range"
         }
       ],

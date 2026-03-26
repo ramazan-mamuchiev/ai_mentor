@@ -206,7 +206,7 @@ describe('ChatWindow language switching', () => {
   it('shows English empty state by default', () => {
     renderEmpty()
     expect(screen.getByText('AI Integration Platform')).toBeInTheDocument()
-    expect(screen.getByText(/Protocols speak/)).toBeInTheDocument()
+    expect(screen.getByText(/Ask, don't search/)).toBeInTheDocument()
     expect(screen.getByText('Instantly.')).toBeInTheDocument()
   })
 
@@ -214,15 +214,15 @@ describe('ChatWindow language switching', () => {
     renderEmpty()
     await act(() => i18n.changeLanguage('ru'))
     expect(screen.getByText('AI-платформа интеграции')).toBeInTheDocument()
-    expect(screen.getByText(/Протоколы говорят/)).toBeInTheDocument()
+    expect(screen.getByText(/Спрашивай, не ищи/)).toBeInTheDocument()
     expect(screen.getByText('Мгновенно.')).toBeInTheDocument()
   })
 
   it('switches placeholder to Russian', async () => {
     renderEmpty()
-    expect(screen.getByPlaceholderText(/Ask about device/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Ask anything about your docs/)).toBeInTheDocument()
     await act(() => i18n.changeLanguage('ru'))
-    expect(screen.getByPlaceholderText(/Спросите об интеграции/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Задайте вопрос по документации/)).toBeInTheDocument()
   })
 })
 
@@ -231,13 +231,13 @@ describe('ChatWindow language switching', () => {
 describe('ChatInput language switching', () => {
   it('shows English placeholder by default', () => {
     render(<ChatInput onSend={() => {}} onCancel={() => {}} status="idle" />)
-    expect(screen.getByPlaceholderText('Ask about device integration...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Ask anything about your docs...')).toBeInTheDocument()
   })
 
   it('switches placeholder to Russian', async () => {
     render(<ChatInput onSend={() => {}} onCancel={() => {}} status="idle" />)
     await act(() => i18n.changeLanguage('ru'))
-    expect(screen.getByPlaceholderText('Спросите об интеграции устройств...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Задайте вопрос по документации...')).toBeInTheDocument()
   })
 
   it('switches button titles to Russian', async () => {
@@ -427,7 +427,7 @@ describe('i18n localStorage persistence', () => {
         interpolation: { escapeValue: false },
         detection: {
           order: ['localStorage', 'navigator'],
-          lookupLocalStorage: 'ipcodex-lang',
+          lookupLocalStorage: 'lexiro-lang',
           caches: ['localStorage'],
         },
       })
@@ -435,17 +435,17 @@ describe('i18n localStorage persistence', () => {
 
   it('saves language to localStorage on change', async () => {
     await act(() => detectorI18n.changeLanguage('ru'))
-    expect(localStorage.getItem('ipcodex-lang')).toBe('ru')
+    expect(localStorage.getItem('lexiro-lang')).toBe('ru')
   })
 
   it('saves back to en', async () => {
     await act(() => detectorI18n.changeLanguage('ru'))
     await act(() => detectorI18n.changeLanguage('en'))
-    expect(localStorage.getItem('ipcodex-lang')).toBe('en')
+    expect(localStorage.getItem('lexiro-lang')).toBe('en')
   })
 
   it('restores language from localStorage on init', async () => {
-    localStorage.setItem('ipcodex-lang', 'ru')
+    localStorage.setItem('lexiro-lang', 'ru')
 
     const { default: i18nCore2 } = await import('i18next')
     const { initReactI18next: iri } = await import('react-i18next')
@@ -464,7 +464,7 @@ describe('i18n localStorage persistence', () => {
         interpolation: { escapeValue: false },
         detection: {
           order: ['localStorage', 'navigator'],
-          lookupLocalStorage: 'ipcodex-lang',
+          lookupLocalStorage: 'lexiro-lang',
           caches: ['localStorage'],
         },
       })

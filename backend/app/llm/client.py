@@ -21,6 +21,7 @@ _FALLBACK_MODEL = "gemini-2.5-flash"
 _FALLBACK_REASONING_EFFORT = "none"
 
 from app.config import settings
+from app.llm.http_client import gemini_client, ollama_client
 
 logger = logging.getLogger(__name__)
 
@@ -61,18 +62,23 @@ async def stream_chat_completion(
     temperature: float | None = None,
     max_tokens: int | None = None,
     metadata: dict | None = None,
+    reasoning_effort: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream chat completion tokens from the configured LLM provider.
 
     If *metadata* dict is passed, it will be populated with stream stats
     (first_token_ms, provider, resolved model, temperature, max_tokens)
     after the stream completes.
+
+    Args:
+        reasoning_effort: Override for Gemini thinking budget per query type.
+            If None, falls back to settings.llm_reasoning_effort.
     """
     meta = metadata if metadata is not None else {}
     meta["provider"] = settings.llm_provider
 
     if settings.llm_provider == "gemini":
-        async for token in _stream_openai_compatible(messages, model, temperature, max_tokens, meta):
+        async for token in _stream_openai_compatible(messages, model, temperature, max_tokens, meta, reasoning_effort=reasoning_effort):
             yield token
     elif settings.llm_provider == "bothub":
         async for token in _stream_bothub(messages, model, temperature, max_tokens, meta):
@@ -123,41 +129,40 @@ async def _stream_ollama(
     )
 
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=10.0)) as client:
-            async with client.stream("POST", url, json=payload) as response:
-                if response.status_code != 200:
-                    body = await response.aread()
-                    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-                    logger.error(
-                        "Ollama API error",
-                        extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms},
-                    )
-                    raise LLMError(
-                        response.status_code,
-                        _error_code_from_status(response.status_code),
-                        f"Ollama returned {response.status_code}",
-                    )
+        async with ollama_client().stream("POST", url, json=payload) as response:
+            if response.status_code != 200:
+                body = await response.aread()
+                duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+                logger.error(
+                    "Ollama API error",
+                    extra={"status": response.status_code, "body": body.decode()[:500], "duration_ms": duration_ms},
+                )
+                raise LLMError(
+                    response.status_code,
+                    _error_code_from_status(response.status_code),
+                    f"Ollama returned {response.status_code}",
+                )
 
-                finish_reason = "stop"
-                async for line in response.aiter_lines():
-                    if not line.strip():
-                        continue
-                    try:
-                        data = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
+            finish_reason = "stop"
+            async for line in response.aiter_lines():
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-                    if data.get("done"):
-                        if data.get("done_reason") == "length":
-                            finish_reason = "length"
-                        break
+                if data.get("done"):
+                    if data.get("done_reason") == "length":
+                        finish_reason = "length"
+                    break
 
-                    content = data.get("message", {}).get("content", "")
-                    if content:
-                        token_count += 1
-                        if token_count == 1:
-                            first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
-                        yield content
+                content = data.get("message", {}).get("content", "")
+                if content:
+                    token_count += 1
+                    if token_count == 1:
+                        first_token_ms = round((time.perf_counter() - t0) * 1000, 1)
+                    yield content
     except LLMError:
         raise
     except httpx.ConnectError as e:
@@ -177,6 +182,7 @@ async def _stream_openai_compatible(
     temperature: float | None = None,
     max_tokens: int | None = None,
     meta: dict | None = None,
+    reasoning_effort: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream from any OpenAI-compatible API (Gemini, GPT-4o, OpenRouter, etc.).
 
@@ -187,7 +193,7 @@ async def _stream_openai_compatible(
     model = model or settings.openai_llm_model
     temperature = temperature if temperature is not None else settings.llm_temperature
     max_tokens = max_tokens or settings.llm_max_tokens
-    reasoning_effort = settings.llm_reasoning_effort or None
+    reasoning_effort = reasoning_effort or settings.llm_reasoning_effort or None
 
     if meta is not None:
         meta.update(model=model, temperature=temperature, max_tokens=max_tokens)
@@ -251,8 +257,7 @@ async def _stream_openai_compatible(
                 first_token_ms = 0.0
 
             try:
-                async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout, connect=15.0)) as client:
-                    async with client.stream("POST", url, json=payload, headers=headers) as response:
+                async with gemini_client().stream("POST", url, json=payload, headers=headers) as response:
                         if response.status_code != 200:
                             body = await response.aread()
                             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -528,17 +533,16 @@ async def check_health() -> bool:
 
 async def _check_health_ollama() -> bool:
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{settings.ollama_url}/api/tags")
-            if resp.status_code != 200:
-                logger.warning("Ollama health check failed", extra={"status": resp.status_code})
-                return False
-            data = resp.json()
-            models = [m.get("name", "") for m in data.get("models", [])]
-            available = any(settings.llm_model in m for m in models)
-            if not available:
-                logger.warning("Ollama model not found", extra={"expected": settings.llm_model, "available": models})
-            return available
+        resp = await ollama_client().get(f"{settings.ollama_url}/api/tags", timeout=5.0)
+        if resp.status_code != 200:
+            logger.warning("Ollama health check failed", extra={"status": resp.status_code})
+            return False
+        data = resp.json()
+        models = [m.get("name", "") for m in data.get("models", [])]
+        available = any(settings.llm_model in m for m in models)
+        if not available:
+            logger.warning("Ollama model not found", extra={"expected": settings.llm_model, "available": models})
+        return available
     except Exception as e:
         logger.warning("Ollama unreachable", extra={"error": str(e)})
         return False
@@ -551,12 +555,11 @@ async def _check_health_gemini() -> bool:
     try:
         url = f"{settings.openai_base_url.rstrip('/')}/models"
         headers = {"Authorization": f"Bearer {settings.gemini_api_key}"}
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                return True
-            logger.warning("Gemini API health check failed", extra={"status": resp.status_code})
-            return resp.status_code < 500
+        resp = await gemini_client().get(url, headers=headers, timeout=10.0)
+        if resp.status_code == 200:
+            return True
+        logger.warning("OpenAI-compatible health check failed", extra={"status": resp.status_code})
+        return resp.status_code < 500
     except Exception as e:
         logger.warning("Gemini API unreachable", extra={"error": str(e)})
         return False

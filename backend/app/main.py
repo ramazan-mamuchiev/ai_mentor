@@ -1,4 +1,4 @@
-"""IPCodex MVP — FastAPI application with MCP server (streamable HTTP transport)."""
+"""Lexiro — FastAPI application with MCP server (streamable HTTP transport)."""
 
 import asyncio
 import contextlib
@@ -16,6 +16,7 @@ from app.chat.router import router as chat_router
 from app.documents.router import router as documents_router
 from app.products.router import router as products_router
 from app.reindex.router import router as reindex_router
+from app.share.router import router as share_router
 from app.uploads.router import router as uploads_router
 from app.logging_config import setup_logging, active_requests_count
 from app.middleware.request_logging import RequestLoggingMiddleware
@@ -29,7 +30,7 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
-    "IPCodex",
+    "Lexiro",
     stateless_http=True,
     json_response=True,
     streamable_http_path="/",
@@ -422,7 +423,7 @@ async def lifespan(app: FastAPI):
     global _start_time
     _start_time = time.time()
     logger.info(
-        "IPCodex MCP server starting",
+        "Lexiro MCP server starting",
         extra={"env": settings.app_env, "version": "0.1.0"},
     )
 
@@ -444,11 +445,15 @@ async def lifespan(app: FastAPI):
         await monitor_task
     except asyncio.CancelledError:
         pass
-    logger.info("IPCodex MCP server stopped")
+
+    from app.llm.http_client import close_clients
+    await close_clients()
+
+    logger.info("Lexiro MCP server stopped")
 
 
 app = FastAPI(
-    title="IPCodex",
+    title="Lexiro",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -458,6 +463,7 @@ app.include_router(documents_router, prefix="/api/v1")
 app.include_router(products_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(reindex_router, prefix="/api/v1")
+app.include_router(share_router, prefix="/api/v1")
 app.include_router(uploads_router, prefix="/api/v1")
 app.router.routes.append(Mount("/mcp", app=mcp.streamable_http_app()))
 

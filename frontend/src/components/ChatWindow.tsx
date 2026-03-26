@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Cpu, ArrowDown } from 'lucide-react'
-import type { SourceInfo, StreamStatus, DebugInfo } from '../types'
+import { Cpu, ArrowDown, Share2 } from 'lucide-react'
+import type { SourceInfo, StreamStatus, DebugInfo, SuggestionChip } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
+import { getSuggestions } from '../api/products'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
 import { RightPanel } from './RightPanel'
+import { ShareModal } from './ShareModal'
 
 const SCROLL_THRESHOLD = 100
 const USER_INTERACTION_TTL = 200
@@ -15,6 +17,7 @@ interface Props {
   messages: ChatMessageType[]
   streamingContent: string
   streamingSources: SourceInfo[]
+  streamingStage?: string
   status: StreamStatus
   onSend: (content: string) => void
   onCancel: () => void
@@ -29,12 +32,14 @@ interface Props {
   onClearProduct?: () => void
   onLockProduct?: () => void
   onUnlockProduct?: () => void
+  sessionId?: number | null
 }
 
 export function ChatWindow({
   messages,
   streamingContent,
   streamingSources,
+  streamingStage,
   status,
   onSend,
   onCancel,
@@ -49,6 +54,7 @@ export function ChatWindow({
   onClearProduct,
   onLockProduct,
   onUnlockProduct,
+  sessionId,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -133,8 +139,33 @@ export function ChatWindow({
     setRightPanel({ mode: 'debug', debug, sessionId, messageId })
   }, [])
 
-  const { t } = useTranslation()
+  const handleEditMessage = useCallback((content: string) => {
+    handleSend(content)
+  }, [handleSend])
+
+  const [shareModal, setShareModal] = useState<{ type: 'session' | 'message'; id: number } | null>(null)
+
+  const handleShareMessage = useCallback((messageId: number) => {
+    setShareModal({ type: 'message', id: messageId })
+  }, [])
+
+  const handleShareSession = useCallback(() => {
+    if (sessionId) setShareModal({ type: 'session', id: sessionId })
+  }, [sessionId])
+
+  const { t, i18n } = useTranslation()
   const isEmpty = messages.length === 0 && !streamingContent
+
+  const [dynamicChips, setDynamicChips] = useState<SuggestionChip[] | null>(null)
+
+  useEffect(() => {
+    if (!isEmpty) return
+    let cancelled = false
+    getSuggestions()
+      .then(chips => { if (!cancelled && chips.length) setDynamicChips(chips) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isEmpty])
 
   return (
     <div className="main-area">
@@ -151,6 +182,17 @@ export function ChatWindow({
               onLock={onLockProduct}
               onUnlock={onUnlockProduct}
             />
+            {sessionId && messages.length > 0 && (
+              <button
+                className="share-chat-btn"
+                onClick={handleShareSession}
+                data-tooltip={t('share.shareChat')}
+                aria-label={t('share.shareChat')}
+                type="button"
+              >
+                <Share2 size={14} />
+              </button>
+            )}
           </div>
         )}
         <div className="messages-container" ref={containerRef} onScroll={handleScroll}>
@@ -161,13 +203,27 @@ export function ChatWindow({
               <span className="empty-badge"><Cpu size={14} />{t('empty.badge')}</span>
               <h1 className="empty-title">{t('empty.title')}</h1>
               <p className="empty-slogan">{t('empty.slogan')}</p>
-              <div className="empty-divider">
-                <span /><span className="empty-dot">·</span><span />
-              </div>
               <p className="empty-subslogan">
                 <Trans i18nKey="empty.subslogan">From docs to code.</Trans>{' '}
                 <em>{t('empty.instantly')}</em>
               </p>
+              <div className="empty-suggestions">
+                {dynamicChips
+                  ? dynamicChips.map((chip, idx) => {
+                      const text = i18n.language === 'ru' ? chip.text_ru : chip.text_en
+                      return (
+                        <button key={idx} className="empty-suggestion-chip" onClick={() => onSend(text)}>
+                          {text}
+                        </button>
+                      )
+                    })
+                  : (['empty.suggestion1', 'empty.suggestion2', 'empty.suggestion3', 'empty.suggestion4'] as const).map(key => (
+                      <button key={key} className="empty-suggestion-chip" onClick={() => onSend(t(key))}>
+                        {t(key)}
+                      </button>
+                    ))
+                }
+              </div>
             </div>
           ) : (
             <>
@@ -178,6 +234,8 @@ export function ChatWindow({
                   onRetry={msg.error_code && idx === messages.length - 1 ? onRetry : undefined}
                   onShowSources={handleShowSources}
                   onShowDebug={handleShowDebug}
+                  onEditMessage={msg.role === 'user' ? handleEditMessage : undefined}
+                  onShareMessage={handleShareMessage}
                 />
               ))}
               {status === 'streaming' && (
@@ -192,6 +250,7 @@ export function ChatWindow({
                   isStreaming
                   streamingContent={streamingContent}
                   streamingSources={streamingSources}
+                  streamingStage={streamingStage}
                   onShowSources={handleShowSources}
                   onShowDebug={handleShowDebug}
                 />
@@ -220,6 +279,14 @@ export function ChatWindow({
           sessionId={rightPanel.sessionId}
           messageId={rightPanel.messageId}
           onClose={() => setRightPanel(null)}
+        />
+      )}
+
+      {shareModal && (
+        <ShareModal
+          type={shareModal.type}
+          id={shareModal.id}
+          onClose={() => setShareModal(null)}
         />
       )}
     </div>

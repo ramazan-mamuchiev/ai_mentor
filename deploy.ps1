@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# IPCodex deploy script — pushes to git and deploys to VPS (82.38.66.177)
+# Lexiro deploy script — pushes to git and deploys to VPS (82.38.66.177)
 #
 # Usage:
 #   .\deploy.ps1              # auto-detect changed services
@@ -15,7 +15,7 @@ param(
 )
 
 $VPS = "root@82.38.66.177"
-$REMOTE_DIR = "/opt/ipcodex"
+$REMOTE_DIR = "/opt/lexiro"
 $ErrorActionPreference = "Stop"
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }

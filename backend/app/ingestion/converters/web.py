@@ -56,7 +56,7 @@ def _make_ssl_context() -> ssl.SSLContext:
 def _fetch_url(url: str, accept: str = "*/*") -> tuple[bytes, str, str]:
     """Fetch URL content. Returns (body_bytes, content_type, final_url)."""
     req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IPCodex/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Lexiro/1.0",
         "Accept": accept,
     })
     ctx = _make_ssl_context()

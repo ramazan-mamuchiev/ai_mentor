@@ -1,4 +1,4 @@
-# Plexicode SaaS Platform — Architecture & Implementation Plan
+# Lexiro SaaS Platform — Architecture & Implementation Plan
 
 > **Status**: Draft v1.0 — March 15, 2026
 > **Author**: Oleg Voitekhovich
@@ -20,14 +20,14 @@
 | [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) | Go-to-market strategy: vendor partnerships, co-marketing playbook, target vendors, KPIs | ~430 |
 | [GTM_STRATEGY.md](GTM_STRATEGY.md) | AI-first positioning, messaging framework, 12-month execution roadmap, channel priorities, budget | ~400 |
 | [MONITORING.md](MONITORING.md) | Monitoring stack (Grafana + Loki + Promtail), dashboards, alert rules, structured logging | ~200 |
-| [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 Plexicode slogan candidates (EN/RU), next steps for partner review | ~130 |
+| [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 Lexiro slogan candidates (EN/RU), next steps for partner review | ~130 |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Design system: colors, typography, icons, components, logo, animations, UI/UX competitor analysis | ~310 |
 
 ---
 
 ## Product Summary
 
-**Plexicode** is a commercial SaaS platform that transforms chaotic product documentation — for both hardware devices (IP cameras, access controllers, intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs) — into a structured knowledge base with semantic search, and serves as a distribution hub for firmware, SDKs, and tools — enabling AI coding assistants (Cursor, Windsurf, GitHub Copilot) to write accurate integration code via RAG + MCP.
+**Lexiro** is a commercial SaaS platform that transforms chaotic product documentation — for both hardware devices (IP cameras, access controllers, intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs) — into a structured knowledge base with semantic search, and serves as a distribution hub for firmware, SDKs, and tools — enabling AI coding assistants (Cursor, Windsurf, GitHub Copilot) to write accurate integration code via RAG + MCP.
 
 **Target scale**: 1000+ developer tenants + 100+ device vendors. Two-sided marketplace with hybrid monetization (subscription + overage for developers, tiered plans for vendors).
 
@@ -264,7 +264,7 @@ Full details: [FLOWS.md — Supported Document Formats](FLOWS.md#supported-docum
 - Default language: **en** (English) — used as the reference locale and fallback
 - Translation files: flat JSON in `frontend/src/locales/{lang}.json` (one file per language)
 - Language detection order: `localStorage` → browser `navigator` preference
-- User's language choice persisted in `localStorage` under `ipcodex-lang` key
+- User's language choice persisted in `localStorage` under `lexiro-lang` key
 - All UI strings extracted to translation keys — no hardcoded text in components
 - Adding a new language requires only a new `{lang}.json` file; tests auto-discover all locale files and validate structure, key completeness, and interpolation placeholder consistency against the reference locale
 

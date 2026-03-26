@@ -1,4 +1,4 @@
-"""MCP tools for IPCodex: semantic search over product documentation for writing integration code."""
+"""MCP tools for Lexiro: semantic search over product documentation for writing integration code."""
 
 import logging
 import time
@@ -54,9 +54,9 @@ async def tool_search_documentation(
     version: str | None = None,
     limit: int = 5,
 ) -> str:
-    """Search IPCodex knowledge base for product integration documentation.
+    """Search Lexiro knowledge base for product integration documentation.
 
-    IPCodex indexes API documentation for hardware devices (IP cameras, access controllers,
+    Lexiro indexes API documentation for hardware devices (IP cameras, access controllers,
     intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs).
 
     Use this tool when you need to write integration code and need to find:
@@ -238,7 +238,7 @@ async def tool_list_products(
     category: str | None = None,
     query: str | None = None,
 ) -> str:
-    """List products with indexed documentation available in IPCodex.
+    """List products with indexed documentation available in Lexiro.
 
     Call this FIRST to discover what products are available before using search_documentation.
 

@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://ipcodex:ipcodex_dev@localhost:5432/ipcodex"
+    database_url: str = "postgresql+asyncpg://lexiro:lexiro_dev@localhost:5432/lexiro"
 
     api_key: str = "ipx_dev_key_12345"
 
@@ -14,11 +14,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "ipcodex"
-    s3_secret_key: str = "ipcodex_dev"
-    s3_bucket: str = "ipcodex-storage"
+    s3_access_key: str = "lexiro"
+    s3_secret_key: str = "lexiro_dev"
+    s3_bucket: str = "lexiro-storage"
 
-    database_url_sync: str = "postgresql://ipcodex:ipcodex_dev@localhost:5432/ipcodex"
+    database_url_sync: str = "postgresql://lexiro:lexiro_dev@localhost:5432/lexiro"
 
     max_upload_size_mb: int = 50
     max_archive_size_mb: int = 350
@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     rag_history_messages: int = 6
     rag_history_max_tokens: int = 8000
 
+    summary_enabled: bool = True
+    summary_threshold: int = 8
+    summary_model: str = "gemini-2.5-flash"
+    summary_max_tokens: int = 500
+
     rerank_enabled: bool = True
     rerank_candidates: int = 20
     rerank_model: str = "gemini-2.5-flash"
@@ -69,8 +74,8 @@ class Settings(BaseSettings):
     hybrid_vector_weight: float = 0.7
     hybrid_rrf_k: int = 60
 
-    chunk_max_tokens: int = 380
-    chunk_min_tokens: int = 30
+    chunk_max_tokens: int = 512
+    chunk_min_tokens: int = 50
     chunk_overlap_paragraphs: int = 2
 
     metadata_extraction_enabled: bool = True
@@ -78,6 +83,12 @@ class Settings(BaseSettings):
     metadata_extraction_batch_size: int = 5
 
     search_retry_enabled: bool = True
+
+    decompose_enabled: bool = True
+    decompose_model: str = "gemini-2.5-flash"
+    decompose_max_sub_queries: int = 4
+
+    model_max_input_tokens: int = 1_000_000
 
     ocr_enabled: bool = True
     ocr_lang_detect_model: str = "gemini-2.5-flash"

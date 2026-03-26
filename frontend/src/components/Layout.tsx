@@ -25,8 +25,8 @@ function useIsMobile() {
   return mobile
 }
 
-const WIDTH_KEY = 'ipcodex-sidebar-width'
-const COLLAPSED_KEY = 'ipcodex-sidebar-collapsed'
+const WIDTH_KEY = 'lexiro-sidebar-width'
+const COLLAPSED_KEY = 'lexiro-sidebar-collapsed'
 const DEFAULT_WIDTH = 280
 const MIN_WIDTH = 180
 const MAX_WIDTH = 600

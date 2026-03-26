@@ -3,6 +3,7 @@ import { Globe, X, AlertCircle, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ingestUrl } from '../api/documents'
 import type { ProductContext } from './FileUpload'
+import { ProductAutocomplete, type ProductSelection } from './ProductAutocomplete'
 
 interface UrlImportProps {
   onComplete?: () => void
@@ -15,10 +16,16 @@ type ImportStatus = 'idle' | 'submitting' | 'error'
 export function UrlImport({ onComplete, onClose, productContext }: UrlImportProps) {
   const { t } = useTranslation()
   const [url, setUrl] = useState('')
-  const [productName, setProductName] = useState(productContext?.name ?? '')
-  const [firmwareVersion, setFirmwareVersion] = useState('1.0')
-  const [manufacturer, setManufacturer] = useState(productContext?.manufacturer ?? '')
   const hasProductContext = !!productContext?.name
+  const [productSel, setProductSel] = useState<ProductSelection>({
+    productName: productContext?.name ?? '',
+    manufacturer: productContext?.manufacturer ?? '',
+    firmwareVersion: '1.0',
+    isExisting: false,
+  })
+  const productName = productSel.productName
+  const firmwareVersion = productSel.firmwareVersion
+  const manufacturer = productSel.manufacturer
   const [status, setStatus] = useState<ImportStatus>('idle')
   const [error, setError] = useState('')
 
@@ -48,9 +55,12 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
 
   const handleReset = useCallback(() => {
     setUrl('')
-    setProductName('')
-    setFirmwareVersion('1.0')
-    setManufacturer('')
+    setProductSel({
+      productName: '',
+      manufacturer: '',
+      firmwareVersion: '1.0',
+      isExisting: false,
+    })
     setStatus('idle')
     setError('')
   }, [])
@@ -103,17 +113,25 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                 </div>
               )}
 
-              <label>
-                {t('upload.productName')}
-                <input
-                  type="text"
-                  value={productName}
-                  onChange={e => setProductName(e.target.value)}
-                  placeholder={t('upload.productPlaceholder')}
-                  readOnly={hasProductContext}
-                  className={hasProductContext ? 'input-readonly' : ''}
-                />
-              </label>
+              {hasProductContext ? (
+                <label>
+                  {t('upload.productName')}
+                  <input
+                    type="text"
+                    value={productName}
+                    readOnly
+                    className="input-readonly"
+                  />
+                </label>
+              ) : (
+                <label>
+                  {t('upload.productOrCreate')}
+                  <ProductAutocomplete
+                    value={productSel}
+                    onChange={setProductSel}
+                  />
+                </label>
+              )}
 
               <div className="file-upload-row">
                 <label>
@@ -121,8 +139,10 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                   <input
                     type="text"
                     value={firmwareVersion}
-                    onChange={e => setFirmwareVersion(e.target.value)}
+                    onChange={e => setProductSel(prev => ({ ...prev, firmwareVersion: e.target.value }))}
                     placeholder={t('upload.versionPlaceholder')}
+                    readOnly={productSel.isExisting}
+                    className={productSel.isExisting ? 'input-readonly' : ''}
                   />
                 </label>
                 <label>
@@ -130,10 +150,10 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                   <input
                     type="text"
                     value={manufacturer}
-                    onChange={e => setManufacturer(e.target.value)}
+                    onChange={e => setProductSel(prev => ({ ...prev, manufacturer: e.target.value }))}
                     placeholder={t('upload.manufacturerPlaceholder')}
-                    readOnly={hasProductContext && !!productContext?.manufacturer}
-                    className={hasProductContext && !!productContext?.manufacturer ? 'input-readonly' : ''}
+                    readOnly={productSel.isExisting || (hasProductContext && !!productContext?.manufacturer)}
+                    className={productSel.isExisting || (hasProductContext && !!productContext?.manufacturer) ? 'input-readonly' : ''}
                   />
                 </label>
               </div>

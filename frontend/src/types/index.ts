@@ -60,10 +60,28 @@ export interface DebugInfo {
   classify_completion_tokens?: number
   classify_total_tokens?: number
   classify_raw?: string
+  classify_input?: string
+  classify_product?: string | null
   prompt_hash?: string
+  summary_model?: string
+  summary_ms?: number
+  summary_prompt_tokens?: number
+  summary_completion_tokens?: number
+  summary_total_tokens?: number
+  finish_reason?: string
+  continuations?: number
+  effective_top_k?: number
   retry_used?: boolean
   rephrase_ms?: number
   rephrase_query?: string | null
+  decompose_used?: boolean
+  decompose_sub_queries?: string[]
+  decompose_sub_products?: (string | null)[]
+  decompose_model?: string
+  decompose_ms?: number
+  decompose_prompt_tokens?: number
+  decompose_completion_tokens?: number
+  decompose_total_tokens?: number
   status?: 'success' | 'stopped' | 'error'
   status_detail?: string
 }
@@ -75,6 +93,8 @@ export interface ChatMessage {
   content: string
   sources?: SourceInfo[] | null
   duration_ms?: number | null
+  feedback?: 'up' | 'down' | null
+  feedback_comment?: string | null
   debug?: DebugInfo | null
   error_code?: string | null
   created_at: string
@@ -106,6 +126,7 @@ export interface SessionDetail {
 }
 
 export type SSEEvent =
+  | { type: 'progress'; stage: string; sub_queries?: number }
   | { type: 'token'; content: string }
   | { type: 'sources'; sources: SourceInfo[] }
   | { type: 'debug_partial'; debug: Partial<DebugInfo> }
@@ -113,6 +134,43 @@ export type SSEEvent =
   | { type: 'error'; error_code: string; status_code?: number; error_type?: string; detail?: string }
 
 export type StreamStatus = 'idle' | 'streaming' | 'error'
+
+export interface SharedLinkResponse {
+  token: string
+  url: string
+  share_type: string
+  title: string
+  view_count: number
+  is_active: boolean
+  created_at: string
+  expires_at: string | null
+}
+
+export interface SharedMessageSnapshot {
+  role: 'user' | 'assistant'
+  content: string
+  sources?: Record<string, unknown>[] | null
+  created_at: string
+}
+
+export interface SharedContentResponse {
+  share_type: 'session' | 'message'
+  title: string
+  product_filter: string | null
+  version_filter: string | null
+  messages: SharedMessageSnapshot[]
+  created_at: string
+  view_count: number
+}
+
+export interface SharedDebugContentResponse {
+  share_type: string
+  title: string
+  data: Record<string, unknown>
+  created_at: string
+  view_count: number
+  expires_at: string | null
+}
 
 export type DocumentStatusValue = 'pending' | 'processing' | 'ready' | 'error' | 'cancelled'
 
@@ -215,6 +273,9 @@ export interface ProductListItem {
   slug: string
   manufacturer_slug: string
   created_at: string
+  firmware_version_id: number | null
+  version: string
+  display_name: string
   total_documents: number
   pending_documents: number
   processing_documents: number
@@ -278,6 +339,71 @@ export interface ProductDebugInfo {
   sum_extract_ms: number | null
   total_extract_tokens: number
   documents: ProductDocumentSummary[]
+}
+
+export interface DocumentUsageEntry {
+  created_at: string
+  session_id: number
+  message_id: number
+  heading_path: string
+  similarity: number
+  context_tokens: number
+  query_text: string | null
+  query_type: string | null
+  sub_query: string | null
+  charge_usd: number
+}
+
+export interface DocumentUsageStats {
+  document_id: number
+  title: string
+  total_usages: number
+  unique_sessions: number
+  total_context_tokens: number
+  total_charge_usd: number
+  avg_similarity: number | null
+  first_used_at: string | null
+  last_used_at: string | null
+  thumbs_up: number
+  thumbs_down: number
+  total_rated: number
+  top_headings: { heading_path: string; count: number }[]
+  recent_usages: DocumentUsageEntry[]
+}
+
+export interface ProductDocumentUsage {
+  document_id: number
+  title: string
+  total_usages: number
+  total_context_tokens: number
+  total_charge_usd: number
+  avg_similarity: number | null
+  last_used_at: string | null
+  thumbs_up: number
+  thumbs_down: number
+}
+
+export interface ProductUsageStats {
+  product_id: number
+  product_name: string
+  total_usages: number
+  unique_sessions: number
+  unique_documents: number
+  total_context_tokens: number
+  total_charge_usd: number
+  avg_similarity: number | null
+  first_used_at: string | null
+  last_used_at: string | null
+  thumbs_up: number
+  thumbs_down: number
+  total_rated: number
+  documents: ProductDocumentUsage[]
+}
+
+export interface SuggestionChip {
+  text_en: string
+  text_ru: string
+  product_filter: string
 }
 
 export type ReindexMode = 'reingest' | 'reembed' | 'extract_metadata'

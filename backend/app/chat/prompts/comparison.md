@@ -4,6 +4,8 @@
 
 <max_response_tokens>6144</max_response_tokens>
 
+<rag_top_k>15</rag_top_k>
+
 <instructions>
 The user is asking to compare products, versions, features, or approaches.
 
