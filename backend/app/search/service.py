@@ -102,13 +102,13 @@ async def _bm25_search(
             p.name AS product_name,
             p.manufacturer,
             fw.version AS firmware_version,
-            ts_rank_cd(c.tsv, plainto_tsquery('english', :tsquery)) AS bm25_score
+            ts_rank_cd(c.tsv, plainto_tsquery('simple', :tsquery)) AS bm25_score
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
         JOIN products p ON d.product_id = p.id
         JOIN firmware_versions fw ON d.firmware_version_id = fw.id
         WHERE {where_sql}
-          AND c.tsv @@ plainto_tsquery('english', :tsquery)
+          AND c.tsv @@ plainto_tsquery('simple', :tsquery)
         ORDER BY bm25_score DESC
         LIMIT :limit
     """)

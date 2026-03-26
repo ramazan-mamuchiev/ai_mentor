@@ -16,7 +16,7 @@ import httpx
 _RETRYABLE_STATUS_CODES = {429, 500, 503}
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 2.0
-_FALLBACK_MODEL = "gemini-2.5-flash"
+_FALLBACK_MODEL = "gemini-3-flash"
 _FALLBACK_REASONING_EFFORT = "none"
 
 from app.config import settings
@@ -59,18 +59,23 @@ async def stream_chat_completion(
     temperature: float | None = None,
     max_tokens: int | None = None,
     metadata: dict | None = None,
+    reasoning_effort: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream chat completion tokens from the configured LLM provider.
 
     If *metadata* dict is passed, it will be populated with stream stats
     (first_token_ms, provider, resolved model, temperature, max_tokens)
     after the stream completes.
+
+    Args:
+        reasoning_effort: Override for Gemini thinking budget per query type.
+            If None, falls back to settings.llm_reasoning_effort.
     """
     meta = metadata if metadata is not None else {}
     meta["provider"] = settings.llm_provider
 
     if settings.llm_provider == "openai":
-        async for token in _stream_openai_compatible(messages, model, temperature, max_tokens, meta):
+        async for token in _stream_openai_compatible(messages, model, temperature, max_tokens, meta, reasoning_effort=reasoning_effort):
             yield token
     else:
         async for token in _stream_ollama(messages, model, temperature, max_tokens, meta):
@@ -171,17 +176,18 @@ async def _stream_openai_compatible(
     temperature: float | None = None,
     max_tokens: int | None = None,
     meta: dict | None = None,
+    reasoning_effort: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream from any OpenAI-compatible API (Gemini, GPT-4o, OpenRouter, etc.).
 
     Retries on 429/500/503 with exponential backoff. If all retries fail and
     the primary model is not the fallback, automatically falls back to
-    gemini-2.5-flash (Google's recommendation for 503 on Pro).
+    gemini-3-flash (Google's recommendation for 503 on Pro).
     """
     model = model or settings.openai_llm_model
     temperature = temperature if temperature is not None else settings.llm_temperature
     max_tokens = max_tokens or settings.llm_max_tokens
-    reasoning_effort = settings.llm_reasoning_effort or None
+    reasoning_effort = reasoning_effort or settings.llm_reasoning_effort or None
 
     if meta is not None:
         meta.update(model=model, temperature=temperature, max_tokens=max_tokens)

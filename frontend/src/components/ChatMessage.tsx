@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react'
+import { AlertTriangle, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw, Share2, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { submitFeedback } from '../api/chat'
 
 interface Props {
   message: ChatMessageType
@@ -15,6 +16,7 @@ interface Props {
   onShowDebug?: (debug: DebugInfo, sessionId?: number, messageId?: number) => void
   onEditMessage?: (content: string) => void
   onShareMessage?: (messageId: number) => void
+  onFeedbackChange?: (messageId: number, feedback: 'up' | 'down') => void
 }
 
 const STAGE_I18N: Record<string, string> = {
@@ -25,7 +27,7 @@ const STAGE_I18N: Record<string, string> = {
   generating: 'chat.stageGenerating',
 }
 
-export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, streamingStage, onRetry, onShowSources, onShowDebug, onEditMessage, onShareMessage }: Props) {
+export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, streamingStage, onRetry, onShowSources, onShowDebug, onEditMessage, onShareMessage, onFeedbackChange }: Props) {
   const { t } = useTranslation()
   const content = isStreaming ? (streamingContent || '') : message.content
   const sources = isStreaming ? (streamingSources || []) : (message.sources || [])
@@ -37,6 +39,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState('')
   const [copied, setCopied] = useState(false)
+  const [currentFeedback, setCurrentFeedback] = useState<'up' | 'down' | null>(message.feedback ?? null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -101,6 +104,20 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 200) + 'px'
   }, [])
+
+  const handleFeedback = useCallback(async (value: 'up' | 'down') => {
+    if (message.id <= 0) return
+    const newValue = currentFeedback === value ? null : value
+    setCurrentFeedback(newValue)
+    if (newValue) {
+      try {
+        await submitFeedback(message.session_id, message.id, newValue)
+        onFeedbackChange?.(message.id, newValue)
+      } catch {
+        setCurrentFeedback(currentFeedback)
+      }
+    }
+  }, [message.id, message.session_id, currentFeedback, onFeedbackChange])
 
   return (
     <div className={`message ${message.role}`}>
@@ -222,6 +239,24 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               </>
             )}
             <div className="message-footer-actions">
+              <button
+                className={`message-action-btn feedback-btn${currentFeedback === 'up' ? ' feedback-btn--active' : ''}`}
+                onClick={() => handleFeedback('up')}
+                data-tooltip={t('chat.thumbsUp')}
+                aria-label={t('chat.thumbsUp')}
+                type="button"
+              >
+                <ThumbsUp size={12} />
+              </button>
+              <button
+                className={`message-action-btn feedback-btn${currentFeedback === 'down' ? ' feedback-btn--active' : ''}`}
+                onClick={() => handleFeedback('down')}
+                data-tooltip={t('chat.thumbsDown')}
+                aria-label={t('chat.thumbsDown')}
+                type="button"
+              >
+                <ThumbsDown size={12} />
+              </button>
               {debug && (
                 <button
                   className="debug-toggle"

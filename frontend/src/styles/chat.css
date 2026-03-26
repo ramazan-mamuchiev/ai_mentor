@@ -671,6 +671,14 @@
   color: var(--success, #22c55e) !important;
 }
 
+.feedback-btn--active {
+  color: var(--accent) !important;
+}
+
+.feedback-btn--active:hover {
+  color: var(--accent) !important;
+}
+
 /* ── Message edit mode ── */
 .message.user:has(.message-edit-mode) .message-body {
   flex: 1 1 auto;

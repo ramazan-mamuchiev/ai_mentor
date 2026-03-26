@@ -152,7 +152,7 @@ BEGIN
         END LOOP;
     END IF;
 
-    NEW.tsv := to_tsvector('english',
+    NEW.tsv := to_tsvector('simple',
         COALESCE(NEW.heading_path, '') || ' ' ||
         COALESCE(NEW.doc_type, '') || ' ' ||
         entity_text || ' ' ||
@@ -165,8 +165,8 @@ DROP TRIGGER IF EXISTS trg_chunks_tsv ON chunks;
 CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path, doc_type, entities ON chunks
     FOR EACH ROW EXECUTE FUNCTION chunks_tsv_trigger();
 
--- Backfill existing rows
-UPDATE chunks SET tsv = to_tsvector('english',
+-- Backfill existing rows (using 'simple' config for multilingual support)
+UPDATE chunks SET tsv = to_tsvector('simple',
     COALESCE(heading_path, '') || ' ' ||
     COALESCE(doc_type, '') || ' ' ||
     COALESCE(content_clean, content, ''));
@@ -212,6 +212,10 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
+
+-- Feedback on assistant messages (thumbs up/down + optional comment)
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS feedback TEXT CHECK (feedback IN ('up', 'down'));
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS feedback_comment TEXT;
 
 -- Chat message analytics (per-response debug/metrics for RAG answers)
 CREATE TABLE IF NOT EXISTS chat_message_analytics (

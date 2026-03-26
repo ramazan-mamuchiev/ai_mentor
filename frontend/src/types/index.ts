@@ -93,6 +93,8 @@ export interface ChatMessage {
   content: string
   sources?: SourceInfo[] | null
   duration_ms?: number | null
+  feedback?: 'up' | 'down' | null
+  feedback_comment?: string | null
   debug?: DebugInfo | null
   error_code?: string | null
   created_at: string

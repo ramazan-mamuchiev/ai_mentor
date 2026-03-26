@@ -19,6 +19,7 @@ from app.chat.rag import build_rag_prompt, summarize_history
 from app.chat.schemas import (
     ChatMessageResponse,
     CreateSessionRequest,
+    FeedbackRequest,
     SendMessageRequest,
     SessionDetailResponse,
     SessionListItem,
@@ -299,6 +300,8 @@ async def get_session(session_id: int):
                     content=m.content,
                     sources=m.sources,
                     duration_ms=m.duration_ms,
+                    feedback=m.feedback,
+                    feedback_comment=m.feedback_comment,
                     debug=analytics_map[m.id].to_debug_dict(
                         product_filter=chat_session.product_filter,
                         version_filter=chat_session.version_filter,
@@ -320,6 +323,32 @@ async def delete_session(session_id: int):
         await session.delete(chat_session)
         await session.commit()
         logger.info("Chat session deleted", extra={"session_id": session_id})
+
+
+@router.post("/sessions/{session_id}/messages/{message_id}/feedback", status_code=200)
+async def submit_feedback(session_id: int, message_id: int, req: FeedbackRequest):
+    """Submit thumbs-up/down feedback on an assistant message."""
+    async with async_session() as session:
+        msg = await session.get(ChatMessage, message_id)
+        if not msg or msg.session_id != session_id:
+            raise HTTPException(status_code=404, detail="Message not found")
+        if msg.role != "assistant":
+            raise HTTPException(status_code=400, detail="Feedback is only allowed on assistant messages")
+
+        msg.feedback = req.feedback
+        msg.feedback_comment = req.comment
+        await session.commit()
+
+        logger.info(
+            "Message feedback submitted",
+            extra={
+                "session_id": session_id,
+                "message_id": message_id,
+                "feedback": req.feedback,
+                "has_comment": bool(req.comment),
+            },
+        )
+        return {"status": "ok", "message_id": message_id, "feedback": req.feedback}
 
 
 @router.post("/sessions/{session_id}/messages")
@@ -494,6 +523,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                 }
                 yield f"data: {json.dumps({'type': 'debug_partial', 'debug': debug_partial})}\n\n"
 
+                effective_reasoning = rag_debug.get("reasoning_effort")
+
                 t_llm = time.perf_counter()
                 full_response: list[str] = []
                 llm_meta: dict = {}
@@ -504,7 +535,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
 
                 while True:
                     llm_meta_chunk: dict = {}
-                    async for token in stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk):
+                    async for token in stream_chat_completion(llm_messages, max_tokens=effective_max_tokens, metadata=llm_meta_chunk, reasoning_effort=effective_reasoning):
                         full_response.append(token)
                         token_count += 1
                         yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"

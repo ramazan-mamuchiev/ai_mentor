@@ -32,6 +32,9 @@
   "chat.edit": "Edit",
   "chat.editCancel": "Cancel",
   "chat.editSend": "Send",
+  "chat.thumbsUp": "Helpful",
+  "chat.thumbsDown": "Not helpful",
+  "chat.feedbackThanks": "Thanks for your feedback!",
 
   "error.badRequest": "The AI service rejected the request. Please try again.",
   "error.authFailed": "AI service authentication failed. Please check the configuration.",

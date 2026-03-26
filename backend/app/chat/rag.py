@@ -699,6 +699,15 @@ async def summarize_history(
         return existing_summary, empty_meta
 
 
+_QUERY_TYPE_REASONING: dict[str, str] = {
+    "chitchat": "none",
+    "overview": "low",
+    "technical": "medium",
+    "code": "medium",
+    "comparison": "high",
+    "troubleshooting": "high",
+}
+
 ProgressCallback = Callable[[str, dict], Awaitable[None]]
 
 
@@ -1124,6 +1133,7 @@ async def build_rag_prompt(
         "rephrase_ms": rephrase_ms,
         "rephrase_query": rephrase_query,
         "type_max_tokens": type_max_tokens,
+        "reasoning_effort": _QUERY_TYPE_REASONING.get(query_type, settings.llm_reasoning_effort),
         "effective_top_k": effective_top_k,
         "context_budget_tokens": context_budget,
         "context_trimmed_count": context_trimmed_count,
