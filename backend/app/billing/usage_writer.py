@@ -104,6 +104,7 @@ async def write_usage_log(
                 llm_ms=llm_ms,
                 cogs_usd=cogs_usd,
                 charge_usd=charge_usd,
+                tenant_id=tenant_id,
             ))
             await session.commit()
 

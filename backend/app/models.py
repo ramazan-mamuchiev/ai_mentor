@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models for Lexiro."""
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from pgvector.sqlalchemy import Vector
@@ -14,10 +15,123 @@ class Base(DeclarativeBase):
     pass
 
 
+# ---------------------------------------------------------------------------
+# Auth models
+# ---------------------------------------------------------------------------
+
+class Tenant(Base):
+    __tablename__ = "tenants"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+    )
+    email: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    slug: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    tier: Mapped[str] = mapped_column(Text, default="free")
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    api_keys: Mapped[list["ApiKey"]] = relationship(
+        back_populates="tenant", cascade="all, delete-orphan",
+    )
+    oauth_links: Mapped[list["TenantOAuthLink"]] = relationship(
+        back_populates="tenant", cascade="all, delete-orphan",
+    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="tenant", cascade="all, delete-orphan",
+    )
+
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False,
+    )
+    key_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    key_prefix: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, default="")
+    scopes: Mapped[str] = mapped_column(Text, default="search,list")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant: Mapped["Tenant"] = relationship(back_populates="api_keys")
+
+    __table_args__ = (
+        Index("idx_api_keys_hash", "key_hash"),
+        Index("idx_api_keys_tenant", "tenant_id"),
+    )
+
+
+class TenantOAuthLink(Base):
+    __tablename__ = "tenant_oauth_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False,
+    )
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    oauth_id: Mapped[str] = mapped_column(Text, nullable=False)
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant: Mapped["Tenant"] = relationship(back_populates="oauth_links")
+
+    __table_args__ = (
+        UniqueConstraint("provider", "oauth_id"),
+        Index("idx_oauth_links_tenant", "tenant_id"),
+    )
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant: Mapped["Tenant"] = relationship(back_populates="refresh_tokens")
+
+    __table_args__ = (
+        Index("idx_refresh_tokens_hash", "token_hash"),
+        Index("idx_refresh_tokens_tenant", "tenant_id"),
+        Index("idx_refresh_tokens_expires", "expires_at"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Product catalog models
+# ---------------------------------------------------------------------------
+
 class Product(Base):
     __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     manufacturer: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(Text, default="")
@@ -36,6 +150,7 @@ class Product(Base):
         UniqueConstraint("manufacturer", "model"),
         UniqueConstraint("manufacturer_slug", "slug"),
         Index("idx_products_slug", "manufacturer_slug", "slug"),
+        Index("idx_products_tenant", "tenant_id"),
     )
 
 
@@ -58,6 +173,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     firmware_version_id: Mapped[int] = mapped_column(ForeignKey("firmware_versions.id", ondelete="CASCADE"), nullable=False)
     format: Mapped[str] = mapped_column(Text, default="markdown")
@@ -150,6 +266,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -327,6 +444,7 @@ class DocumentUsageLog(Base):
     __tablename__ = "document_usage_log"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
     )
@@ -369,6 +487,7 @@ class SharedLink(Base):
     __tablename__ = "shared_links"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
     token: Mapped[str] = mapped_column(Text, unique=True, index=True, nullable=False)
     session_id: Mapped[int | None] = mapped_column(
         ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=True
@@ -400,6 +519,7 @@ class SearchAnalytics(Base):
     __tablename__ = "search_analytics"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), nullable=True)
     source: Mapped[str] = mapped_column(Text, nullable=False)
     tool_name: Mapped[str] = mapped_column(Text, nullable=False)
     query: Mapped[str] = mapped_column(Text, default="")
@@ -430,6 +550,7 @@ class ReindexJob(Base):
     __tablename__ = "reindex_jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
     mode: Mapped[str] = mapped_column(Text, nullable=False)  # "reingest" | "reembed"
     status: Mapped[str] = mapped_column(Text, default="pending")
     product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -466,6 +587,7 @@ class UploadSession(Base):
     __tablename__ = "upload_sessions"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     offset: Mapped[int] = mapped_column(BigInteger, default=0)

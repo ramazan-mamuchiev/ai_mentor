@@ -9,6 +9,7 @@ import { ProductPicker } from '../components/ProductPicker'
 import { useChat } from '../hooks/useChat'
 import { useTheme } from '../hooks/useTheme'
 import type { ChatSession } from '../types'
+import { OnboardingChecklist } from '../components/OnboardingChecklist'
 import { DocumentsPage } from './DocumentsPage'
 import { ProductsPage } from './ProductsPage'
 import { ProductDetailPage } from './ProductDetailPage'
@@ -286,6 +287,7 @@ export function ChatApp() {
           onClose={() => setShowProductPicker(false)}
         />
       )}
+      <OnboardingChecklist />
     </Layout>
   )
 }

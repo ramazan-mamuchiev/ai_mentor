@@ -12,11 +12,13 @@ from starlette.routing import Mount
 from mcp.server.fastmcp import FastMCP
 
 from app.config import settings
+from app.auth.router import router as auth_router
 from app.chat.router import router as chat_router
 from app.documents.router import router as documents_router
 from app.products.router import router as products_router
 from app.reindex.router import router as reindex_router
 from app.share.router import router as share_router
+from app.share.public import public_router as share_public_router
 from app.uploads.router import router as uploads_router
 from app.logging_config import setup_logging, active_requests_count
 from app.middleware.request_logging import RequestLoggingMiddleware
@@ -103,6 +105,21 @@ async def _apply_schema():
     await _migrate_chunks_parent_content()
     await _migrate_ingested_at_to_uploaded_at()
     await _migrate_product_slugs()
+    await _apply_auth_schema()
+
+
+async def _apply_auth_schema():
+    """Apply auth tables migration (idempotent)."""
+    from app.database import engine
+    import pathlib
+
+    migrations_dir = pathlib.Path(__file__).resolve().parent.parent / "db" / "migrations"
+    for sql_file in sorted(migrations_dir.glob("*.sql")):
+        sql = sql_file.read_text(encoding="utf-8")
+        async with engine.begin() as conn:
+            raw = await conn.get_raw_connection()
+            await raw.driver_connection.execute(sql)
+        logger.info("Migration applied", extra={"file": sql_file.name})
 
 
 async def _migrate_devices_to_products():
@@ -458,14 +475,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from fastapi import Depends
+from app.auth.dependencies import get_current_tenant
+
+_auth = [Depends(get_current_tenant)]
+
 app.add_middleware(RequestLoggingMiddleware)
-app.include_router(documents_router, prefix="/api/v1")
-app.include_router(products_router, prefix="/api/v1")
-app.include_router(chat_router, prefix="/api/v1")
-app.include_router(reindex_router, prefix="/api/v1")
-app.include_router(share_router, prefix="/api/v1")
-app.include_router(uploads_router, prefix="/api/v1")
-app.router.routes.append(Mount("/mcp", app=mcp.streamable_http_app()))
+app.include_router(auth_router)
+app.include_router(documents_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(products_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(chat_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(reindex_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(share_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(uploads_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(share_public_router, prefix="/api/v1")
+from app.mcp.auth_middleware import McpApiKeyAuthMiddleware
+app.router.routes.append(Mount("/mcp", app=McpApiKeyAuthMiddleware(mcp.streamable_http_app())))
 
 
 @app.get("/health")

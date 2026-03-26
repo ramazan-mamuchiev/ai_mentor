@@ -323,52 +323,7 @@ async def share_debug_product(manufacturer_slug: str, product_slug: str, request
     return _link_response(link, request)
 
 
-# ── Public view ──
-
-
-@router.get("/s/{token}", response_model=None)
-async def get_shared_content(token: str):
-    """Public endpoint: view shared content by token."""
-    async with async_session() as db:
-        result = await db.execute(
-            select(SharedLink).where(SharedLink.token == token)
-        )
-        link = result.scalar_one_or_none()
-        if not link:
-            raise HTTPException(status_code=404, detail="Shared link not found")
-        if not link.is_active:
-            raise HTTPException(status_code=410, detail="This shared link is no longer active")
-        if link.expires_at and link.expires_at < datetime.now(timezone.utc):
-            raise HTTPException(status_code=410, detail="This shared link has expired")
-
-        link.view_count += 1
-        await db.commit()
-
-        snapshot = link.snapshot_json
-
-        if link.share_type.startswith("debug_"):
-            return SharedDebugContentResponse(
-                share_type=link.share_type,
-                title=link.title,
-                data=snapshot.get("data", {}),
-                created_at=link.created_at,
-                view_count=link.view_count,
-                expires_at=link.expires_at,
-            )
-
-        session_info = snapshot.get("session", {})
-        return SharedContentResponse(
-            share_type=link.share_type,
-            title=link.title,
-            product_filter=session_info.get("product_filter"),
-            version_filter=session_info.get("version_filter"),
-            messages=[
-                SharedMessageSnapshot(**m)
-                for m in snapshot.get("messages", [])
-            ],
-            created_at=link.created_at,
-            view_count=link.view_count,
-        )
+# Public GET /s/{token} is in app.share.public (no auth required)
 
 
 @router.delete("/share/{token}", status_code=204)

@@ -87,6 +87,26 @@ class Settings(BaseSettings):
     ocr_enabled: bool = True
     ocr_lang_detect_model: str = "gemini-2.5-flash"
 
+    # --- Auth ---
+    jwt_secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_minutes: int = 15
+    jwt_refresh_token_days: int = 7
+
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
+
+    app_base_url: str = "http://localhost:80"
+
+    # --- Email (Resend) ---
+    resend_api_key: str = ""
+    email_from: str = "onboarding@resend.dev"
+
+    # --- Sentry ---
+    sentry_dsn: str = ""
+
     app_env: str = "development"
     app_log_level: str = "INFO"
 

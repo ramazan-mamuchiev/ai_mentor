@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
+import { AccountBadge } from './AccountBadge'
 import { LanguageToggle } from './LanguageToggle'
 import { SessionList } from './SessionList'
 import { ThemeToggle } from './ThemeToggle'
@@ -215,6 +216,7 @@ export function Layout({
         )}
 
         <div className="sidebar-footer">
+          <AccountBadge collapsed={collapsed && !isMobile} />
           <LanguageToggle />
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>

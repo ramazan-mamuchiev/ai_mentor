@@ -1,0 +1,117 @@
+const BASE = '/api/v1'
+
+export interface RegisterData {
+  email: string
+  password: string
+}
+
+export interface RegisterResponse {
+  id: string
+  email: string
+  slug: string
+  api_key: string
+}
+
+export interface LoginData {
+  email: string
+  password: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+}
+
+export interface MeResponse {
+  id: string
+  email: string
+  name: string | null
+  slug: string
+  tier: string
+  email_verified: boolean
+  created_at: string
+}
+
+export interface ApiKeyItem {
+  id: string
+  key_prefix: string
+  name: string
+  scopes: string
+  is_active: boolean
+  last_used_at: string | null
+  created_at: string
+}
+
+export interface ApiKeyCreated extends ApiKeyItem {
+  key: string
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function register(data: RegisterData): Promise<RegisterResponse> {
+  const res = await fetch(`${BASE}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function login(data: LoginData): Promise<TokenResponse> {
+  const res = await fetch(`${BASE}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function refreshToken(): Promise<TokenResponse> {
+  const res = await fetch(`${BASE}/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${BASE}/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+}
+
+export async function getMe(): Promise<MeResponse> {
+  const res = await fetch(`${BASE}/me`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getApiKeys(): Promise<ApiKeyItem[]> {
+  const res = await fetch(`${BASE}/api-keys`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function createApiKey(name: string): Promise<ApiKeyCreated> {
+  const res = await fetch(`${BASE}/api-keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function deleteApiKey(id: string): Promise<void> {
+  await fetch(`${BASE}/api-keys/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+}

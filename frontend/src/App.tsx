@@ -1,15 +1,43 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './auth/AuthContext'
 import { LandingPage } from './pages/LandingPage'
+import { RegisterPage } from './pages/RegisterPage'
+import { LoginPage } from './pages/LoginPage'
 import { ChatApp } from './pages/ChatApp'
 import { SharedView } from './pages/SharedView'
+import type { ReactNode } from 'react'
 
-export default function App() {
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  if (loading) return <div className="auth-loading" />
+  if (!user) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
+function GuestRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  if (loading) return <div className="auth-loading" />
+  if (user) return <Navigate to="/app" replace />
+  return <>{children}</>
+}
+
+function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/s/:token" element={<SharedView />} />
-      <Route path="/app/*" element={<ChatApp />} />
+      <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+      <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+      <Route path="/app/*" element={<ProtectedRoute><ChatApp /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   )
 }

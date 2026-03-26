@@ -9,6 +9,7 @@ from sqlalchemy import text
 from app.billing.usage_writer import write_usage_log
 from app.config import settings
 from app.database import async_session
+from app.mcp.auth_middleware import current_tenant_id
 from app.models import SearchAnalytics
 from app.search.service import search_documents, search_endpoint
 
@@ -140,6 +141,7 @@ async def tool_search_documentation(
         product_filter=product,
         version_filter=version,
         duration_ms=duration_ms,
+        tenant_id=current_tenant_id.get(),
     )
 
     return response_text
@@ -229,6 +231,7 @@ async def tool_get_api_endpoint(
         top_similarity=top_similarity,
         product_filter=product,
         duration_ms=duration_ms,
+        tenant_id=current_tenant_id.get(),
     )
 
     return response_text
@@ -336,6 +339,7 @@ async def tool_list_products(
         duration_ms=duration_ms,
         cogs_usd=Decimal("0"),
         charge_usd=Decimal("0"),
+        tenant_id=current_tenant_id.get(),
     )
 
     return response_text
