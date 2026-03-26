@@ -41,3 +41,6 @@ frontend/test-results/
 
 # Docker image tarballs
 *.tar
+
+# SSL certificates and private keys
+ssl/
