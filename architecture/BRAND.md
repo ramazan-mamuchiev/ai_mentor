@@ -204,11 +204,11 @@ Lexiro = Lex + iro
 |--------|--------|-------|
 | lexiro.com | Parked / for sale | Timeout on fetch — likely on domain marketplace |
 | lexiro.in | Occupied | Indian hardware company |
-| **lexiro.ai** | **Likely available** | Not found in WHOIS searches |
-| **lexiro.dev** | **Likely available** | Not found in WHOIS searches |
-| **lexiro.io** | **Likely available** | Not found in WHOIS searches |
+| lexiro.ai | Not purchased | Consider purchasing later |
+| lexiro.dev | Not purchased | Consider purchasing later |
+| **lexiro.io** | **✅ Purchased** | **Primary production domain** — DNS → 82.38.66.177 |
 
-> **Action required:** Manually verify .ai, .dev, .io at registrar (e.g. Namecheap, Porkbun) and purchase immediately.
+> **lexiro.io** is the primary domain. Consider purchasing .ai and .dev as brand protection.
 
 #### Developer Platforms
 
@@ -367,7 +367,7 @@ See [BRAND_SLOGANS.md](BRAND_SLOGANS.md) for full collection including taglines,
 ```
 [Name] | Lexiro
 Complex docs. Simple code.
-https://lexiro.ai
+https://lexiro.io
 ```
 
 ### 6.4 GitHub README Header
@@ -437,9 +437,9 @@ Lexiro transforms chaotic product documentation into a structured knowledge base
 
 | Domain | Priority | Status | Action |
 |--------|----------|--------|--------|
-| lexiro.ai | **Critical** | Likely available | Register immediately |
-| lexiro.dev | **Critical** | Likely available | Register immediately |
-| lexiro.io | High | Likely available | Register immediately |
+| **lexiro.io** | **Primary** | **✅ Purchased** | Production domain, DNS active |
+| lexiro.ai | High | Not purchased | Register for brand protection |
+| lexiro.dev | Medium | Not purchased | Register for brand protection |
 | lexiro.com | Medium | Parked / for sale | Negotiate purchase ($500–$3000) |
 
 ### 8.2 Social & Code Accounts
@@ -491,7 +491,8 @@ When renaming from Plexicode to Lexiro:
 
 ### 9.3 External
 
-- [ ] Domain registration (.ai, .dev, .io)
+- [x] Domain registration — **lexiro.io purchased**, DNS active
+- [ ] Domain registration (.ai, .dev) — brand protection
 - [ ] GitHub organization — create @lexiro
 - [ ] Social account registration (Twitter, LinkedIn, YouTube)
 - [ ] Trademark filing (FIPS, EUIPO, USPTO)

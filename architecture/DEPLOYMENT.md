@@ -143,12 +143,12 @@ services:
 | MinIO | http://localhost:9001 | Object storage console |
 | Ollama | http://localhost:11434 | LLM API |
 
-### Service URLs (Staging VPS)
+### Service URLs (Production VPS)
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| Web UI + Landing | http://82.38.66.177 | Landing (`/`) + App (`/app`) via nginx |
-| API | http://82.38.66.177/api/ | Proxied to api:8000 by nginx |
+| Web UI + Landing | https://lexiro.io | Landing (`/`) + App (`/app`) via nginx |
+| API | https://lexiro.io/api/ | Proxied to api:8000 by nginx |
 
 ### Planned Docker Compose (Production)
 
@@ -159,17 +159,18 @@ services:
 
 ---
 
-## VPS Deployment (Staging / Demo)
+## VPS Deployment (Production)
 
-Current staging environment for testing and demos.
+Production environment.
 
 ### Server
 
 | Parameter | Value |
 |-----------|-------|
+| Domain | `lexiro.io` |
 | IP | `82.38.66.177` |
 | OS | Ubuntu (Docker pre-installed) |
-| Access | `ssh root@82.38.66.177` |
+| Access | `ssh root@lexiro.io` |
 | Project path | `/opt/lexiro` |
 | Repository | `https://github.com/olegvphoenix/lexiro.git` (branch: `main`) |
 
@@ -192,25 +193,25 @@ Monitoring stack (Loki, Promtail, Grafana) and Ollama are not deployed on stagin
 **Full stack rebuild (backend + frontend):**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/lexiro && git pull && docker compose build api web && docker compose up -d api worker beat web"
+ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build api web && docker compose up -d api worker beat web"
 ```
 
 **Frontend only:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/lexiro && git pull && docker compose build web && docker compose up -d web"
+ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build web && docker compose up -d web"
 ```
 
 **Backend only:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/lexiro && git pull && docker compose build api && docker compose up -d api worker beat"
+ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build api && docker compose up -d api worker beat"
 ```
 
 **View logs:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/lexiro && docker compose logs -f web api"
+ssh root@lexiro.io "cd /opt/lexiro && docker compose logs -f web api"
 ```
 
 ---
@@ -372,7 +373,7 @@ SENDGRID_API_KEY=SG....
 
 ### CORS
 - Configurable `CORS_ORIGINS` via env variable
-- Production: only `https://app.lexiro.dev` and customer domains
+- Production: only `https://lexiro.io` and customer domains
 - Credentials mode: `allow_credentials=True` (for JWT cookies)
 
 ### Input Validation

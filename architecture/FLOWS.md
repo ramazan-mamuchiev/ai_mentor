@@ -524,7 +524,7 @@ Frontend: polls product list (5s interval when pending/processing)
 ## Frontend Routing Flow
 
 ```
-User opens http://82.38.66.177/ (or http://localhost/)
+User opens https://lexiro.io/ (or http://localhost/)
         │
         ▼
 nginx: try_files $uri $uri/ /index.html (SPA fallback)

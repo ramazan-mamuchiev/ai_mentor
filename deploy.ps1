@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Lexiro deploy script — pushes to git and deploys to VPS (82.38.66.177)
+# Lexiro deploy script — pushes to git and deploys to VPS (lexiro.io)
 #
 # Usage:
 #   .\deploy.ps1              # auto-detect changed services
@@ -14,7 +14,7 @@ param(
     [switch]$SkipPush
 )
 
-$VPS = "root@82.38.66.177"
+$VPS = "root@lexiro.io"
 $REMOTE_DIR = "/opt/lexiro"
 $ErrorActionPreference = "Stop"
 

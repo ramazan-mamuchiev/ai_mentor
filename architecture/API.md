@@ -15,7 +15,7 @@
 {
   "mcpServers": {
     "lexiro": {
-      "url": "https://api.lexiro.dev/mcp/sse",
+      "url": "https://lexiro.io/mcp/sse",
       "headers": { "Authorization": "Bearer ipx_a1b2c3d4e5f6..." }
     }
   }
