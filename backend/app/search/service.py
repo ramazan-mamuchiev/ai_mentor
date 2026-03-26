@@ -321,12 +321,16 @@ async def search_documents(
             await _update_rag_hit_counts(session, results)
         except Exception:
             logger.warning("Failed to update RAG hit counts", exc_info=True)
+            await session.rollback()
 
     return results
 
 
 async def _update_rag_hit_counts(session: AsyncSession, results: list[dict]) -> None:
-    """Increment rag_hit_count and update rag_avg_similarity for documents used in search results."""
+    """Increment rag_hit_count and update rag_avg_similarity for documents used in search results.
+
+    Does NOT commit — the caller is responsible for committing the transaction.
+    """
     from collections import defaultdict
     doc_sims: dict[int, list[float]] = defaultdict(list)
     for r in results:
@@ -349,8 +353,6 @@ async def _update_rag_hit_counts(session: AsyncSession, results: list[dict]) -> 
                 rag_last_used_at = NOW()
             WHERE id = :doc_id
         """), {"doc_id": doc_id, "hits": len(sims), "avg_sim": avg_sim, "sum_sim": sum(sims)})
-
-    await session.commit()
 
 
 async def search_endpoint(
