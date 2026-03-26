@@ -46,6 +46,7 @@ celery.conf.update(
         "cleanup_expired_uploads": {"queue": "monitoring"},
         "check_stale_reindex_jobs": {"queue": "monitoring"},
         "ensure_usage_partitions": {"queue": "monitoring"},
+        "cleanup_expired_shares": {"queue": "monitoring"},
     },
     beat_schedule={
         "cleanup-expired-uploads": {
@@ -62,6 +63,10 @@ celery.conf.update(
         },
         "ensure-usage-partitions": {
             "task": "ensure_usage_partitions",
+            "schedule": 86400.0,
+        },
+        "cleanup-expired-shares": {
+            "task": "cleanup_expired_shares",
             "schedule": 86400.0,
         },
     },
@@ -1267,3 +1272,36 @@ def ensure_usage_partitions_task(self):
         "Usage partitions ensured",
         extra={"event": "usage_partitions", "partitions": created},
     )
+
+
+@celery.task(name="cleanup_expired_shares", bind=True)
+def cleanup_expired_shares_task(self):
+    """Periodic task: delete expired and old deactivated shared links."""
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select, or_, and_
+    from app.models import SharedLink
+
+    engine = _get_sync_engine()
+    now = datetime.now(timezone.utc)
+    deactivated_cutoff = now - timedelta(days=30)
+    deleted = 0
+
+    with Session(engine) as session:
+        rows = session.execute(
+            select(SharedLink).where(
+                or_(
+                    and_(SharedLink.expires_at.isnot(None), SharedLink.expires_at < now),
+                    and_(SharedLink.is_active.is_(False), SharedLink.created_at < deactivated_cutoff),
+                )
+            )
+        ).scalars().all()
+
+        for link in rows:
+            session.delete(link)
+            deleted += 1
+
+        if deleted:
+            session.commit()
+
+    if deleted:
+        logger.info("Cleaned up expired/deactivated shared links", extra={"count": deleted})

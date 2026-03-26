@@ -13,6 +13,7 @@ class SharedLinkResponse(BaseModel):
     view_count: int
     is_active: bool
     created_at: datetime
+    expires_at: datetime | None = None
 
 
 class SharedMessageSnapshot(BaseModel):
@@ -30,3 +31,12 @@ class SharedContentResponse(BaseModel):
     messages: list[SharedMessageSnapshot]
     created_at: datetime
     view_count: int
+
+
+class SharedDebugContentResponse(BaseModel):
+    share_type: str
+    title: str
+    data: dict
+    created_at: datetime
+    view_count: int
+    expires_at: datetime | None = None

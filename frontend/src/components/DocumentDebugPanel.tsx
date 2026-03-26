@@ -81,17 +81,20 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
 }
 
 interface ContentProps {
-  documentId: number
+  documentId?: number
+  initialDebug?: DocumentDebugInfo
+  initialUsage?: DocumentUsageStats | null
 }
 
-export function DocumentDebugContent({ documentId }: ContentProps) {
+export function DocumentDebugContent({ documentId, initialDebug, initialUsage }: ContentProps) {
   const { t } = useTranslation()
-  const [debug, setDebug] = useState<DocumentDebugInfo | null>(null)
-  const [usage, setUsage] = useState<DocumentUsageStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [debug, setDebug] = useState<DocumentDebugInfo | null>(initialDebug ?? null)
+  const [usage, setUsage] = useState<DocumentUsageStats | null>(initialUsage ?? null)
+  const [loading, setLoading] = useState(!initialDebug)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (initialDebug || documentId == null) return
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -103,7 +106,7 @@ export function DocumentDebugContent({ documentId }: ContentProps) {
       .catch(e => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [documentId])
+  }, [documentId, initialDebug])
 
   if (loading) {
     return (

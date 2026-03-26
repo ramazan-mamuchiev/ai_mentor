@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bug, FileSearch, X } from 'lucide-react'
+import { Bug, FileSearch, Share2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { DebugInfo, SourceInfo } from '../types'
 import { SourceCard } from './SourceCard'
 import { MarkdownPreviewModal } from './MarkdownPreviewModal'
+import { ShareModal } from './ShareModal'
 
 const MOBILE_BP = 768
 const RATIO_KEY = 'lexiro-right-panel-ratio'
@@ -66,7 +67,7 @@ interface Props {
   onClose: () => void
 }
 
-function DebugPanelContent({ debug }: { debug: DebugInfo }) {
+export function DebugPanelContent({ debug }: { debug: DebugInfo }) {
   const { t } = useTranslation()
   const promptTotal = (debug.query_tokens ?? 0) + (debug.context_tokens ?? 0)
     + (debug.history_tokens ?? 0) + (debug.system_prompt_tokens ?? 0)
@@ -247,6 +248,7 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
+  const [shareModal, setShareModal] = useState(false)
   const [ratio, setRatio] = useState(loadRatio)
   const dragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -319,9 +321,20 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
               )}
             </div>
           </div>
-          <button className="sources-panel-close" onClick={onClose}>
-            <X size={14} />
-          </button>
+          <div className="sources-panel-header-actions">
+            {!isSourcesMode && messageId != null && (
+              <button
+                className="sources-panel-share"
+                onClick={() => setShareModal(true)}
+                data-tooltip={t('share.shareDebug')}
+              >
+                <Share2 size={14} />
+              </button>
+            )}
+            <button className="sources-panel-close" onClick={onClose}>
+              <X size={14} />
+            </button>
+          </div>
         </div>
         <div className="sources-panel-body">
           {isSourcesMode ? (
@@ -342,6 +355,13 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
             documentId={previewTarget.id}
             documentTitle={previewTarget.title}
             onClose={() => setPreviewTarget(null)}
+          />
+        )}
+        {shareModal && messageId != null && (
+          <ShareModal
+            type="debug_chat"
+            id={messageId}
+            onClose={() => setShareModal(false)}
           />
         )}
       </div>

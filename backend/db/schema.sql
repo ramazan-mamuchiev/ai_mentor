@@ -416,6 +416,12 @@ CREATE TABLE IF NOT EXISTS shared_links (
 CREATE INDEX IF NOT EXISTS idx_shared_links_token ON shared_links(token);
 CREATE INDEX IF NOT EXISTS idx_shared_links_session ON shared_links(session_id);
 
+-- Migration: make session_id nullable (debug shares may not have a session)
+ALTER TABLE shared_links ALTER COLUMN session_id DROP NOT NULL;
+
+-- Migration: add TTL support for debug shares (NULL = permanent)
+ALTER TABLE shared_links ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+
 -- Completion tracking (finish_reason + continuations for truncation diagnostics)
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS finish_reason TEXT;
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS continuations INT NOT NULL DEFAULT 0;

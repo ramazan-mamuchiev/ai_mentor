@@ -58,18 +58,21 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
 }
 
 interface ContentProps {
-  manufacturerSlug: string
-  productSlug: string
+  manufacturerSlug?: string
+  productSlug?: string
+  initialDebug?: ProductDebugInfo
+  initialUsage?: ProductUsageStats | null
 }
 
-export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentProps) {
+export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebug, initialUsage }: ContentProps) {
   const { t } = useTranslation()
-  const [debug, setDebug] = useState<ProductDebugInfo | null>(null)
-  const [usage, setUsage] = useState<ProductUsageStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [debug, setDebug] = useState<ProductDebugInfo | null>(initialDebug ?? null)
+  const [usage, setUsage] = useState<ProductUsageStats | null>(initialUsage ?? null)
+  const [loading, setLoading] = useState(!initialDebug)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (initialDebug || !manufacturerSlug || !productSlug) return
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -81,7 +84,7 @@ export function ProductDebugContent({ manufacturerSlug, productSlug }: ContentPr
       .catch(e => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [manufacturerSlug, productSlug])
+  }, [manufacturerSlug, productSlug, initialDebug])
 
   const docsSummary = useMemo(() => {
     if (!debug?.documents.length) return null

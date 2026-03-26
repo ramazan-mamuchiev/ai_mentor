@@ -523,5 +523,9 @@
   "share.error": "Failed to create share link",
   "share.sharedChat": "Shared chat",
   "share.sharedAnswer": "Shared answer",
+  "share.shareDebug": "Share debug info",
+  "share.sharedDebug": "Shared debug info",
+  "share.expiresAt": "Expires: {{date}}",
+  "share.expired": "This link has expired",
   "share.close": "Close"
 }

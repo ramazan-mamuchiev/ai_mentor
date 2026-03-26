@@ -1,13 +1,47 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Copy, Link2, Loader2, X, EyeOff } from 'lucide-react'
-import { shareSession, shareMessage, deleteSharedLink } from '../api/share'
+import {
+  shareSession,
+  shareMessage,
+  shareDebugMessage,
+  shareDebugDocument,
+  shareDebugProduct,
+  deleteSharedLink,
+} from '../api/share'
 import type { SharedLinkResponse } from '../types'
 
+export type ShareType = 'session' | 'message' | 'debug_chat' | 'debug_document' | 'debug_product'
+
 interface Props {
-  type: 'session' | 'message'
-  id: number
+  type: ShareType
+  id: number | string
   onClose: () => void
+}
+
+async function createShareLink(type: ShareType, id: number | string): Promise<SharedLinkResponse> {
+  switch (type) {
+    case 'session':
+      return shareSession(id as number)
+    case 'message':
+      return shareMessage(id as number)
+    case 'debug_chat':
+      return shareDebugMessage(id as number)
+    case 'debug_document':
+      return shareDebugDocument(id as number)
+    case 'debug_product': {
+      const [mfr, slug] = (id as string).split('/')
+      return shareDebugProduct(mfr, slug)
+    }
+  }
+}
+
+function getModalTitle(type: ShareType, t: (key: string) => string): string {
+  switch (type) {
+    case 'session': return t('share.shareChat')
+    case 'message': return t('share.shareAnswer')
+    default: return t('share.shareDebug')
+  }
 }
 
 export function ShareModal({ type, id, onClose }: Props) {
@@ -24,9 +58,7 @@ export function ShareModal({ type, id, onClose }: Props) {
       try {
         setLoading(true)
         setError(null)
-        const result = type === 'session'
-          ? await shareSession(id)
-          : await shareMessage(id)
+        const result = await createShareLink(type, id)
         if (!cancelled) setLink(result)
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
@@ -81,13 +113,15 @@ export function ShareModal({ type, id, onClose }: Props) {
     return () => document.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
+  const isDebug = type.startsWith('debug_')
+
   return (
     <div className="share-overlay" onClick={handleOverlayClick}>
       <div className="share-modal">
         <div className="share-modal-header">
           <h3>
             <Link2 size={16} />
-            {type === 'session' ? t('share.shareChat') : t('share.shareAnswer')}
+            {getModalTitle(type, t)}
           </h3>
           <button className="share-modal-close" onClick={onClose} aria-label={t('share.close')}>
             <X size={18} />
@@ -114,6 +148,11 @@ export function ShareModal({ type, id, onClose }: Props) {
               {link.is_active ? (
                 <>
                   <p className="share-success-text">{t('share.linkCreated')}</p>
+                  {isDebug && link.expires_at && (
+                    <p className="share-expires-text">
+                      {t('share.expiresAt', { date: new Date(link.expires_at).toLocaleDateString() })}
+                    </p>
+                  )}
                   <div className="share-link-field">
                     <input
                       type="text"

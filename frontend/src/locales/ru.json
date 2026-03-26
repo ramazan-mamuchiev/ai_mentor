@@ -523,5 +523,9 @@
   "share.error": "Не удалось создать ссылку",
   "share.sharedChat": "Общий чат",
   "share.sharedAnswer": "Общий ответ",
+  "share.shareDebug": "Поделиться отладочной информацией",
+  "share.sharedDebug": "Отладочная информация",
+  "share.expiresAt": "Истекает: {{date}}",
+  "share.expired": "Срок действия ссылки истёк",
   "share.close": "Закрыть"
 }

@@ -370,8 +370,8 @@ class SharedLink(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     token: Mapped[str] = mapped_column(Text, unique=True, index=True, nullable=False)
-    session_id: Mapped[int] = mapped_column(
-        ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
+    session_id: Mapped[int | None] = mapped_column(
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=True
     )
     message_id: Mapped[int | None] = mapped_column(
         ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=True
@@ -383,6 +383,9 @@ class SharedLink(Base):
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
     )
 
     session: Mapped["ChatSession"] = relationship()

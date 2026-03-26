@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bug, X } from 'lucide-react'
+import { Bug, Share2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ProductDebugContent } from './ProductDebugPanel'
 import { DocumentDebugContent } from './DocumentDebugPanel'
+import { ShareModal } from './ShareModal'
 
 const MOBILE_BP = 768
 const RATIO_KEY = 'lexiro-docs-panel-ratio'
@@ -55,6 +56,7 @@ export function DocsRightPanel(props: Props) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const [ratio, setRatio] = useState(loadRatio)
+  const [shareModal, setShareModal] = useState(false)
   const dragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -119,9 +121,18 @@ export function DocsRightPanel(props: Props) {
               <span className="sources-panel-ids">{title}</span>
             </div>
           </div>
-          <button className="sources-panel-close" onClick={props.onClose}>
-            <X size={14} />
-          </button>
+          <div className="sources-panel-header-actions">
+            <button
+              className="sources-panel-share"
+              onClick={() => setShareModal(true)}
+              data-tooltip={t('share.shareDebug')}
+            >
+              <Share2 size={14} />
+            </button>
+            <button className="sources-panel-close" onClick={props.onClose}>
+              <X size={14} />
+            </button>
+          </div>
         </div>
         <div className="sources-panel-body">
           {props.mode === 'product' ? (
@@ -133,6 +144,15 @@ export function DocsRightPanel(props: Props) {
             <DocumentDebugContent documentId={props.documentId} />
           )}
         </div>
+        {shareModal && (
+          <ShareModal
+            type={props.mode === 'product' ? 'debug_product' : 'debug_document'}
+            id={props.mode === 'product'
+              ? `${props.manufacturerSlug}/${props.productSlug}`
+              : props.documentId}
+            onClose={() => setShareModal(false)}
+          />
+        )}
       </div>
     </>
   )

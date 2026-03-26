@@ -138,11 +138,12 @@ export type StreamStatus = 'idle' | 'streaming' | 'error'
 export interface SharedLinkResponse {
   token: string
   url: string
-  share_type: 'session' | 'message'
+  share_type: string
   title: string
   view_count: number
   is_active: boolean
   created_at: string
+  expires_at: string | null
 }
 
 export interface SharedMessageSnapshot {
@@ -160,6 +161,15 @@ export interface SharedContentResponse {
   messages: SharedMessageSnapshot[]
   created_at: string
   view_count: number
+}
+
+export interface SharedDebugContentResponse {
+  share_type: string
+  title: string
+  data: Record<string, unknown>
+  created_at: string
+  view_count: number
+  expires_at: string | null
 }
 
 export type DocumentStatusValue = 'pending' | 'processing' | 'ready' | 'error' | 'cancelled'
