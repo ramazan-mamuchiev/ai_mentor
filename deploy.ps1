@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# IPCodex deploy script — pushes to git and deploys to VPS (82.38.66.177)
+# Lexiro deploy script — pushes to git and deploys to VPS (82.38.66.177)
 #
 # Usage:
 #   .\deploy.ps1              # auto-detect changed services

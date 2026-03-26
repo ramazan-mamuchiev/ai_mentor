@@ -6,6 +6,7 @@ import json as json_lib
 import logging
 import re
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select as sa_select
 
 from app.config import settings
+from app.llm.http_client import gemini_client, ollama_client
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
 from app.models import ChatMessage, Product
 from app.search.service import search_documents
@@ -118,12 +120,23 @@ def _build_classify_prompt() -> str:
 _CLASSIFY_PROMPT_TEMPLATE = _build_classify_prompt()
 
 
+_product_names_cache: list[str] = []
+_product_names_ts: float = 0.0
+_PRODUCT_NAMES_TTL = 300.0
+
+
 async def _load_product_names(db: AsyncSession) -> list[str]:
-    """Load product names from the database for classify prompt."""
+    """Load product names from the database with in-memory TTL cache (5 min)."""
+    global _product_names_cache, _product_names_ts
+    now = time.monotonic()
+    if _product_names_cache and (now - _product_names_ts) < _PRODUCT_NAMES_TTL:
+        return _product_names_cache
     result = await db.execute(
         text("SELECT name FROM products WHERE name != 'TestDevice' ORDER BY name")
     )
-    return [row[0] for row in result.fetchall()]
+    _product_names_cache = [row[0] for row in result.fetchall()]
+    _product_names_ts = now
+    return _product_names_cache
 
 
 def _build_system_prompt(query_type: str) -> str:
@@ -140,7 +153,7 @@ def _embedding_model_name() -> str:
 from app.chat.prompts import REWRITE_PROMPT as _REWRITE_PROMPT_IMPORTED
 from app.chat.prompts import REPHRASE_FOR_SEARCH_PROMPT, SUMMARIZE_HISTORY_PROMPT, SYSTEM_PROMPT_NO_DOCS
 
-async def _classify_query(db: AsyncSession, query: str) -> tuple[str, str | None, dict]:
+async def _classify_query(db: AsyncSession, query: str, product_names: list[str] | None = None) -> tuple[str, str | None, dict]:
     """Classify user query and detect product using a single LLM call.
 
     Returns (query_type, detected_product, usage_meta).
@@ -148,7 +161,8 @@ async def _classify_query(db: AsyncSession, query: str) -> tuple[str, str | None
     if not settings.classifier_enabled:
         return "overview", None, {}
 
-    product_names = await _load_product_names(db)
+    if product_names is None:
+        product_names = await _load_product_names(db)
     products_str = ", ".join(product_names) if product_names else "(no products in database)"
 
     prompt = _CLASSIFY_PROMPT_TEMPLATE.format(query=query, products=products_str)
@@ -168,10 +182,9 @@ async def _classify_query(db: AsyncSession, query: str) -> tuple[str, str | None
             "Content-Type": "application/json",
             "Authorization": f"Bearer {settings.gemini_api_key}",
         }
-        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        resp = await gemini_client().post(url, json=payload, headers=headers, timeout=10.0)
+        resp.raise_for_status()
+        data = resp.json()
 
         classify_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -389,11 +402,10 @@ async def _llm_rewrite_openai(messages: list[dict]) -> str:
         "Content-Type": "application/json",
         "Authorization": f"Bearer {settings.gemini_api_key}",
     }
-    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
-        resp = await client.post(url, json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"].strip()
+    resp = await gemini_client().post(url, json=payload, headers=headers, timeout=15.0)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"].strip()
 
 
 async def _llm_rewrite_ollama(messages: list[dict]) -> str:
@@ -404,11 +416,10 @@ async def _llm_rewrite_ollama(messages: list[dict]) -> str:
         "stream": False,
         "options": {"temperature": 0, "num_predict": 256},
     }
-    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
-        resp = await client.post(url, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["message"]["content"].strip()
+    resp = await ollama_client().post(url, json=payload, timeout=15.0)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["message"]["content"].strip()
 
 
 async def _rephrase_for_retry(query: str) -> str | None:
@@ -435,7 +446,7 @@ def _load_decompose_prompt() -> str:
 
 _DECOMPOSE_PROMPT_TEMPLATE = _load_decompose_prompt()
 
-_DECOMPOSE_TYPES = frozenset({"comparison"})
+_DECOMPOSE_TYPES = frozenset({"comparison", "troubleshooting"})
 
 
 async def _decompose_query(
@@ -478,10 +489,9 @@ async def _decompose_query(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {settings.gemini_api_key}",
         }
-        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        resp = await gemini_client().post(url, json=payload, headers=headers, timeout=10.0)
+        resp.raise_for_status()
+        data = resp.json()
 
         decompose_ms = round((time.perf_counter() - t0) * 1000, 1)
         raw = data["choices"][0]["message"]["content"].strip()
@@ -660,10 +670,9 @@ async def summarize_history(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {settings.gemini_api_key}",
         }
-        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        resp = await gemini_client().post(url, json=payload, headers=headers, timeout=15.0)
+        resp.raise_for_status()
+        data = resp.json()
 
         summary = data["choices"][0]["message"]["content"].strip()
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -690,6 +699,9 @@ async def summarize_history(
         return existing_summary, empty_meta
 
 
+ProgressCallback = Callable[[str, dict], Awaitable[None]]
+
+
 async def build_rag_prompt(
     db: AsyncSession,
     query: str,
@@ -700,6 +712,7 @@ async def build_rag_prompt(
     doc_context: str | None = None,
     product_filter_source: str | None = None,
     history_summary: str | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """Build a complete prompt with RAG context for the LLM.
 
@@ -707,11 +720,16 @@ async def build_rag_prompt(
         product_id: Exact product ID for filtering (used when product is locked).
         product_filter: Product name for display and fallback filtering.
         history_summary: Compressed summary of older conversation messages.
+        progress_callback: Optional async callback ``(stage, meta) -> None`` for SSE progress.
 
     Returns:
         Tuple of (messages for LLM, source chunks for the client, rag_debug dict).
     """
     t0 = time.perf_counter()
+
+    async def _emit(stage: str, **kwargs: object) -> None:
+        if progress_callback:
+            await progress_callback(stage, kwargs)
 
     has_docs = await _has_any_documents(db)
 
@@ -767,12 +785,17 @@ async def build_rag_prompt(
 
         return messages, [], rag_debug
 
+    if history:
+        await _emit("rewriting")
     t_rewrite = time.perf_counter()
     search_query = await _rewrite_query(query, history) if history else query
     rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
 
+    product_names = await _load_product_names(db)
+
+    await _emit("classifying")
     classify_input = search_query if search_query != query else query
-    query_type, classify_product, classify_meta = await _classify_query(db, classify_input)
+    query_type, classify_product, classify_meta = await _classify_query(db, classify_input, product_names)
 
     auto_product = classify_product
     if auto_product and auto_product != product_filter:
@@ -825,9 +848,11 @@ async def build_rag_prompt(
 
     is_explicit_lock = product_filter_source == "explicit" and effective_product_id is not None
 
-    product_names = await _load_product_names(db)
+    if query_type in _DECOMPOSE_TYPES and settings.decompose_enabled:
+        await _emit("decomposing")
     decompose_result = await _decompose_query(search_query, query_type, product_names)
 
+    await _emit("searching", sub_queries=len(decompose_result.sub_queries) if decompose_result and decompose_result.sub_queries else 0)
     t_search = time.perf_counter()
 
     if decompose_result and decompose_result.sub_queries:
@@ -918,6 +943,40 @@ async def build_rag_prompt(
         titles = set(c["doc_title"] for c in chunks)
         if len(titles) == 1:
             detected_doc = next(iter(titles))
+
+    effective_max_tokens = type_max_tokens or settings.llm_max_tokens
+    pre_system_prompt = _build_system_prompt(query_type)
+    pre_history_msgs = _build_history_messages(
+        history, settings.rag_history_messages, settings.rag_history_max_tokens,
+        summary=history_summary,
+    ) if history else []
+    pre_history_tokens = sum(_estimate_tokens(m["content"]) for m in pre_history_msgs)
+    pre_system_tokens = _estimate_tokens(pre_system_prompt)
+    pre_query_tokens = _estimate_tokens(query)
+    context_budget = (
+        settings.model_max_input_tokens
+        - pre_system_tokens
+        - pre_history_tokens
+        - pre_query_tokens
+        - effective_max_tokens
+        - 2000
+    )
+    context_budget = max(context_budget, 1000)
+
+    chunks_before_trim = len(chunks)
+    trimmed: list[dict] = []
+    used_budget = 0
+    for chunk in chunks:
+        parent = chunk.get("parent_content")
+        est = _estimate_tokens(parent) if parent else chunk.get("token_count", 0) or _estimate_tokens(chunk.get("content", ""))
+        if used_budget + est > context_budget:
+            break
+        trimmed.append(chunk)
+        used_budget += est
+    context_trimmed_count = chunks_before_trim - len(trimmed)
+    chunks = trimmed
+
+    await _emit("generating")
 
     context = _format_context(chunks)
     context_tokens = _estimate_tokens(context)
@@ -1066,6 +1125,8 @@ async def build_rag_prompt(
         "rephrase_query": rephrase_query,
         "type_max_tokens": type_max_tokens,
         "effective_top_k": effective_top_k,
+        "context_budget_tokens": context_budget,
+        "context_trimmed_count": context_trimmed_count,
         "decompose_used": decompose_result is not None and bool(decompose_result.sub_queries),
         "decompose_sub_queries": decompose_result.sub_queries if decompose_result else [],
         "decompose_sub_products": decompose_result.sub_products if decompose_result else [],

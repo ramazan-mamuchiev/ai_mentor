@@ -1,6 +1,6 @@
-# Plexicode — Monitoring, Logging & Alerting
+# Lexiro — Monitoring, Logging & Alerting
 
-> Part of [Plexicode Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
+> Part of [Lexiro Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
 
 ---
 
@@ -121,7 +121,7 @@ Extracted labels (`level`, `logger`) enable efficient Loki queries like:
 
 ## Grafana Dashboards
 
-9 provisioned dashboards in the `Plexicode` folder:
+9 provisioned dashboards in the `Lexiro` folder:
 
 | Dashboard | File | Key Panels |
 |-----------|------|------------|

@@ -3,7 +3,7 @@ import { test, expect } from '../fixtures'
 test.describe('Chat Flow', () => {
   test('shows empty state on load', async ({ page }) => {
     await page.goto('/')
-    await expect(page.locator('.messages-empty-title')).toHaveText('Plexicode AI')
+    await expect(page.locator('.messages-empty-title')).toHaveText('Lexiro')
     await expect(page.locator('.messages-empty-subtitle')).toContainText('Ask me anything')
   })
 

@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from app.config import settings
+from app.llm.http_client import gemini_client
 from app.ingestion.text_cleaner import clean_for_embedding
 
 logger = logging.getLogger(__name__)
@@ -102,8 +103,7 @@ async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResul
     usage = RerankUsage(model=settings.rerank_model)
 
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
-            response = await client.post(url, json=payload, headers=headers)
+        response = await gemini_client().post(url, json=payload, headers=headers, timeout=30.0)
 
         if response.status_code != 200:
             logger.warning(

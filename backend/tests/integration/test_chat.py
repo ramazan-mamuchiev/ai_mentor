@@ -202,7 +202,7 @@ class TestRAGIntegration:
 
         assert len(messages) >= 2
         assert messages[0]["role"] == "system"
-        assert "IPCodex AI" in messages[0]["content"]
+        assert "Lexiro AI" in messages[0]["content"]
         assert messages[-1]["role"] == "user"
         assert messages[-1]["content"] == "How to authenticate with HMAC?"
         assert len(sources) > 0

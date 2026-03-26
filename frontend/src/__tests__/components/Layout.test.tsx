@@ -33,9 +33,9 @@ beforeEach(() => {
 })
 
 describe('Layout', () => {
-  it('renders sidebar with Plexicode title', () => {
+  it('renders sidebar with Lexiro title', () => {
     renderLayout()
-    expect(screen.getByText('Plexicode')).toBeInTheDocument()
+    expect(screen.getByText('Lexiro')).toBeInTheDocument()
   })
 
   it('renders children in main area', () => {

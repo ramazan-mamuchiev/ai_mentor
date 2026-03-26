@@ -16,6 +16,7 @@ interface Props {
   messages: ChatMessageType[]
   streamingContent: string
   streamingSources: SourceInfo[]
+  streamingStage?: string
   status: StreamStatus
   onSend: (content: string) => void
   onCancel: () => void
@@ -37,6 +38,7 @@ export function ChatWindow({
   messages,
   streamingContent,
   streamingSources,
+  streamingStage,
   status,
   onSend,
   onCancel,
@@ -222,6 +224,7 @@ export function ChatWindow({
                   isStreaming
                   streamingContent={streamingContent}
                   streamingSources={streamingSources}
+                  streamingStage={streamingStage}
                   onShowSources={handleShowSources}
                   onShowDebug={handleShowDebug}
                 />

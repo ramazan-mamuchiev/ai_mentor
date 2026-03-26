@@ -1,6 +1,6 @@
-# Plexicode — Database Schema & Data Model
+# Lexiro — Database Schema & Data Model
 
-> Part of [Plexicode Architecture](PLAN.md)
+> Part of [Lexiro Architecture](PLAN.md)
 
 ---
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from app.config import settings
+from app.llm.http_client import gemini_client
 
 logger = logging.getLogger(__name__)
 
@@ -175,10 +176,9 @@ async def _call_llm_async(prompt: str) -> tuple[str, dict]:
         "Authorization": f"Bearer {settings.gemini_api_key}",
     }
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
-        resp = await client.post(url, json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+    resp = await gemini_client().post(url, json=payload, headers=headers, timeout=30.0)
+    resp.raise_for_status()
+    data = resp.json()
 
     text = data["choices"][0]["message"]["content"].strip()
     usage = data.get("usage", {})

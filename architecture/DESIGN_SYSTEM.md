@@ -1,8 +1,8 @@
-# Plexicode — Design System & UI/UX Guidelines
+# Lexiro — Design System & UI/UX Guidelines
 
 > **Status**: v1.0 — March 21, 2026
 > **Author**: Oleg Voitekhovich
-> **Purpose**: Единый источник правды по дизайн-системе для всех UI-компонентов Plexicode.
+> **Purpose**: Единый источник правды по дизайн-системе для всех UI-компонентов Lexiro.
 > При реализации новых страниц и компонентов — использовать ТОЛЬКО этот документ.
 >
 > Related: [PLAN.md](PLAN.md) · [BRAND_SLOGANS.md](BRAND_SLOGANS.md) · [GTM_STRATEGY.md](GTM_STRATEGY.md)
@@ -609,7 +609,7 @@ padding: 40px 20px;
 - Уведомление об успешном сохранении после upload
 - Минималистичный UI, фокус на статусах
 
-### Синтезированные UI/UX принципы для Plexicode
+### Синтезированные UI/UX принципы для Lexiro
 
 1. **Чистая таблица/список** документов с фильтрацией по статусу и продукту
 2. **Drag-and-drop upload** как основной способ загрузки
@@ -628,7 +628,7 @@ padding: 40px 20px;
 
 ### Разделы
 
-Plexicode — публичный коммерческий SaaS-продукт. Sidebar содержит 5 разделов навигации (паттерн из GitBook, Documentation.AI, Postman, Algolia):
+Lexiro — публичный коммерческий SaaS-продукт. Sidebar содержит 5 разделов навигации (паттерн из GitBook, Documentation.AI, Postman, Algolia):
 
 | Иконка (lucide-react) | Раздел | `activePage` value | Статус |
 |---|---|---|---|
@@ -680,12 +680,12 @@ background: var(--surface-hover);
 
 ## 12. Copyright и брендинг
 
-Plexicode — **публичный коммерческий SaaS-продукт**. Copyright обязателен.
+Lexiro — **публичный коммерческий SaaS-продукт**. Copyright обязателен.
 
 ### Лендинг footer ✅
 
 ```
-© 2026 Plexicode · by Aleh Vaitsekhovich
+© 2026 Lexiro · by Aleh Vaitsekhovich
 ```
 
 Где "Aleh Vaitsekhovich" — кликабельная ссылка на LinkedIn:
@@ -699,7 +699,7 @@ Plexicode — **публичный коммерческий SaaS-продукт*
 В footer sidebar (рядом с переключателями темы и языка) добавить:
 
 ```
-© 2026 Plexicode · by Aleh Vaitsekhovich
+© 2026 Lexiro · by Aleh Vaitsekhovich
 ```
 
 Стиль:
@@ -724,7 +724,7 @@ color: var(--text-muted);
 ### Локализация
 
 ```json
-"landing.footer.copyright": "© 2026 Plexicode",
+"landing.footer.copyright": "© 2026 Lexiro",
 "landing.footer.by": "by" / "от",
 "landing.footer.author": "Aleh Vaitsekhovich"
 ```
@@ -753,7 +753,7 @@ frontend/src/styles/
 
 ## 14. Тип продукта
 
-**Plexicode — публичный коммерческий SaaS-продукт** для управления и поиска по технической документации с помощью AI.
+**Lexiro — публичный коммерческий SaaS-продукт** для управления и поиска по технической документации с помощью AI.
 
 ### Следствия для UI/UX
 

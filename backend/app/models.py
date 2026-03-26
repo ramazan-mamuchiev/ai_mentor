@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for IPCodex MVP."""
+"""SQLAlchemy ORM models for Lexiro."""
 
 from datetime import datetime, timedelta, timezone
 

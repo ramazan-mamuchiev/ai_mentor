@@ -124,6 +124,7 @@ export interface SessionDetail {
 }
 
 export type SSEEvent =
+  | { type: 'progress'; stage: string; sub_queries?: number }
   | { type: 'token'; content: string }
   | { type: 'sources'; sources: SourceInfo[] }
   | { type: 'debug_partial'; debug: Partial<DebugInfo> }

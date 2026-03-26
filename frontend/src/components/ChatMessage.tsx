@@ -9,6 +9,7 @@ interface Props {
   isStreaming?: boolean
   streamingContent?: string
   streamingSources?: SourceInfo[]
+  streamingStage?: string
   onRetry?: () => void
   onShowSources?: (sources: SourceInfo[], sessionId?: number, messageId?: number) => void
   onShowDebug?: (debug: DebugInfo, sessionId?: number, messageId?: number) => void
@@ -16,7 +17,15 @@ interface Props {
   onShareMessage?: (messageId: number) => void
 }
 
-export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, onRetry, onShowSources, onShowDebug, onEditMessage, onShareMessage }: Props) {
+const STAGE_I18N: Record<string, string> = {
+  rewriting: 'chat.stageRewriting',
+  classifying: 'chat.stageClassifying',
+  decomposing: 'chat.stageDecomposing',
+  searching: 'chat.stageSearching',
+  generating: 'chat.stageGenerating',
+}
+
+export function ChatMessageComponent({ message, isStreaming, streamingContent, streamingSources, streamingStage, onRetry, onShowSources, onShowDebug, onEditMessage, onShareMessage }: Props) {
   const { t } = useTranslation()
   const content = isStreaming ? (streamingContent || '') : message.content
   const sources = isStreaming ? (streamingSources || []) : (message.sources || [])
@@ -145,7 +154,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             ) : isWaiting ? (
               <div className="typing-indicator">
                 <Loader2 size={14} className="typing-spinner" />
-                <span>{t('chat.searching')}</span>
+                <span>{t(streamingStage && STAGE_I18N[streamingStage] ? STAGE_I18N[streamingStage] : 'chat.searching')}</span>
               </div>
             ) : (
               <MarkdownRenderer

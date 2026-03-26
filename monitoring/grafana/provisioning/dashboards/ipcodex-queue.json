@@ -1,6 +1,6 @@
 {
   "uid": "ipcodex-queue",
-  "title": "Plexicode Queue Monitor",
+  "title": "Lexiro Queue Monitor",
   "tags": ["ipcodex", "queue", "celery"],
   "timezone": "browser",
   "editable": true,

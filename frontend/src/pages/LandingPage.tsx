@@ -76,9 +76,9 @@ export function LandingPage() {
           className="landing-header-logo"
           onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
         >
-          <img src="/logo-on-light.svg" alt="Plexicode" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Plexicode" className="logo-dark" />
-          <span>Plexicode</span>
+          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+          <span>Lexiro</span>
         </a>
 
         <nav className="landing-nav">

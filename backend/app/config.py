@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     decompose_model: str = "gemini-2.5-flash"
     decompose_max_sub_queries: int = 4
 
+    model_max_input_tokens: int = 1_000_000
+
     ocr_enabled: bool = True
     ocr_lang_detect_model: str = "gemini-2.5-flash"
 

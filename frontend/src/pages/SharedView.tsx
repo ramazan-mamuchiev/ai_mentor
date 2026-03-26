@@ -55,8 +55,8 @@ export function SharedView() {
       <div className="shared-view">
         <div className="shared-view-header">
           <Link to="/" className="shared-view-logo">
-            <img src="/logo-on-light.svg" alt="Plexicode" className="logo-light" />
-            <img src="/logo-on-dark.svg" alt="Plexicode" className="logo-dark" />
+            <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
+            <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
           </Link>
         </div>
         <div className="shared-view-error">
@@ -73,8 +73,8 @@ export function SharedView() {
     <div className="shared-view">
       <div className="shared-view-header">
         <Link to="/" className="shared-view-logo">
-          <img src="/logo-on-light.svg" alt="Plexicode" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Plexicode" className="logo-dark" />
+          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
         </Link>
         <div className="shared-view-meta">
           {data.product_filter && (

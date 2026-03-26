@@ -1,6 +1,6 @@
-# Plexicode — Deployment, Security & Operations
+# Lexiro — Deployment, Security & Operations
 
-> Part of [Plexicode Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
+> Part of [Lexiro Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
 
 ---
 

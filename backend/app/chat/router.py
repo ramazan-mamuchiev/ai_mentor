@@ -1,5 +1,6 @@
 """Chat REST API with SSE streaming."""
 
+import asyncio
 import json
 import logging
 import re
@@ -326,6 +327,7 @@ async def send_message(session_id: int, req: SendMessageRequest):
     """Send a message and receive an SSE-streamed response.
 
     SSE events:
+    - {"type": "progress", "stage": "..."} — pipeline stage indicator
     - {"type": "token", "content": "..."} — incremental text tokens
     - {"type": "sources", "sources": [...]} — retrieved documentation sources
     - {"type": "done", "message_id": N, "duration_ms": F} — stream complete
@@ -392,18 +394,52 @@ async def send_message(session_id: int, req: SendMessageRequest):
                             chat_session.summary_up_to_message_id = old_messages[-1].id
                             current_summary = updated_summary
 
+                progress_queue: asyncio.Queue[dict | None] = asyncio.Queue()
+
+                async def _on_progress(stage: str, meta: dict) -> None:
+                    await progress_queue.put({"type": "progress", "stage": stage, **meta})
+
+                rag_result_holder: dict = {}
+                rag_error_holder: list[BaseException] = []
+
+                async def _run_rag() -> None:
+                    try:
+                        msgs, srcs, dbg = await build_rag_prompt(
+                            db=db,
+                            query=req.content,
+                            history=history_list,
+                            product_id=chat_session.product_id,
+                            product_filter=chat_session.product_filter,
+                            version_filter=chat_session.version_filter,
+                            doc_context=chat_session.doc_context,
+                            product_filter_source=chat_session.product_filter_source,
+                            history_summary=current_summary,
+                            progress_callback=_on_progress,
+                        )
+                        rag_result_holder["messages"] = msgs
+                        rag_result_holder["sources"] = srcs
+                        rag_result_holder["rag_debug"] = dbg
+                    except BaseException as exc:
+                        rag_error_holder.append(exc)
+                    finally:
+                        await progress_queue.put(None)
+
                 t_rag = time.perf_counter()
-                messages, sources, rag_debug = await build_rag_prompt(
-                    db=db,
-                    query=req.content,
-                    history=history_list,
-                    product_id=chat_session.product_id,
-                    product_filter=chat_session.product_filter,
-                    version_filter=chat_session.version_filter,
-                    doc_context=chat_session.doc_context,
-                    product_filter_source=chat_session.product_filter_source,
-                    history_summary=current_summary,
-                )
+                rag_task = asyncio.create_task(_run_rag())
+
+                while True:
+                    event = await progress_queue.get()
+                    if event is None:
+                        break
+                    yield f"data: {json.dumps(event)}\n\n"
+
+                await rag_task
+                if rag_error_holder:
+                    raise rag_error_holder[0]
+
+                messages = rag_result_holder["messages"]
+                sources = rag_result_holder["sources"]
+                rag_debug = rag_result_holder["rag_debug"]
                 rag_ms = round((time.perf_counter() - t_rag) * 1000, 1)
                 if summary_meta:
                     rag_debug.update(summary_meta)

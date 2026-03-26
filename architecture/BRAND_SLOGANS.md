@@ -26,9 +26,11 @@
 
 ---
 
-## 1. Primary Slogan & Subtitle
+## 1. Final Selection — Approved Messaging
 
-> **✅ ВЫБРАН: Hero Tagline**
+### 1.1 Landing Page (Hero Section)
+
+> **✅ H1 — Hero Tagline**
 >
 > **EN: "Complex docs. Simple code."**
 > **RU: "Сложная документация. Простой код."**
@@ -37,13 +39,46 @@
 > Напрямую адресует боль разработчика.
 > Работает для технической и бизнес-аудитории.
 
-> **✅ ВЫБРАН: Subtitle**
+> **✅ H2 — Subtitle (под заголовком)**
 >
 > **EN: "From documentation to code. Instantly."**
 > **RU: "Из документации в код. Мгновенно."**
 >
 > Конкретика и скорость — объясняет *как именно* работает продукт.
 > Передаёт трансформацию (docs → code) и ключевое преимущество (instantly).
+
+### 1.2 Product (In-App)
+
+> **✅ Welcome Screen / Empty State**
+>
+> **EN: "Ask, don't read."**
+> **RU: "Спрашивай, не читай."**
+>
+> Короткая, действенная, сразу объясняет суть продукта и подталкивает к действию.
+
+### 1.3 Brand Verb (Community / Twitter / Внутренние коммуникации)
+
+> **✅ Brand Catchphrase**
+>
+> **EN: "Don't read it. Lex it."**
+> **RU: "Не читай. Лексирни."**
+
+### 1.4 Elevator Pitch (Sales / Conferences)
+
+> **✅ Pitch Line**
+>
+> **EN: "We read the docs so you don't have to."**
+> **RU: "Мы читаем документацию, чтобы вам не пришлось."**
+
+### 1.5 Quick Reference
+
+| Where | What | EN | RU |
+|-------|------|----|----|
+| **Landing H1** | Hero tagline | Complex docs. Simple code. | Сложная документация. Простой код. |
+| **Landing H2** | Subtitle | From documentation to code. Instantly. | Из документации в код. Мгновенно. |
+| **Product** | Welcome / Empty | Ask, don't read. | Спрашивай, не читай. |
+| **Community** | Brand verb | Don't read it. Lex it. | Не читай. Лексирни. |
+| **Sales** | Elevator pitch | We read the docs so you don't have to. | Мы читаем документацию, чтобы вам не пришлось. |
 
 ---
 
