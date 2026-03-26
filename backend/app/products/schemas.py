@@ -81,6 +81,34 @@ class ProductDocumentSummary(BaseModel):
     indexed_at: datetime | None = None
 
 
+class ProductDocumentUsage(BaseModel):
+    document_id: int
+    title: str
+    total_usages: int = 0
+    total_context_tokens: int = 0
+    total_charge_usd: float = 0
+    avg_similarity: float | None = None
+    last_used_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ProductUsageStats(BaseModel):
+    product_id: int
+    product_name: str
+    total_usages: int = 0
+    unique_sessions: int = 0
+    unique_documents: int = 0
+    total_context_tokens: int = 0
+    total_charge_usd: float = 0
+    avg_similarity: float | None = None
+    first_used_at: datetime | None = None
+    last_used_at: datetime | None = None
+    documents: list[ProductDocumentUsage] = []
+
+    model_config = {"from_attributes": True}
+
+
 class ProductDebugInfo(BaseModel):
     product_id: int
     product_name: str

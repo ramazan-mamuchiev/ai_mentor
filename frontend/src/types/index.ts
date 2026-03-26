@@ -60,6 +60,8 @@ export interface DebugInfo {
   classify_completion_tokens?: number
   classify_total_tokens?: number
   classify_raw?: string
+  classify_input?: string
+  classify_product?: string | null
   prompt_hash?: string
   summary_model?: string
   summary_ms?: number
@@ -72,6 +74,14 @@ export interface DebugInfo {
   retry_used?: boolean
   rephrase_ms?: number
   rephrase_query?: string | null
+  decompose_used?: boolean
+  decompose_sub_queries?: string[]
+  decompose_sub_products?: (string | null)[]
+  decompose_model?: string
+  decompose_ms?: number
+  decompose_prompt_tokens?: number
+  decompose_completion_tokens?: number
+  decompose_total_tokens?: number
   status?: 'success' | 'stopped' | 'error'
   status_detail?: string
 }
@@ -316,6 +326,57 @@ export interface ProductDebugInfo {
   sum_extract_ms: number | null
   total_extract_tokens: number
   documents: ProductDocumentSummary[]
+}
+
+export interface DocumentUsageEntry {
+  created_at: string
+  session_id: number
+  message_id: number
+  heading_path: string
+  similarity: number
+  context_tokens: number
+  query_text: string | null
+  query_type: string | null
+  sub_query: string | null
+  charge_usd: number
+}
+
+export interface DocumentUsageStats {
+  document_id: number
+  title: string
+  total_usages: number
+  unique_sessions: number
+  total_context_tokens: number
+  total_charge_usd: number
+  avg_similarity: number | null
+  first_used_at: string | null
+  last_used_at: string | null
+  top_headings: { heading_path: string; count: number }[]
+  recent_usages: DocumentUsageEntry[]
+}
+
+export interface ProductDocumentUsage {
+  document_id: number
+  title: string
+  total_usages: number
+  total_context_tokens: number
+  total_charge_usd: number
+  avg_similarity: number | null
+  last_used_at: string | null
+}
+
+export interface ProductUsageStats {
+  product_id: number
+  product_name: string
+  total_usages: number
+  unique_sessions: number
+  unique_documents: number
+  total_context_tokens: number
+  total_charge_usd: number
+  avg_similarity: number | null
+  first_used_at: string | null
+  last_used_at: string | null
+  documents: ProductDocumentUsage[]
 }
 
 export type ReindexMode = 'reingest' | 'reembed' | 'extract_metadata'

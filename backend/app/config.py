@@ -78,6 +78,10 @@ class Settings(BaseSettings):
 
     search_retry_enabled: bool = True
 
+    decompose_enabled: bool = True
+    decompose_model: str = "gemini-2.5-flash"
+    decompose_max_sub_queries: int = 4
+
     ocr_enabled: bool = True
     ocr_lang_detect_model: str = "gemini-2.5-flash"
 

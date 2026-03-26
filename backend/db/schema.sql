@@ -415,3 +415,32 @@ CREATE INDEX IF NOT EXISTS idx_shared_links_session ON shared_links(session_id);
 -- Completion tracking (finish_reason + continuations for truncation diagnostics)
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS finish_reason TEXT;
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS continuations INT NOT NULL DEFAULT 0;
+
+-- Document usage log (per-document attribution for author remuneration)
+CREATE TABLE IF NOT EXISTS document_usage_log (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    request_id TEXT NOT NULL,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    message_id INT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    document_id INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(id) ON DELETE SET NULL,
+
+    chunk_id BIGINT,
+    heading_path TEXT NOT NULL DEFAULT '',
+    similarity FLOAT NOT NULL DEFAULT 0,
+    context_tokens INT NOT NULL DEFAULT 0,
+
+    query_text TEXT,
+    query_type TEXT,
+    sub_query TEXT,
+
+    charge_usd NUMERIC(12,8) NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_dul_request ON document_usage_log(request_id);
+CREATE INDEX IF NOT EXISTS idx_dul_document ON document_usage_log(document_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_dul_product ON document_usage_log(product_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_dul_session ON document_usage_log(session_id);
+CREATE INDEX IF NOT EXISTS idx_dul_created ON document_usage_log(created_at);

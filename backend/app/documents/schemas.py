@@ -112,6 +112,37 @@ class DocumentMarkdownPreview(BaseModel):
     source: str  # "s3_converted" | "s3_original" | "chunks_reconstructed"
 
 
+class DocumentUsageEntry(BaseModel):
+    created_at: datetime
+    session_id: int
+    message_id: int
+    heading_path: str = ""
+    similarity: float = 0
+    context_tokens: int = 0
+    query_text: str | None = None
+    query_type: str | None = None
+    sub_query: str | None = None
+    charge_usd: float = 0
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentUsageStats(BaseModel):
+    document_id: int
+    title: str
+    total_usages: int = 0
+    unique_sessions: int = 0
+    total_context_tokens: int = 0
+    total_charge_usd: float = 0
+    avg_similarity: float | None = None
+    first_used_at: datetime | None = None
+    last_used_at: datetime | None = None
+    top_headings: list[dict] = []
+    recent_usages: list[DocumentUsageEntry] = []
+
+    model_config = {"from_attributes": True}
+
+
 class DocumentDebugInfo(BaseModel):
     document_id: int
     title: str

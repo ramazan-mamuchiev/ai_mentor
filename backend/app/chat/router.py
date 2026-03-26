@@ -6,6 +6,7 @@ import re
 import time
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
@@ -26,7 +27,7 @@ from app.chat.schemas import (
 from app.config import settings
 from app.database import async_session
 from app.llm.client import LLMError, stream_chat_completion
-from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Product
+from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, DocumentUsageLog, Product
 
 MAX_CONTINUATIONS = settings.llm_max_continuations
 CONTINUE_PROMPT = (
@@ -689,6 +690,52 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         product_filter=chat_session.product_filter,
                         duration_ms=summary_meta.get("summary_ms", 0),
                     )
+
+                decompose_prompt_tokens = rag_debug.get("decompose_prompt_tokens", 0)
+                decompose_completion_tokens = rag_debug.get("decompose_completion_tokens", 0)
+                if decompose_prompt_tokens > 0 or decompose_completion_tokens > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="query_decompose",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=rag_debug.get("decompose_model", ""),
+                        prompt_tokens=decompose_prompt_tokens,
+                        completion_tokens=decompose_completion_tokens,
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=rag_debug.get("decompose_ms", 0),
+                    )
+
+                if sources:
+                    try:
+                        total_ctx = rag_debug.get("context_tokens", 0)
+                        for src in sources:
+                            doc_id = src.get("document_id")
+                            if not doc_id:
+                                continue
+                            preview_len = len(src.get("content_preview", ""))
+                            chunk_tokens = max(1, preview_len // 4)
+                            share = chunk_tokens / total_ctx if total_ctx > 0 else 0
+                            db.add(DocumentUsageLog(
+                                request_id=request_id,
+                                session_id=session_id,
+                                message_id=assistant_msg.id,
+                                document_id=doc_id,
+                                product_id=chat_session.product_id,
+                                heading_path=src.get("heading_path", ""),
+                                similarity=src.get("similarity", 0),
+                                context_tokens=chunk_tokens,
+                                query_text=req.content[:500],
+                                query_type=rag_debug.get("query_type"),
+                                sub_query=src.get("sub_query"),
+                                charge_usd=Decimal(str(round(
+                                    float(debug_info.get("charge_usd", 0) or 0) * share, 8
+                                ))),
+                            ))
+                        await db.commit()
+                    except Exception:
+                        logger.warning("Failed to write document_usage_log", exc_info=True)
 
                 logger.info(
                     "Chat message completed",

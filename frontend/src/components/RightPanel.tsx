@@ -106,6 +106,12 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.classifyCost')}</div>
           <div className="debug-row"><span>{t('debug.queryType')}</span><code>{debug.query_type}</code></div>
+          {debug.classify_input && (
+            <div className="debug-row debug-row-wide"><span>{t('debug.classifyInput')}</span><code className="debug-query-value">{debug.classify_input}</code></div>
+          )}
+          {debug.classify_product && (
+            <div className="debug-row"><span>{t('debug.classifyProduct')}</span><code>{debug.classify_product}</code></div>
+          )}
           {(debug.classify_total_tokens ?? 0) > 0 && (
             <>
               <div className="debug-row"><span>{t('debug.classifyPromptTokens')}</span><code>{fmt(debug.classify_prompt_tokens)}</code></div>
@@ -116,6 +122,33 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           {debug.classify_model && <div className="debug-row debug-row-config"><span>{t('debug.classifyModel')}</span><code>{debug.classify_model}</code></div>}
           {debug.classify_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.classifyTime')}</span><code>{(debug.classify_ms / 1000).toFixed(2)}s</code></div>}
           {debug.prompt_hash && <div className="debug-row debug-row-config"><span>{t('debug.promptHash')}</span><code>{debug.prompt_hash}</code></div>}
+        </div>
+      )}
+      {debug.decompose_used && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.decompose')}</div>
+          <div className="debug-row"><span>{t('debug.decomposeUsed')}</span><code>✓</code></div>
+          {debug.decompose_sub_queries && debug.decompose_sub_queries.length > 0 && (
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.decomposeSubQueries')}</span>
+              <code className="debug-query-value">{debug.decompose_sub_queries.map((q, i) => `${i + 1}. ${q}`).join('\n')}</code>
+            </div>
+          )}
+          {debug.decompose_sub_products && debug.decompose_sub_products.some(Boolean) && (
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.decomposeSubProducts')}</span>
+              <code className="debug-query-value">{debug.decompose_sub_products.map((p, i) => `${i + 1}. ${p ?? '—'}`).join('\n')}</code>
+            </div>
+          )}
+          {(debug.decompose_total_tokens ?? 0) > 0 && (
+            <>
+              <div className="debug-row"><span>{t('debug.decomposePromptTokens')}</span><code>{fmt(debug.decompose_prompt_tokens)}</code></div>
+              <div className="debug-row"><span>{t('debug.decomposeCompletionTokens')}</span><code>{fmt(debug.decompose_completion_tokens)}</code></div>
+              <div className="debug-row debug-row-total"><span>{t('debug.decomposeTotalTokens')}</span><code>{fmt(debug.decompose_total_tokens)}</code></div>
+            </>
+          )}
+          {debug.decompose_model && <div className="debug-row debug-row-config"><span>{t('debug.decomposeModel')}</span><code>{debug.decompose_model}</code></div>}
+          {debug.decompose_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.decomposeTime')}</span><code>{(debug.decompose_ms / 1000).toFixed(2)}s</code></div>}
         </div>
       )}
       {(debug.summary_total_tokens ?? 0) > 0 && (

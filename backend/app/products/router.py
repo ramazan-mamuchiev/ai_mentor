@@ -6,14 +6,16 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import case, func, select
 
 from app.database import async_session
-from app.models import Chunk, Document, FirmwareVersion, Product
+from app.models import Chunk, Document, DocumentUsageLog, FirmwareVersion, Product
 from app.products.schemas import (
     FormatCount,
     ProductDebugInfo,
     ProductDetail,
     ProductDocumentSummary,
+    ProductDocumentUsage,
     ProductListItem,
     ProductUpdate,
+    ProductUsageStats,
 )
 
 logger = logging.getLogger(__name__)
@@ -469,4 +471,68 @@ async def get_product_debug(manufacturer_slug: str, product_slug: str):
             avg_rag_similarity=float(agg.avg_rag_similarity) if agg.avg_rag_similarity else None,
             last_rag_used_at=agg.last_rag_used_at,
             documents=docs,
+        )
+
+
+@router.get("/{manufacturer_slug}/{product_slug}/usage-stats", response_model=ProductUsageStats)
+async def get_product_usage_stats(manufacturer_slug: str, product_slug: str):
+    """Get aggregated usage analytics for all documents of a product."""
+    async with async_session() as session:
+        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
+        product_id = product.id
+
+        agg_result = await session.execute(
+            select(
+                func.count().label("total_usages"),
+                func.count(func.distinct(DocumentUsageLog.session_id)).label("unique_sessions"),
+                func.count(func.distinct(DocumentUsageLog.document_id)).label("unique_documents"),
+                func.sum(DocumentUsageLog.context_tokens).label("total_context_tokens"),
+                func.sum(DocumentUsageLog.charge_usd).label("total_charge_usd"),
+                func.avg(DocumentUsageLog.similarity).label("avg_similarity"),
+                func.min(DocumentUsageLog.created_at).label("first_used_at"),
+                func.max(DocumentUsageLog.created_at).label("last_used_at"),
+            ).where(DocumentUsageLog.product_id == product_id)
+        )
+        agg = agg_result.one()
+
+        doc_agg_result = await session.execute(
+            select(
+                DocumentUsageLog.document_id,
+                Document.title,
+                func.count().label("total_usages"),
+                func.sum(DocumentUsageLog.context_tokens).label("total_context_tokens"),
+                func.sum(DocumentUsageLog.charge_usd).label("total_charge_usd"),
+                func.avg(DocumentUsageLog.similarity).label("avg_similarity"),
+                func.max(DocumentUsageLog.created_at).label("last_used_at"),
+            )
+            .join(Document, DocumentUsageLog.document_id == Document.id)
+            .where(DocumentUsageLog.product_id == product_id)
+            .group_by(DocumentUsageLog.document_id, Document.title)
+            .order_by(func.count().desc())
+        )
+        doc_usages = [
+            ProductDocumentUsage(
+                document_id=row.document_id,
+                title=row.title,
+                total_usages=row.total_usages,
+                total_context_tokens=row.total_context_tokens or 0,
+                total_charge_usd=float(row.total_charge_usd or 0),
+                avg_similarity=float(row.avg_similarity) if row.avg_similarity else None,
+                last_used_at=row.last_used_at,
+            )
+            for row in doc_agg_result.all()
+        ]
+
+        return ProductUsageStats(
+            product_id=product_id,
+            product_name=product.name,
+            total_usages=agg.total_usages or 0,
+            unique_sessions=agg.unique_sessions or 0,
+            unique_documents=agg.unique_documents or 0,
+            total_context_tokens=agg.total_context_tokens or 0,
+            total_charge_usd=float(agg.total_charge_usd or 0),
+            avg_similarity=float(agg.avg_similarity) if agg.avg_similarity else None,
+            first_used_at=agg.first_used_at,
+            last_used_at=agg.last_used_at,
+            documents=doc_usages,
         )

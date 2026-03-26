@@ -315,6 +315,54 @@ class ChatMessageAnalytics(Base):
         }
 
 
+class DocumentUsageLog(Base):
+    """Per-document usage attribution for author remuneration.
+
+    Each row represents one chunk from a specific document that was included
+    in a RAG response context. Enables proportional revenue sharing based on
+    context_tokens contributed by each document.
+    """
+    __tablename__ = "document_usage_log"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    request_id: Mapped[str] = mapped_column(Text, nullable=False)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False
+    )
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"), nullable=True
+    )
+
+    chunk_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    heading_path: Mapped[str] = mapped_column(Text, default="")
+    similarity: Mapped[float] = mapped_column(Float, default=0)
+    context_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    query_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    query_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sub_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    charge_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
+
+    __table_args__ = (
+        Index("idx_dul_request", "request_id"),
+        Index("idx_dul_document", "document_id", "created_at"),
+        Index("idx_dul_product", "product_id", "created_at"),
+        Index("idx_dul_session", "session_id"),
+        Index("idx_dul_created", "created_at"),
+    )
+
+
 class SharedLink(Base):
     __tablename__ = "shared_links"
 

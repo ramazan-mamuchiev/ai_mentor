@@ -1,10 +1,12 @@
 """RAG (Retrieval Augmented Generation) service for chat."""
 
+import asyncio
 import hashlib
 import json as json_lib
 import logging
 import re
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
@@ -17,6 +19,14 @@ from app.config import settings
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
 from app.models import ChatMessage, Product
 from app.search.service import search_documents
+
+
+@dataclass
+class DecomposeResult:
+    sub_queries: list[str] = field(default_factory=list)
+    sub_products: list[str | None] = field(default_factory=list)
+    merge_strategy: str = "balanced"
+    meta: dict = field(default_factory=dict)
 
 logger = logging.getLogger(__name__)
 
@@ -416,6 +426,197 @@ async def _rephrase_for_retry(query: str) -> str | None:
     return None
 
 
+def _load_decompose_prompt() -> str:
+    path = _PROMPTS_DIR / "decompose.md"
+    if path.exists():
+        return path.read_text(encoding="utf-8").strip()
+    return ""
+
+
+_DECOMPOSE_PROMPT_TEMPLATE = _load_decompose_prompt()
+
+_DECOMPOSE_TYPES = frozenset({"comparison"})
+
+
+async def _decompose_query(
+    query: str,
+    query_type: str,
+    product_names: list[str],
+) -> DecomposeResult | None:
+    """Split a comparison/multi-hop query into sub-queries for parallel search.
+
+    Returns None on error or when decomposition is not applicable (fallback to
+    single search).
+    """
+    if not settings.decompose_enabled:
+        return None
+    if query_type not in _DECOMPOSE_TYPES:
+        return None
+    if not _DECOMPOSE_PROMPT_TEMPLATE:
+        logger.warning("Decompose prompt template not found")
+        return None
+
+    products_str = ", ".join(product_names) if product_names else "(none)"
+    prompt = _DECOMPOSE_PROMPT_TEMPLATE.format(
+        query=query,
+        query_type=query_type,
+        products=products_str,
+        max_sub_queries=settings.decompose_max_sub_queries,
+    )
+
+    try:
+        t0 = time.perf_counter()
+        url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+        payload = {
+            "model": settings.decompose_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "max_tokens": 200,
+            "reasoning_effort": "none",
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {settings.gemini_api_key}",
+        }
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+
+        decompose_ms = round((time.perf_counter() - t0) * 1000, 1)
+        raw = data["choices"][0]["message"]["content"].strip()
+        usage = data.get("usage", {})
+
+        clean = raw
+        if clean.startswith("```"):
+            clean = "\n".join(clean.split("\n")[1:])
+            if clean.endswith("```"):
+                clean = clean[:-3]
+
+        parsed = json_lib.loads(clean)
+        sub_queries = parsed.get("sub_queries", [])
+        sub_products = parsed.get("sub_products", [])
+
+        if not isinstance(sub_queries, list) or not sub_queries:
+            return None
+
+        sub_queries = sub_queries[: settings.decompose_max_sub_queries]
+        while len(sub_products) < len(sub_queries):
+            sub_products.append(None)
+        sub_products = sub_products[: len(sub_queries)]
+
+        validated_products: list[str | None] = []
+        lower_map = {pn.lower(): pn for pn in product_names}
+        for sp in sub_products:
+            if sp and isinstance(sp, str):
+                exact = lower_map.get(sp.lower())
+                validated_products.append(exact)
+            else:
+                validated_products.append(None)
+
+        meta = {
+            "decompose_model": settings.decompose_model,
+            "decompose_ms": decompose_ms,
+            "decompose_prompt_tokens": usage.get("prompt_tokens", 0),
+            "decompose_completion_tokens": usage.get("completion_tokens", 0),
+            "decompose_total_tokens": usage.get("total_tokens", 0),
+            "decompose_raw": raw,
+        }
+
+        logger.info(
+            "Query decomposed",
+            extra={
+                "query": query[:200],
+                "sub_queries": sub_queries,
+                "sub_products": validated_products,
+                "ms": decompose_ms,
+            },
+        )
+        return DecomposeResult(
+            sub_queries=sub_queries,
+            sub_products=validated_products,
+            meta=meta,
+        )
+
+    except Exception:
+        logger.warning("Query decomposition failed, falling back to single search", exc_info=True)
+        return None
+
+
+async def _parallel_search(
+    db: AsyncSession,
+    sub_queries: list[str],
+    sub_products: list[str | None],
+    *,
+    version: str | None = None,
+    doc_context: str | None = None,
+    limit_per_query: int = 8,
+    locked_product_id: int | None = None,
+    locked_product_name: str | None = None,
+    metadata: dict | None = None,
+) -> list[dict]:
+    """Run parallel searches for each sub-query and merge results with balanced interleaving."""
+
+    async def _single(sq: str, sp: str | None) -> list[dict]:
+        meta: dict = {}
+        if locked_product_id and sp and locked_product_name and sp.lower() == locked_product_name.lower():
+            results = await search_documents(
+                session=db, query=sq, product_id=locked_product_id,
+                version=version, doc_context=doc_context,
+                limit=limit_per_query, metadata=meta,
+            )
+        else:
+            results = await search_documents(
+                session=db, query=sq, product=sp,
+                version=version, doc_context=doc_context,
+                limit=limit_per_query, metadata=meta,
+            )
+        for r in results:
+            r["_sub_query"] = sq
+        return results
+
+    all_results = await asyncio.gather(
+        *[_single(sq, sp) for sq, sp in zip(sub_queries, sub_products)]
+    )
+
+    if metadata is not None and all_results:
+        first_non_empty = next((r for r in all_results if r), None)
+        if first_non_empty:
+            metadata.setdefault("rerank_prompt_tokens", 0)
+            metadata.setdefault("rerank_completion_tokens", 0)
+            metadata.setdefault("rerank_total_tokens", 0)
+            metadata.setdefault("rerank_model", "")
+
+    merged = _interleave_and_dedup(all_results)
+
+    logger.info(
+        "Parallel search completed",
+        extra={
+            "sub_queries": len(sub_queries),
+            "results_per_query": [len(r) for r in all_results],
+            "merged_total": len(merged),
+        },
+    )
+    return merged
+
+
+def _interleave_and_dedup(result_lists: list[list[dict]]) -> list[dict]:
+    """Round-robin interleave from multiple result lists, deduplicating by content."""
+    seen: set[str] = set()
+    merged: list[dict] = []
+    max_len = max((len(r) for r in result_lists), default=0)
+
+    for i in range(max_len):
+        for results in result_lists:
+            if i < len(results):
+                chunk = results[i]
+                key = f"{chunk['heading_path']}||{hashlib.sha256(chunk['content'].encode()).hexdigest()}"
+                if key not in seen:
+                    seen.add(key)
+                    merged.append(chunk)
+    return merged
+
+
 async def summarize_history(
     messages: list[ChatMessage],
     existing_summary: str | None = None,
@@ -590,7 +791,6 @@ async def build_rag_prompt(
     type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
     effective_top_k = _TYPE_TOP_K.get(query_type, settings.rag_top_k)
 
-    t_search = time.perf_counter()
     search_meta: dict = {}
 
     logger.info(
@@ -625,16 +825,35 @@ async def build_rag_prompt(
 
     is_explicit_lock = product_filter_source == "explicit" and effective_product_id is not None
 
-    chunks = await search_documents(
-        session=db,
-        query=search_query,
-        product_id=effective_product_id if is_explicit_lock else None,
-        product=product_filter if not is_explicit_lock else None,
-        version=version_filter,
-        doc_context=doc_context,
-        limit=effective_top_k,
-        metadata=search_meta,
-    )
+    product_names = await _load_product_names(db)
+    decompose_result = await _decompose_query(search_query, query_type, product_names)
+
+    t_search = time.perf_counter()
+
+    if decompose_result and decompose_result.sub_queries:
+        chunks = await _parallel_search(
+            db,
+            decompose_result.sub_queries,
+            decompose_result.sub_products,
+            version=version_filter,
+            doc_context=doc_context,
+            limit_per_query=max(4, effective_top_k // len(decompose_result.sub_queries)),
+            locked_product_id=effective_product_id if is_explicit_lock else None,
+            locked_product_name=product_filter if is_explicit_lock else None,
+            metadata=search_meta,
+        )
+    else:
+        chunks = await search_documents(
+            session=db,
+            query=search_query,
+            product_id=effective_product_id if is_explicit_lock else None,
+            product=product_filter if not is_explicit_lock else None,
+            version=version_filter,
+            doc_context=doc_context,
+            limit=effective_top_k,
+            metadata=search_meta,
+        )
+
     search_ms = round((time.perf_counter() - t_search) * 1000, 1)
 
     all_chunks_before_filter = chunks
@@ -658,7 +877,7 @@ async def build_rag_prompt(
     rephrase_ms = 0.0
     rephrase_query: str | None = None
 
-    if not chunks and query_type != "chitchat" and settings.search_retry_enabled:
+    if not chunks and query_type != "chitchat" and settings.search_retry_enabled and not decompose_result:
         t_rephrase = time.perf_counter()
         rephrased = await _rephrase_for_retry(search_query)
         rephrase_ms = round((time.perf_counter() - t_rephrase) * 1000, 1)
@@ -796,6 +1015,7 @@ async def build_rag_prompt(
             "firmware_version": c.get("firmware_version", ""),
             "doc_type": c.get("doc_type", "other"),
             "entities": c.get("entities", {}),
+            "sub_query": c.get("_sub_query"),
         }
         for c in chunks
     ]
@@ -846,6 +1066,10 @@ async def build_rag_prompt(
         "rephrase_query": rephrase_query,
         "type_max_tokens": type_max_tokens,
         "effective_top_k": effective_top_k,
+        "decompose_used": decompose_result is not None and bool(decompose_result.sub_queries),
+        "decompose_sub_queries": decompose_result.sub_queries if decompose_result else [],
+        "decompose_sub_products": decompose_result.sub_products if decompose_result else [],
+        **(decompose_result.meta if decompose_result else {}),
         **classify_meta,
     }
 

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getDocumentDebug } from '../api/documents'
-import type { DocumentDebugInfo } from '../types'
+import { getDocumentDebug, getDocumentUsageStats } from '../api/documents'
+import type { DocumentDebugInfo, DocumentUsageStats } from '../types'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 
 function fmt(n: number | undefined | null): string {
@@ -87,6 +87,7 @@ interface ContentProps {
 export function DocumentDebugContent({ documentId }: ContentProps) {
   const { t } = useTranslation()
   const [debug, setDebug] = useState<DocumentDebugInfo | null>(null)
+  const [usage, setUsage] = useState<DocumentUsageStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -94,8 +95,11 @@ export function DocumentDebugContent({ documentId }: ContentProps) {
     let cancelled = false
     setLoading(true)
     setError(null)
-    getDocumentDebug(documentId)
-      .then(data => { if (!cancelled) setDebug(data) })
+    Promise.all([
+      getDocumentDebug(documentId),
+      getDocumentUsageStats(documentId).catch(() => null),
+    ])
+      .then(([d, u]) => { if (!cancelled) { setDebug(d); setUsage(u) } })
       .catch(e => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -209,6 +213,39 @@ export function DocumentDebugContent({ documentId }: ContentProps) {
           <div className="doc-debug-row"><span>{t('docDebug.ragHitCount')}</span><code>{fmt(debug.rag_hit_count)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.ragAvgSimilarity')}</span><code>{fmtPct(debug.rag_avg_similarity)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.ragLastUsed')}</span><code>{fmtDate(debug.rag_last_used_at)}</code></div>
+        </div>
+
+        <div className="doc-debug-section">
+          <div className="doc-debug-section-title">{t('docDebug.usageAnalytics')}</div>
+          {usage && usage.total_usages > 0 ? (
+            <>
+              <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.totalUsages')}</span><code>{fmt(usage.total_usages)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.uniqueSessions')}</span><code>{fmt(usage.unique_sessions)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.totalContextTokens')}</span><code>{fmt(usage.total_context_tokens)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.totalChargeUsd')}</span><code>${usage.total_charge_usd.toFixed(6)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.avgSimilarity')}</span><code>{fmtPct(usage.avg_similarity)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.firstUsedAt')}</span><code>{fmtDate(usage.first_used_at)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.lastUsedAt')}</span><code>{fmtDate(usage.last_used_at)}</code></div>
+              {usage.top_headings.length > 0 && (
+                <div className="doc-debug-row doc-debug-row-wide">
+                  <span>{t('docDebug.topHeadings')}</span>
+                  <code className="debug-query-value">{usage.top_headings.map(h => `${h.heading_path} (${h.count})`).join('\n')}</code>
+                </div>
+              )}
+              {usage.recent_usages.length > 0 && (
+                <div className="doc-debug-row doc-debug-row-wide">
+                  <span>{t('docDebug.recentUsages')}</span>
+                  <code className="debug-query-value">
+                    {usage.recent_usages.slice(0, 5).map(u =>
+                      `${fmtDate(u.created_at)} | S#${u.session_id} | ${u.query_type ?? '—'} | sim=${fmtPct(u.similarity)} | ${u.context_tokens}tok`
+                    ).join('\n')}
+                  </code>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="doc-debug-row"><span>{t('docDebug.noUsageData')}</span><code>—</code></div>
+          )}
         </div>
 
         <div className="doc-debug-section">

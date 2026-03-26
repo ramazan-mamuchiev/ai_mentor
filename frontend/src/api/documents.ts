@@ -4,6 +4,7 @@ import type {
   DocumentDebugInfo,
   DocumentDownload,
   DocumentMarkdownPreview,
+  DocumentUsageStats,
   ReindexJob,
   ReindexJobList,
   ReindexMode,
@@ -31,6 +32,10 @@ export async function getDocumentStatus(id: number): Promise<DocumentListItem> {
 
 export async function getDocumentDebug(id: number): Promise<DocumentDebugInfo> {
   return apiFetch<DocumentDebugInfo>(`/documents/${id}/debug`)
+}
+
+export async function getDocumentUsageStats(id: number): Promise<DocumentUsageStats> {
+  return apiFetch<DocumentUsageStats>(`/documents/${id}/usage-stats`)
 }
 
 export async function downloadDocument(id: number): Promise<DocumentDownload> {
