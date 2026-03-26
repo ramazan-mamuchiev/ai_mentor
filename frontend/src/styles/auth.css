@@ -421,8 +421,9 @@
 
 .account-dropdown-divider {
   height: 1px;
-  margin: 0.375rem 0.5rem;
-  background: var(--border);
+  margin: 0.375rem 0.75rem;
+  background: var(--text-muted);
+  opacity: 0.25;
 }
 
 /* Onboarding Checklist overlay */
