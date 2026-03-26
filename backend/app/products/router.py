@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import case, func, select
 
 from app.database import async_session
-from app.models import Chunk, Document, DocumentUsageLog, FirmwareVersion, Product
+from app.models import Chunk, Document, DocumentUsageLog, FirmwareVersion, Product, SuggestionTemplate
 from app.products.schemas import (
     FormatCount,
     ProductDebugInfo,
@@ -37,19 +37,15 @@ async def _get_product_by_slugs(session, manufacturer_slug: str, product_slug: s
     return product
 
 
-_SUGGESTION_TEMPLATES = [
-    ("Tell me about {product}", "Расскажи про {product}"),
-    ("What API methods does {product} have?", "Какие API-методы есть у {product}?"),
-    ("How does authentication work in {product}?", "Как устроена авторизация в {product}?"),
-    ("What events does {product} support?", "Какие события поддерживает {product}?"),
-]
-
-
 @router.get("/suggestions", response_model=list[SuggestionChip])
 async def get_suggestions():
-    """Return up to 4 suggestion chips based on top products by RAG usage."""
+    """Return up to 4 suggestion chips based on top products by RAG usage.
+
+    Templates are read from the `suggestion_templates` table and selected
+    randomly so each page load shows different questions.
+    """
     async with async_session() as session:
-        stmt = (
+        products_stmt = (
             select(
                 Product.name,
                 Product.manufacturer_slug,
@@ -74,12 +70,35 @@ async def get_suggestions():
             .order_by(func.sum(Document.rag_hit_count).desc())
             .limit(4)
         )
-        rows = (await session.execute(stmt)).all()
+        product_rows = (await session.execute(products_stmt)).all()
+        if not product_rows:
+            return []
+
+        need = len(product_rows)
+
+        tpl_base = (
+            select(SuggestionTemplate.template)
+            .where(
+                SuggestionTemplate.role == "default",
+                SuggestionTemplate.is_active.is_(True),
+            )
+        )
+
+        en_rows = (await session.execute(
+            tpl_base.where(SuggestionTemplate.lang == "en")
+            .order_by(func.random()).limit(need)
+        )).scalars().all()
+
+        ru_rows = (await session.execute(
+            tpl_base.where(SuggestionTemplate.lang == "ru")
+            .order_by(func.random()).limit(need)
+        )).scalars().all()
 
     chips: list[SuggestionChip] = []
-    for idx, row in enumerate(rows):
+    for idx, row in enumerate(product_rows):
         display = f"{row.name} {row.version}".strip()
-        tpl_en, tpl_ru = _SUGGESTION_TEMPLATES[idx % len(_SUGGESTION_TEMPLATES)]
+        tpl_en = en_rows[idx] if idx < len(en_rows) else "Tell me about {product}"
+        tpl_ru = ru_rows[idx] if idx < len(ru_rows) else "Расскажи про {product}"
         chips.append(SuggestionChip(
             text_en=tpl_en.format(product=display),
             text_ru=tpl_ru.format(product=display),

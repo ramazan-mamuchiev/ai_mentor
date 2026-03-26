@@ -448,3 +448,52 @@ CREATE INDEX IF NOT EXISTS idx_dul_document ON document_usage_log(document_id, c
 CREATE INDEX IF NOT EXISTS idx_dul_product ON document_usage_log(product_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_dul_session ON document_usage_log(session_id);
 CREATE INDEX IF NOT EXISTS idx_dul_created ON document_usage_log(created_at);
+
+-- Suggestion templates (question templates with {product} placeholder for empty-state chips)
+CREATE TABLE IF NOT EXISTS suggestion_templates (
+    id SERIAL PRIMARY KEY,
+    role TEXT NOT NULL DEFAULT 'default',
+    lang TEXT NOT NULL DEFAULT 'en',
+    template TEXT NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (role, lang, template)
+);
+CREATE INDEX IF NOT EXISTS idx_st_role_lang ON suggestion_templates(role, lang, is_active);
+
+-- Seed suggestion templates (idempotent)
+INSERT INTO suggestion_templates (role, lang, template, sort_order) VALUES
+    ('default', 'en', 'Tell me about {product}', 1),
+    ('default', 'ru', 'Расскажи про {product}', 1),
+    ('default', 'en', 'What API methods does {product} have?', 2),
+    ('default', 'ru', 'Какие API-методы есть у {product}?', 2),
+    ('default', 'en', 'How does authentication work in {product}?', 3),
+    ('default', 'ru', 'Как устроена авторизация в {product}?', 3),
+    ('default', 'en', 'What events does {product} support?', 4),
+    ('default', 'ru', 'Какие события поддерживает {product}?', 4),
+    ('default', 'en', 'How to get started with {product}?', 5),
+    ('default', 'ru', 'Как начать работу с {product}?', 5),
+    ('default', 'en', 'What data formats does {product} use?', 6),
+    ('default', 'ru', 'Какие форматы данных использует {product}?', 6),
+    ('default', 'en', 'What are the API rate limits in {product}?', 7),
+    ('default', 'ru', 'Какие ограничения API у {product}?', 7),
+    ('default', 'en', 'How to handle errors in {product}?', 8),
+    ('default', 'ru', 'Как обрабатывать ошибки в {product}?', 8),
+    ('default', 'en', 'Does {product} support webhooks?', 9),
+    ('default', 'ru', 'Поддерживает ли {product} вебхуки?', 9),
+    ('default', 'en', 'How to subscribe to events in {product}?', 10),
+    ('default', 'ru', 'Как подписаться на события в {product}?', 10),
+    ('default', 'en', 'What SDK or libraries does {product} provide?', 11),
+    ('default', 'ru', 'Какие SDK или библиотеки есть у {product}?', 11),
+    ('default', 'en', 'How to configure {product} via API?', 12),
+    ('default', 'ru', 'Как настроить {product} через API?', 12),
+    ('default', 'en', 'What security features does {product} have?', 13),
+    ('default', 'ru', 'Какие функции безопасности есть у {product}?', 13),
+    ('default', 'en', 'How to migrate between versions of {product}?', 14),
+    ('default', 'ru', 'Как мигрировать между версиями {product}?', 14),
+    ('default', 'en', 'What protocols does {product} support?', 15),
+    ('default', 'ru', 'Какие протоколы поддерживает {product}?', 15),
+    ('default', 'en', 'Show the architecture of {product}', 16),
+    ('default', 'ru', 'Покажи архитектуру {product}', 16)
+ON CONFLICT (role, lang, template) DO NOTHING;

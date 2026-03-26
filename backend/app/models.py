@@ -490,6 +490,26 @@ class UploadSession(Base):
     )
 
 
+class SuggestionTemplate(Base):
+    """Question templates with {product} placeholder for empty-state suggestion chips."""
+    __tablename__ = "suggestion_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    role: Mapped[str] = mapped_column(Text, nullable=False, default="default")
+    lang: Mapped[str] = mapped_column(Text, nullable=False, default="en")
+    template: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        UniqueConstraint("role", "lang", "template"),
+        Index("idx_st_role_lang", "role", "lang", "is_active"),
+    )
+
+
 class UsageLog(Base):
     """Append-only billing audit log. Partitioned by month on created_at.
 
