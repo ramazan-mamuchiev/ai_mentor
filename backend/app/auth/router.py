@@ -219,11 +219,7 @@ async def oauth_callback(
     session: AsyncSession = Depends(get_session),
 ):
     """Exchange code for tokens, find/create tenant, redirect to app."""
-    import logging
-    _log = logging.getLogger("app.auth.oauth")
     stored_state = request.cookies.get("oauth_state")
-    _log.warning("OAuth callback: cookies=%s, stored_state=%s, expected_state=%s, secure=%s",
-                 dict(request.cookies), stored_state, state, _COOKIE_SECURE)
     if not stored_state or stored_state != state:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid OAuth state")
 
