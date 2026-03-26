@@ -202,13 +202,14 @@ async def _classify_query(db: AsyncSession, query: str) -> tuple[str, str | None
             "classify_total_tokens": usage.get("total_tokens", 0),
             "query_type": query_type,
             "classify_product": detected_product,
+            "classify_input": query,
             "classify_raw": raw,
         }
 
         logger.info(
             "Query classified",
             extra={
-                "query": query[:100],
+                "classify_input": query[:200],
                 "query_type": query_type,
                 "detected_product": detected_product,
                 "raw": raw,
@@ -565,7 +566,12 @@ async def build_rag_prompt(
 
         return messages, [], rag_debug
 
-    query_type, classify_product, classify_meta = await _classify_query(db, query)
+    t_rewrite = time.perf_counter()
+    search_query = await _rewrite_query(query, history) if history else query
+    rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
+
+    classify_input = search_query if search_query != query else query
+    query_type, classify_product, classify_meta = await _classify_query(db, classify_input)
 
     auto_product = classify_product
     if auto_product and auto_product != product_filter:
@@ -583,10 +589,6 @@ async def build_rag_prompt(
 
     type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
     effective_top_k = _TYPE_TOP_K.get(query_type, settings.rag_top_k)
-
-    t_rewrite = time.perf_counter()
-    search_query = await _rewrite_query(query, history) if history else query
-    rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
 
     t_search = time.perf_counter()
     search_meta: dict = {}
