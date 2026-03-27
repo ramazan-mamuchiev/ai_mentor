@@ -12,6 +12,7 @@ import { RolesPage } from './RolesPage'
 import { RoleDetailPage } from './RoleDetailPage'
 import { PromptsPage } from './PromptsPage'
 import { PromptEditorPage } from './PromptEditorPage'
+import { SystemPage } from './SystemPage'
 
 export default function AdminApp() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -40,6 +41,7 @@ export default function AdminApp() {
           <Route path="prompts/:id" element={<PromptEditorPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="stats" element={<StatsPage />} />
+          <Route path="system" element={<SystemPage />} />
           <Route path="*" element={<Navigate to="/app/admin" replace />} />
         </Routes>
       </div>

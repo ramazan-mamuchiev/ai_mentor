@@ -374,3 +374,67 @@ class PromptPreviewResponse(BaseModel):
     resolved_classifier_hint: str
     resolved_max_response_tokens: int | None
     resolved_rag_top_k: int | None
+
+
+# --- System Monitor ---
+
+class ServiceHealth(BaseModel):
+    name: str
+    status: str
+    latency_ms: float
+    detail: str | None = None
+
+class LLMStatus(BaseModel):
+    provider: str
+    model: str
+    avg_response_ms: float | None
+    errors_last_hour: int
+    timeouts_last_hour: int
+
+class IngestionPipelineStatus(BaseModel):
+    pending: int
+    processing: int
+    error: int
+    docs_per_hour_24h: float
+    stale_count: int
+    tus_uploads_active: int
+
+class TableSize(BaseModel):
+    name: str
+    size_bytes: int
+
+class SystemInfo(BaseModel):
+    cpu_percent: float
+    cpu_count: int
+    ram_used_bytes: int
+    ram_total_bytes: int
+    ram_percent: float
+    disk_used_bytes: int
+    disk_total_bytes: int
+    disk_percent: float
+    uptime_sec: float
+
+    db_size_bytes: int
+    db_active_connections: int
+    db_pool_size: int
+    db_pool_checked_out: int
+    db_pool_overflow: int
+    db_top_tables: list[TableSize]
+
+    redis_used_memory_bytes: int
+    redis_total_keys: int
+    redis_queue_celery: int
+    redis_queue_monitoring: int
+
+    s3_bucket_size_bytes: int
+    s3_objects_count: int
+    s3_quota_bytes: int
+
+    ingestion: IngestionPipelineStatus
+    llm: LLMStatus
+
+    active_requests: int
+    online_users_5min: int
+    active_chat_sessions_5min: int
+
+    services: list[ServiceHealth]

@@ -1,11 +1,16 @@
 """Admin business logic — SQL queries for platform management."""
 
+import asyncio
+import logging
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import psutil
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models import (
     ApiKey,
     ChatMessage,
@@ -24,6 +29,12 @@ from app.models import (
     TenantRole,
     UsageLog,
 )
+
+_logger = logging.getLogger(__name__)
+
+_s3_cache: dict = {"ts": 0.0, "size": 0, "count": 0}
+_S3_CACHE_TTL = 60.0
+_process_start = time.time()
 
 
 # ---------------------------------------------------------------------------
@@ -1301,4 +1312,308 @@ async def preview_prompt_template(
         "resolved_classifier_hint": hint,
         "resolved_max_response_tokens": max_tok,
         "resolved_rag_top_k": top_k,
+    }
+
+
+# ---------------------------------------------------------------------------
+# System Monitor
+# ---------------------------------------------------------------------------
+
+def _collect_server_metrics() -> dict:
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+    return {
+        "cpu_percent": psutil.cpu_percent(interval=0.3),
+        "cpu_count": psutil.cpu_count(logical=True) or 1,
+        "ram_used_bytes": mem.used,
+        "ram_total_bytes": mem.total,
+        "ram_percent": mem.percent,
+        "disk_used_bytes": disk.used,
+        "disk_total_bytes": disk.total,
+        "disk_percent": disk.percent,
+        "uptime_sec": round(time.time() - _process_start, 1),
+    }
+
+
+async def _collect_pg_metrics(session: AsyncSession) -> dict:
+    from app.database import engine
+
+    pool = engine.pool
+
+    db_size = await session.scalar(text(
+        "SELECT pg_database_size(current_database())"
+    )) or 0
+
+    active_conn = await session.scalar(text(
+        "SELECT count(*) FROM pg_stat_activity WHERE state = 'active'"
+    )) or 0
+
+    top_tables_rows = (await session.execute(text(
+        "SELECT relname, pg_total_relation_size(c.oid) AS size "
+        "FROM pg_class c "
+        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE n.nspname = 'public' AND c.relkind = 'r' "
+        "ORDER BY size DESC LIMIT 5"
+    ))).all()
+
+    return {
+        "db_size_bytes": db_size,
+        "db_active_connections": active_conn,
+        "db_pool_size": pool.size(),
+        "db_pool_checked_out": pool.checkedout(),
+        "db_pool_overflow": pool.overflow(),
+        "db_top_tables": [
+            {"name": r[0], "size_bytes": r[1]} for r in top_tables_rows
+        ],
+    }
+
+
+async def _collect_redis_metrics() -> dict:
+    import redis.asyncio as aioredis
+
+    r = aioredis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        info = await r.info("memory")
+        used_memory = info.get("used_memory", 0)
+
+        total_keys = await r.dbsize()
+
+        q_celery = await r.llen("celery")
+        q_monitoring = await r.llen("monitoring")
+
+        tus_count = 0
+        cursor = "0"
+        while True:
+            cursor, keys = await r.scan(cursor=cursor, match="tus:offset:*", count=100)
+            tus_count += len(keys)
+            if cursor == 0 or cursor == "0":
+                break
+
+        return {
+            "redis_used_memory_bytes": used_memory,
+            "redis_total_keys": total_keys,
+            "redis_queue_celery": q_celery,
+            "redis_queue_monitoring": q_monitoring,
+            "tus_uploads_active": tus_count,
+        }
+    finally:
+        await r.aclose()
+
+
+async def _collect_s3_metrics() -> dict:
+    now = time.time()
+    if now - _s3_cache["ts"] < _S3_CACHE_TTL and _s3_cache["ts"] > 0:
+        return {
+            "s3_bucket_size_bytes": _s3_cache["size"],
+            "s3_objects_count": _s3_cache["count"],
+            "s3_quota_bytes": settings.storage_quota_gb * 1024 * 1024 * 1024,
+        }
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _s3_bucket_stats_sync)
+
+    _s3_cache["ts"] = now
+    _s3_cache["size"] = result["size"]
+    _s3_cache["count"] = result["count"]
+
+    return {
+        "s3_bucket_size_bytes": result["size"],
+        "s3_objects_count": result["count"],
+        "s3_quota_bytes": settings.storage_quota_gb * 1024 * 1024 * 1024,
+    }
+
+
+def _s3_bucket_stats_sync() -> dict:
+    from app.s3 import _get_client
+
+    client = _get_client()
+    total_size = 0
+    total_count = 0
+    paginator = client.get_paginator("list_objects_v2")
+    try:
+        for page in paginator.paginate(Bucket=settings.s3_bucket):
+            for obj in page.get("Contents", []):
+                total_size += obj.get("Size", 0)
+                total_count += 1
+    except Exception:
+        _logger.warning("S3 bucket stats collection failed", exc_info=True)
+
+    return {"size": total_size, "count": total_count}
+
+
+async def _collect_ingestion_metrics(session: AsyncSession, tus_count: int) -> dict:
+    rows = (await session.execute(text(
+        "SELECT status, count(*) FROM documents "
+        "WHERE status IN ('pending', 'processing', 'error') "
+        "GROUP BY status"
+    ))).all()
+    counts = {r[0]: r[1] for r in rows}
+
+    since_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+    indexed_24h = await session.scalar(text(
+        "SELECT count(*) FROM documents "
+        "WHERE status = 'indexed' AND indexed_at >= :since"
+    ), {"since": since_24h}) or 0
+    docs_per_hour = round(indexed_24h / 24.0, 1)
+
+    stale_threshold = datetime.now(timezone.utc) - timedelta(
+        seconds=settings.reindex_doc_timeout_sec
+    )
+    stale_count = await session.scalar(text(
+        "SELECT count(*) FROM documents "
+        "WHERE status = 'processing' AND uploaded_at < :threshold"
+    ), {"threshold": stale_threshold}) or 0
+
+    return {
+        "pending": counts.get("pending", 0),
+        "processing": counts.get("processing", 0),
+        "error": counts.get("error", 0),
+        "docs_per_hour_24h": docs_per_hour,
+        "stale_count": stale_count,
+        "tus_uploads_active": tus_count,
+    }
+
+
+async def _collect_llm_metrics(session: AsyncSession) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
+
+    row = (await session.execute(text(
+        "SELECT "
+        "  AVG(llm_ms) AS avg_ms, "
+        "  SUM(CASE WHEN finish_reason = 'error' THEN 1 ELSE 0 END) AS errors, "
+        "  SUM(CASE WHEN finish_reason = 'timeout' THEN 1 ELSE 0 END) AS timeouts "
+        "FROM chat_message_analytics "
+        "WHERE created_at >= :since"
+    ), {"since": since})).mappings().one()
+
+    provider = settings.llm_provider
+    model = settings.openai_llm_model if provider == "openai" else settings.llm_model
+
+    return {
+        "provider": provider,
+        "model": model,
+        "avg_response_ms": round(row["avg_ms"], 1) if row["avg_ms"] else None,
+        "errors_last_hour": int(row["errors"] or 0),
+        "timeouts_last_hour": int(row["timeouts"] or 0),
+    }
+
+
+async def _collect_activity(session: AsyncSession) -> dict:
+    from app.logging_config import active_requests_count
+
+    since_5m = datetime.now(timezone.utc) - timedelta(minutes=5)
+
+    online_users = await session.scalar(text(
+        "SELECT count(DISTINCT tenant_id) FROM usage_log "
+        "WHERE created_at >= :since"
+    ), {"since": since_5m}) or 0
+
+    active_chats = await session.scalar(text(
+        "SELECT count(DISTINCT session_id) FROM chat_messages "
+        "WHERE created_at >= :since"
+    ), {"since": since_5m}) or 0
+
+    return {
+        "active_requests": active_requests_count,
+        "online_users_5min": online_users,
+        "active_chat_sessions_5min": active_chats,
+    }
+
+
+async def _collect_services_health() -> list[dict]:
+    services = []
+
+    async def _ping_db():
+        from app.database import engine
+        t0 = time.perf_counter()
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            return {"name": "PostgreSQL", "status": "ok", "latency_ms": ms, "detail": None}
+        except Exception as e:
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            return {"name": "PostgreSQL", "status": "error", "latency_ms": ms, "detail": str(e)[:200]}
+
+    async def _ping_redis():
+        import redis.asyncio as aioredis
+        t0 = time.perf_counter()
+        try:
+            r = aioredis.from_url(settings.redis_url)
+            await r.ping()
+            await r.aclose()
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            return {"name": "Redis", "status": "ok", "latency_ms": ms, "detail": None}
+        except Exception as e:
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            return {"name": "Redis", "status": "error", "latency_ms": ms, "detail": str(e)[:200]}
+
+    async def _ping_s3():
+        loop = asyncio.get_event_loop()
+        t0 = time.perf_counter()
+        try:
+            ok = await loop.run_in_executor(None, _s3_health_sync)
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            return {"name": "S3/MinIO", "status": "ok" if ok else "error", "latency_ms": ms, "detail": None}
+        except Exception as e:
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            return {"name": "S3/MinIO", "status": "error", "latency_ms": ms, "detail": str(e)[:200]}
+
+    async def _ping_llm():
+        from app.llm.client import check_health
+        t0 = time.perf_counter()
+        try:
+            ok = await check_health()
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            provider = settings.llm_provider
+            model = settings.openai_llm_model if provider == "openai" else settings.llm_model
+            return {
+                "name": f"LLM ({model})",
+                "status": "ok" if ok else "error",
+                "latency_ms": ms,
+                "detail": None,
+            }
+        except Exception as e:
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            return {"name": "LLM", "status": "error", "latency_ms": ms, "detail": str(e)[:200]}
+
+    services = await asyncio.gather(
+        _ping_db(), _ping_redis(), _ping_s3(), _ping_llm()
+    )
+    return list(services)
+
+
+def _s3_health_sync() -> bool:
+    from app.s3 import check_health
+    return check_health()
+
+
+async def get_system_info(session: AsyncSession) -> dict:
+    loop = asyncio.get_event_loop()
+
+    server_fut = loop.run_in_executor(None, _collect_server_metrics)
+    pg_fut = _collect_pg_metrics(session)
+    redis_fut = _collect_redis_metrics()
+    s3_fut = _collect_s3_metrics()
+    llm_fut = _collect_llm_metrics(session)
+    activity_fut = _collect_activity(session)
+    health_fut = _collect_services_health()
+
+    server, pg, redis_m, s3, llm, activity, health = await asyncio.gather(
+        server_fut, pg_fut, redis_fut, s3_fut, llm_fut, activity_fut, health_fut,
+    )
+
+    ingestion = await _collect_ingestion_metrics(
+        session, tus_count=redis_m.pop("tus_uploads_active", 0)
+    )
+
+    return {
+        **server,
+        **pg,
+        **redis_m,
+        **s3,
+        "ingestion": ingestion,
+        "llm": llm,
+        **activity,
+        "services": health,
     }

@@ -721,3 +721,77 @@ export async function seedPrompts(): Promise<{ seeded: number }> {
   })
   return handleResponse(res)
 }
+
+
+// --- System Monitor ---
+
+export interface ServiceHealth {
+  name: string
+  status: string
+  latency_ms: number
+  detail: string | null
+}
+
+export interface LLMStatus {
+  provider: string
+  model: string
+  avg_response_ms: number | null
+  errors_last_hour: number
+  timeouts_last_hour: number
+}
+
+export interface IngestionPipelineStatus {
+  pending: number
+  processing: number
+  error: number
+  docs_per_hour_24h: number
+  stale_count: number
+  tus_uploads_active: number
+}
+
+export interface TableSize {
+  name: string
+  size_bytes: number
+}
+
+export interface SystemInfo {
+  cpu_percent: number
+  cpu_count: number
+  ram_used_bytes: number
+  ram_total_bytes: number
+  ram_percent: number
+  disk_used_bytes: number
+  disk_total_bytes: number
+  disk_percent: number
+  uptime_sec: number
+
+  db_size_bytes: number
+  db_active_connections: number
+  db_pool_size: number
+  db_pool_checked_out: number
+  db_pool_overflow: number
+  db_top_tables: TableSize[]
+
+  redis_used_memory_bytes: number
+  redis_total_keys: number
+  redis_queue_celery: number
+  redis_queue_monitoring: number
+
+  s3_bucket_size_bytes: number
+  s3_objects_count: number
+  s3_quota_bytes: number
+
+  ingestion: IngestionPipelineStatus
+  llm: LLMStatus
+
+  active_requests: number
+  online_users_5min: number
+  active_chat_sessions_5min: number
+
+  services: ServiceHealth[]
+}
+
+export async function getSystemInfo(): Promise<SystemInfo> {
+  const res = await fetch(`${BASE}/system/info`, { credentials: 'include' })
+  return handleResponse(res)
+}

@@ -37,6 +37,7 @@ from app.admin.schemas import (
     RoleListItem,
     RolePatchRequest,
     SearchStat,
+    SystemInfo,
     TenantDetail,
     TenantListResponse,
     TenantPatchRequest,
@@ -552,3 +553,12 @@ async def seed_prompts_from_files(session: AsyncSession = Depends(get_session)):
     from app.admin.seed_prompts import seed_prompts
     count = await seed_prompts(session)
     return {"seeded": count}
+
+
+# ---------------------------------------------------------------------------
+# System Monitor
+# ---------------------------------------------------------------------------
+
+@router.get("/system/info", response_model=SystemInfo)
+async def system_info(session: AsyncSession = Depends(get_session)):
+    return await service.get_system_info(session)
