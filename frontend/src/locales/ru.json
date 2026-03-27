@@ -529,6 +529,9 @@
   "settings.deleteKey": "Удалить ключ",
   "settings.newKeyTitle": "Новый API-ключ",
   "settings.done": "Готово",
+  "settings.deleteKeyTitle": "Удаление ключа",
+  "settings.deleteKeyConfirm": "Вы уверены, что хотите удалить ключ «{{name}}»? Это действие необратимо.",
+  "settings.cancel": "Отмена",
 
   "common.close": "Закрыть",
   "upload.removeFile": "Удалить файл",

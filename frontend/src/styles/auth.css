@@ -725,10 +725,60 @@
   font-weight: 700;
 }
 
+.api-key-modal--small {
+  width: min(420px, calc(100vw - 2rem));
+}
+
 .api-key-modal-footer {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
   margin-top: 1.25rem;
+}
+
+.confirm-delete-text {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-hover);
+}
+
+.btn-danger-solid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-danger-solid:hover {
+  background: #dc2626;
 }
 
 .api-key-warning {

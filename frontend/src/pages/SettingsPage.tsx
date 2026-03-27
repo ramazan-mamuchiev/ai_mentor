@@ -114,6 +114,7 @@ function ApiKeysTab() {
   const [newKey, setNewKey] = useState<ApiKeyCreated | null>(null)
   const [keyName, setKeyName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<ApiKeyItem | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -136,8 +137,10 @@ function ApiKeysTab() {
     setCreating(false)
   }
 
-  const handleDelete = async (id: string) => {
-    await deleteApiKey(id)
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    await deleteApiKey(deleteTarget.id)
+    setDeleteTarget(null)
     await load()
   }
 
@@ -188,7 +191,7 @@ function ApiKeysTab() {
                 <td>{new Date(k.created_at).toLocaleDateString()}</td>
                 <td>{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}</td>
                 <td>
-                  <button onClick={() => handleDelete(k.id)} className="btn-icon btn-danger" data-tooltip={t('settings.deleteKey')}>
+                  <button onClick={() => setDeleteTarget(k)} className="btn-icon btn-danger" data-tooltip={t('settings.deleteKey')}>
                     <Trash2 size={16} />
                   </button>
                 </td>
@@ -196,6 +199,31 @@ function ApiKeysTab() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {deleteTarget && (
+        <div className="api-key-modal-overlay" onClick={() => setDeleteTarget(null)}>
+          <div className="api-key-modal api-key-modal--small" onClick={e => e.stopPropagation()}>
+            <div className="api-key-modal-header">
+              <h3>{t('settings.deleteKeyTitle')}</h3>
+              <button onClick={() => setDeleteTarget(null)} className="btn-icon">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="confirm-delete-text">
+              {t('settings.deleteKeyConfirm', { name: deleteTarget.name || deleteTarget.key_prefix })}
+            </p>
+            <div className="api-key-modal-footer">
+              <button onClick={() => setDeleteTarget(null)} className="btn-secondary">
+                {t('settings.cancel')}
+              </button>
+              <button onClick={handleDeleteConfirm} className="btn-danger-solid">
+                <Trash2 size={16} />
+                {t('settings.deleteKey')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   )

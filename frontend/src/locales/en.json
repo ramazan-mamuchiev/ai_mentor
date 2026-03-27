@@ -529,6 +529,9 @@
   "settings.deleteKey": "Delete key",
   "settings.newKeyTitle": "New API Key",
   "settings.done": "Done",
+  "settings.deleteKeyTitle": "Delete Key",
+  "settings.deleteKeyConfirm": "Are you sure you want to delete key \"{{name}}\"? This action cannot be undone.",
+  "settings.cancel": "Cancel",
 
   "common.close": "Close",
   "upload.removeFile": "Remove file",
