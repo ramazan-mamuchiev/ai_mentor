@@ -569,7 +569,7 @@
 .message-footer-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .message-error {
@@ -689,7 +689,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 2px;
+  gap: 4px;
   margin-top: 2px;
 }
 
@@ -697,9 +697,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -3061,4 +3061,16 @@
   font-size: 12px;
   color: var(--text-muted);
   margin: -4px 0 8px;
+}
+
+/* ── Larger touch targets on mobile ── */
+@media (max-width: 767px) {
+  .message-action-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .message-actions,
+  .message-footer-actions {
+    gap: 2px;
+  }
 }

@@ -198,7 +198,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               aria-label={t('chat.copy')}
               type="button"
             >
-              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
             {onEditMessage && (
               <button
@@ -207,7 +207,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 aria-label={t('chat.edit')}
                 type="button"
               >
-                <Pencil size={12} />
+                <Pencil size={14} />
               </button>
             )}
           </div>
@@ -251,7 +251,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                   className="message-action-btn debug-toggle"
                   onClick={() => onShowDebug?.(debug, debug.session_id, debug.message_id)}
                 >
-                  <Bug size={12} />
+                  <Bug size={14} />
                 </button>
               )}
               <button
@@ -260,7 +260,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 aria-label={t('chat.thumbsUp')}
                 type="button"
               >
-                <ThumbsUp size={12} />
+                <ThumbsUp size={14} />
               </button>
               <button
                 className={`message-action-btn feedback-btn${currentFeedback === 'down' ? ' feedback-btn--active' : ''}`}
@@ -268,7 +268,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 aria-label={t('chat.thumbsDown')}
                 type="button"
               >
-                <ThumbsDown size={12} />
+                <ThumbsDown size={14} />
               </button>
               <button
                 className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
@@ -276,7 +276,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 aria-label={t('chat.copy')}
                 type="button"
               >
-                {copied ? <Check size={12} /> : <Copy size={12} />}
+                {copied ? <Check size={14} /> : <Copy size={14} />}
               </button>
               {onShareMessage && message.id > 0 && (
                 <button
@@ -285,7 +285,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                   aria-label={t('share.shareAnswer')}
                   type="button"
                 >
-                  <Share2 size={12} />
+                  <Share2 size={14} />
                 </button>
               )}
             </div>
