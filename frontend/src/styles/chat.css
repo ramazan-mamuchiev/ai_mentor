@@ -2128,11 +2128,11 @@
   }
 
   .messages-container {
-    padding: 16px 12px;
+    padding: 12px 16px;
   }
 
   .chat-input-container {
-    padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   }
 
   .empty-title {
@@ -2141,7 +2141,7 @@
 
   .message-content {
     font-size: 14px;
-    padding: 8px 12px;
+    padding: 8px 14px;
   }
 
 }
