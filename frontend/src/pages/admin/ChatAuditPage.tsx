@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight, Clock, Users,
+  ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight, Clock, User,
 } from 'lucide-react'
 import {
-  listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin, listTenants,
+  listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin, searchTenants,
   type AdminChatSessionItem, type AdminChatSessionDetail, type AdminChatMessageSearchItem,
-  type TenantListItem,
+  type TenantSearchResult,
 } from '../../api/admin'
 
 const TIME_RANGES = [
@@ -99,8 +99,12 @@ function SessionListView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [timeRange, setTimeRange] = useState('')
-  const [selectedTenant, setSelectedTenant] = useState('')
-  const [tenants, setTenants] = useState<TenantListItem[]>([])
+  const [tenantFilter, setTenantFilter] = useState<TenantSearchResult | null>(null)
+  const [tenantQuery, setTenantQuery] = useState('')
+  const [tenantOptions, setTenantOptions] = useState<TenantSearchResult[]>([])
+  const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false)
+  const tenantDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tenantWrapRef = useRef<HTMLDivElement>(null)
   const [msgResults, setMsgResults] = useState<AdminChatMessageSearchItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -108,12 +112,8 @@ function SessionListView() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const tenantIdFromUrl = searchParams.get('tenant_id') || undefined
-  const activeTenantId = selectedTenant || tenantIdFromUrl
+  const activeTenantId = tenantFilter?.id || tenantIdFromUrl
   const pageSize = 50
-
-  useEffect(() => {
-    listTenants({ page_size: 200 }).then(res => setTenants(res.items)).catch(() => {})
-  }, [])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -123,6 +123,30 @@ function SessionListView() {
     }, 400)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [search])
+
+  useEffect(() => {
+    if (tenantDebounceRef.current) clearTimeout(tenantDebounceRef.current)
+    if (!tenantQuery || tenantQuery.length < 1) { setTenantOptions([]); return }
+    tenantDebounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchTenants(tenantQuery)
+        setTenantOptions(results)
+        setTenantDropdownOpen(true)
+      } catch { setTenantOptions([]) }
+    }, 300)
+    return () => { if (tenantDebounceRef.current) clearTimeout(tenantDebounceRef.current) }
+  }, [tenantQuery])
+
+  useEffect(() => {
+    if (!tenantDropdownOpen) return
+    const handler = (e: MouseEvent) => {
+      if (tenantWrapRef.current && !tenantWrapRef.current.contains(e.target as Node)) {
+        setTenantDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [tenantDropdownOpen])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -212,20 +236,61 @@ function SessionListView() {
           ))}
         </div>
 
-        <div className="chat-audit-tenant-filter">
-          <Users size={13} className="chat-audit-tenant-filter__icon" />
-          <select
-            className="logs-select"
-            value={selectedTenant}
-            onChange={e => { setSelectedTenant(e.target.value); setPage(1) }}
-          >
-            <option value="">{t('admin.chats.allTenants', { defaultValue: 'All users' })}</option>
-            {tenants.map(tn => (
-              <option key={tn.id} value={tn.id}>
-                {tn.name || tn.email}
-              </option>
-            ))}
-          </select>
+        {/* Tenant autocomplete combo — same as Logs */}
+        <div className="logs-tenant-combo" ref={tenantWrapRef}>
+          {tenantFilter ? (
+            <div className="logs-tenant-chip">
+              <User size={12} />
+              <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
+              <button
+                className="logs-tenant-chip__clear"
+                onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}
+                aria-label="Clear"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <User size={13} className="logs-tenant-combo__icon" />
+              <input
+                className="logs-tenant-input"
+                placeholder={t('admin.logs.tenantPlaceholder', { defaultValue: 'User...' })}
+                value={tenantQuery}
+                onChange={e => setTenantQuery(e.target.value)}
+                onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
+              />
+              {tenantQuery && (
+                <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}>
+                  <X size={12} />
+                </button>
+              )}
+            </>
+          )}
+          {tenantDropdownOpen && tenantOptions.length > 0 && (
+            <div className="logs-tenant-dropdown">
+              {tenantOptions.map(opt => (
+                <button
+                  key={opt.id}
+                  className="logs-tenant-dropdown__item"
+                  onClick={() => {
+                    setTenantFilter(opt)
+                    setTenantQuery('')
+                    setTenantDropdownOpen(false)
+                    setPage(1)
+                  }}
+                >
+                  <span className="logs-tenant-dropdown__name">{opt.name}</span>
+                  <span className="logs-tenant-dropdown__email">{opt.email}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {tenantDropdownOpen && tenantQuery && tenantOptions.length === 0 && (
+            <div className="logs-tenant-dropdown">
+              <div className="logs-tenant-dropdown__empty">{t('admin.logs.noTenantsFound', { defaultValue: 'No users found' })}</div>
+            </div>
+          )}
         </div>
 
         <span className="logs-count">{total} {t('admin.chats.sessionsLabel', { defaultValue: 'sessions' })}</span>
