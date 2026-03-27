@@ -112,6 +112,13 @@ def _make_stdout_handler() -> logging.StreamHandler:
     return handler
 
 
+def _json_utf8(*args, **kwargs):
+    """JSON serializer that keeps Unicode readable (no \\uXXXX escapes)."""
+    import json
+    kwargs.setdefault("ensure_ascii", False)
+    return json.dumps(*args, **kwargs)
+
+
 def setup_logging() -> None:
     """Configure structlog + stdlib logging. Call once at startup."""
     log_level = getattr(logging, settings.app_log_level.upper(), logging.INFO)
@@ -141,7 +148,7 @@ def setup_logging() -> None:
         foreign_pre_chain=shared_processors,
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            structlog.processors.JSONRenderer(),
+            structlog.processors.JSONRenderer(serializer=_json_utf8),
         ],
     )
 
