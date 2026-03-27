@@ -345,18 +345,15 @@
 
 /* Audit chat area — reuses .message / .message-body / .message-content from chat.css */
 .audit-detail {
-  max-width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 16px;
 }
 
 .audit-chat-area {
-  max-width: 860px;
   padding: 16px 0 32px;
   display: flex;
   flex-direction: column;
-}
-
-.audit-chat-area .message {
-  max-width: 860px;
 }
 
 .audit-chat-area .message-footer {
