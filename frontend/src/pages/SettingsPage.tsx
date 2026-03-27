@@ -129,7 +129,7 @@ function ApiKeysTab() {
   const handleCreate = async () => {
     setCreating(true)
     try {
-      const created = await createApiKey(keyName || 'Default')
+      const created = await createApiKey(keyName.trim())
       setNewKey(created)
       setKeyName('')
       await load()
@@ -170,7 +170,7 @@ function ApiKeysTab() {
           placeholder={t('settings.keyNamePlaceholder')}
           className="auth-input"
         />
-        <button onClick={handleCreate} disabled={creating} className="btn-primary">
+        <button onClick={handleCreate} disabled={creating || !keyName.trim()} className="btn-primary">
           <Plus size={16} />
           {t('settings.createKey')}
         </button>
