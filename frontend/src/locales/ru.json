@@ -671,6 +671,8 @@
   "admin.logs.timeRange": "Период",
   "admin.logs.logLevel": "Уровень логов",
   "admin.logs.levelAll": "Все",
+  "admin.logs.tenantPlaceholder": "Пользователь...",
+  "admin.logs.noTenantsFound": "Не найдено",
 
   "admin.tenants.title": "Пользователи",
   "admin.tenants.totalCount": "{{count}} пользователей",

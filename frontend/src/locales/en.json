@@ -671,6 +671,8 @@
   "admin.logs.timeRange": "Time range",
   "admin.logs.logLevel": "Log level",
   "admin.logs.levelAll": "All",
+  "admin.logs.tenantPlaceholder": "User...",
+  "admin.logs.noTenantsFound": "Not found",
 
   "admin.tenants.title": "Tenants",
   "admin.tenants.totalCount": "{{count}} total tenants",

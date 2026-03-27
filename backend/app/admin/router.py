@@ -103,6 +103,26 @@ async def delete_tenant(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
 
 
+@router.get("/tenants/search/autocomplete")
+async def search_tenants_autocomplete(
+    q: str = Query("", min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lightweight tenant search for autocomplete (by name or email)."""
+    from sqlalchemy import select as sa_select
+    from app.models import Tenant
+
+    like = f"%{q}%"
+    rows = (await session.execute(
+        sa_select(Tenant.id, Tenant.name, Tenant.email)
+        .where(Tenant.name.ilike(like) | Tenant.email.ilike(like))
+        .order_by(Tenant.name)
+        .limit(limit)
+    )).all()
+    return [{"id": str(r.id), "name": r.name, "email": r.email} for r in rows]
+
+
 # ---------------------------------------------------------------------------
 # Documents
 # ---------------------------------------------------------------------------
@@ -255,6 +275,7 @@ async def get_logs(
     service_name: str = Query("api", alias="service"),
     level: str | None = None,
     search: str | None = None,
+    tenant_name: str | None = Query(None, alias="tenant"),
     start: str | None = None,
     end: str | None = None,
     limit: int = Query(200, ge=1, le=5000),
@@ -265,8 +286,15 @@ async def get_logs(
         label_parts.append(f'level="{level}"')
     label_selector = "{" + ",".join(label_parts) + "}"
 
+    pipeline_stages: list[str] = []
+    if tenant_name:
+        safe = tenant_name.replace('"', '\\"')
+        pipeline_stages.append(f'|~ "tenant_name.*{safe}"')
     if search:
-        query = f'{label_selector} |~ "{search}"'
+        pipeline_stages.append(f'|~ "{search}"')
+
+    if pipeline_stages:
+        query = label_selector + " " + " ".join(pipeline_stages)
     else:
         query = label_selector
 

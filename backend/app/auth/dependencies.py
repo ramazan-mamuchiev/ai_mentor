@@ -76,9 +76,14 @@ async def _enrich_with_roles(
     tenant: Tenant, request: Request, session: AsyncSession,
 ) -> Tenant:
     """Load tenant roles and compute effective permissions into request.state."""
+    from app.logging_config import tenant_id_ctx, tenant_name_ctx
+
     roles = await _load_tenant_roles(tenant.id, session)
+    request.state.tenant = tenant
     request.state.tenant_roles = roles
     request.state.permissions = merge_permissions(roles)
+    tenant_id_ctx.set(str(tenant.id))
+    tenant_name_ctx.set(tenant.name or "-")
     return tenant
 
 

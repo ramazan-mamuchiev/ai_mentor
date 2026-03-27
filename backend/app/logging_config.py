@@ -20,6 +20,8 @@ import structlog
 from app.config import settings
 
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
+tenant_id_ctx: ContextVar[str] = ContextVar("tenant_id", default="-")
+tenant_name_ctx: ContextVar[str] = ContextVar("tenant_name", default="-")
 active_requests_count: int = 0
 
 _MAX_BYTES = settings.log_max_size_mb * 1024 * 1024
@@ -32,10 +34,12 @@ _HUMAN_DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
 
 class _RequestIdFilter(logging.Filter):
-    """Inject request_id from contextvars into every log record."""
+    """Inject request_id, tenant_id, tenant_name from contextvars into every log record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.request_id = request_id_ctx.get("-")  # type: ignore[attr-defined]
+        record.tenant_id = tenant_id_ctx.get("-")  # type: ignore[attr-defined]
+        record.tenant_name = tenant_name_ctx.get("-")  # type: ignore[attr-defined]
         return True
 
 
@@ -57,8 +61,10 @@ class _SizeAwareTimedHandler(TimedRotatingFileHandler):
 
 
 def _add_request_id(logger, method_name, event_dict):
-    """Add request_id from contextvars to structlog event dict."""
+    """Add request_id, tenant_id, tenant_name from contextvars to structlog event dict."""
     event_dict["request_id"] = request_id_ctx.get("-")
+    event_dict["tenant_id"] = tenant_id_ctx.get("-")
+    event_dict["tenant_name"] = tenant_name_ctx.get("-")
     return event_dict
 
 
@@ -71,7 +77,7 @@ def _merge_extra(logger, method_name, event_dict):
             "levelname", "levelno", "lineno", "module", "msecs", "pathname",
             "process", "processName", "relativeCreated", "stack_info",
             "thread", "threadName", "exc_info", "exc_text", "message",
-            "request_id", "taskName",
+            "request_id", "tenant_id", "tenant_name", "taskName",
         }
         for key, value in record.__dict__.items():
             if key not in skip and not key.startswith("_"):

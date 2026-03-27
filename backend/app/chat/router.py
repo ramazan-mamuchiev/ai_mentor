@@ -417,8 +417,6 @@ async def send_message(
                     "Chat message received",
                     extra={
                         "session_id": session_id,
-                        "tenant_id": tenant.id,
-                        "tenant_name": tenant.name,
                         "query_length": len(req.content),
                         "product_filter": chat_session.product_filter,
                     },
@@ -918,8 +916,6 @@ async def send_message(
                     extra={
                         "session_id": session_id,
                         "message_id": assistant_msg.id,
-                        "tenant_id": tenant.id,
-                        "tenant_name": tenant.name,
                         "duration_ms": duration_ms,
                         "rag_ms": rag_ms,
                         "llm_ms": llm_ms,
@@ -944,8 +940,6 @@ async def send_message(
                 "Chat stream cancelled (client disconnected)",
                 extra={
                     "session_id": session_id,
-                    "tenant_id": tenant.id,
-                    "tenant_name": tenant.name,
                     "duration_ms": duration_ms,
                     "token_count": token_count,
                     "request_id": request_id,
@@ -958,8 +952,6 @@ async def send_message(
                 "Chat stream error",
                 extra={
                     "session_id": session_id,
-                    "tenant_id": tenant.id,
-                    "tenant_name": tenant.name,
                     "duration_ms": duration_ms,
                     "token_count": token_count,
                     "error_type": "LLMError",
@@ -977,8 +969,6 @@ async def send_message(
                 "Chat stream error",
                 extra={
                     "session_id": session_id,
-                    "tenant_id": tenant.id,
-                    "tenant_name": tenant.name,
                     "duration_ms": duration_ms,
                     "token_count": token_count,
                     "error_type": error_type,
