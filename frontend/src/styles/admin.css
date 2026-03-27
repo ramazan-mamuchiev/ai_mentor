@@ -380,8 +380,15 @@
   width: 100%;
 }
 
-.audit-chat-area .message-footer {
+.audit-detail-layout .sources-container {
   margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.audit-detail-layout .message-footer {
+  margin-top: 2px;
+  gap: 5px;
+  font-size: 10px;
 }
 
 .audit-meta-role {
@@ -390,7 +397,8 @@
 }
 
 .audit-meta-sep {
-  opacity: 0.4;
+  opacity: 0.35;
+  font-size: 8px;
 }
 
 .audit-meta-time {
