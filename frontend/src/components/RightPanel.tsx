@@ -188,13 +188,59 @@ export function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           {(debug.web_search_context_length ?? 0) > 0 && <div className="debug-row debug-row-config"><span>{t('debug.webSearchCtxLen')}</span><code>{fmt(debug.web_search_context_length)} chars</code></div>}
         </div>
       )}
+      {(debug.rewrite_total_tokens ?? 0) > 0 && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.rewriteCost')}</div>
+          <div className="debug-row"><span>{t('debug.rewritePromptTokens')}</span><code>{fmt(debug.rewrite_prompt_tokens)}</code></div>
+          <div className="debug-row"><span>{t('debug.rewriteCompletionTokens')}</span><code>{fmt(debug.rewrite_completion_tokens)}</code></div>
+          <div className="debug-row debug-row-total"><span>{t('debug.rewriteTotalTokens')}</span><code>{fmt(debug.rewrite_total_tokens)}</code></div>
+          {debug.rewrite_model && <div className="debug-row debug-row-config"><span>{t('debug.rewriteModel')}</span><code>{debug.rewrite_model}</code></div>}
+        </div>
+      )}
       {debug.retry_used && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.retryUsed')}</div>
           <div className="debug-row"><span>{t('debug.rephraseMs')}</span><code>{debug.rephrase_ms != null ? (debug.rephrase_ms / 1000).toFixed(2) + 's' : '—'}</code></div>
           {debug.rephrase_query && <div className="debug-row debug-row-wide"><span>{t('debug.rephraseQuery')}</span><code className="debug-query-value">{debug.rephrase_query}</code></div>}
+          {(debug.rephrase_total_tokens ?? 0) > 0 && (
+            <>
+              <div className="debug-row"><span>{t('debug.rephrasePromptTokens')}</span><code>{fmt(debug.rephrase_prompt_tokens)}</code></div>
+              <div className="debug-row"><span>{t('debug.rephraseCompletionTokens')}</span><code>{fmt(debug.rephrase_completion_tokens)}</code></div>
+              <div className="debug-row debug-row-total"><span>{t('debug.rephraseTotalTokens')}</span><code>{fmt(debug.rephrase_total_tokens)}</code></div>
+            </>
+          )}
+          {debug.rephrase_model && <div className="debug-row debug-row-config"><span>{t('debug.rephraseModel')}</span><code>{debug.rephrase_model}</code></div>}
         </div>
       )}
+      {(debug.embedding_api_tokens ?? 0) > 0 && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.embeddingApiCost')}</div>
+          <div className="debug-row"><span>{t('debug.embeddingApiTokens')}</span><code>{fmt(debug.embedding_api_tokens)}</code></div>
+          <div className="debug-row debug-row-config"><span>{t('debug.embeddingModel')}</span><code>{debug.embedding_model ?? '—'}</code></div>
+        </div>
+      )}
+      {(() => {
+        const grandPrompt = (debug.llm_prompt_tokens ?? 0) + (debug.rerank_prompt_tokens ?? 0)
+          + (debug.classify_prompt_tokens ?? 0) + (debug.summary_prompt_tokens ?? 0)
+          + (debug.rewrite_prompt_tokens ?? 0) + (debug.decompose_prompt_tokens ?? 0)
+          + (debug.web_search_prompt_tokens ?? 0) + (debug.rephrase_prompt_tokens ?? 0)
+        const grandCompletion = (debug.llm_completion_tokens ?? 0) + (debug.rerank_completion_tokens ?? 0)
+          + (debug.classify_completion_tokens ?? 0) + (debug.summary_completion_tokens ?? 0)
+          + (debug.rewrite_completion_tokens ?? 0) + (debug.decompose_completion_tokens ?? 0)
+          + (debug.web_search_completion_tokens ?? 0) + (debug.rephrase_completion_tokens ?? 0)
+        const grandEmbedding = debug.embedding_api_tokens ?? 0
+        const grandTotal = grandPrompt + grandCompletion + grandEmbedding
+        if (grandTotal <= 0) return null
+        return (
+          <div className="debug-section debug-section-grand">
+            <div className="debug-section-title">{t('debug.grandTotal')}</div>
+            <div className="debug-row"><span>{t('debug.grandTotalPrompt')}</span><code>{fmt(grandPrompt)}</code></div>
+            <div className="debug-row"><span>{t('debug.grandTotalCompletion')}</span><code>{fmt(grandCompletion)}</code></div>
+            <div className="debug-row debug-row-total"><span>{t('debug.grandTotalTokens')}</span><code>{fmt(grandPrompt + grandCompletion)}</code></div>
+            {grandEmbedding > 0 && <div className="debug-row"><span>{t('debug.grandTotalEmbedding')}</span><code>{fmt(grandEmbedding)}</code></div>}
+          </div>
+        )
+      })()}
       {hasTiming && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.timing')}</div>
