@@ -746,6 +746,7 @@ def ingest_single_url_task(self, document_id: int):
 
             doc.total_chunks = len(chunks)
             doc.status = "ready"
+            doc.error_message = None
             doc.progress_percent = 100
             doc.progress_stage = "done"
             doc.indexed_at = datetime.now(timezone.utc)
@@ -992,6 +993,7 @@ def ingest_confluence_task(self, document_id: int):
             else:
                 placeholder.status = "ready"
                 placeholder.progress_stage = "done"
+                placeholder.error_message = None
             session.commit()
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)

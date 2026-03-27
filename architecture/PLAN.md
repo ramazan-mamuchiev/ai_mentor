@@ -132,7 +132,7 @@
 - **Real-time progress tracking**: `progress_percent` (0–100) and `progress_stage` (converting / ocr / chunking / embedding / storing) persisted in `documents` table, polled by frontend
 - **Parallel PDF conversion**: large PDFs (>10 pages) split into 50-page chunks, processed in parallel via `ThreadPoolExecutor` (up to 4 workers). `ProcessPoolExecutor` not used because Celery workers are daemon processes
 - **Fault-tolerant conversion**: each page-range chunk retried up to 2 times with linear backoff on failure
-- **PDF OCR pipeline** (two-pass): Pass 1 extracts text via pymupdf4llm; language detected via Gemini; Pass 2 runs Gemini Vision OCR (gemini-2.0-flash) with auto-detected language. Each image processed in try/except — failures don't break the pipeline. OCR metrics (total/success/empty/failed) saved to DB
+- **PDF OCR pipeline** (two-pass): Pass 1 extracts text via pymupdf4llm; language detected via Gemini; Pass 2 runs Gemini Vision OCR (gemini-2.5-flash) with auto-detected language. Each image processed in try/except — failures don't break the pipeline. OCR metrics (total/success/empty/failed) saved to DB
 - **Dependencies**: google-genai SDK (Gemini Vision API)
 - **OCR billing**: OCR token usage (prompt/completion) tracked per document and aggregated in analytics
 - **Embedding batch size**: 100 texts per Gemini API call (API limit), with incremental progress callback after each batch

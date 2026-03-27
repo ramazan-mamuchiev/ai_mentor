@@ -559,7 +559,7 @@ async def user_cost_stats(
     ocr_total_tokens = ocr_prompt + ocr_completion
 
     from app.billing.pricing import calculate_llm_charge
-    ocr_cost = calculate_llm_charge("gemini-2.0-flash", ocr_prompt, ocr_completion)
+    ocr_cost = calculate_llm_charge(settings.ocr_vision_model, ocr_prompt, ocr_completion)
 
     daily = (await session.execute(text(
         "SELECT DATE(created_at) AS d, COALESCE(SUM(charge_usd),0) AS charge, COUNT(*) AS cnt "

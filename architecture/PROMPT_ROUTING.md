@@ -13,7 +13,7 @@ User query: "расскажи про DataLen"
        │
        ▼
 ┌─────────────────────────────────────────────────┐
-│  LLM Classifier (gemini-2.0-flash, ~100ms)      │
+│  LLM Classifier (gemini-2.5-flash, ~100ms)      │
 │  "Classify into: overview | technical | code..." │
 │  → "overview"                                    │
 └─────────────────────────────────────────────────┘
@@ -84,7 +84,7 @@ Create one `.md` file. No code changes required. See `prompts/README.md` for the
 
 | Parameter | Value |
 |-----------|-------|
-| Model | `gemini-2.0-flash` (configurable via `CLASSIFIER_MODEL`) |
+| Model | `gemini-2.5-flash` (configurable via `CLASSIFIER_MODEL`) |
 | Temperature | 0 |
 | Max tokens | 20 |
 | Reasoning | none |
@@ -160,7 +160,7 @@ The debug panel shows classification results:
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
 | `CLASSIFIER_ENABLED` | `true` | Enable/disable LLM classification |
-| `CLASSIFIER_MODEL` | `gemini-2.0-flash` | Model for classification |
+| `CLASSIFIER_MODEL` | `gemini-2.5-flash` | Model for classification |
 
 When `CLASSIFIER_ENABLED=false`, all queries use `"overview"` type (backward compatible).
 

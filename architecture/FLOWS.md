@@ -139,7 +139,7 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
   - Fallback: `["en"]` on any error (no Gemini API key, API failure, empty text)
   - Detected language saved to `documents.detected_language`
 - **Pass 2**: Gemini Vision API — OCR images with auto-detected language
-  - Each image sent to Gemini Vision API (`gemini-2.0-flash`) for text extraction
+  - Each image sent to Gemini Vision API (`gemini-2.5-flash`) for text extraction
   - Each image processed in try/except — failures logged but don't break the pipeline
   - Images below `_OCR_IMAGE_MIN_AREA` (100K pixels) skipped
   - Progress callback: `ocr_progress_callback(processed / total_images)`
@@ -147,7 +147,7 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
   - `ocr_ms` — total OCR time
   - `ocr_images_total` / `ocr_images_success` / `ocr_images_empty` / `ocr_images_failed`
 - **OCR token usage** tracked: `ocr_prompt_tokens`, `ocr_completion_tokens`, `ocr_model` saved to `documents` table
-- **OCR cost** calculated via `billing/pricing.py` using `gemini-2.0-flash` rates
+- **OCR cost** calculated via `billing/pricing.py` using `gemini-2.5-flash` rates
 
 **Ingestion progress tracking** (`pipeline.py` → `documents` table):
 - `progress_percent` (INT, 0–100) and `progress_stage` (TEXT) persisted to DB after each stage

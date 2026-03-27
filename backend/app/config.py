@@ -91,7 +91,7 @@ class Settings(BaseSettings):
 
     ocr_enabled: bool = True
     ocr_lang_detect_model: str = "gemini-2.5-flash"
-    ocr_vision_model: str = "gemini-2.0-flash"
+    ocr_vision_model: str = "gemini-2.5-flash"
 
     document_stale_timeout_sec: int = 3600
 
