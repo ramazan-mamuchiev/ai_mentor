@@ -148,6 +148,7 @@
   font-family: var(--font-sans);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
+  touch-action: manipulation;
 }
 
 .session-new-chat:hover {
@@ -165,6 +166,8 @@
   color: var(--text-secondary);
   transition: background 0.15s, color 0.15s;
   position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .session-item:hover {

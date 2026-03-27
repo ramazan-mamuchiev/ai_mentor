@@ -30,6 +30,8 @@
   font-family: var(--font-sans);
   white-space: nowrap;
   overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nav-item:hover {
