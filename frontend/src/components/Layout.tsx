@@ -2,6 +2,8 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, Box, BarChart3, Settings, X, Shield,
+  LayoutDashboard, Users, FileText, ScrollText, KeyRound, MessageSquareCode,
+  ArrowLeft,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
@@ -56,6 +58,17 @@ const NAV_ITEMS = [
 
 const ADMIN_NAV_ITEM = { path: '/app/admin', icon: Shield, labelKey: 'nav.admin' } as const
 
+const ADMIN_SUB_NAV: readonly { path: string; icon: typeof LayoutDashboard; label: string; exact?: boolean }[] = [
+  { path: '/app/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+  { path: '/app/admin/tenants', icon: Users, label: 'Tenants' },
+  { path: '/app/admin/documents', icon: FileText, label: 'Documents' },
+  { path: '/app/admin/chats', icon: MessageSquare, label: 'Chat Audit' },
+  { path: '/app/admin/roles', icon: KeyRound, label: 'Roles' },
+  { path: '/app/admin/prompts', icon: MessageSquareCode, label: 'Prompts' },
+  { path: '/app/admin/logs', icon: ScrollText, label: 'Logs' },
+  { path: '/app/admin/stats', icon: BarChart3, label: 'Stats' },
+]
+
 interface Props {
   sessions: ChatSession[]
   activeSessionId: number | null
@@ -91,6 +104,7 @@ export function Layout({
 
   const { user } = useAuth()
   const isChat = location.pathname === '/app' || location.pathname === '/app/'
+  const isAdmin = location.pathname.startsWith('/app/admin')
 
   useEffect(() => { if (!isMobile) setMobileOpen(false) }, [isMobile])
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
@@ -205,7 +219,7 @@ export function Layout({
           })}
           {(user?.permissions as any)?.features?.admin && (() => {
             const Icon = ADMIN_NAV_ITEM.icon
-            const active = location.pathname.startsWith(ADMIN_NAV_ITEM.path)
+            const active = isAdmin
             return (
               <button
                 className={`nav-item${active ? ' nav-item--active' : ''}`}
@@ -219,7 +233,34 @@ export function Layout({
           })()}
         </nav>
 
-        {(!collapsed || isMobile) && isChat ? (
+        {isAdmin && (!collapsed || isMobile) && (
+          <div className="admin-subnav">
+            <button className="admin-subnav-back" onClick={() => navigate('/app')}>
+              <ArrowLeft size={14} />
+              {t('nav.chat')}
+            </button>
+            <div className="admin-subnav-list">
+              {ADMIN_SUB_NAV.map(item => {
+                const Icon = item.icon
+                const active = item.exact
+                  ? location.pathname === item.path || location.pathname === item.path + '/'
+                  : location.pathname.startsWith(item.path)
+                return (
+                  <button
+                    key={item.path}
+                    className={`nav-item nav-item--sub${active ? ' nav-item--active' : ''}`}
+                    onClick={() => navigate(item.path)}
+                  >
+                    <Icon size={15} />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {(!collapsed || isMobile) && isChat && !isAdmin ? (
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -227,9 +268,9 @@ export function Layout({
             onNew={onNewSession}
             onDelete={onDeleteSession}
           />
-        ) : (
+        ) : !isAdmin || (collapsed && !isMobile) ? (
           <div className="sidebar-spacer" />
-        )}
+        ) : null}
 
         <div className="sidebar-footer">
           <AccountBadge collapsed={collapsed && !isMobile} theme={theme} onToggleTheme={onToggleTheme} />
