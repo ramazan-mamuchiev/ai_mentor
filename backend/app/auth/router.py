@@ -546,10 +546,10 @@ async def user_cost_stats(
     ), {"tid": tid, "since": since})).mappings().all()
 
     by_model = (await session.execute(text(
-        "SELECT model, provider, COALESCE(SUM(charge_usd),0) AS charge, "
+        "SELECT llm_model AS model, llm_provider AS provider, COALESCE(SUM(charge_usd),0) AS charge, "
         "COALESCE(SUM(total_tokens),0) AS tokens, COUNT(*) AS cnt "
         "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since "
-        "GROUP BY model, provider ORDER BY charge DESC LIMIT 10"
+        "GROUP BY llm_model, llm_provider ORDER BY charge DESC LIMIT 10"
     ), {"tid": tid, "since": since})).mappings().all()
 
     by_channel = (await session.execute(text(
