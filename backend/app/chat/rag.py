@@ -384,17 +384,18 @@ def _build_history_messages(
 _REWRITE_PROMPT = _REWRITE_PROMPT_IMPORTED
 
 
-async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> str:
+async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> tuple[str, dict]:
     """Use LLM to rewrite a follow-up query into a standalone question.
 
-    Falls back to the original query on any error or if there is no history.
+    Returns (rewritten_query, usage_dict). Falls back to (original, empty_usage) on error.
     """
+    empty_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
     if not history:
-        return query
+        return query, empty_usage
 
     recent = [m for m in history if m.role == "user"][-3:]
     if not recent:
-        return query
+        return query, empty_usage
 
     messages = [{"role": "system", "content": _REWRITE_PROMPT}]
     for msg in recent:
@@ -403,19 +404,21 @@ async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> str:
 
     try:
         if settings.llm_provider == "openai":
-            result = await _llm_rewrite_openai(messages)
+            result, usage = await _llm_rewrite_openai(messages)
         else:
             result = await _llm_rewrite_ollama(messages)
+            usage = empty_usage
         if result and len(result) < 500:
             logger.info("Query rewritten", extra={"original": query[:100], "rewritten": result[:200]})
-            return result
+            return result, usage
     except Exception:
         logger.warning("Query rewrite failed, using original", exc_info=True)
 
-    return query
+    return query, empty_usage
 
 
-async def _llm_rewrite_openai(messages: list[dict]) -> str:
+async def _llm_rewrite_openai(messages: list[dict]) -> tuple[str, dict]:
+    """Rewrite query via OpenAI-compatible API. Returns (text, usage_dict)."""
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
     payload = {
         "model": settings.openai_llm_model,
@@ -431,7 +434,14 @@ async def _llm_rewrite_openai(messages: list[dict]) -> str:
     resp = await gemini_client().post(url, json=payload, headers=headers, timeout=15.0)
     resp.raise_for_status()
     data = resp.json()
-    return data["choices"][0]["message"]["content"].strip()
+    text = data["choices"][0]["message"]["content"].strip()
+    api_usage = data.get("usage", {})
+    usage = {
+        "prompt_tokens": api_usage.get("prompt_tokens", 0),
+        "completion_tokens": api_usage.get("completion_tokens", 0),
+        "model": settings.openai_llm_model,
+    }
+    return text, usage
 
 
 async def _llm_rewrite_ollama(messages: list[dict]) -> str:
@@ -878,7 +888,10 @@ async def build_rag_prompt(
         if history:
             await _emit("rewriting")
         t_rewrite = time.perf_counter()
-        search_query = await _rewrite_query(query, history) if history else query
+        if history:
+            search_query, rewrite_usage = await _rewrite_query(query, history)
+        else:
+            search_query, rewrite_usage = query, {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
         rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
 
         product_names = await _load_product_names(db)
@@ -997,6 +1010,7 @@ async def build_rag_prompt(
         logger.info("No documents in system — skipping search pipeline, will attempt web search")
         search_query = query
         rewrite_ms = 0.0
+        rewrite_usage = {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
         query_type = "overview"
         classify_product = None
         classify_meta: dict = {}
@@ -1271,6 +1285,10 @@ async def build_rag_prompt(
         "history_tokens": history_tokens,
         "system_prompt_tokens": system_prompt_tokens,
         "rewrite_ms": rewrite_ms if history else 0,
+        "rewrite_prompt_tokens": rewrite_usage.get("prompt_tokens", 0),
+        "rewrite_completion_tokens": rewrite_usage.get("completion_tokens", 0),
+        "rewrite_total_tokens": rewrite_usage.get("prompt_tokens", 0) + rewrite_usage.get("completion_tokens", 0),
+        "rewrite_model": rewrite_usage.get("model", ""),
         "search_ms": search_ms,
         "rag_build_ms": total_ms,
         "history_messages": len(history) if history else 0,

@@ -1608,13 +1608,35 @@
 
   .docs-filter-bar {
     padding: 6px 12px;
-    gap: 8px;
-    overflow-x: auto;
-    flex-wrap: nowrap;
+    gap: 4px 8px;
+    overflow-x: visible;
+    flex-wrap: wrap;
   }
 
   .docs-filter-group {
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .docs-filter-chips {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .docs-filter-chip {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .docs-filter-label {
+    font-size: 10px;
+  }
+
+  .docs-filter-group + .docs-filter-group {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
   }
 
   .docs-group-bar,

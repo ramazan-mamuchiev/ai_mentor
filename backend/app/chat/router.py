@@ -892,6 +892,40 @@ async def send_message(
                         api_key_id=api_key_id_str,
                     )
 
+                rerank_total = rag_debug.get("rerank_total_tokens", 0)
+                if rerank_total > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="rerank",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=rag_debug.get("rerank_model", ""),
+                        prompt_tokens=rag_debug.get("rerank_prompt_tokens", 0),
+                        completion_tokens=rag_debug.get("rerank_completion_tokens", 0),
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=rag_debug.get("rerank_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
+                    )
+
+                rewrite_total = rag_debug.get("rewrite_total_tokens", 0)
+                if rewrite_total > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="query_rewrite",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=rag_debug.get("rewrite_model", ""),
+                        prompt_tokens=rag_debug.get("rewrite_prompt_tokens", 0),
+                        completion_tokens=rag_debug.get("rewrite_completion_tokens", 0),
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=rag_debug.get("rewrite_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
+                    )
+
                 if sources:
                     try:
                         total_ctx = rag_debug.get("context_tokens", 0)
