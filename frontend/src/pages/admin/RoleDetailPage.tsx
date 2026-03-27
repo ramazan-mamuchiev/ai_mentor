@@ -138,7 +138,7 @@ export function RoleDetailPage() {
 
   return (
     <div className="admin-page">
-      <div className="admin-page-header">
+      <div className="admin-detail-header">
         <button className="btn" onClick={() => navigate('/app/admin/roles')}>
           <ArrowLeft size={14} /> {t('admin.common.back')}
         </button>

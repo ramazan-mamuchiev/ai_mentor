@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { BarChart3 } from 'lucide-react'
 import {
-  getUsageStats, getModelStats, getIngestionStats, getSearchStats,
+  getOverview, getUsageStats, getModelStats, getIngestionStats, getSearchStats,
   getChatStats, getDocumentStats, getExtendedSearchStats, getCostStats,
-  type DailyUsageStat, type ModelUsageStat, type IngestionStat,
+  type PlatformOverview, type DailyUsageStat, type ModelUsageStat, type IngestionStat,
   type ChatStats as ChatStatsT, type DocumentStats as DocStatsT,
   type ExtendedSearchStats as SearchStatsT, type CostStats as CostStatsT,
 } from '../../api/admin'
@@ -72,8 +72,16 @@ function HorizBar({ items, colorVar }: { items: Array<{ label: string; pct: numb
 function fmtMs(v: number | null) { return v != null ? `${Math.round(v)}ms` : '—' }
 function fmtUsd(v: string) { return `$${parseFloat(v).toFixed(4)}` }
 
+function fmtBytes(b: number) {
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`
+  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
 /* ───── Tab: Overview ───── */
 function OverviewTab({ days, t }: { days: number; t: any }) {
+  const [overview, setOverview] = useState<PlatformOverview | null>(null)
   const [daily, setDaily] = useState<DailyUsageStat[]>([])
   const [models, setModels] = useState<ModelUsageStat[]>([])
   const [ingestion, setIngestion] = useState<IngestionStat | null>(null)
@@ -81,8 +89,8 @@ function OverviewTab({ days, t }: { days: number; t: any }) {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([getUsageStats(days), getModelStats(days), getIngestionStats()])
-      .then(([u, m, i]) => { setDaily(u.daily); setModels(m); setIngestion(i) })
+    Promise.all([getOverview(), getUsageStats(days), getModelStats(days), getIngestionStats()])
+      .then(([ov, u, m, i]) => { setOverview(ov); setDaily(u.daily); setModels(m); setIngestion(i) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [days])
@@ -91,6 +99,19 @@ function OverviewTab({ days, t }: { days: number; t: any }) {
 
   return (
     <>
+      {overview && (
+        <div className="stats-grid" style={{ marginBottom: 24 }}>
+          <StatCard label={t('admin.stats.overview.tenants')} value={`${overview.active_tenants} / ${overview.total_tenants}`} />
+          <StatCard label={t('admin.stats.overview.documents')} value={overview.total_documents} sub={`${overview.documents_indexed} ${t('admin.stats.overview.indexed')}`} />
+          <StatCard label={t('admin.stats.overview.chunks')} value={overview.total_chunks.toLocaleString()} />
+          <StatCard label={t('admin.stats.overview.sessions')} value={overview.total_sessions.toLocaleString()} />
+          <StatCard label={t('admin.stats.overview.messages')} value={overview.total_messages.toLocaleString()} />
+          <StatCard label={t('admin.stats.overview.apiKeys')} value={overview.total_api_keys} />
+          <StatCard label={t('admin.stats.overview.sharedLinks')} value={overview.total_shared_links} />
+          <StatCard label={t('admin.stats.overview.prompts')} value={overview.total_prompts} sub={`${overview.customized_prompts} ${t('admin.stats.overview.customized')}`} />
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
         <SimpleBar data={daily} labelKey="date" valueKey="requests" label={t('admin.stats.requestsPerDay')} />
         <SimpleBar data={daily} labelKey="date" valueKey="tokens" label={t('admin.stats.tokensPerDay')} />
@@ -165,6 +186,7 @@ function ChatTab({ days, t }: { days: number; t: any }) {
         <StatCard label={t('admin.stats.chat.tokensPerSec')} value={rt.avg_tokens_per_sec?.toFixed(1) || '—'} />
         <StatCard label={t('admin.stats.chat.feedbackRate')} value={fb.positive_rate != null ? `${fb.positive_rate}%` : '—'} sub={`${fb.rated_count} / ${fb.total_messages}`} variant={fb.positive_rate != null && fb.positive_rate >= 70 ? 'success' : 'warning'} />
         <StatCard label={t('admin.stats.chat.avgMsgsSession')} value={data.avg_messages_per_session?.toFixed(1) || '—'} />
+        <StatCard label={t('admin.stats.chat.errorRate')} value={`${data.error_rate.rate}%`} sub={`${data.error_rate.errors} / ${data.error_rate.total}`} variant={data.error_rate.rate > 5 ? 'warning' : undefined} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '16px 0' }}>
@@ -260,6 +282,9 @@ function DocumentsTab({ days, t }: { days: number; t: any }) {
     <>
       <div className="stats-grid">
         <StatCard label={t('admin.stats.docs.total')} value={data.total} />
+        <StatCard label={t('admin.stats.docs.kbSize')} value={fmtBytes(data.total_size_bytes)} />
+        <StatCard label={t('admin.stats.docs.totalChunks')} value={data.total_chunks.toLocaleString()} />
+        <StatCard label={t('admin.stats.docs.chunkUtil')} value={data.total_chunks > 0 ? `${(data.used_chunks_count / data.total_chunks * 100).toFixed(1)}%` : '—'} sub={`${data.used_chunks_count.toLocaleString()} / ${data.total_chunks.toLocaleString()}`} />
         <StatCard label={t('admin.stats.docs.avgSize')} value={data.avg_size_bytes != null ? `${(data.avg_size_bytes / 1024).toFixed(1)} KB` : '—'} />
         <StatCard label={t('admin.stats.docs.avgChunks')} value={data.avg_chunks?.toFixed(1) || '—'} />
         <StatCard label={t('admin.stats.docs.unused')} value={data.unused_count} variant={data.unused_count > 10 ? 'warning' : undefined} />

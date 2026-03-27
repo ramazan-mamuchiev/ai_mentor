@@ -104,7 +104,7 @@ export function PromptEditorPage() {
 
   return (
     <div className="admin-page">
-      <div className="admin-page-header">
+      <div className="admin-detail-header">
         <button className="btn" onClick={() => navigate('/app/admin/prompts')}>
           <ArrowLeft size={14} /> {t('admin.common.back')}
         </button>

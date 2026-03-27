@@ -52,12 +52,11 @@ export function TenantDetailPage() {
 
   return (
     <div>
-      <div className="admin-page-header">
-        <button className="admin-sidebar-back" onClick={() => navigate('/app/admin/tenants')}>
+      <div className="admin-detail-header">
+        <button className="btn" onClick={() => navigate('/app/admin/tenants')}>
           <ArrowLeft size={14} /> {t('admin.tenantDetail.backToTenants')}
         </button>
         <h1>{tenant.email}</h1>
-        <p>{t('admin.tenantDetail.details')}</p>
       </div>
 
       <div className="admin-detail-grid">

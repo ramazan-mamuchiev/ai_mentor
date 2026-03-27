@@ -6,7 +6,7 @@
   flex-direction: column;
   padding: 24px 32px;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* Admin nav — variant 3: full replacement */
@@ -1178,27 +1178,22 @@
 
 /* --- Roles & Prompts --- */
 
-.admin-page-header {
+.admin-detail-header {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 24px;
   flex-wrap: wrap;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--bg-secondary);
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
 }
 
-.admin-page-header h1 {
+.admin-detail-header h1 {
   flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 20px;
   font-weight: 600;
+  color: var(--text);
   margin: 0;
 }
 

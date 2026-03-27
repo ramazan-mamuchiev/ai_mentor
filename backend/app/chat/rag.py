@@ -19,7 +19,7 @@ from sqlalchemy import select as sa_select
 from app.config import settings
 from app.llm.http_client import gemini_client, ollama_client
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
-from app.models import ChatMessage, Product
+from app.models import ChatMessage, Product, SearchAnalytics
 from app.search.service import search_documents
 
 
@@ -853,6 +853,7 @@ async def build_rag_prompt(
     progress_callback: ProgressCallback | None = None,
     role_ids: list[int] | None = None,
     allowed_query_types: list[str] | None = None,
+    tenant_id: str | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """Build a complete prompt with RAG context for the LLM.
 
@@ -1047,6 +1048,22 @@ async def build_rag_prompt(
                     "Search retry succeeded",
                     extra={"chunks_found": len(chunks), "top_sim": chunks[0]["similarity"]},
                 )
+
+    try:
+        db.add(SearchAnalytics(
+            source="chat",
+            tool_name="build_rag_prompt",
+            query=search_query[:500],
+            product_filter=product_filter,
+            version_filter=version_filter,
+            result_count=len(chunks),
+            top_similarity=chunks[0]["similarity"] if chunks else 0.0,
+            duration_ms=search_ms,
+            embedding_model=settings.embedding_model_gemini,
+            tenant_id=tenant_id,
+        ))
+    except Exception:
+        logger.warning("Failed to save chat search analytics", exc_info=True)
 
     web_search_context = ""
     web_search_meta: dict = {}
