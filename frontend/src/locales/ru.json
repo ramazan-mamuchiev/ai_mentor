@@ -275,6 +275,7 @@
   "nav.products": "Продукты",
   "nav.analytics": "Аналитика",
   "nav.settings": "Настройки",
+  "nav.admin": "Админка",
 
   "docs.title": "Документы",
   "docs.upload": "Загрузить",
@@ -462,7 +463,7 @@
   "products.title": "Продукты",
   "products.description": "Управление каталогом продуктов — устройства, версии прошивок и наборы документации.",
   "products.empty.title": "Продуктов пока нет",
-  "products.empty.description": "Загрузите документацию, чтобы продукты создались автоматически.",
+  "products.empty.description": "Загрузите документацию или импортируйте по ссылке, чтобы продукты создались автоматически.",
   "products.empty.cta": "Загрузить документацию",
   "products.search.placeholder": "Поиск продуктов...",
   "products.table.name": "Продукт",

@@ -476,9 +476,10 @@ app = FastAPI(
 )
 
 from fastapi import Depends
-from app.auth.dependencies import get_current_tenant
+from app.auth.dependencies import get_current_tenant, require_admin
 
 _auth = [Depends(get_current_tenant)]
+_admin_auth = [Depends(require_admin)]
 
 app.add_middleware(RequestLoggingMiddleware)
 app.include_router(auth_router)
@@ -489,6 +490,9 @@ app.include_router(reindex_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(share_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(uploads_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(share_public_router, prefix="/api/v1")
+
+from app.admin.router import router as admin_router
+app.include_router(admin_router, prefix="/api/v1", dependencies=_admin_auth)
 from app.mcp.auth_middleware import McpApiKeyAuthMiddleware
 app.router.routes.append(Mount("/mcp", app=McpApiKeyAuthMiddleware(mcp.streamable_http_app())))
 

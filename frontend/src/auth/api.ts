@@ -29,6 +29,7 @@ export interface MeResponse {
   name: string | null
   slug: string
   tier: string
+  role: string
   email_verified: boolean
   created_at: string
 }

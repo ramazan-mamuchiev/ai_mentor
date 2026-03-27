@@ -103,6 +103,7 @@ async def me(tenant: Tenant = Depends(get_current_tenant)):
         name=tenant.name,
         slug=tenant.slug,
         tier=tenant.tier,
+        role=tenant.role,
         email_verified=tenant.email_verified,
         created_at=tenant.created_at,
     )
@@ -125,6 +126,7 @@ async def update_me(
         name=tenant.name,
         slug=tenant.slug,
         tier=tenant.tier,
+        role=tenant.role,
         email_verified=tenant.email_verified,
         created_at=tenant.created_at,
     )

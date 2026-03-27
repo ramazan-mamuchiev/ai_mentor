@@ -1,10 +1,11 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  MessageSquare, Box, BarChart3, Settings, X,
+  MessageSquare, Box, BarChart3, Settings, X, Shield,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
+import { useAuth } from '../auth/AuthContext'
 import { AccountBadge } from './AccountBadge'
 import { SessionList } from './SessionList'
 import { SidebarMenuIcon, SidebarCollapseIcon, SidebarExpandIcon } from './icons'
@@ -53,6 +54,8 @@ const NAV_ITEMS = [
   { path: '/app/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const
 
+const ADMIN_NAV_ITEM = { path: '/app/admin', icon: Shield, labelKey: 'nav.admin' } as const
+
 interface Props {
   sessions: ChatSession[]
   activeSessionId: number | null
@@ -86,6 +89,7 @@ export function Layout({
   const navigate = useNavigate()
   const location = useLocation()
 
+  const { user } = useAuth()
   const isChat = location.pathname === '/app' || location.pathname === '/app/'
 
   useEffect(() => { if (!isMobile) setMobileOpen(false) }, [isMobile])
@@ -186,7 +190,7 @@ export function Layout({
             const Icon = item.icon
             const active = item.path === '/app'
               ? isChat
-              : location.pathname.startsWith(item.path)
+              : location.pathname.startsWith(item.path) && !location.pathname.startsWith('/app/admin')
             return (
               <button
                 key={item.path}
@@ -199,6 +203,20 @@ export function Layout({
               </button>
             )
           })}
+          {user?.role === 'admin' && (() => {
+            const Icon = ADMIN_NAV_ITEM.icon
+            const active = location.pathname.startsWith(ADMIN_NAV_ITEM.path)
+            return (
+              <button
+                className={`nav-item${active ? ' nav-item--active' : ''}`}
+                onClick={() => navigate(ADMIN_NAV_ITEM.path)}
+                data-tooltip={collapsed && !isMobile ? t(ADMIN_NAV_ITEM.labelKey) : undefined}
+              >
+                <Icon size={18} />
+                {(!collapsed || isMobile) && t(ADMIN_NAV_ITEM.labelKey)}
+              </button>
+            )
+          })()}
         </nav>
 
         {(!collapsed || isMobile) && isChat ? (

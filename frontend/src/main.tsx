@@ -7,6 +7,7 @@ import './styles/globals.css'
 import './styles/auth.css'
 import './styles/chat.css'
 import './styles/documents.css'
+import './styles/admin.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -84,6 +84,15 @@ async def get_current_tenant(
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
 
 
+async def require_admin(
+    tenant: Tenant = Depends(get_current_tenant),
+) -> Tenant:
+    """Raise 403 unless the authenticated tenant has role='admin'."""
+    if tenant.role != "admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
+    return tenant
+
+
 async def get_current_tenant_optional(
     request: Request,
     session: AsyncSession = Depends(get_session),

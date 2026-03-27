@@ -30,6 +30,7 @@ class Tenant(Base):
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     slug: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     tier: Mapped[str] = mapped_column(Text, default="free")
+    role: Mapped[str] = mapped_column(Text, default="user")  # "user" | "admin"
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(

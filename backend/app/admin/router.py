@@ -1,0 +1,280 @@
+"""Admin REST endpoints — platform management, moderation, audit, stats, logs."""
+
+import uuid
+import logging
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.database import get_session
+from app.admin import service
+from app.admin.schemas import (
+    AdminChatMessageSearchResponse,
+    AdminChatSessionDetail,
+    AdminChatSessionListResponse,
+    AdminDocumentDetail,
+    AdminDocumentListResponse,
+    AdminDocumentPatchRequest,
+    IngestionStat,
+    LogsResponse,
+    ModelUsageStat,
+    PlatformOverview,
+    SearchStat,
+    TenantDetail,
+    TenantListResponse,
+    TenantPatchRequest,
+    UsageStatsResponse,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# ---------------------------------------------------------------------------
+# Tenants
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants", response_model=TenantListResponse)
+async def list_tenants(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    search: str | None = None,
+    role: str | None = None,
+    tier: str | None = None,
+    is_active: bool | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    items, total = await service.list_tenants(
+        session, page=page, page_size=page_size,
+        search=search, role=role, tier=tier, is_active=is_active,
+    )
+    return TenantListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/tenants/{tenant_id}", response_model=TenantDetail)
+async def get_tenant(
+    tenant_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    detail = await service.get_tenant_detail(session, tenant_id)
+    if not detail:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
+    return detail
+
+
+@router.patch("/tenants/{tenant_id}", response_model=TenantDetail)
+async def patch_tenant(
+    tenant_id: uuid.UUID,
+    body: TenantPatchRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    if body.role and body.role not in ("user", "admin"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid role")
+    result = await service.patch_tenant(
+        session, tenant_id,
+        role=body.role, tier=body.tier, is_active=body.is_active,
+    )
+    if not result:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
+    return result
+
+
+@router.delete("/tenants/{tenant_id}", status_code=204)
+async def delete_tenant(
+    tenant_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await service.patch_tenant(session, tenant_id, is_active=False)
+    if not result:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
+
+
+# ---------------------------------------------------------------------------
+# Documents
+# ---------------------------------------------------------------------------
+
+@router.get("/documents", response_model=AdminDocumentListResponse)
+async def list_documents(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    status_filter: str | None = Query(None, alias="status"),
+    tenant_id: uuid.UUID | None = None,
+    search: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    items, total = await service.list_documents_admin(
+        session, page=page, page_size=page_size,
+        status_filter=status_filter, tenant_id=tenant_id, search=search,
+    )
+    return AdminDocumentListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/documents/{doc_id}", response_model=AdminDocumentDetail)
+async def get_document(
+    doc_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    detail = await service.get_document_admin(session, doc_id)
+    if not detail:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    return detail
+
+
+@router.patch("/documents/{doc_id}", response_model=AdminDocumentDetail)
+async def patch_document(
+    doc_id: int,
+    body: AdminDocumentPatchRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await service.patch_document_admin(session, doc_id, status=body.status)
+    if not result:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    return result
+
+
+@router.delete("/documents/{doc_id}", status_code=204)
+async def delete_document(
+    doc_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    if not await service.delete_document_admin(session, doc_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+
+
+# ---------------------------------------------------------------------------
+# Chat Audit
+# ---------------------------------------------------------------------------
+
+@router.get("/chat/sessions", response_model=AdminChatSessionListResponse)
+async def list_chat_sessions(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    tenant_id: uuid.UUID | None = None,
+    search: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    items, total = await service.list_chat_sessions_admin(
+        session, page=page, page_size=page_size,
+        tenant_id=tenant_id, search=search,
+    )
+    return AdminChatSessionListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/chat/sessions/{session_id}", response_model=AdminChatSessionDetail)
+async def get_chat_session(
+    session_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    detail = await service.get_chat_session_admin(session, session_id)
+    if not detail:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Chat session not found")
+    return detail
+
+
+@router.get("/chat/messages", response_model=AdminChatMessageSearchResponse)
+async def search_messages(
+    query: str = Query(..., min_length=1),
+    limit: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+):
+    items, total = await service.search_chat_messages(session, query=query, limit=limit)
+    return AdminChatMessageSearchResponse(items=items, total=total)
+
+
+# ---------------------------------------------------------------------------
+# Stats
+# ---------------------------------------------------------------------------
+
+@router.get("/stats/overview", response_model=PlatformOverview)
+async def stats_overview(session: AsyncSession = Depends(get_session)):
+    return await service.get_platform_overview(session)
+
+
+@router.get("/stats/usage", response_model=UsageStatsResponse)
+async def stats_usage(
+    days: int = Query(30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
+    daily = await service.get_usage_stats(session, days=days)
+    return UsageStatsResponse(daily=daily)
+
+
+@router.get("/stats/models", response_model=list[ModelUsageStat])
+async def stats_models(
+    days: int = Query(30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_model_stats(session, days=days)
+
+
+@router.get("/stats/ingestion", response_model=IngestionStat)
+async def stats_ingestion(session: AsyncSession = Depends(get_session)):
+    return await service.get_ingestion_stats(session)
+
+
+@router.get("/stats/search", response_model=SearchStat)
+async def stats_search(
+    days: int = Query(30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_search_stats(session, days=days)
+
+
+# ---------------------------------------------------------------------------
+# Logs (Loki proxy)
+# ---------------------------------------------------------------------------
+
+LOKI_URL = "http://loki:3100"
+
+@router.get("/logs", response_model=LogsResponse)
+async def get_logs(
+    service_name: str = Query("api", alias="service"),
+    level: str | None = None,
+    search: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    limit: int = Query(200, ge=1, le=5000),
+):
+    label_parts = [f'job="{service_name}"']
+    if level:
+        label_parts.append(f'level="{level}"')
+    label_selector = "{" + ",".join(label_parts) + "}"
+
+    if search:
+        query = f'{label_selector} |~ "{search}"'
+    else:
+        query = label_selector
+
+    params: dict = {"query": query, "limit": str(limit), "direction": "backward"}
+    if start:
+        params["start"] = start
+    if end:
+        params["end"] = end
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{LOKI_URL}/loki/api/v1/query_range", params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning("Loki query failed", extra={"error": str(e)})
+        return LogsResponse(entries=[], total=0)
+
+    entries = []
+    for stream in data.get("data", {}).get("result", []):
+        stream_labels = stream.get("stream", {})
+        for ts, line in stream.get("values", []):
+            entries.append({
+                "timestamp": ts,
+                "level": stream_labels.get("level", ""),
+                "message": line,
+                "service": stream_labels.get("job", service_name),
+                "extra": {k: v for k, v in stream_labels.items() if k not in ("job", "level")},
+            })
+
+    entries.sort(key=lambda e: e["timestamp"], reverse=True)
+
+    return LogsResponse(entries=entries[:limit], total=len(entries))

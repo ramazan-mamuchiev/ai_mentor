@@ -41,6 +41,7 @@ class MeResponse(BaseModel):
     name: str | None
     slug: str
     tier: str
+    role: str
     email_verified: bool
     created_at: datetime
 

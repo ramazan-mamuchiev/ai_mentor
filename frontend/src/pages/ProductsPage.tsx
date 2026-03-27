@@ -425,12 +425,20 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           <Box size={48} className="docs-empty-icon" />
           <h2>{t('products.empty.title')}</h2>
           <p>{t('products.empty.description')}</p>
-          {onUploadClick && (
-            <button className="docs-upload-btn" onClick={onUploadClick}>
-              <Upload size={16} />
-              <span>{t('products.empty.cta')}</span>
-            </button>
-          )}
+          <div className="docs-empty-actions">
+            {onUploadClick && (
+              <button className="docs-upload-btn" onClick={onUploadClick}>
+                <Upload size={16} />
+                <span>{t('products.empty.cta')}</span>
+              </button>
+            )}
+            {onUrlImportClick && (
+              <button className="docs-upload-btn docs-upload-btn--secondary" onClick={onUrlImportClick}>
+                <Globe size={16} />
+                <span>{t('urlImport.button')}</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     )

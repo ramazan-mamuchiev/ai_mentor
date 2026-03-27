@@ -275,6 +275,7 @@
   "nav.products": "Products",
   "nav.analytics": "Analytics",
   "nav.settings": "Settings",
+  "nav.admin": "Admin",
 
   "docs.title": "Documents",
   "docs.upload": "Upload",
@@ -462,7 +463,7 @@
   "products.title": "Products",
   "products.description": "Manage your product catalog — devices, firmware versions, and documentation sets.",
   "products.empty.title": "No products yet",
-  "products.empty.description": "Upload documentation to create products automatically.",
+  "products.empty.description": "Upload documentation or import from a URL to create products automatically.",
   "products.empty.cta": "Upload Documentation",
   "products.search.placeholder": "Search products...",
   "products.table.name": "Product",
