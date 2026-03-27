@@ -224,6 +224,30 @@ function DocumentsTab({ days, t }: { days: number; t: any }) {
         )}
       </div>
 
+      {data.ocr_total_tokens > 0 && (
+        <div style={{ margin: '16px 0' }}>
+          <h2 className="admin-section-title">{t('analytics.docs.ocrBreakdown')}</h2>
+          <div className="admin-detail-card" style={{ padding: 16, maxWidth: 480 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+              <span>{t('analytics.docs.ocrModel')}</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>gemini-2.5-flash</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+              <span>{t('analytics.docs.ocrPrompt')}</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>{data.ocr_prompt_tokens.toLocaleString()} tok</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+              <span>{t('analytics.docs.ocrCompletion')}</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>{data.ocr_completion_tokens.toLocaleString()} tok</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', fontWeight: 600 }}>
+              <span>{t('analytics.docs.ocrTotalTokens')}</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>{data.ocr_total_tokens.toLocaleString()} tok</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '16px 0' }}>
         <div>
           <h2 className="admin-section-title">{t('analytics.docs.uploadsDaily')}</h2>
@@ -339,7 +363,7 @@ function CostsTab({ days, t }: { days: number; t: any }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div>
           <h2 className="admin-section-title">{t('analytics.costs.byModel')}</h2>
-          {data.by_model.length > 0 ? (
+          {(data.by_model.length > 0 || data.ocr_total_tokens > 0) ? (
             <div className="admin-detail-card" style={{ padding: 16 }}>
               {data.by_model.map((m, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
@@ -347,6 +371,12 @@ function CostsTab({ days, t }: { days: number; t: any }) {
                   <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtUsd(m.total_charge_usd)} · {m.request_count} req</span>
                 </div>
               ))}
+              {data.ocr_total_tokens > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span><span className="badge badge--blue">gemini-2.5-flash</span> <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>OCR</span></span>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtUsd(data.ocr_cost_usd)} · {data.ocr_total_tokens.toLocaleString()} tok</span>
+                </div>
+              )}
             </div>
           ) : <div className="admin-empty">{t('analytics.noData')}</div>}
         </div>

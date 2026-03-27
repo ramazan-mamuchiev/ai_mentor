@@ -578,6 +578,11 @@
   "analytics.docs.formats": "Форматы",
   "analytics.docs.ocrTokens": "OCR токены",
   "analytics.docs.ocrDocs": "документов с OCR",
+  "analytics.docs.ocrBreakdown": "Gemini Vision OCR",
+  "analytics.docs.ocrModel": "Модель",
+  "analytics.docs.ocrPrompt": "Prompt токены",
+  "analytics.docs.ocrCompletion": "Completion токены",
+  "analytics.docs.ocrTotalTokens": "Всего токенов",
 
   "analytics.search.totalSearches": "Всего поисков",
   "analytics.search.avgSimilarity": "Сред. сходство",
