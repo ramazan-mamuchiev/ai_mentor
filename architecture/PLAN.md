@@ -44,7 +44,7 @@
 │  │ MCP over HTTP │  │  React SPA   │  │  (3rd-party) │  │ Portal API │ │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └─────┬──────┘ │
 └─────────┼─────────────────┼─────────────────┼────────────────┼─────────┘
-          │ API Key         │ JWT (future)    │ API Key        │ Vendor Key
+          │ API Key         │ JWT (cookie)    │ API Key        │ Vendor Key
           ▼                 ▼                 ▼                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        API GATEWAY (FastAPI)                             │
@@ -76,17 +76,20 @@
         │                       └──────────────┬───────────┘
         │                       ┌──────────────┴───────────┐
         │                       │  Celery Beat (separate)  │
-        │                       │  cleanup: expired uploads│
-        │                       │  monitoring: health      │
+        │                       │  cleanup: uploads/shares │
+        │                       │  stale doc reset, health │
+        │                       │  S3 probe, partitions    │
         │                       └──────────────┬───────────┘
         │                                      │
         │                 ┌────────────────────┼────────────────┐
         │                 ▼                    ▼                ▼
         │       ┌──────────────────┐ ┌──────────────┐ ┌────────────────┐
         │       │  MinIO / S3      │ │  Gemini 2.5  │ │  Loki +        │
-        │       │  documents       │ │  Flash (LLM) │ │  Grafana       │
-        └──────▶│  uploads         │ │  via OpenAI  │ │  (monitoring)  │
-                └──────────────────┘ └──────────────┘ └────────────────┘
+        │       │  documents       │ │  Flash (LLM) │ │  Grafana +     │
+        └──────▶│  uploads         │ │  via OpenAI  │ │  Prometheus +  │
+                └──────────────────┘ └──────────────┘ │  Node Exporter │
+                                                      │  + cAdvisor    │
+                                                      └────────────────┘
 ```
 
 ---
@@ -107,8 +110,10 @@
 - Stateless: `tenant_id` resolved from every request
 
 ### Authentication
+- **JWT (cookie-based)** for Web UI: login, register, token refresh
 - **API Key** for MCP connections and REST API: `ipx_a1b2c3d4e5f6...`
-- **JWT** for Web UI (future phase)
+- **OAuth**: Google and GitHub social login
+- **RBAC**: role-based access control (admin, user roles)
 - Keys stored as `SHA-256(key)` — only prefix `ipx_a1b2` kept for identification
 - One tenant can have multiple keys with different scopes (search, ingest, admin)
 - Full details: [API.md — API Key Flow](API.md#api-key-flow)
@@ -127,8 +132,9 @@
 - **Real-time progress tracking**: `progress_percent` (0–100) and `progress_stage` (converting / ocr / chunking / embedding / storing) persisted in `documents` table, polled by frontend
 - **Parallel PDF conversion**: large PDFs (>10 pages) split into 50-page chunks, processed in parallel via `ThreadPoolExecutor` (up to 4 workers). `ProcessPoolExecutor` not used because Celery workers are daemon processes
 - **Fault-tolerant conversion**: each page-range chunk retried up to 2 times with linear backoff on failure
-- **PDF OCR pipeline** (two-pass): Pass 1 extracts text via pymupdf4llm; language detected via Gemini; Pass 2 runs EasyOCR with auto-detected language. Each image processed in try/except — failures don't break the pipeline. OCR metrics (total/success/empty/failed) saved to DB
-- **Dependencies**: CPU-only PyTorch + EasyOCR + `libgl1-mesa-glx` / `libglib2.0-0` in Dockerfile
+- **PDF OCR pipeline** (two-pass): Pass 1 extracts text via pymupdf4llm; language detected via Gemini; Pass 2 runs Gemini Vision OCR (gemini-2.0-flash) with auto-detected language. Each image processed in try/except — failures don't break the pipeline. OCR metrics (total/success/empty/failed) saved to DB
+- **Dependencies**: google-genai SDK (Gemini Vision API)
+- **OCR billing**: OCR token usage (prompt/completion) tracked per document and aggregated in analytics
 - **Embedding batch size**: 100 texts per Gemini API call (API limit), with incremental progress callback after each batch
 - Multi-format pipeline: [FLOWS.md — Ingestion Pipeline](FLOWS.md#ingestion-pipeline-async-via-celery-multi-format)
 
@@ -138,7 +144,7 @@
 - Auth middleware resolves key type first, then routes to tenant context or vendor context
 - Vendor keys grant access only to `/vendor/v1/...` routes
 - Tenant keys grant access to `/api/v1/...` routes and MCP endpoints
-- JWT (future) for both tenant Web UI and vendor dashboard
+- JWT (cookie-based) implemented for tenant Web UI; vendor dashboard planned
 
 ### Usage Metering & Billing Pipeline
 - ✅ Every billable API call writes to `usage_log` table (async, non-blocking, fire-and-forget)
@@ -191,7 +197,7 @@
 ### LLM Provider
 - **Tiered model strategy**: different developer tiers use different LLM models
 - **Gemini 2.5 Flash** (default): primary production model via OpenAI-compatible API, thinking disabled (`reasoning_effort=none`) for speed and cost efficiency
-- **Ollama** (local): development fallback only, zero API cost
+- **Ollama** (local): development fallback only, zero API cost (removed from production docker-compose.yml)
 - **OpenAI-compatible API**: any endpoint that implements the OpenAI chat completions API
 - Provider selected via `LLM_PROVIDER` env variable (`ollama` | `openai`)
 - Model routing by tier: Free/Pro → Gemini Flash, Team/Enterprise → Opus 4.6
@@ -219,6 +225,16 @@ Opus 4.6 serves as a premium **anchor product** — its superior quality drives 
 - Quota enforcement: per-file, per-product, and global storage limits
 - Implementation: `uploads/router.py`, `uploads/quota.py`
 
+### Celery Beat Schedule
+
+| Task | Interval | Description |
+|------|:--------:|-------------|
+| `cleanup_expired_uploads` | 3600s | Remove expired TUS upload sessions and abort S3 multipart uploads |
+| `ensure_usage_partitions` | 86400s | Auto-create usage_log partitions 2 months ahead |
+| `check_stale_documents` | 120s | Auto-reset documents stuck in "processing" > 60 min to "error" |
+| `cleanup_expired_shares` | 86400s | Clean up expired shared links |
+| `s3_health_probe` | 60s | S3/MinIO connectivity check |
+
 ### Archive Ingestion
 - Upload a single archive containing multiple documentation files
 - Supported archive formats: ZIP, 7z, tar, tar.gz, tar.bz2, tar.xz, RAR
@@ -228,9 +244,9 @@ Opus 4.6 serves as a premium **anchor product** — its superior quality drives 
 - Implementation: `documents/archive.py`, `documents/router.py`
 
 ### Monitoring & Observability
-- **Grafana + Loki + Promtail** — log-based monitoring (no Prometheus)
+- **Grafana + Loki + Promtail + Prometheus + Node Exporter + cAdvisor** — log-based + metrics-based monitoring
 - 9 Grafana dashboards: overview, system, ingestion, doc audit, queue, AI chat, search, MCP tools, alerts/SLA
-- 8 alert rules: error rate, latency, DB pool, service down, ingestion failures, chat errors, Ollama health
+- 8 alert rules: error rate, latency, DB pool, service down, ingestion failures, chat errors, health checks
 - Structured JSON logging via `structlog` with `request_id` correlation
 - Request logging middleware: timing, status codes, active request count
 - Full details: [MONITORING.md](MONITORING.md)
@@ -244,6 +260,41 @@ Opus 4.6 serves as a premium **anchor product** — its superior quality drives 
 - **Batch embedding**: up to 100 texts per Gemini API call (`BATCH_SIZE=100`, API limit). Larger documents are split into multiple batches with incremental progress reporting
 - `GEMINI_API_KEY` — single key shared between LLM (chat) and embeddings
 
+### Query Classification
+- Gemini 2.0 Flash classifies incoming queries into types: `overview`, `technical`, `code`, `comparison`, `troubleshooting`, `chitchat`
+- Per-type system prompts loaded from `prompts/*.md` files — each query type gets tailored instructions for the LLM
+- Classification runs as a lightweight LLM call before the main RAG pipeline
+
+### Reranker
+- **Gemini LLM reranker** (NOT cross-encoder): uses `settings.rerank_model` (default `gemini-2.5-flash`) to score query-chunk relevance
+- After vector retrieval returns top-N candidates, the reranker rescores each chunk against the query
+- Results re-sorted by reranker score before being passed to the LLM context
+
+### Query Decomposition
+- Complex queries (`comparison`, `troubleshooting` types) are split into sub-queries
+- Sub-queries searched in parallel against the vector index
+- Results interleaved and deduplicated before reranking
+
+### Web Search
+- When documentation context is insufficient (low similarity scores), Gemini generates search queries
+- Web results fetched and added to LLM prompt as supplementary context
+- Clearly marked as web-sourced in the response to distinguish from indexed documentation
+
+### Conversation Summary
+- Long conversation history summarized via LLM when message count exceeds threshold
+- Summary replaces older messages in the context window, preserving recent turns verbatim
+- Reduces token usage while maintaining conversation coherence
+
+### Stale Document Auto-Reset
+- Periodic Celery Beat task (`check_stale_documents`, every 120s) monitors documents stuck in "processing" state
+- Documents in "processing" for > 60 minutes are automatically reset to "error" status
+- Prevents orphaned processing jobs from blocking reingestion
+
+### OCR Billing Audit
+- OCR token usage tracked per document: `ocr_prompt_tokens`, `ocr_completion_tokens`, `ocr_model`
+- Aggregated in analytics dashboards for cost monitoring
+- Enables per-document OCR cost attribution and billing reconciliation
+
 ### Supported Document Formats
 
 All formats are normalized to **chunks** in pgvector. The original file is preserved in S3 in its native format.
@@ -254,7 +305,7 @@ All formats are normalized to **chunks** in pgvector. The original file is prese
 | Swagger / OpenAPI 2.0/3.x | `.json`, `.yaml` | Structural: 1 chunk per endpoint | **1** | ~$0.001 |
 | Postman Collection v2.1 | `.json` | Convert requests → endpoint docs | **1** | ~$0.001 |
 | PDF (text-based) | `.pdf` | PyMuPDF text extract → parallel chunking (ThreadPoolExecutor) | **2** | ~$0.005 |
-| PDF (with OCR) | `.pdf` | PyMuPDF + Gemini lang detect + EasyOCR (CPU) → parallel chunking | **5** | ~$0.02 |
+| PDF (with OCR) | `.pdf` | PyMuPDF + Gemini lang detect + Gemini Vision OCR → parallel chunking | **5** | ~$0.02 |
 | Web page | URL | httpx + BeautifulSoup → cleaning → chunking | **2** | ~$0.003 |
 | Protobuf | `.proto` | Service/method/message extraction → Markdown | **1** | ~$0.001 |
 
@@ -274,7 +325,7 @@ Full details: [FLOWS.md — Supported Document Formats](FLOWS.md#supported-docum
 - `ef_construction=128`, `m=16` for quality/speed balance
 - Tenant-scoped queries: `WHERE tenant_id = $tenant AND ... ORDER BY embedding <=> $query LIMIT $n`
 - Optional filters: device, firmware version
-- Optional cross-encoder reranking for top results (Phase 4+)
+- **Gemini LLM reranker**: uses `settings.rerank_model` (default `gemini-2.5-flash`) to score query-chunk relevance, reranking top results after vector retrieval
 - Full query: [DATABASE.md — Vector Search Query](DATABASE.md#vector-search-query-tenant-isolated)
 
 ### Vector Search Scaling Strategy
@@ -349,7 +400,7 @@ lexiro/
         embedder.py          # Embedding abstraction (Gemini, BATCH_SIZE=100, progress callback)
         pipeline.py          # Orchestration: detect format → convert → parse → chunk → embed → store + progress tracking
         converters/
-          pdf.py             # PDF → Markdown (pymupdf4llm + Gemini lang detect + EasyOCR, parallel ThreadPoolExecutor, retry, fault-tolerant OCR)
+          pdf.py             # PDF → Markdown (pymupdf4llm + Gemini lang detect + Gemini Vision OCR, parallel ThreadPoolExecutor, retry, fault-tolerant OCR)
           swagger.py         # Swagger/OpenAPI → Markdown (structured endpoints)
           web.py             # URL → Markdown (Swagger UI detection, Crawl4AI fallback)
           proto.py           # ✅ Protobuf → Markdown (services, methods, messages)
@@ -360,8 +411,20 @@ lexiro/
       middleware/            # ✅ Request logging
         request_logging.py   # RequestLoggingMiddleware: request_id, access log, timing
 
+      auth/                  # ✅ JWT (cookie-based) + API Key + OAuth (Google, GitHub) + RBAC
+        router.py            # Auth endpoints: login, register, token refresh, OAuth callbacks
+        deps.py              # Auth dependencies: get_current_user, require_role, API key resolution
+
+      admin/                 # ✅ Admin panel
+        router.py            # Admin endpoints: tenants CRUD, documents, chat audit, roles, prompts, logs, stats
+
+      share/                 # ✅ Shared links for sessions
+        router.py            # Share management: create/revoke shared links
+        public.py            # Public access endpoints for shared sessions, messages, debug info
+
+      slugify.py             # URL-safe slug generation
+
       # --- Planned (not yet implemented) ---
-      auth/                  # API Key + JWT auth (Phase 2)
       tenants/               # Tenant CRUD (Phase 2)
       billing/stripe.py      # Stripe subscriptions + metered billing (Phase 5)
       billing/alerts.py      # Spending alerts: email at 80%/100% quota (Phase 5)
@@ -393,8 +456,11 @@ lexiro/
 
   frontend/
     src/
-      pages/                 # ✅ LandingPage, ChatApp, ProductsPage, DocumentsPage, ProductDetailPage
-      components/            # ChatWindow, FileUpload, SessionList, Layout, ConfirmDialog, etc.
+      pages/                 # ✅ LandingPage, ChatApp, ProductsPage, DocumentsPage, ProductDetailPage,
+                             #   LoginPage, RegisterPage, SharedView, SettingsPage
+        admin/               # ✅ AdminApp, DashboardPage, TenantsPage, DocumentsAdminPage, ChatAuditPage, etc.
+      components/            # ChatWindow, FileUpload, SessionList, Layout, ConfirmDialog,
+                             #   AccountBadge, OnboardingChecklist, ShareModal, DataTable, etc.
       hooks/                 # useChat (SSE streaming), useTheme
       api/                   # HTTP client, chat API, documents API, products API
       locales/               # en.json, ru.json (i18n)
@@ -414,7 +480,9 @@ lexiro/
   scripts/                   # Utility scripts (Ollama entrypoint)
 
   docker-compose.yml         # Full stack: API, Worker, PostgreSQL, Redis, MinIO,
-                             #   Ollama, Frontend, Loki, Promtail, Grafana
+                             #   Frontend (ports 80+443 SSL), Loki, Promtail, Grafana,
+                             #   Prometheus, Node Exporter, cAdvisor
+                             #   Note: Ollama removed from production compose (development fallback only)
   docker-compose.dev.yml     # Lightweight: PostgreSQL only (for local development)
   .env.example               # Configuration template
   README.md                  # Project overview + quick start
@@ -439,7 +507,7 @@ lexiro/
 | ORM | SQLAlchemy 2.0 (async) | ✅ |
 | Upload Protocol | TUS v1.0.0 (resumable, chunked to S3 multipart) | ✅ |
 | Archive Support | py7zr, rarfile, zipfile, tarfile | ✅ |
-| Monitoring | Grafana 11.6 + Loki 3.4 + Promtail 3.4 | ✅ |
+| Monitoring | Grafana 11.6 + Loki 3.4 + Promtail 3.4 + Prometheus + Node Exporter + cAdvisor | ✅ |
 | Logging | structlog (JSON) + request_id middleware | ✅ |
 | Frontend | React + TypeScript + Vite | ✅ |
 | Routing | react-router-dom v7 (`/` landing, `/app` chat) | ✅ |
@@ -448,7 +516,7 @@ lexiro/
 | Theme | Light/dark theme (CSS variables + data-theme) | ✅ |
 | File Integrity | hashlib SHA-256 (incremental during TUS upload) | ✅ |
 | Migrations | Alembic | Planned |
-| Auth | API Key (SHA-256 hashed) + JWT (future) | Planned |
+| Auth | JWT (cookie-based) + API Key (SHA-256 hashed) + OAuth (Google, GitHub) + RBAC | ✅ |
 | Billing (audit) | usage_log (partitioned), pricing module, COGS/charge tracking | ✅ |
 | Billing (payments) | Stripe (subscriptions + metered usage records) | Planned |
 | Antivirus | ClamAV (clamd TCP socket) | Planned |
@@ -489,7 +557,7 @@ lexiro/
 | # | Task | Status | Key Files |
 |---|------|:------:|-----------|
 | 7 | FastAPI application with routers | ✅ | `main.py`, routers |
-| 8 | Dual API Key auth: tenant keys (`ipx_`) + vendor keys (`ipv_`) | Planned | `auth/` |
+| 8 | Auth: JWT (cookie-based) + API Key + OAuth (Google, GitHub) + RBAC | ✅ | `auth/` |
 | 9 | Rate limiting middleware (Redis sliding window) | Planned | `billing/limits.py` |
 | 10 | Usage metering: log every billable call (usage_log, partitioned) | ✅ | `billing/usage_writer.py`, `billing/pricing.py` |
 | 10a | Quota check (per-tenant limits enforcement) | Planned | `billing/limits.py` |
@@ -560,10 +628,10 @@ Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scali
 ## Open Questions / TODO
 
 ### Technical
-- [ ] Reranking strategy: cross-encoder model selection for top-N reranking
+- [x] ~~Reranking strategy: cross-encoder model selection for top-N reranking~~ → Gemini LLM reranker (`gemini-2.5-flash`), scores query-chunk relevance after vector retrieval
 - [x] ~~Web UI technology: React + TypeScript SPA vs Next.js~~ → React + TypeScript SPA + Vite. Landing page: custom React page with i18n, responsive design, deployed at `/`; app at `/app` via react-router-dom v7
 - [ ] On-premise deployment: Helm chart for Kubernetes
-- [x] ~~Monitoring: Prometheus + Grafana vs cloud-native~~ → Grafana + Loki + Promtail (log-based, see [MONITORING.md](MONITORING.md))
+- [x] ~~Monitoring: Prometheus + Grafana vs cloud-native~~ → Grafana + Loki + Promtail + Prometheus + Node Exporter + cAdvisor (see [MONITORING.md](MONITORING.md))
 - [ ] CDN for static assets and S3 presigned URLs
 - [ ] Backup strategy: pg_dump schedule, S3 versioning
 - [x] ~~AI Chat interface~~ → Implemented: RAG Chat with Gemini 2.5 Flash, SSE streaming, LLM query rewrite, structured grounding prompt, source attribution

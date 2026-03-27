@@ -36,16 +36,13 @@ services:
   api:
     build: ./backend
     ports: ["8000:8000"]
-    depends_on: [postgres, redis, minio, ollama]
+    depends_on: [postgres, redis, minio]
     environment:
       DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
       DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT: http://minio:9000
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-gemini}
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-      OLLAMA_URL: http://ollama:11434
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
@@ -56,14 +53,13 @@ services:
       RAG_HISTORY_MAX_TOKENS: ${RAG_HISTORY_MAX_TOKENS:-8000}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-50}
       MAX_ARCHIVE_SIZE_MB: ${MAX_ARCHIVE_SIZE_MB:-350}
-      HF_HOME: /root/.cache/huggingface
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
 
   worker:
     build: ./backend
     depends_on: [postgres, redis, minio]
     environment:
-      # same as api (DATABASE_URL, REDIS_URL, S3_*, EMBEDDING_PROVIDER, HF_HOME)
+      # same as api (DATABASE_URL, REDIS_URL, S3_*, GEMINI_API_KEY)
     command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring
 
   beat:
@@ -75,18 +71,10 @@ services:
 
   web:
     build: ./frontend
-    ports: ["80:80"]
-    depends_on: [api]
-
-  ollama:
-    image: ollama/ollama
-    ports: ["11434:11434"]
-    environment:
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
+    ports: ["80:80", "443:443"]
     volumes:
-      - ollama_data:/root/.ollama
-      - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["bash", "/entrypoint.sh"]
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on: [api]
 
   loki:
     image: grafana/loki:3.4.2
@@ -101,14 +89,22 @@ services:
   grafana:
     image: grafana/grafana:11.6.0
     ports: ["3000:3000"]
-    depends_on: [loki]
+    depends_on: [loki, prometheus]
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    ports: ["9090:9090"]
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
 
 volumes:
   pgdata:
   redisdata:
   minio_data:
-  hfcache:
-  ollama_data:
   lokidata:
   grafanadata:
 ```
@@ -140,8 +136,8 @@ services:
 | API docs | http://localhost:8000/docs | Swagger UI (auto-generated) |
 | MCP | http://localhost:8000/mcp | MCP endpoint for Cursor/IDE |
 | Grafana | http://localhost:3000 | Dashboards + alerts |
+| Prometheus | http://localhost:9090 | Metrics collection |
 | MinIO | http://localhost:9001 | Object storage console |
-| Ollama | http://localhost:11434 | LLM API |
 
 ### Service URLs (Production VPS)
 
@@ -188,8 +184,12 @@ Production environment.
 | postgres (pgvector) | ✅ | |
 | redis | ✅ | |
 | minio | ✅ | |
-
-Monitoring stack (Loki, Promtail, Grafana) and Ollama are not deployed on staging VPS.
+| loki | ✅ | Log aggregation |
+| promtail | ✅ | Log collector |
+| grafana | ✅ | Dashboards + alerts |
+| prometheus | ✅ | Metrics collection |
+| node-exporter | ✅ | Host metrics |
+| cadvisor | ✅ | Container metrics |
 
 ### Deploy Commands
 
@@ -284,16 +284,14 @@ API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-ten
 # === Gemini API ===
 GEMINI_API_KEY=AIza...                       # single key for LLM + embeddings
 
-# === Embedding ===
-EMBEDDING_PROVIDER=gemini                    # local | gemini
+# === Embedding (Gemini only) ===
 EMBEDDING_DIMS=1024                          # vector dimensionality (Matryoshka for Gemini)
 EMBEDDING_MODEL_GEMINI=gemini-embedding-2-preview
-# Local: intfloat/multilingual-e5-large (1024 dims), auto-downloaded on first run
-# Gemini: gemini-embedding-2-preview — uses GEMINI_API_KEY, MTEB Multilingual leader
+# gemini-embedding-2-preview — uses GEMINI_API_KEY, MTEB Multilingual leader
 
 # === LLM (RAG Chat) — Tiered Model Strategy ===
 # Default provider for production (Gemini via OpenAI-compatible API):
-LLM_PROVIDER=openai                          # ollama | openai
+LLM_PROVIDER=openai                          # openai (Gemini-compatible)
 LLM_MAX_TOKENS=4096
 LLM_TEMPERATURE=0.2
 LLM_TIMEOUT=600                              # seconds
@@ -302,10 +300,6 @@ LLM_REASONING_EFFORT=none                    # none | low | medium | high — Ge
 # Gemini Flash — default for Free & Pro tiers ($0.30/$2.50 per 1M tokens)
 OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 OPENAI_LLM_MODEL=gemini-2.5-flash
-
-# Ollama — development fallback only ($0 cost):
-OLLAMA_URL=http://ollama:11434
-LLM_MODEL=qwen2.5-coder:7b                  # Ollama model name
 
 # Claude Opus 4.6 — default for Team & Enterprise tiers ($5/$25 per 1M tokens)
 OPUS_BASE_URL=https://api.anthropic.com/v1
@@ -516,7 +510,31 @@ Beat runs as a **separate container** (`beat` service) — no longer embedded in
 beat_schedule = {
     "cleanup-expired-uploads": {
         "task": "app.celery_app.cleanup_expired_uploads",
-        "schedule": crontab(minute=0),   # every hour
+        "schedule": 3600,                 # every hour
+    },
+    "queue-status-snapshot": {
+        "task": "app.celery_app.queue_status_snapshot",
+        "schedule": 30,                   # every 30 seconds
+    },
+    "check-stale-reindex-jobs": {
+        "task": "app.celery_app.check_stale_reindex_jobs",
+        "schedule": 60,                   # every minute
+    },
+    "check-stale-documents": {
+        "task": "app.celery_app.check_stale_documents",
+        "schedule": 120,                  # every 2 minutes
+    },
+    "ensure-usage-partitions": {
+        "task": "app.celery_app.ensure_usage_partitions",
+        "schedule": 86400,                # daily
+    },
+    "cleanup-expired-shares": {
+        "task": "app.celery_app.cleanup_expired_shares",
+        "schedule": 86400,                # daily
+    },
+    "s3-health-probe": {
+        "task": "app.celery_app.s3_health_probe",
+        "schedule": 60,                   # every minute
     },
 }
 ```

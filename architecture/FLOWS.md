@@ -30,7 +30,7 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
      │ markdown       │ parsers/markdown.py         │ H1–H6 headers                │
      │ swagger/openapi│ converters/swagger.py       │ 1 chunk per endpoint         │
      │ pdf (text)     │ converters/pdf.py           │ pymupdf4llm → parallel → hdr │
-     │ pdf (OCR)      │ converters/pdf.py + EasyOCR │ OCR → text → headers         │
+     │ pdf (OCR)      │ converters/pdf.py + Gemini Vision │ OCR → text → headers    │
      │ web (URL)      │ converters/web.py           │ Scrape → clean → H1–6        │
      │ protobuf       │ converters/proto.py         │ service/method/message        │
      └─────────────────────────────────────────────────────────────────────────────┘
@@ -46,8 +46,7 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
      **PDF OCR with auto language detection** (pass 2, if images detected):
      - After text extraction, language detected via Gemini (`generate_content`)
        using first ~3000 chars of extracted text
-     - Gemini returns ISO 639-1 codes, mapped to EasyOCR codes (e.g. zh→ch_sim)
-     - EasyOCR initialized with detected language(s), CPU-only PyTorch
+     - Gemini returns ISO 639-1 codes (e.g. en, ru, zh)
      - Each image processed in try/except — failures don't break the pipeline
      - OCR metrics collected: total/success/empty/failed image counts
      - **Progress: 25%→40% — "ocr"** (incremental per image)
@@ -136,19 +135,19 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
 - **Pass 1**: `pymupdf4llm.to_markdown()` — text layer extraction (parallel for >10 pages)
 - **Language detection**: Gemini `generate_content` on first ~3000 chars of extracted MD text
   - Model: `gemini-2.5-flash` (configurable via `ocr_lang_detect_model`)
-  - Returns ISO 639-1 codes, mapped to EasyOCR codes (`_LANG_MAP`: zh→ch_sim, zh-tw→ch_tra, etc.)
+  - Returns ISO 639-1 codes (e.g. en, ru, zh)
   - Fallback: `["en"]` on any error (no Gemini API key, API failure, empty text)
   - Detected language saved to `documents.detected_language`
-- **Pass 2**: `_enrich_markdown_with_ocr()` — OCR images with auto-detected language
-  - EasyOCR initialized with detected language(s), CPU-only PyTorch
+- **Pass 2**: Gemini Vision API — OCR images with auto-detected language
+  - Each image sent to Gemini Vision API (`gemini-2.0-flash`) for text extraction
   - Each image processed in try/except — failures logged but don't break the pipeline
   - Images below `_OCR_IMAGE_MIN_AREA` (100K pixels) skipped
   - Progress callback: `ocr_progress_callback(processed / total_images)`
 - **OCR metrics** saved to `documents` table:
   - `ocr_ms` — total OCR time
   - `ocr_images_total` / `ocr_images_success` / `ocr_images_empty` / `ocr_images_failed`
-- **Dependencies**: `torch` (CPU-only), `torchvision`, `easyocr>=1.7.0`
-- **Dockerfile**: `libgl1-mesa-glx`, `libglib2.0-0` added for OpenCV (EasyOCR dependency)
+- **OCR token usage** tracked: `ocr_prompt_tokens`, `ocr_completion_tokens`, `ocr_model` saved to `documents` table
+- **OCR cost** calculated via `billing/pricing.py` using `gemini-2.0-flash` rates
 
 **Ingestion progress tracking** (`pipeline.py` → `documents` table):
 - `progress_percent` (INT, 0–100) and `progress_stage` (TEXT) persisted to DB after each stage
@@ -170,6 +169,7 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
 - Debug panel: `TimingBar` shows all 6 timing stages (Read, Convert, **OCR**, Parse, Embed, DB Write) with `MIN_PCT=3` minimum width even for 0ms stages
 - Debug panel: separate **OCR section** shows image metrics (total/success/empty/failed) when `ocr_images_total` is not null
 - Debug panel: **detected_language** shown in File section
+- Documents stuck in 'processing' for longer than `document_stale_timeout_sec` (default 3600s) are automatically reset to 'error' status by the `check_stale_documents` Celery Beat task (runs every 120s).
 
 ---
 
@@ -183,7 +183,7 @@ All formats are normalized to **chunks** in pgvector. The original file is prese
 | Swagger / OpenAPI 2.0/3.x | `.json`, `.yaml` | Structural: 1 chunk per endpoint | **1** | ~$0.001 | Highest value — structured endpoints, exact match possible |
 | Postman Collection v2.1 | `.json` | Convert requests → endpoint docs | **1** | ~$0.001 | Preserves request/response examples |
 | PDF (text-based) | `.pdf` | PyMuPDF → parallel ThreadPoolExecutor (50-page chunks) → chunking | **2** | ~$0.005 | 2x cost — parallel conversion with retry |
-| PDF (scanned / OCR) | `.pdf` | EasyOCR → text → chunking | **5** | ~$0.02 | 5x cost — GPU-intensive OCR, lowest quality |
+| PDF (scanned / OCR) | `.pdf` | Gemini Vision OCR → text → chunking | **5** | ~$0.02 | 5x cost — Vision API OCR, lowest quality |
 | Web page | URL | httpx + BeautifulSoup → cleaning → chunking | **2** | ~$0.003 | 2x cost — scraping + HTML cleanup |
 | Protobuf | `.proto` | proto-schema-parser → Markdown → chunking | **1** | ~$0.001 | Extracts services, methods, messages, enums |
 
@@ -388,6 +388,11 @@ RAG Pipeline (chat/rag.py):
      → uses Gemini with reasoning_effort=none, temperature=0
      → self-contained questions pass through unchanged
      → fallback to original query on any error
+  3b. Query Decomposition (if comparison or troubleshooting type):
+      → LLM splits complex query into 2-4 sub-queries
+      → each sub-query searched in parallel
+      → results interleaved and deduplicated
+      → configurable: decompose_enabled (default true), decompose_model (gemini-2.5-flash)
   4. Embed rewritten query → vector [0.023, -0.118, ...]
      → "query:" prefix for E5 models
   5. Hybrid search (two parallel retrieval paths):
@@ -402,18 +407,18 @@ RAG Pipeline (chat/rag.py):
         → configurable: hybrid_search_enabled (default true)
      → optional product/version filter on both paths
      → deduplication by (heading_path, SHA-256(content)) — full content hash
-  6. Cross-encoder re-ranking (reranker.py):
-     → **multilingual cross-encoder** (mmarco-mMiniLMv2-L12-H384-v1, 100+ languages)
-     → scores each (query, cleaned_enriched_text) pair
+  6. Gemini-based re-ranking (reranker.py):
+     → **Gemini-based reranker** (gemini-2.5-flash by default, configurable via `settings.rerank_model`)
+     → sends each (query, cleaned_enriched_text) pair to Gemini for relevance scoring
      → text cleaned from Markdown artifacts (same as embedding pipeline)
      → enriched with "[heading_path]\n{cleaned_content}" for topic-aware scoring
-     → **similarity updated to sigmoid(rerank_score)** — normalized [0, 1]
+     → LLM scores relevance on a numeric scale, normalized to [0, 1]
      → raw `rerank_score` preserved for debugging; original dicts not mutated
      → top rag_top_k (default 10) results kept after re-ranking
      → configurable: rerank_enabled (default true)
   7. Similarity threshold filtering:
      → discard chunks with similarity < rag_min_similarity (default 0.35)
-     → after re-ranking, uses the sigmoid-normalized cross-encoder score
+     → after re-ranking, uses the normalized Gemini reranker score
   8. Small-to-big context expansion:
      → if chunk has parent_content (was split from larger section),
        use full section text in LLM context instead of chunk fragment
@@ -430,6 +435,7 @@ RAG Pipeline (chat/rag.py):
       b. User message — documentation context
       c. Assistant ack — "Understood. I will use the documentation context..."
       d. History — last 6 messages, up to 8,000 tokens (trims oldest first)
+         - Long conversation history summarized via LLM (summary_model: gemini-2.5-flash) when messages exceed summary_threshold (default 8)
       e. User query — with chunk count hint + anchor phrase
         │
         ▼
@@ -450,22 +456,28 @@ Server: save assistant message + sources to chat_messages table
         save analytics (rewrite_ms, rag timing, LLM params) to chat_message_analytics
 ```
 
+**Web Search augmentation** (if configured):
+- For queries where documentation context is insufficient
+- Gemini generates search queries, fetches web results
+- Web context added to LLM prompt alongside documentation
+- Configurable: `web_search_enabled` (default true), `web_search_model` (gemini-2.5-flash)
+
 **Anti-hallucination strategy:**
 - **Structured grounding prompt**: 9 constraints in `<constraints>` XML section, following Google's recommendations for Gemini
 - **Separate system/context/ack message pattern**: enables Gemini implicit caching of static instructions
 - **Hybrid retrieval (BM25 + vector)**: RRF fusion of semantic vector search and lexical BM25 full-text search; BM25 uses `'english'` stemmer on `content_clean` (Markdown-stripped) column; catches exact API paths and codes that bi-encoder may miss
-- **Multilingual cross-encoder re-ranking**: bi-encoder+BM25 retrieve 20 candidates, multilingual cross-encoder (mmarco-mMiniLMv2-L12-H384-v1, 100+ languages) re-scores Markdown-cleaned enriched text; similarity updated to sigmoid(rerank_score) for accurate threshold filtering
+- **Gemini-based re-ranking**: bi-encoder+BM25 retrieve 20 candidates, Gemini-based reranker (gemini-2.5-flash by default) re-scores Markdown-cleaned enriched text; LLM relevance scores normalized to [0, 1] for accurate threshold filtering
 - **Small-to-big context**: search by small chunks (precision), expand to full Markdown-cleaned section in LLM context (completeness); parent deduplication via SHA-256 hash; context_tokens based on actual formatted text
 - **Document title enrichment**: generic headings ("Document", "Preamble") replaced with actual document title for meaningful embedding context
 - **Contextual embeddings**: Markdown-cleaned content with heading_path prefix for topic-aware retrieval; all heading paths enriched (no skip for generic headings)
 - **Code-block-aware parsing**: headings inside fenced code blocks (```...```) are ignored during section splitting, preventing false document structure from shell comments, YAML comments, etc.
-- **Text cleaning pipeline**: Markdown artifacts (bold, links, images, HTML, blockquotes, list markers) stripped before embedding, BM25 indexing, cross-encoder scoring, AND LLM context; bold/italic/strikethrough regexes are line-scoped (no cross-line greed); both single and double backtick inline code handled; code blocks preserved
+- **Text cleaning pipeline**: Markdown artifacts (bold, links, images, HTML, blockquotes, list markers) stripped before embedding, BM25 indexing, reranker scoring, AND LLM context; bold/italic/strikethrough regexes are line-scoped (no cross-line greed); both single and double backtick inline code handled; code blocks preserved
 - **Enrichment truncation guard**: enriched text exceeding 500 tokens is truncated with a warning log; **heading_path prefix preserved intact** — only content is truncated
 - **Smart chunk merging**: when small chunks are merged, heading_path combines both paths and token_count is recalculated on actual merged text (not just summed)
 - **Chunk quality monitoring**: after chunking, min/max/avg/median token counts and parent_content statistics are logged for production quality tracking
 - **Unicode normalization**: NFKC normalization at parser input ensures consistent matching
 - **Token-safe chunking**: max_tokens=380 aligned with E5 max_seq_length=514; real E5 tokenizer used when available, preventing silent truncation
-- **Similarity threshold filtering**: `rag_min_similarity` (default 0.35) applied after cross-encoder re-ranking using sigmoid-normalized score; removes low-relevance chunks before they reach the LLM
+- **Similarity threshold filtering**: `rag_min_similarity` (default 0.35) applied after Gemini re-ranking using normalized score; removes low-relevance chunks before they reach the LLM
 - **Factual grounding**: API details (endpoints, params, URLs) must come from context only; code generation allowed using general programming knowledge based on documented API details
 - **Language enforcement**: "CRITICAL: ALWAYS respond in the same language as the user's question" — top-level instruction
 - Source attribution: each answer references numbered sources that the user can verify
@@ -534,18 +546,22 @@ React app (main.tsx): BrowserRouter wraps <App />
         │
         ▼
 App.tsx: react-router-dom <Routes> resolves path:
-  ┌─────────────────────────────────────────────────────────────────┐
-  │ PATH               │ COMPONENT      │ DESCRIPTION               │
-  │────────────────────┼────────────────┼───────────────────────────│
-  │ /                  │ LandingPage    │ Public marketing page     │
-  │ /app               │ ChatApp        │ Chat application (Layout) │
-  │ /app/documents     │ DocumentsPage  │ Document management       │
-  │ /app/products      │ ProductsPage   │ Product list + reingest   │
-  │ /app/products/:id  │ ProductDetail  │ Product detail + docs     │
-  │ /app/analytics     │ AnalyticsPage  │ Analytics (TBD)           │
-  │ /app/settings      │ SettingsPage   │ Settings (TBD)            │
-  │ *                  │ Navigate to /  │ Fallback redirect         │
-  └─────────────────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────────────────────────────┐
+  │ PATH                                    │ COMPONENT          │ DESCRIPTION               │
+  │─────────────────────────────────────────┼────────────────────┼───────────────────────────│
+  │ /                                       │ LandingPage        │ Public marketing page     │
+  │ /login                                  │ LoginPage          │ Login (guest only)        │
+  │ /register                               │ RegisterPage       │ Registration (guest only) │
+  │ /s/:token                               │ SharedView         │ Public shared view        │
+  │ /app                                    │ ChatApp            │ Chat application (Layout) │
+  │ /app/documents                          │ DocumentsPage      │ Document management       │
+  │ /app/products                           │ ProductsPage       │ Product list + reingest   │
+  │ /app/products/:manufacturer/:product    │ ProductDetailPage  │ Product detail + docs     │
+  │ /app/analytics                          │ AnalyticsPage      │ User analytics dashboard  │
+  │ /app/settings                           │ SettingsPage       │ Account settings          │
+  │ /app/admin/*                            │ AdminApp           │ Admin panel (role-based)  │
+  │ *                                       │ Navigate to /      │ Fallback redirect         │
+  └──────────────────────────────────────────────────────────────────────────────────┘
         │
         ▼
 LandingPage (/):
@@ -562,6 +578,10 @@ ChatApp (/app):
   - ChatWindow: messages, empty state with logo, SSE streaming
   - FileUpload modal: TUS resumable upload
   - Theme toggle (light/dark), language toggle (EN/RU)
+
+AdminApp (/app/admin):
+  - Dashboard, Tenants, Documents, Chat audit, Roles, Prompts, Logs, Stats
+  - Requires admin permission (role-based access)
 ```
 
 **Key files:**
