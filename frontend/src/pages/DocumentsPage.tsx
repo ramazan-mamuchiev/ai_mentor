@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   FileText,
@@ -198,20 +199,32 @@ function DocActions({
 
   useEffect(() => {
     if (!open) return
-    const handler = (e: MouseEvent) => {
+    const onMouseDown = (e: MouseEvent) => {
       if (dropRef.current && !dropRef.current.contains(e.target as Node) &&
           btnRef.current && !btnRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onScroll = () => setOpen(false)
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('scroll', onScroll, true)
+    }
   }, [open])
 
   const handleToggle = useCallback(() => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
-      setPos({ top: rect.bottom + 4, left: rect.right - 200 })
+      const dropW = 200
+      let left = rect.right - dropW
+      if (left < 8) left = 8
+      if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8
+      setPos({ top: rect.bottom + 4, left })
     }
     setOpen(v => !v)
   }, [open])
@@ -234,8 +247,8 @@ function DocActions({
       >
         <MoreHorizontal size={16} />
       </button>
-      {open && (
-        <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: Math.max(8, pos.left) }}>
+      {open && createPortal(
+        <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: pos.left }}>
           {doc.status === 'ready' && (
             <button className="docs-actions-dropdown-item" onClick={() => { onPreview(doc); setOpen(false) }}>
               <Eye size={15} />
@@ -258,7 +271,8 @@ function DocActions({
             <Trash2 size={15} />
             {t('docs.actions.delete')}
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

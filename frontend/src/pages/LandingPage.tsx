@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -43,6 +43,27 @@ export function LandingPage() {
   const [activeStep, setActiveStep] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  const [headerHidden, setHeaderHidden] = useState(false)
+  const lastScrollY = useRef(0)
+
+  useEffect(() => {
+    const THRESHOLD = 10
+    const handleScroll = () => {
+      const y = window.scrollY
+      if (y < 64) {
+        setHeaderHidden(false)
+      } else if (y - lastScrollY.current > THRESHOLD) {
+        setHeaderHidden(true)
+        setMobileMenuOpen(false)
+      } else if (lastScrollY.current - y > THRESHOLD) {
+        setHeaderHidden(false)
+      }
+      lastScrollY.current = y
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   const toggleLang = () => {
     const next = i18n.language === 'ru' ? 'en' : 'ru'
     i18n.changeLanguage(next)
@@ -69,7 +90,7 @@ export function LandingPage() {
   return (
     <div className="landing">
       {/* Header */}
-      <header className="landing-header">
+      <header className={`landing-header${headerHidden ? ' landing-header-hidden' : ''}`}>
         <a
           href="/"
           className="landing-header-logo"

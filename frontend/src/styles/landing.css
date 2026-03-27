@@ -8,7 +8,6 @@
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  overflow-x: hidden;
 }
 
 /* --- Header --- */
@@ -24,6 +23,11 @@
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
+  transition: transform 0.3s ease;
+}
+
+.landing-header-hidden {
+  transform: translateY(-100%);
 }
 
 [data-theme='dark'] .landing-header {
@@ -615,12 +619,11 @@
   }
 
   .landing-hero {
-    padding: 48px 16px 40px;
+    padding: 32px 16px 40px;
   }
 
   .landing-hero-logo {
-    width: 60px;
-    height: 60px;
+    display: none;
   }
 
   .landing-hero-title {
@@ -721,11 +724,6 @@
    Responsive — Small Mobile (< 480px)
    ============================================================ */
 @media (max-width: 480px) {
-  .landing-hero-logo {
-    width: 52px;
-    height: 52px;
-  }
-
   .landing-hero-title {
     font-size: 2rem;
     letter-spacing: -0.5px;
