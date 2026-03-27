@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight, Clock, User,
-  FileSearch, ChevronDown, ChevronUp,
+  FileSearch, Bug,
 } from 'lucide-react'
 import {
   listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin, searchTenants,
@@ -11,6 +11,8 @@ import {
   type TenantSearchResult,
 } from '../../api/admin'
 import { MarkdownRenderer } from '../../components/MarkdownRenderer'
+import { RightPanel } from '../../components/RightPanel'
+import type { SourceInfo, DebugInfo } from '../../types'
 
 const TIME_RANGES = [
   { value: '', label: 'All' },
@@ -33,71 +35,17 @@ function timeRangeToISO(range: string): { start?: string; end?: string } {
   }
 }
 
-function AuditSources({ sources }: { sources: AdminChatMessage['sources'] }) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  if (!sources || !Array.isArray(sources) || sources.length === 0) return null
-
-  return (
-    <div className="sources-container">
-      <button className="sources-toggle" onClick={() => setOpen(v => !v)}>
-        <FileSearch size={16} />
-        <span className="sources-label">{t('chat.sources', { count: sources.length })}</span>
-        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-      </button>
-      {open && (
-        <div className="audit-sources-list">
-          {sources.map((s, i) => (
-            <div key={i} className="audit-source-card">
-              <div className="audit-source-card__header">
-                <span className="audit-source-card__index">{i + 1}</span>
-                <div className="audit-source-card__info">
-                  <span className="audit-source-card__title">{s.doc_title || '—'}</span>
-                  {s.heading_path && <span className="audit-source-card__path">{s.heading_path}</span>}
-                </div>
-                {s.similarity != null && (
-                  <span className="audit-source-card__score">{(s.similarity * 100).toFixed(1)}%</span>
-                )}
-              </div>
-              {s.content_preview && (
-                <div className="audit-source-card__snippet">{s.content_preview}</div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AuditMessageMeta({ message, sessionId, fmtTime }: {
-  message: AdminChatMessage
-  sessionId: number
-  fmtTime: (iso: string) => string
-}) {
-  const isAssistant = message.role === 'assistant'
-
-  return (
-    <div className="message-footer">
-      <span className="audit-meta-role">{message.role}</span>
-      <span className="audit-meta-sep">·</span>
-      <span className="audit-meta-time">{fmtTime(message.created_at)}</span>
-      {isAssistant && message.duration_ms != null && (
-        <>
-          <span className="audit-meta-sep">·</span>
-          <span className="message-duration">{(message.duration_ms / 1000).toFixed(1)}s</span>
-        </>
-      )}
-      <span className="audit-meta-sep">·</span>
-      <span className="message-ids">S#{sessionId} M#{message.id}</span>
-      {isAssistant && message.feedback && (
-        <>
-          <span className="audit-meta-sep">·</span>
-          <span className="audit-feedback-badge">{message.feedback === 'up' ? '👍' : '👎'}</span>
-        </>
-      )}
-    </div>
-  )
+function toSourceInfos(sources: AdminChatMessage['sources']): SourceInfo[] {
+  if (!sources || !Array.isArray(sources)) return []
+  return sources.map(s => ({
+    doc_title: s.doc_title || '',
+    heading_path: s.heading_path || '',
+    similarity: s.similarity || 0,
+    content_preview: s.content_preview || '',
+    product_name: s.product_name || '',
+    firmware_version: '',
+    document_id: s.document_id ?? null,
+  }))
 }
 
 function SessionDetail({ sessionId }: { sessionId: number }) {
@@ -107,6 +55,13 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [rightPanel, setRightPanel] = useState<{
+    mode: 'sources' | 'debug'
+    sources?: SourceInfo[]
+    debug?: DebugInfo
+    sessionId?: number
+    messageId?: number
+  } | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -116,6 +71,14 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [sessionId])
+
+  const handleShowSources = useCallback((sources: SourceInfo[], sid?: number, mid?: number) => {
+    setRightPanel({ mode: 'sources', sources, sessionId: sid, messageId: mid })
+  }, [])
+
+  const handleShowDebug = useCallback((debug: DebugInfo, sid?: number, mid?: number) => {
+    setRightPanel({ mode: 'debug', debug, sessionId: sid, messageId: mid })
+  }, [])
 
   if (loading) return <div className="admin-loading">{t('admin.chats.loadingSession')}</div>
   if (error) return (
@@ -135,37 +98,106 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
   }
 
   return (
-    <div className="audit-detail">
-      <button className="chat-audit-back" onClick={() => navigate('/app/admin/chats')}>
-        <ArrowLeft size={14} /> {t('admin.chats.backToSessions')}
-      </button>
-      <div className="admin-page-header" style={{ marginTop: 12 }}>
-        <h1>{detail.title || `#${detail.id}`}</h1>
-        <p>
-          {detail.tenant_email || t('admin.chats.unknownTenant')}
-          {detail.product_filter ? ` · ${detail.product_filter}` : ''}
-          {` · ${t('admin.chats.messagesCount', { count: detail.messages_count })}`}
-        </p>
+    <div className="main-area">
+      <div className="main-area-chat">
+        <div className="audit-detail-header">
+          <button className="chat-audit-back" onClick={() => navigate('/app/admin/chats')}>
+            <ArrowLeft size={14} /> {t('admin.chats.backToSessions')}
+          </button>
+          <div className="admin-page-header" style={{ marginTop: 8 }}>
+            <h1>{detail.title || `#${detail.id}`}</h1>
+            <p>
+              {detail.tenant_email || t('admin.chats.unknownTenant')}
+              {detail.product_filter ? ` · ${detail.product_filter}` : ''}
+              {` · ${t('admin.chats.messagesCount', { count: detail.messages_count })}`}
+            </p>
+          </div>
+        </div>
+
+        <div className="messages-container">
+          {detail.messages.map(m => {
+            const sources = toSourceInfos(m.sources)
+            const debug = m.debug as DebugInfo | null
+            const isAssistant = m.role === 'assistant'
+
+            return (
+              <div key={m.id} className={`message ${m.role}`}>
+                <div className="message-body">
+                  <div className="message-content">
+                    {m.role === 'user' ? m.content : <MarkdownRenderer content={m.content} />}
+                  </div>
+                  {isAssistant && sources.length > 0 && (
+                    <div className="sources-container">
+                      <button
+                        className="sources-toggle"
+                        onClick={() => handleShowSources(sources, detail.id, m.id)}
+                      >
+                        <FileSearch size={16} />
+                        <span className="sources-label">{t('chat.sources', { count: sources.length })}</span>
+                      </button>
+                    </div>
+                  )}
+                  {isAssistant && (
+                    <div className="message-footer">
+                      <span className="audit-meta-role">{m.role}</span>
+                      <span className="audit-meta-sep">·</span>
+                      <span className="audit-meta-time">{fmtTime(m.created_at)}</span>
+                      {m.duration_ms != null && (
+                        <>
+                          <span className="audit-meta-sep">·</span>
+                          <span className="message-duration">{(m.duration_ms / 1000).toFixed(1)}s</span>
+                        </>
+                      )}
+                      <span className="audit-meta-sep">·</span>
+                      <span className="message-ids">S#{detail.id} M#{m.id}</span>
+                      {m.feedback && (
+                        <>
+                          <span className="audit-meta-sep">·</span>
+                          <span className="audit-feedback-badge">{m.feedback === 'up' ? '👍' : '👎'}</span>
+                        </>
+                      )}
+                      {debug && (
+                        <div className="message-footer-actions">
+                          <button
+                            className="message-action-btn debug-toggle"
+                            onClick={() => handleShowDebug(debug, detail.id, m.id)}
+                            data-tooltip={t('chat.debug')}
+                          >
+                            <Bug size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {m.role === 'user' && (
+                    <div className="message-footer">
+                      <span className="audit-meta-role">{m.role}</span>
+                      <span className="audit-meta-sep">·</span>
+                      <span className="audit-meta-time">{fmtTime(m.created_at)}</span>
+                      <span className="audit-meta-sep">·</span>
+                      <span className="message-ids">S#{detail.id} M#{m.id}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      <div className="audit-chat-area">
-        {detail.messages.map(m => (
-          <div key={m.id} className={`message ${m.role}`}>
-            <div className="message-body">
-              <div className="message-content">
-                {m.role === 'user' ? (
-                  m.content
-                ) : (
-                  <MarkdownRenderer content={m.content} />
-                )}
-              </div>
-              {m.role === 'assistant' && <AuditSources sources={m.sources} />}
-              <AuditMessageMeta message={m} sessionId={detail.id} fmtTime={fmtTime} />
-            </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
+      {rightPanel && (
+        <RightPanel
+          content={
+            rightPanel.mode === 'sources'
+              ? { mode: 'sources', sources: rightPanel.sources! }
+              : { mode: 'debug', debug: rightPanel.debug! }
+          }
+          sessionId={rightPanel.sessionId}
+          messageId={rightPanel.messageId}
+          onClose={() => setRightPanel(null)}
+        />
+      )}
     </div>
   )
 }

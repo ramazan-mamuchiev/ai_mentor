@@ -205,6 +205,7 @@ export interface AdminChatMessage {
   duration_ms: number | null
   feedback: string | null
   created_at: string
+  debug: Record<string, unknown> | null
 }
 
 export interface AdminChatSessionDetail extends AdminChatSessionItem {
