@@ -387,8 +387,10 @@ function SessionListView() {
         </div>
       )}
 
-      {/* Message search results */}
-      {searchMode === 'messages' && msgResults.length > 0 && !loading && (
+      {/* Results */}
+      {loading ? (
+        <div className="admin-loading">{t('admin.common.loading')}</div>
+      ) : isMessageSearch && msgResults.length > 0 ? (
         <div className="chat-audit-results">
           {msgResults.map(m => (
             <div
@@ -407,40 +409,35 @@ function SessionListView() {
             </div>
           ))}
         </div>
-      )}
-
-      {/* Session list */}
-      {searchMode === 'sessions' && (
+      ) : isMessageSearch && msgResults.length === 0 && !error ? (
+        <div className="admin-empty">{t('admin.chats.noSessions')}</div>
+      ) : items.length === 0 && !error ? (
+        <div className="admin-empty">{t('admin.chats.noSessions')}</div>
+      ) : (
         <>
-          {loading ? (
-            <div className="admin-loading">{t('admin.common.loading')}</div>
-          ) : items.length === 0 && !error ? (
-            <div className="admin-empty">{t('admin.chats.noSessions')}</div>
-          ) : (
-            <div className="chat-audit-results">
-              {items.map(s => (
-                <div
-                  key={s.id}
-                  className="chat-audit-session-row"
-                  onClick={() => navigate(`/app/admin/chats/${s.id}`)}
-                >
-                  <div className="chat-audit-session-row__main">
-                    <span className="chat-audit-session-row__id">#{s.id}</span>
-                    <span className="chat-audit-session-row__title">
-                      {s.title || t('admin.chats.untitled')}
-                    </span>
-                    <ChevronRight size={14} className="chat-audit-session-row__arrow" />
-                  </div>
-                  <div className="chat-audit-session-row__meta">
-                    <span>{s.tenant_email || '—'}</span>
-                    {s.product_filter && <span>· {s.product_filter}</span>}
-                    <span>· {s.messages_count} {t('admin.chats.messages').toLowerCase()}</span>
-                    <span>· {new Date(s.updated_at).toLocaleDateString()}</span>
-                  </div>
+          <div className="chat-audit-results">
+            {items.map(s => (
+              <div
+                key={s.id}
+                className="chat-audit-session-row"
+                onClick={() => navigate(`/app/admin/chats/${s.id}`)}
+              >
+                <div className="chat-audit-session-row__main">
+                  <span className="chat-audit-session-row__id">#{s.id}</span>
+                  <span className="chat-audit-session-row__title">
+                    {s.title || t('admin.chats.untitled')}
+                  </span>
+                  <ChevronRight size={14} className="chat-audit-session-row__arrow" />
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="chat-audit-session-row__meta">
+                  <span>{s.tenant_email || '—'}</span>
+                  {s.product_filter && <span>· {s.product_filter}</span>}
+                  <span>· {s.messages_count} {t('admin.chats.messages').toLowerCase()}</span>
+                  <span>· {new Date(s.updated_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
 
           {totalPages > 1 && (
             <div className="admin-pagination">
@@ -456,14 +453,6 @@ function SessionListView() {
             </div>
           )}
         </>
-      )}
-
-      {/* Messages loading */}
-      {searchMode === 'messages' && loading && (
-        <div className="admin-loading">{t('admin.common.loading')}</div>
-      )}
-      {searchMode === 'messages' && !loading && msgResults.length === 0 && debouncedSearch && !error && (
-        <div className="admin-empty">{t('admin.chats.noSessions')}</div>
       )}
     </div>
   )
