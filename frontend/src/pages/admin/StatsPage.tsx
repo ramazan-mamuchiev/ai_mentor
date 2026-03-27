@@ -452,6 +452,34 @@ function CostsTab({ days, t }: { days: number; t: any }) {
           ) : <div className="admin-empty">{t('admin.stats.noData')}</div>}
         </div>
       </div>
+
+      {data.top_api_keys.length > 0 && (
+        <>
+          <h2 className="admin-section-title" style={{ marginTop: 16 }}>{t('admin.stats.costs.topApiKeys')}</h2>
+          <div className="admin-table-wrapper">
+            <div className="admin-table-scroll">
+              <table className="admin-table">
+                <thead><tr>
+                  <th>{t('admin.stats.costs.keyPrefix')}</th>
+                  <th>{t('admin.stats.costs.keyUser')}</th>
+                  <th>{t('admin.stats.requests')}</th>
+                  <th>{t('admin.stats.costs.charge')}</th>
+                </tr></thead>
+                <tbody>
+                  {data.top_api_keys.map((k, i) => (
+                    <tr key={i}>
+                      <td><code>{k.key_prefix}…</code></td>
+                      <td>{k.email}</td>
+                      <td>{k.request_count.toLocaleString()}</td>
+                      <td>{fmtUsd(k.charge_usd)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

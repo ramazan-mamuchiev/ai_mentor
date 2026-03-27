@@ -906,6 +906,27 @@
   "admin.stats.costs.chargePerDay": "Charge ($) / day",
   "admin.stats.costs.byModel": "By model",
   "admin.stats.costs.byChannel": "By channel",
+  "admin.stats.costs.topApiKeys": "Top API keys",
+  "admin.stats.costs.keyPrefix": "Key",
+  "admin.stats.costs.keyUser": "User",
+  "admin.stats.costs.charge": "Charge",
+
+  "admin.stats.overview.tenants": "Tenants",
+  "admin.stats.overview.documents": "Documents",
+  "admin.stats.overview.indexed": "indexed",
+  "admin.stats.overview.chunks": "Total chunks",
+  "admin.stats.overview.sessions": "Sessions",
+  "admin.stats.overview.messages": "Messages",
+  "admin.stats.overview.apiKeys": "API keys",
+  "admin.stats.overview.sharedLinks": "Shared links",
+  "admin.stats.overview.prompts": "Prompts",
+  "admin.stats.overview.customized": "customized",
+
+  "admin.stats.chat.errorRate": "LLM errors",
+
+  "admin.stats.docs.kbSize": "KB size",
+  "admin.stats.docs.totalChunks": "Total chunks",
+  "admin.stats.docs.chunkUtil": "Chunk utilization",
 
   "admin.status.ready": "Ready",
   "admin.status.pending": "Pending",
