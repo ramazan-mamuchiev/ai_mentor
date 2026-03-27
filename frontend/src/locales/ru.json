@@ -527,6 +527,8 @@
   "settings.keyCreated": "Создан",
   "settings.keyLastUsed": "Последнее использование",
   "settings.deleteKey": "Удалить ключ",
+  "settings.newKeyTitle": "Новый API-ключ",
+  "settings.done": "Готово",
 
   "common.close": "Закрыть",
   "upload.removeFile": "Удалить файл",

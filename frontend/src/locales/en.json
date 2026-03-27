@@ -527,6 +527,8 @@
   "settings.keyCreated": "Created",
   "settings.keyLastUsed": "Last used",
   "settings.deleteKey": "Delete key",
+  "settings.newKeyTitle": "New API Key",
+  "settings.done": "Done",
 
   "common.close": "Close",
   "upload.removeFile": "Remove file",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Copy, Key, Plus, Trash2, Check, User, Save } from 'lucide-react'
+import { Copy, Key, Plus, Trash2, Check, User, Save, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getApiKeys, createApiKey, deleteApiKey, updateMe, type ApiKeyItem, type ApiKeyCreated } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
@@ -114,7 +114,6 @@ function ApiKeysTab() {
   const [newKey, setNewKey] = useState<ApiKeyCreated | null>(null)
   const [keyName, setKeyName] = useState('')
   const [creating, setCreating] = useState(false)
-  const [copied, setCopied] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -142,23 +141,6 @@ function ApiKeysTab() {
     await load()
   }
 
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text)
-    setCopied(id)
-    setTimeout(() => setCopied(null), 2000)
-  }
-
-  const mcpConfig = newKey ? JSON.stringify({
-    mcpServers: {
-      lexiro: {
-        url: `${window.location.origin}/mcp`,
-        headers: {
-          Authorization: `Bearer ${newKey.key}`,
-        },
-      },
-    },
-  }, null, 2) : null
-
   return (
     <section className="settings-section">
       <p className="settings-hint">{t('settings.apiKeysHint')}</p>
@@ -177,31 +159,10 @@ function ApiKeysTab() {
       </div>
 
       {newKey && (
-        <div className="api-key-new">
-          <p className="api-key-warning">{t('settings.keyShownOnce')}</p>
-          <div className="api-key-value">
-            <code>{newKey.key}</code>
-            <button
-              onClick={() => handleCopy(newKey.key, 'new-key')}
-              className="btn-icon"
-              data-tooltip={t('chat.copy')}
-            >
-              {copied === 'new-key' ? <Check size={16} /> : <Copy size={16} />}
-            </button>
-          </div>
-
-          <h4>{t('settings.mcpConfig')}</h4>
-          <div className="api-key-value mcp-config">
-            <pre>{mcpConfig}</pre>
-            <button
-              onClick={() => handleCopy(mcpConfig!, 'mcp-config')}
-              className="btn-icon"
-              data-tooltip={t('chat.copy')}
-            >
-              {copied === 'mcp-config' ? <Check size={16} /> : <Copy size={16} />}
-            </button>
-          </div>
-        </div>
+        <NewKeyModal
+          newKey={newKey}
+          onClose={() => setNewKey(null)}
+        />
       )}
 
       {loading ? (
@@ -237,5 +198,71 @@ function ApiKeysTab() {
         </table>
       )}
     </section>
+  )
+}
+
+function NewKeyModal({ newKey, onClose }: { newKey: ApiKeyCreated; onClose: () => void }) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  const mcpConfig = JSON.stringify({
+    mcpServers: {
+      lexiro: {
+        url: `${window.location.origin}/mcp`,
+        headers: {
+          Authorization: `Bearer ${newKey.key}`,
+        },
+      },
+    },
+  }, null, 2)
+
+  return (
+    <div className="api-key-modal-overlay" onClick={onClose}>
+      <div className="api-key-modal" onClick={e => e.stopPropagation()}>
+        <div className="api-key-modal-header">
+          <h3>{t('settings.newKeyTitle')}</h3>
+          <button onClick={onClose} className="btn-icon">
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="api-key-warning">{t('settings.keyShownOnce')}</p>
+
+        <div className="api-key-value">
+          <code>{newKey.key}</code>
+          <button
+            onClick={() => handleCopy(newKey.key, 'new-key')}
+            className="btn-icon"
+            data-tooltip={t('chat.copy')}
+          >
+            {copied === 'new-key' ? <Check size={16} /> : <Copy size={16} />}
+          </button>
+        </div>
+
+        <h4>{t('settings.mcpConfig')}</h4>
+        <div className="api-key-value mcp-config">
+          <pre>{mcpConfig}</pre>
+          <button
+            onClick={() => handleCopy(mcpConfig, 'mcp-config')}
+            className="btn-icon"
+            data-tooltip={t('chat.copy')}
+          >
+            {copied === 'mcp-config' ? <Check size={16} /> : <Copy size={16} />}
+          </button>
+        </div>
+
+        <div className="api-key-modal-footer">
+          <button onClick={onClose} className="btn-primary">
+            {t('settings.done')}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
