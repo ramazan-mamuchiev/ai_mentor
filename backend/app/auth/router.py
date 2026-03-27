@@ -1,6 +1,7 @@
 """Auth REST endpoints: register, login, refresh, me, OAuth, API keys."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_tenant
@@ -279,8 +280,6 @@ async def get_usage_summary(
 ):
     """Aggregated usage summary for the current tenant."""
     from datetime import datetime, timedelta, timezone
-
-    from sqlalchemy import text
 
     days = max(1, min(days, 365))
     since = datetime.now(timezone.utc) - timedelta(days=days)
