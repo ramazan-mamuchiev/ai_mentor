@@ -234,10 +234,10 @@ function DocActions({
       {doc.status === 'ready' && (
         <button
           className="docs-action-btn"
-          onClick={() => onDebug(doc)}
-          aria-label={t('docs.actions.debug')}
+          onClick={() => onPreview(doc)}
+          aria-label={t('docs.actions.previewMd')}
         >
-          <Bug size={16} />
+          <Eye size={16} />
         </button>
       )}
       <button
@@ -250,9 +250,9 @@ function DocActions({
       {open && createPortal(
         <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: pos.left }}>
           {doc.status === 'ready' && (
-            <button className="docs-actions-dropdown-item" onClick={() => { onPreview(doc); setOpen(false) }}>
-              <Eye size={15} />
-              {t('docs.actions.previewMd')}
+            <button className="docs-actions-dropdown-item" onClick={() => { onDebug(doc); setOpen(false) }}>
+              <Bug size={15} />
+              {t('docs.actions.debug')}
             </button>
           )}
           {doc.status === 'ready' && (
