@@ -362,16 +362,21 @@
   max-width: 860px;
 }
 
-.audit-user-meta,
-.audit-assistant-time {
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-top: 2px;
-  opacity: 0.7;
+.audit-chat-area .message-footer {
+  margin-top: 4px;
 }
 
-.audit-user-meta {
-  text-align: right;
+.audit-meta-role {
+  font-size: 10px;
+  text-transform: capitalize;
+}
+
+.audit-meta-sep {
+  opacity: 0.4;
+}
+
+.audit-meta-time {
+  font-size: 10px;
 }
 
 .audit-feedback-badge {

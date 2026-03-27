@@ -3,12 +3,14 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight, Clock, User,
+  FileSearch, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import {
   listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin, searchTenants,
-  type AdminChatSessionItem, type AdminChatSessionDetail, type AdminChatMessageSearchItem,
+  type AdminChatSessionItem, type AdminChatSessionDetail, type AdminChatMessage, type AdminChatMessageSearchItem,
   type TenantSearchResult,
 } from '../../api/admin'
+import { MarkdownRenderer } from '../../components/MarkdownRenderer'
 
 const TIME_RANGES = [
   { value: '', label: 'All' },
@@ -31,12 +33,80 @@ function timeRangeToISO(range: string): { start?: string; end?: string } {
   }
 }
 
+function AuditSources({ sources }: { sources: AdminChatMessage['sources'] }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  if (!sources || !Array.isArray(sources) || sources.length === 0) return null
+
+  return (
+    <div className="sources-container">
+      <button className="sources-toggle" onClick={() => setOpen(v => !v)}>
+        <FileSearch size={16} />
+        <span className="sources-label">{t('chat.sources', { count: sources.length })}</span>
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      {open && (
+        <div className="audit-sources-list">
+          {sources.map((s, i) => (
+            <div key={i} className="audit-source-card">
+              <div className="audit-source-card__header">
+                <span className="audit-source-card__index">{i + 1}</span>
+                <div className="audit-source-card__info">
+                  <span className="audit-source-card__title">{s.doc_title || '—'}</span>
+                  {s.heading_path && <span className="audit-source-card__path">{s.heading_path}</span>}
+                </div>
+                {s.similarity != null && (
+                  <span className="audit-source-card__score">{(s.similarity * 100).toFixed(1)}%</span>
+                )}
+              </div>
+              {s.content_preview && (
+                <div className="audit-source-card__snippet">{s.content_preview}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AuditMessageMeta({ message, sessionId, fmtTime }: {
+  message: AdminChatMessage
+  sessionId: number
+  fmtTime: (iso: string) => string
+}) {
+  const isAssistant = message.role === 'assistant'
+
+  return (
+    <div className="message-footer">
+      <span className="audit-meta-role">{message.role}</span>
+      <span className="audit-meta-sep">·</span>
+      <span className="audit-meta-time">{fmtTime(message.created_at)}</span>
+      {isAssistant && message.duration_ms != null && (
+        <>
+          <span className="audit-meta-sep">·</span>
+          <span className="message-duration">{(message.duration_ms / 1000).toFixed(1)}s</span>
+        </>
+      )}
+      <span className="audit-meta-sep">·</span>
+      <span className="message-ids">S#{sessionId} M#{message.id}</span>
+      {isAssistant && message.feedback && (
+        <>
+          <span className="audit-meta-sep">·</span>
+          <span className="audit-feedback-badge">{message.feedback === 'up' ? '👍' : '👎'}</span>
+        </>
+      )}
+    </div>
+  )
+}
+
 function SessionDetail({ sessionId }: { sessionId: number }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [detail, setDetail] = useState<AdminChatSessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -58,8 +128,14 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
   )
   if (!detail) return <div className="admin-empty">{t('admin.chats.sessionNotFound')}</div>
 
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso)
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
+      + ', ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
   return (
-    <div>
+    <div className="audit-detail">
       <button className="chat-audit-back" onClick={() => navigate('/app/admin/chats')}>
         <ArrowLeft size={14} /> {t('admin.chats.backToSessions')}
       </button>
@@ -72,17 +148,23 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
         </p>
       </div>
 
-      <div className="chat-viewer">
+      <div className="audit-chat-area">
         {detail.messages.map(m => (
-          <div key={m.id} className={`chat-viewer__msg chat-viewer__msg--${m.role}`}>
-            {m.content}
-            <div className="chat-viewer__meta">
-              {m.role} · {new Date(m.created_at).toLocaleString()}
-              {m.duration_ms ? ` · ${Math.round(m.duration_ms)}ms` : ''}
-              {m.feedback ? ` · ${t('admin.chats.feedback')}: ${m.feedback}` : ''}
+          <div key={m.id} className={`message ${m.role}`}>
+            <div className="message-body">
+              <div className="message-content">
+                {m.role === 'user' ? (
+                  m.content
+                ) : (
+                  <MarkdownRenderer content={m.content} />
+                )}
+              </div>
+              {m.role === 'assistant' && <AuditSources sources={m.sources} />}
+              <AuditMessageMeta message={m} sessionId={detail.id} fmtTime={fmtTime} />
             </div>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </div>
     </div>
   )
@@ -148,11 +230,13 @@ function SessionListView() {
     return () => document.removeEventListener('mousedown', handler)
   }, [tenantDropdownOpen])
 
+  const isMessageSearch = searchMode === 'messages' && !!debouncedSearch.trim()
+
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      if (searchMode === 'messages' && debouncedSearch.trim()) {
+      if (isMessageSearch) {
         const res = await searchMessagesAdmin(debouncedSearch)
         setMsgResults(res.items)
         setItems([])
@@ -174,7 +258,7 @@ function SessionListView() {
       setError(err instanceof Error ? err.message : 'Failed to load')
     }
     setLoading(false)
-  }, [page, debouncedSearch, activeTenantId, searchMode, timeRange])
+  }, [page, debouncedSearch, activeTenantId, isMessageSearch, timeRange])
 
   useEffect(() => { load() }, [load])
 

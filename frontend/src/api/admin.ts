@@ -188,11 +188,20 @@ export interface AdminChatSessionItem {
   updated_at: string
 }
 
+export interface AdminChatMessageSource {
+  doc_title?: string
+  heading_path?: string
+  similarity?: number
+  content_preview?: string
+  product_name?: string
+  document_id?: number | null
+}
+
 export interface AdminChatMessage {
   id: number
   role: string
   content: string
-  sources: Record<string, unknown> | null
+  sources: AdminChatMessageSource[] | null
   duration_ms: number | null
   feedback: string | null
   created_at: string

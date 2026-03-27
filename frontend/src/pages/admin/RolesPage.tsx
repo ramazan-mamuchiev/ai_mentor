@@ -84,11 +84,13 @@ export function RolesPage() {
         </div>
       )}
 
-      {loading ? (
-        <div className="admin-loading">{t('admin.common.loading')}</div>
-      ) : (
-        <table className="admin-table">
-          <thead>
+      <div className="admin-table-wrapper">
+        {loading ? (
+          <div className="admin-loading">{t('admin.common.loading')}</div>
+        ) : (
+          <div className="admin-table-scroll">
+            <table className="admin-table">
+              <thead>
             <tr>
               <th>{t('admin.roles.slug')}</th>
               <th>{t('admin.roles.name')}</th>
@@ -116,8 +118,10 @@ export function RolesPage() {
               </tr>
             ))}
           </tbody>
-        </table>
-      )}
+              </table>
+            </div>
+          )}
+        </div>
     </div>
   )
 }

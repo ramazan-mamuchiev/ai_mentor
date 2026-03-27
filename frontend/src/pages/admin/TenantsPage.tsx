@@ -74,10 +74,11 @@ export function TenantsPage() {
         ) : items.length === 0 ? (
           <div className="admin-empty">{t('admin.tenants.noTenants')}</div>
         ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>{t('admin.tenants.email')}</th>
+          <div className="admin-table-scroll">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>{t('admin.tenants.email')}</th>
                 <th>{t('admin.tenants.name')}</th>
                 <th>{t('admin.tenants.role')}</th>
                 <th>{t('admin.tenants.tier')}</th>
@@ -129,7 +130,8 @@ export function TenantsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
 
         {totalPages > 1 && (

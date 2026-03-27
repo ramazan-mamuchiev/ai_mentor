@@ -113,64 +113,66 @@ export function DocumentsAdminPage() {
         ) : items.length === 0 ? (
           <div className="admin-empty">{t('admin.docs.noDocuments')}</div>
         ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>{t('admin.docs.title_col')}</th>
-                <th>{t('admin.docs.tenant')}</th>
-                <th>{t('admin.docs.product')}</th>
-                <th>{t('admin.docs.version')}</th>
-                <th>{t('admin.docs.status')}</th>
-                <th>{t('admin.docs.format')}</th>
-                <th>{t('admin.docs.size')}</th>
-                <th>{t('admin.docs.chunks')}</th>
-                <th>{t('admin.docs.uploaded')}</th>
-                <th>{t('admin.common.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(d => (
-                <tr key={d.id}>
-                  <td>
-                    <div style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {d.title || d.original_filename}
-                    </div>
-                  </td>
-                  <td style={{ fontSize: 12 }}>{d.tenant_email || '—'}</td>
-                  <td style={{ fontSize: 12 }}>
-                    {d.manufacturer && d.product_name ? `${d.manufacturer} / ${d.product_name}` : d.product_name || '—'}
-                  </td>
-                  <td style={{ fontSize: 12 }}>{d.firmware_version || '—'}</td>
-                  <td><span className={`badge ${statusBadge(d.status)}`}>{d.status}</span></td>
-                  <td><span className="badge badge--gray">{d.format}</span></td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{formatBytes(d.file_size_bytes)}</td>
-                  <td>{d.total_chunks}</td>
-                  <td style={{ fontSize: 12 }}>{new Date(d.uploaded_at).toLocaleDateString()}</td>
-                  <td>
-                    <div className="admin-actions">
-                      <select
-                        className="admin-select"
-                        value={d.status}
-                        onChange={e => handleStatusChange(d.id, e.target.value)}
-                        style={{ width: 100 }}
-                      >
-                        <option value="ready">ready</option>
-                        <option value="pending">pending</option>
-                        <option value="blocked">blocked</option>
-                        <option value="error">error</option>
-                      </select>
-                      <button
-                        className="admin-btn admin-btn--sm admin-btn--danger"
-                        onClick={() => handleDelete(d.id)}
-                      >
-                        {t('admin.common.delete')}
-                      </button>
-                    </div>
-                  </td>
+          <div className="admin-table-scroll">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>{t('admin.docs.title_col')}</th>
+                  <th>{t('admin.docs.tenant')}</th>
+                  <th>{t('admin.docs.product')}</th>
+                  <th>{t('admin.docs.version')}</th>
+                  <th>{t('admin.docs.status')}</th>
+                  <th>{t('admin.docs.format')}</th>
+                  <th>{t('admin.docs.size')}</th>
+                  <th>{t('admin.docs.chunks')}</th>
+                  <th>{t('admin.docs.uploaded')}</th>
+                  <th>{t('admin.common.actions')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map(d => (
+                  <tr key={d.id}>
+                    <td>
+                      <div style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {d.title || d.original_filename}
+                      </div>
+                    </td>
+                    <td style={{ fontSize: 12 }}>{d.tenant_email || '—'}</td>
+                    <td style={{ fontSize: 12 }}>
+                      {d.manufacturer && d.product_name ? `${d.manufacturer} / ${d.product_name}` : d.product_name || '—'}
+                    </td>
+                    <td style={{ fontSize: 12 }}>{d.firmware_version || '—'}</td>
+                    <td><span className={`badge ${statusBadge(d.status)}`}>{d.status}</span></td>
+                    <td><span className="badge badge--gray">{d.format}</span></td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{formatBytes(d.file_size_bytes)}</td>
+                    <td>{d.total_chunks}</td>
+                    <td style={{ fontSize: 12 }}>{new Date(d.uploaded_at).toLocaleDateString()}</td>
+                    <td>
+                      <div className="admin-actions">
+                        <select
+                          className="admin-select"
+                          value={d.status}
+                          onChange={e => handleStatusChange(d.id, e.target.value)}
+                          style={{ width: 100 }}
+                        >
+                          <option value="ready">ready</option>
+                          <option value="pending">pending</option>
+                          <option value="blocked">blocked</option>
+                          <option value="error">error</option>
+                        </select>
+                        <button
+                          className="admin-btn admin-btn--sm admin-btn--danger"
+                          onClick={() => handleDelete(d.id)}
+                        >
+                          {t('admin.common.delete')}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {totalPages > 1 && (

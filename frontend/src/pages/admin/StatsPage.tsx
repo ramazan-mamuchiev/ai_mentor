@@ -93,28 +93,30 @@ export function StatsPage() {
       <h2 className="admin-section-title">{t('admin.stats.llmModels')}</h2>
       {models.length > 0 ? (
         <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>{t('admin.stats.model')}</th>
-                <th>{t('admin.stats.provider')}</th>
-                <th>{t('admin.stats.requests')}</th>
-                <th>{t('admin.stats.totalTokens')}</th>
-                <th>{t('admin.stats.avgDuration')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {models.map((m, i) => (
-                <tr key={i}>
-                  <td><span className="badge badge--blue">{m.model}</span></td>
-                  <td>{m.provider}</td>
-                  <td>{m.request_count.toLocaleString()}</td>
-                  <td>{m.total_tokens.toLocaleString()}</td>
-                  <td>{m.avg_total_ms.toFixed(0)}ms</td>
+          <div className="admin-table-scroll">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>{t('admin.stats.model')}</th>
+                  <th>{t('admin.stats.provider')}</th>
+                  <th>{t('admin.stats.requests')}</th>
+                  <th>{t('admin.stats.totalTokens')}</th>
+                  <th>{t('admin.stats.avgDuration')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {models.map((m, i) => (
+                  <tr key={i}>
+                    <td><span className="badge badge--blue">{m.model}</span></td>
+                    <td>{m.provider}</td>
+                    <td>{m.request_count.toLocaleString()}</td>
+                    <td>{m.total_tokens.toLocaleString()}</td>
+                    <td>{m.avg_total_ms.toFixed(0)}ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="admin-empty">{t('admin.stats.noModelData')}</div>
