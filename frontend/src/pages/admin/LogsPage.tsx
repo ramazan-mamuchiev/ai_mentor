@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { getLogs, type LogEntry } from '../../api/admin'
 
-const SERVICES = ['api', 'worker', 'beat', 'web', 'nginx'] as const
+const SERVICES = ['api', 'worker', 'beat', 'web', 'postgres', 'redis'] as const
 const LEVELS = ['', 'info', 'warning', 'error', 'debug'] as const
 
 export function LogsPage() {

@@ -239,6 +239,16 @@ async def stats_search(
 # ---------------------------------------------------------------------------
 
 LOKI_URL = "http://loki:3100"
+_SERVICE_TO_CONTAINER = {
+    "api": "/lexiro-api-1",
+    "worker": "/lexiro-worker-1",
+    "beat": "/lexiro-beat-1",
+    "web": "/lexiro-web-1",
+    "postgres": "/lexiro-postgres-1",
+    "redis": "/lexiro-redis-1",
+    "minio": "/lexiro-minio-1",
+    "nginx": "/lexiro-web-1",
+}
 
 @router.get("/logs", response_model=LogsResponse)
 async def get_logs(
@@ -249,7 +259,8 @@ async def get_logs(
     end: str | None = None,
     limit: int = Query(200, ge=1, le=5000),
 ):
-    label_parts = [f'job="{service_name}"']
+    container = _SERVICE_TO_CONTAINER.get(service_name, f"/lexiro-{service_name}-1")
+    label_parts = [f'container="{container}"']
     if level:
         label_parts.append(f'level="{level}"')
     label_selector = "{" + ",".join(label_parts) + "}"
@@ -282,8 +293,8 @@ async def get_logs(
                 "timestamp": ts,
                 "level": stream_labels.get("level", ""),
                 "message": line,
-                "service": stream_labels.get("job", service_name),
-                "extra": {k: v for k, v in stream_labels.items() if k not in ("job", "level")},
+                "service": service_name,
+                "extra": {k: v for k, v in stream_labels.items() if k not in ("container", "level", "service_name", "stream")},
             })
 
     entries.sort(key=lambda e: e["timestamp"], reverse=True)
