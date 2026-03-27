@@ -65,6 +65,26 @@ async def list_tenants(
     return TenantListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
+@router.get("/tenants/search/autocomplete")
+async def search_tenants_autocomplete(
+    q: str = Query("", min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lightweight tenant search for autocomplete (by name or email)."""
+    from sqlalchemy import select as sa_select
+    from app.models import Tenant
+
+    like = f"%{q}%"
+    rows = (await session.execute(
+        sa_select(Tenant.id, Tenant.name, Tenant.email)
+        .where(Tenant.name.ilike(like) | Tenant.email.ilike(like))
+        .order_by(Tenant.name)
+        .limit(limit)
+    )).all()
+    return [{"id": str(r.id), "name": r.name, "email": r.email} for r in rows]
+
+
 @router.get("/tenants/{tenant_id}", response_model=TenantDetail)
 async def get_tenant(
     tenant_id: uuid.UUID,
@@ -101,26 +121,6 @@ async def delete_tenant(
     result = await service.patch_tenant(session, tenant_id, is_active=False)
     if not result:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
-
-
-@router.get("/tenants/search/autocomplete")
-async def search_tenants_autocomplete(
-    q: str = Query("", min_length=1),
-    limit: int = Query(10, ge=1, le=50),
-    session: AsyncSession = Depends(get_session),
-):
-    """Lightweight tenant search for autocomplete (by name or email)."""
-    from sqlalchemy import select as sa_select
-    from app.models import Tenant
-
-    like = f"%{q}%"
-    rows = (await session.execute(
-        sa_select(Tenant.id, Tenant.name, Tenant.email)
-        .where(Tenant.name.ilike(like) | Tenant.email.ilike(like))
-        .order_by(Tenant.name)
-        .limit(limit)
-    )).all()
-    return [{"id": str(r.id), "name": r.name, "email": r.email} for r in rows]
 
 
 # ---------------------------------------------------------------------------

@@ -159,8 +159,16 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow-x: auto;
+  overflow: hidden;
   margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-table-scroll {
+  overflow: auto;
+  flex: 1 1 auto;
+  max-height: calc(100vh - 260px);
 }
 
 .admin-toolbar {
@@ -338,44 +346,118 @@
   align-items: center;
 }
 
-/* Chat viewer */
-.chat-viewer {
+/* Audit chat area — reuses .message / .message-body / .message-content from chat.css */
+.audit-detail {
+  max-width: 100%;
+}
+
+.audit-chat-area {
+  max-width: 860px;
+  padding: 16px 0 32px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-width: 800px;
 }
 
-.chat-viewer__msg {
-  padding: 12px 16px;
-  border-radius: var(--radius-lg);
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
+.audit-chat-area .message {
+  max-width: 860px;
 }
 
-.chat-viewer__msg--user {
-  background: var(--accent);
-  color: #fff;
-  align-self: flex-end;
-  max-width: 80%;
-  border-bottom-right-radius: 4px;
-}
-
-.chat-viewer__msg--assistant {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  align-self: flex-start;
-  max-width: 90%;
-  border-bottom-left-radius: 4px;
-}
-
-.chat-viewer__meta {
+.audit-user-meta,
+.audit-assistant-time {
   font-size: 10px;
   color: var(--text-muted);
-  margin-top: 4px;
+  margin-top: 2px;
+  opacity: 0.7;
+}
+
+.audit-user-meta {
+  text-align: right;
+}
+
+.audit-feedback-badge {
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Inline sources list for audit */
+.audit-sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.audit-source-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.audit-source-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.audit-source-card__index {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.audit-source-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.audit-source-card__title {
+  display: block;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audit-source-card__path {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audit-source-card__score {
+  flex-shrink: 0;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.audit-source-card__snippet {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-height: 60px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 /* ============================================================
