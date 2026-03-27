@@ -175,7 +175,9 @@ async def tus_create(request: Request, tenant: Tenant = Depends(get_current_tena
     ttl_seconds = settings.tus_upload_ttl_hours * 3600
     r.set(_redis_offset_key(upload_id), 0, ex=ttl_seconds)
 
-    location = f"{request.base_url}api/v1/uploads/{upload_id}"
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("host", request.url.netloc)
+    location = f"{proto}://{host}/api/v1/uploads/{upload_id}"
     headers = {
         **_tus_headers(),
         "Location": location,
