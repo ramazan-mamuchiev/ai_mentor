@@ -235,7 +235,7 @@ function DocActions({
         <button
           className="docs-action-btn"
           onClick={() => onDebug(doc)}
-          data-tooltip={t('docs.actions.debug')}
+          aria-label={t('docs.actions.debug')}
         >
           <Bug size={16} />
         </button>

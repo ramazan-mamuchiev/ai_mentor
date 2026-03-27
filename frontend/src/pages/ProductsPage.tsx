@@ -189,7 +189,7 @@ function ProductActions({
       <button
         className="docs-action-btn"
         onClick={() => onEdit(p)}
-        data-tooltip={t('products.actions.edit')}
+        aria-label={t('products.actions.edit')}
       >
         <Pencil size={16} />
       </button>
