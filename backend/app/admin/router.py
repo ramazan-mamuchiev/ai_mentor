@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_session
+from app.auth.dependencies import require_admin
+from app.models import Tenant
 from app.admin import service
 from app.admin.schemas import (
     AdminChatMessageSearchResponse,
@@ -101,7 +103,13 @@ async def patch_tenant(
     tenant_id: uuid.UUID,
     body: TenantPatchRequest,
     session: AsyncSession = Depends(get_session),
+    current_tenant: Tenant = Depends(require_admin),
 ):
+    if body.is_active is not None and tenant_id == current_tenant.id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Cannot change your own active status",
+        )
     if body.role and body.role not in ("user", "admin"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid role")
     result = await service.patch_tenant(

@@ -691,6 +691,9 @@
   "admin.tenants.blocked": "Заблокирован",
   "admin.tenants.block": "Заблокировать",
   "admin.tenants.unblock": "Разблокировать",
+  "admin.tenants.confirmBlockTitle": "Подтверждение блокировки",
+  "admin.tenants.confirmBlockMessage": "Вы уверены, что хотите заблокировать пользователя {{email}}? Он потеряет доступ к системе.",
+  "admin.tenants.cannotBlockSelf": "Нельзя заблокировать самого себя",
 
   "admin.tenantDetail.loading": "Загрузка пользователя...",
   "admin.tenantDetail.notFound": "Пользователь не найден",

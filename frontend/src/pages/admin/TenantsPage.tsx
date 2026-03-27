@@ -3,16 +3,20 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Users } from 'lucide-react'
 import { listTenants, patchTenant, type TenantListItem } from '../../api/admin'
+import { useAuth } from '../../auth/AuthContext'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 
 export function TenantsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [items, setItems] = useState<TenantListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [loading, setLoading] = useState(true)
+  const [blockTarget, setBlockTarget] = useState<TenantListItem | null>(null)
 
   const pageSize = 50
 
@@ -31,11 +35,20 @@ export function TenantsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const handleToggleActive = async (tenant: TenantListItem) => {
+  const handleToggleActive = (tenant: TenantListItem) => {
+    if (tenant.is_active) {
+      setBlockTarget(tenant)
+    } else {
+      confirmToggleActive(tenant)
+    }
+  }
+
+  const confirmToggleActive = async (tenant: TenantListItem) => {
     try {
       await patchTenant(tenant.id, { is_active: !tenant.is_active })
       load()
     } catch { /* ignore */ }
+    setBlockTarget(null)
   }
 
   const handleChangeRole = async (tenant: TenantListItem, newRole: string) => {
@@ -122,6 +135,8 @@ export function TenantsPage() {
                       <button
                         className={`admin-btn admin-btn--sm ${tenant.is_active ? 'admin-btn--danger' : 'admin-btn--primary'}`}
                         onClick={() => handleToggleActive(tenant)}
+                        disabled={tenant.id === user?.id}
+                        title={tenant.id === user?.id ? t('admin.tenants.cannotBlockSelf') : undefined}
                       >
                         {tenant.is_active ? t('admin.tenants.block') : t('admin.tenants.unblock')}
                       </button>
@@ -144,6 +159,18 @@ export function TenantsPage() {
           </div>
         )}
       </div>
+
+      {blockTarget && (
+        <ConfirmDialog
+          title={t('admin.tenants.confirmBlockTitle')}
+          message={t('admin.tenants.confirmBlockMessage', { email: blockTarget.email })}
+          confirmLabel={t('admin.tenants.block')}
+          cancelLabel={t('admin.common.cancel')}
+          variant="danger"
+          onConfirm={() => confirmToggleActive(blockTarget)}
+          onCancel={() => setBlockTarget(null)}
+        />
+      )}
     </div>
   )
 }

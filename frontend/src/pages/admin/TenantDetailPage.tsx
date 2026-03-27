@@ -3,13 +3,19 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
 import { getTenant, patchTenant, type TenantDetail } from '../../api/admin'
+import { useAuth } from '../../auth/AuthContext'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 
 export function TenantDetailPage() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [tenant, setTenant] = useState<TenantDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false)
+
+  const isSelf = id === user?.id
 
   useEffect(() => {
     if (!id) return
@@ -26,6 +32,19 @@ export function TenantDetailPage() {
       const updated = await patchTenant(id, data)
       setTenant(updated)
     } catch { /* ignore */ }
+  }
+
+  const handleToggleActive = () => {
+    if (tenant?.is_active) {
+      setShowBlockConfirm(true)
+    } else {
+      handlePatch({ is_active: true })
+    }
+  }
+
+  const confirmBlock = () => {
+    handlePatch({ is_active: false })
+    setShowBlockConfirm(false)
   }
 
   if (loading) return <div className="admin-loading">{t('admin.tenantDetail.loading')}</div>
@@ -88,7 +107,9 @@ export function TenantDetailPage() {
               <dd>
                 <button
                   className={`admin-btn admin-btn--sm ${tenant.is_active ? 'admin-btn--danger' : 'admin-btn--primary'}`}
-                  onClick={() => handlePatch({ is_active: !tenant.is_active })}
+                  onClick={handleToggleActive}
+                  disabled={isSelf}
+                  title={isSelf ? t('admin.tenants.cannotBlockSelf') : undefined}
                 >
                   {tenant.is_active ? t('admin.tenants.block') : t('admin.tenants.unblock')}
                 </button>
@@ -129,6 +150,18 @@ export function TenantDetailPage() {
           </div>
         </div>
       </div>
+
+      {showBlockConfirm && tenant && (
+        <ConfirmDialog
+          title={t('admin.tenants.confirmBlockTitle')}
+          message={t('admin.tenants.confirmBlockMessage', { email: tenant.email })}
+          confirmLabel={t('admin.tenants.block')}
+          cancelLabel={t('admin.common.cancel')}
+          variant="danger"
+          onConfirm={confirmBlock}
+          onCancel={() => setShowBlockConfirm(false)}
+        />
+      )}
     </div>
   )
 }
