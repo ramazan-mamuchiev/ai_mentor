@@ -1,4 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, Box, BarChart3, Settings, X, Shield,
@@ -236,7 +237,7 @@ export function Layout({
                 <button
                   key={item.path}
                   className={`nav-item${active ? ' nav-item--active' : ''}`}
-                  onClick={() => { if (isMobile) setMobileOpen(false); navigate(item.path) }}
+                  onClick={() => { if (isMobile) flushSync(() => setMobileOpen(false)); navigate(item.path) }}
                 >
                   <Icon size={18} />
                   {(!collapsed || isMobile) && t(item.labelKey)}
@@ -262,8 +263,8 @@ export function Layout({
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
-            onSelect={(id) => { if (isMobile) setMobileOpen(false); onSelectSession(id) }}
-            onNew={() => { if (isMobile) setMobileOpen(false); onNewSession() }}
+            onSelect={(id) => { if (isMobile) flushSync(() => setMobileOpen(false)); onSelectSession(id) }}
+            onNew={() => { if (isMobile) flushSync(() => setMobileOpen(false)); onNewSession() }}
             onDelete={onDeleteSession}
           />
         ) : !isAdmin ? (
