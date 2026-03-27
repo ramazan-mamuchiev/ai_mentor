@@ -99,6 +99,7 @@ class AdminChatMessage(BaseModel):
     duration_ms: float | None
     feedback: str | None
     created_at: datetime
+    debug: dict | None = None
 
 class AdminChatSessionDetail(AdminChatSessionItem):
     messages: list[AdminChatMessage] = []

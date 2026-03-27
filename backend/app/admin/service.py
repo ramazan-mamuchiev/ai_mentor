@@ -360,6 +360,15 @@ async def get_chat_session_admin(session: AsyncSession, session_id: int) -> dict
         .order_by(ChatMessage.created_at)
     )).scalars().all()
 
+    msg_ids = [m.id for m in msgs if m.role == "assistant"]
+    analytics_map: dict[int, ChatMessageAnalytics] = {}
+    if msg_ids:
+        analytics_rows = (await session.execute(
+            select(ChatMessageAnalytics)
+            .where(ChatMessageAnalytics.message_id.in_(msg_ids))
+        )).scalars().all()
+        analytics_map = {a.message_id: a for a in analytics_rows}
+
     msg_count = len(msgs)
 
     return {
@@ -374,6 +383,9 @@ async def get_chat_session_admin(session: AsyncSession, session_id: int) -> dict
                 "id": m.id, "role": m.role, "content": m.content,
                 "sources": m.sources, "duration_ms": m.duration_ms,
                 "feedback": m.feedback, "created_at": m.created_at,
+                "debug": analytics_map[m.id].to_debug_dict(
+                    product_filter=cs.product_filter,
+                ) if m.id in analytics_map else None,
             }
             for m in msgs
         ],

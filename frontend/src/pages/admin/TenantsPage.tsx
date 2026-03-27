@@ -48,7 +48,7 @@ export function TenantsPage() {
   const totalPages = Math.ceil(total / pageSize)
 
   return (
-    <div>
+    <div className="admin-page">
       <div className="admin-page-header">
         <h1><Users size={20} /> {t('admin.tenants.title')}</h1>
         <p>{t('admin.tenants.totalCount', { count: total })}</p>

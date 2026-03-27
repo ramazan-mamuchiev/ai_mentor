@@ -72,7 +72,7 @@ export function DocumentsAdminPage() {
   const totalPages = Math.ceil(total / pageSize)
 
   return (
-    <div>
+    <div className="admin-page">
       <div className="admin-page-header">
         <h1><FileText size={20} /> {t('admin.docs.title')}</h1>
         <p>{t('admin.docs.count', { count: total })}{tenantId ? t('admin.docs.filteredByTenant') : ''}</p>

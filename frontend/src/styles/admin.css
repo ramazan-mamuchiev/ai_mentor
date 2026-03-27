@@ -74,6 +74,25 @@
   border-radius: 8px;
 }
 
+.admin-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-page > .admin-table-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.admin-page > .admin-table-wrapper > .admin-table-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
 .admin-page-header {
   margin-bottom: 24px;
 }
@@ -165,7 +184,6 @@
 
 .admin-table-scroll {
   overflow: auto;
-  max-height: calc(100vh - 260px);
 }
 
 .admin-toolbar {
