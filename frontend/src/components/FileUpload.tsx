@@ -92,7 +92,10 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
       endpoint: '/api/v1/uploads/',
       chunkSize: CHUNK_SIZE,
       retryDelays: [0, 1000, 3000, 5000, 10000],
-      withCredentials: true,
+      onBeforeRequest: (req) => {
+        const xhr = req.getUnderlyingObject() as XMLHttpRequest
+        xhr.withCredentials = true
+      },
       metadata: {
         filename: state.file.name,
         product_name: productName.trim(),
