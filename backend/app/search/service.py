@@ -158,7 +158,7 @@ async def search_documents(
     t0 = time.perf_counter()
 
     t_embed = time.perf_counter()
-    query_embedding = embed_query(query)
+    query_embedding, embedding_api_tokens = embed_query(query)
     embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
     embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
@@ -309,6 +309,7 @@ async def search_documents(
             "rerank_completion_tokens": rerank_completion_tokens,
             "rerank_total_tokens": rerank_total_tokens,
             "rerank_model": rerank_model,
+            "embedding_api_tokens": embedding_api_tokens,
         })
 
     if result_count == 0:

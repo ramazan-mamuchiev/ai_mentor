@@ -53,20 +53,23 @@ def embed_texts(
     *,
     is_query: bool = False,
     progress_callback: Callable[[float], None] | None = None,
-) -> list[list[float]]:
-    """Embed a list of texts via Gemini API. Returns list of EMBEDDING_DIMS-dim vectors.
+) -> tuple[list[list[float]], int]:
+    """Embed a list of texts via Gemini API.
+
+    Returns (list_of_vectors, total_api_tokens).
 
     Args:
         progress_callback: optional fn(fraction) called after each batch, fraction in [0..1].
     """
     if not texts:
-        return []
+        return [], 0
 
     client = _get_gemini_client()
     task_type = "RETRIEVAL_QUERY" if is_query else "RETRIEVAL_DOCUMENT"
     target_dims = EMBEDDING_DIMS
 
     all_embeddings: list[np.ndarray] = []
+    total_api_tokens = 0
     total_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
 
     for batch_idx, i in enumerate(range(0, len(texts), BATCH_SIZE)):
@@ -106,6 +109,11 @@ def embed_texts(
         norms = np.where(norms > 0, norms, 1.0)
         all_embeddings.append(raw / norms)
 
+        for emb in result.embeddings:
+            stats = getattr(emb, "statistics", None)
+            if stats:
+                total_api_tokens += getattr(stats, "token_count", 0) or 0
+
         log_extra = {
             "batch_index": batch_idx + 1, "total_batches": total_batches,
             "texts_count": len(batch), "duration_ms": batch_ms,
@@ -128,12 +136,13 @@ def embed_texts(
             "model": settings.embedding_model_gemini,
             "dims": target_dims,
             "task_type": task_type,
+            "api_tokens": total_api_tokens,
         },
     )
-    return combined.tolist()
+    return combined.tolist(), total_api_tokens
 
 
-def embed_query(text: str) -> list[float]:
-    """Embed a single query string for search. Returns EMBEDDING_DIMS-dim vector."""
-    results = embed_texts([text], is_query=True)
-    return results[0]
+def embed_query(text: str) -> tuple[list[float], int]:
+    """Embed a single query string for search. Returns (vector, api_tokens)."""
+    results, api_tokens = embed_texts([text], is_query=True)
+    return results[0], api_tokens

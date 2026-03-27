@@ -353,7 +353,7 @@ async def ingest_file(
 
         t_embed = time.perf_counter()
         enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
-        embeddings = embed_texts(enriched)
+        embeddings, embedding_api_tokens = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
         t_db = time.perf_counter()
@@ -382,7 +382,7 @@ async def ingest_file(
         doc.min_chunk_tokens = min(token_counts)
         doc.max_chunk_tokens = max(token_counts)
         doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
-        doc.embedding_tokens = sum(token_counts)
+        doc.embedding_tokens = embedding_api_tokens or sum(token_counts)
 
         await session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
@@ -567,7 +567,7 @@ async def ingest_url(
 
         t_embed = time.perf_counter()
         enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
-        embeddings = embed_texts(enriched)
+        embeddings, embedding_api_tokens = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
         t_db = time.perf_counter()
@@ -596,7 +596,7 @@ async def ingest_url(
         doc.min_chunk_tokens = min(token_counts)
         doc.max_chunk_tokens = max(token_counts)
         doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
-        doc.embedding_tokens = sum(token_counts)
+        doc.embedding_tokens = embedding_api_tokens or sum(token_counts)
 
         await session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
@@ -844,7 +844,7 @@ def ingest_from_bytes(
 
         t_embed = time.perf_counter()
         enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
-        embeddings = embed_texts(
+        embeddings, embedding_api_tokens = embed_texts(
             enriched,
             progress_callback=lambda pct: _update_progress(
                 session, document, 55 + int(pct * 37), "embedding",
@@ -892,7 +892,7 @@ def ingest_from_bytes(
         document.min_chunk_tokens = min(token_counts)
         document.max_chunk_tokens = max(token_counts)
         document.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
-        document.embedding_tokens = sum(token_counts)
+        document.embedding_tokens = embedding_api_tokens or sum(token_counts)
 
         session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)

@@ -458,19 +458,23 @@ async def _llm_rewrite_ollama(messages: list[dict]) -> str:
     return data["message"]["content"].strip()
 
 
-async def _rephrase_for_retry(query: str) -> str | None:
-    """Rephrase a failed search query using LLM for a retry attempt."""
+async def _rephrase_for_retry(query: str) -> tuple[str | None, dict]:
+    """Rephrase a failed search query using LLM for a retry attempt.
+
+    Returns (rephrased_text_or_None, usage_dict).
+    """
+    empty_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
     messages = [
         {"role": "system", "content": REPHRASE_FOR_SEARCH_PROMPT},
         {"role": "user", "content": query},
     ]
     try:
-        result = await _llm_rewrite_openai(messages)
+        result, usage = await _llm_rewrite_openai(messages)
         if result and result.lower() != query.lower() and len(result) < 500:
-            return result
+            return result, usage
     except Exception:
         logger.warning("Query rephrase for retry failed", exc_info=True)
-    return None
+    return None, empty_usage
 
 
 _grounding_genai_client = None
@@ -1027,10 +1031,11 @@ async def build_rag_prompt(
     retry_used = False
     rephrase_ms = 0.0
     rephrase_query: str | None = None
+    rephrase_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
 
     if has_docs and not chunks and query_type != "chitchat" and settings.search_retry_enabled and not decompose_result:
         t_rephrase = time.perf_counter()
-        rephrased = await _rephrase_for_retry(search_query)
+        rephrased, rephrase_usage = await _rephrase_for_retry(search_query)
         rephrase_ms = round((time.perf_counter() - t_rephrase) * 1000, 1)
 
         if rephrased:
@@ -1294,6 +1299,7 @@ async def build_rag_prompt(
         "history_messages": len(history) if history else 0,
         "prompt_messages": len(messages),
         "embedding_model": _embedding_model_name(),
+        "embedding_api_tokens": search_meta.get("embedding_api_tokens", 0),
         "product_id": effective_product_id,
         "product_filter": product_filter,
         "product_filter_source": product_filter_source,
@@ -1312,6 +1318,10 @@ async def build_rag_prompt(
         "retry_used": retry_used,
         "rephrase_ms": rephrase_ms,
         "rephrase_query": rephrase_query,
+        "rephrase_prompt_tokens": rephrase_usage.get("prompt_tokens", 0),
+        "rephrase_completion_tokens": rephrase_usage.get("completion_tokens", 0),
+        "rephrase_total_tokens": rephrase_usage.get("prompt_tokens", 0) + rephrase_usage.get("completion_tokens", 0),
+        "rephrase_model": rephrase_usage.get("model", ""),
         "type_max_tokens": type_max_tokens,
         "reasoning_effort": _QUERY_TYPE_REASONING.get(query_type, settings.llm_reasoning_effort),
         "effective_top_k": effective_top_k,

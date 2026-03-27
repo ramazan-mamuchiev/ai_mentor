@@ -71,9 +71,18 @@ export interface DebugInfo {
   finish_reason?: string
   continuations?: number
   effective_top_k?: number
+  rewrite_prompt_tokens?: number
+  rewrite_completion_tokens?: number
+  rewrite_total_tokens?: number
+  rewrite_model?: string
+  embedding_api_tokens?: number
   retry_used?: boolean
   rephrase_ms?: number
   rephrase_query?: string | null
+  rephrase_prompt_tokens?: number
+  rephrase_completion_tokens?: number
+  rephrase_total_tokens?: number
+  rephrase_model?: string
   decompose_used?: boolean
   decompose_sub_queries?: string[]
   decompose_sub_products?: (string | null)[]

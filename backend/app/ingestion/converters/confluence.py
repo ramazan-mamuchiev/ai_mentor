@@ -406,7 +406,9 @@ async def crawl_confluence(
 
             if do_ocr and markdown:
                 if ocr_languages is None:
-                    ocr_languages = detect_language_via_gemini(markdown)
+                    ocr_languages, lang_usage = detect_language_via_gemini(markdown)
+                    page_ocr_stats["ocr_prompt_tokens"] = page_ocr_stats.get("ocr_prompt_tokens", 0) + lang_usage.get("prompt_tokens", 0)
+                    page_ocr_stats["ocr_completion_tokens"] = page_ocr_stats.get("ocr_completion_tokens", 0) + lang_usage.get("completion_tokens", 0)
                 t_ocr = time.perf_counter()
                 try:
                     markdown, page_ocr_stats = await asyncio.to_thread(

@@ -310,6 +310,9 @@
 }
 
 .admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 6px 14px;
   border-radius: var(--radius);
   font-size: 12px;

@@ -259,7 +259,7 @@ def convert_pdf(
 
         if will_ocr:
             try:
-                detected_langs = detect_language_via_gemini(md_text)
+                detected_langs, lang_usage = detect_language_via_gemini(md_text)
                 metadata["detected_languages"] = detected_langs
                 metadata["detected_languages_str"] = ",".join(detected_langs)
 
@@ -268,6 +268,8 @@ def convert_pdf(
                     md_text, languages=detected_langs,
                     progress_callback=_ocr_cb,
                 )
+                ocr_stats["ocr_prompt_tokens"] = ocr_stats.get("ocr_prompt_tokens", 0) + lang_usage.get("prompt_tokens", 0)
+                ocr_stats["ocr_completion_tokens"] = ocr_stats.get("ocr_completion_tokens", 0) + lang_usage.get("completion_tokens", 0)
                 ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
                 metadata["ocr_applied"] = True
                 metadata["ocr_ms"] = ocr_ms

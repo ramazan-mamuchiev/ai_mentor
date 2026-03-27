@@ -722,7 +722,7 @@ def ingest_single_url_task(self, document_id: int):
 
             t_embed = time.perf_counter()
             enriched = enrich_for_embedding(chunks)
-            embeddings = embed_texts(enriched)
+            embeddings, embedding_api_tokens = embed_texts(enriched)
             embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
             doc.progress_stage = "storing"
@@ -756,7 +756,7 @@ def ingest_single_url_task(self, document_id: int):
             doc.min_chunk_tokens = min(token_counts)
             doc.max_chunk_tokens = max(token_counts)
             doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
-            doc.embedding_tokens = sum(token_counts)
+            doc.embedding_tokens = embedding_api_tokens or sum(token_counts)
 
             db_ms = round((time.perf_counter() - t_db) * 1000, 1)
 

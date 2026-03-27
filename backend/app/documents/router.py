@@ -989,7 +989,7 @@ async def reindex_all_documents():
                 continue
 
             contents = [c.content for c in chunks]
-            embeddings = embed_texts(contents)
+            embeddings, _ = embed_texts(contents)
 
             for chunk, emb in zip(chunks, embeddings):
                 chunk.embedding = emb

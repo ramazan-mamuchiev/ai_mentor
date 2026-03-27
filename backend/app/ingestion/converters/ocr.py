@@ -46,21 +46,23 @@ def ocr_enabled() -> bool:
     return settings.ocr_enabled and ocr_available()
 
 
-def detect_language_via_gemini(md_text: str) -> list[str]:
+def detect_language_via_gemini(md_text: str) -> tuple[list[str], dict]:
     """Detect document language(s) from extracted text using Gemini.
 
-    Returns language codes (e.g. ["en", "ru"]).
-    Falls back to ["en"] on any error.
+    Returns (language_codes, usage_dict).
+    Falls back to (["en"], empty_usage) on any error.
     """
     from app.config import settings
 
+    empty_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0}
+
     if not settings.gemini_api_key:
         logger.warning("No Gemini API key, falling back to default OCR language")
-        return ["en"]
+        return ["en"], empty_usage
 
     sample = md_text[:3000].strip()
     if not sample:
-        return ["en"]
+        return ["en"], empty_usage
 
     try:
         from app.ingestion.embedder import _get_gemini_client
@@ -83,16 +85,24 @@ def detect_language_via_gemini(md_text: str) -> list[str]:
         if not codes:
             codes = ["en"]
 
+        usage = {"prompt_tokens": 0, "completion_tokens": 0}
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            um = response.usage_metadata
+            usage["prompt_tokens"] = getattr(um, "prompt_token_count", 0) or 0
+            usage["completion_tokens"] = getattr(um, "candidates_token_count", 0) or 0
+
         logger.info("Language detected via Gemini", extra={
             "raw_response": raw, "languages": codes,
+            "prompt_tokens": usage["prompt_tokens"],
+            "completion_tokens": usage["completion_tokens"],
         })
-        return codes
+        return codes, usage
 
     except Exception as exc:
         logger.warning("Language detection failed, using fallback", extra={
             "error_type": type(exc).__name__, "error": str(exc)[:200],
         })
-        return ["en"]
+        return ["en"], empty_usage
 
 
 def _ocr_via_gemini(data: bytes, languages: list[str] | None = None) -> tuple[str, dict]:

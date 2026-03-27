@@ -832,9 +832,9 @@ async def send_message(
                         action="search_retry_rephrase",
                         request_id=request_id,
                         llm_provider="openai",
-                        llm_model=settings.openai_llm_model,
-                        prompt_tokens=0,
-                        completion_tokens=0,
+                        llm_model=rag_debug.get("rephrase_model", settings.openai_llm_model),
+                        prompt_tokens=rag_debug.get("rephrase_prompt_tokens", 0),
+                        completion_tokens=rag_debug.get("rephrase_completion_tokens", 0),
                         query_text=req.content,
                         duration_ms=rag_debug.get("rephrase_ms", 0),
                         tenant_id=tenant_id_str,
@@ -922,6 +922,23 @@ async def send_message(
                         query_text=req.content,
                         product_filter=chat_session.product_filter,
                         duration_ms=rag_debug.get("rewrite_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
+                    )
+
+                embed_api_tokens = rag_debug.get("embedding_api_tokens", 0)
+                if embed_api_tokens > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="query_embedding",
+                        request_id=request_id,
+                        llm_provider="google",
+                        llm_model=rag_debug.get("embedding_model", ""),
+                        prompt_tokens=embed_api_tokens,
+                        completion_tokens=0,
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=0,
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
                     )
