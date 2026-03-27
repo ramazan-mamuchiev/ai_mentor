@@ -1237,7 +1237,7 @@
   margin-bottom: 14px;
 }
 
-.admin-form-row label {
+.admin-form-row > label {
   display: block;
   font-size: 13px;
   font-weight: 500;
