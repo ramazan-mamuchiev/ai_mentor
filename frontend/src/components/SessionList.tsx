@@ -48,13 +48,15 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
         const isActive = s.id === activeSessionId
         const isMenuOpen = menuOpenId === s.id
         return (
-          <button
-            type="button"
+          <div
             key={s.id}
             className={`session-item${isActive ? ' active' : ''}${isMenuOpen ? ' menu-open' : ''}`}
-            onClick={() => onSelect(s.id)}
           >
-            <div className="session-item-content">
+            <button
+              type="button"
+              className="session-item-content"
+              onClick={() => onSelect(s.id)}
+            >
               <span className="session-item-title">
                 {s.title || s.last_message_preview || t('session.newChat')}
               </span>
@@ -65,7 +67,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
                   <><Globe size={11} />{t('session.allProducts')}</>
                 )}
               </span>
-            </div>
+            </button>
             <div className="session-item-actions" ref={isMenuOpen ? menuRef : undefined}>
               <button
                 className="session-menu-btn"
@@ -104,7 +106,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
                 </div>
               )}
             </div>
-          </button>
+          </div>
         )
       })}
     </div>
