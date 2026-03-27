@@ -108,6 +108,7 @@ def _build_classify_prompt() -> str:
         "Rules for web_search field:",
         '- Set to true when the user explicitly or implicitly asks to search external sources (web, internet, Google, etc.).',
         '- Also set to true when the question is about general industry knowledge, market trends, competitors, or information unlikely to exist in product documentation.',
+        '- Also set to true for real-time or factual questions (weather, news, current events, prices, exchange rates, sports scores, etc.) that require up-to-date external data.',
         '- Set to false for questions that can be answered from product documentation alone.',
         "",
         "Categories:",
@@ -1052,7 +1053,7 @@ async def build_rag_prompt(
     has_low_confidence = not chunks or (chunks and chunks[0]["similarity"] < 0.5)
     classifier_wants_web = classify_meta.get("classify_web_search", False)
 
-    if query_type != "chitchat" and (has_low_confidence or classifier_wants_web) and settings.web_search_enabled:
+    if (query_type != "chitchat" or classifier_wants_web) and (has_low_confidence or classifier_wants_web) and settings.web_search_enabled:
         await _emit("web_searching")
         web_search_context, web_search_meta = await _web_search_grounding(search_query)
         if classifier_wants_web:
@@ -1151,7 +1152,7 @@ async def build_rag_prompt(
                 summary=history_summary,
             ))
         messages.append({"role": "user", "content": query})
-    elif query_type == "chitchat":
+    elif query_type == "chitchat" and not web_search_context:
         if history:
             messages.extend(_build_history_messages(
                 history, settings.rag_history_messages, settings.rag_history_max_tokens,
