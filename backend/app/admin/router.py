@@ -212,12 +212,12 @@ async def list_chat_sessions(
     return AdminChatSessionListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
-@router.get("/chat/sessions/{session_id}", response_model=AdminChatSessionDetail)
+@router.get("/chat/sessions/{session_uuid}", response_model=AdminChatSessionDetail)
 async def get_chat_session(
-    session_id: int,
+    session_uuid: uuid.UUID,
     session: AsyncSession = Depends(get_session),
 ):
-    detail = await service.get_chat_session_admin(session, session_id)
+    detail = await service.get_chat_session_admin(session, session_uuid)
     if not detail:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Chat session not found")
     return detail

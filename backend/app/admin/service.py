@@ -330,7 +330,7 @@ async def list_chat_sessions_admin(
     for row in rows:
         cs = row[0]
         items.append({
-            "id": cs.id, "tenant_id": cs.tenant_id,
+            "id": str(cs.uuid), "tenant_id": cs.tenant_id,
             "tenant_email": row.tenant_email,
             "title": cs.title,
             "product_filter": cs.product_filter,
@@ -341,14 +341,15 @@ async def list_chat_sessions_admin(
     return items, total
 
 
-async def get_chat_session_admin(session: AsyncSession, session_id: int) -> dict | None:
+async def get_chat_session_admin(session: AsyncSession, session_uuid) -> dict | None:
+    import uuid as _uuid
     row = (await session.execute(
         select(
             ChatSession,
             Tenant.email.label("tenant_email"),
         )
         .outerjoin(Tenant, ChatSession.tenant_id == Tenant.id)
-        .where(ChatSession.id == session_id)
+        .where(ChatSession.uuid == session_uuid)
     )).one_or_none()
 
     if not row:
@@ -357,7 +358,7 @@ async def get_chat_session_admin(session: AsyncSession, session_id: int) -> dict
     cs = row[0]
     msgs = (await session.execute(
         select(ChatMessage)
-        .where(ChatMessage.session_id == session_id)
+        .where(ChatMessage.session_id == cs.id)
         .order_by(ChatMessage.created_at)
     )).scalars().all()
 
@@ -373,7 +374,7 @@ async def get_chat_session_admin(session: AsyncSession, session_id: int) -> dict
     msg_count = len(msgs)
 
     return {
-        "id": cs.id, "tenant_id": cs.tenant_id,
+        "id": str(cs.uuid), "tenant_id": cs.tenant_id,
         "tenant_email": row.tenant_email,
         "title": cs.title,
         "product_filter": cs.product_filter,
@@ -386,6 +387,7 @@ async def get_chat_session_admin(session: AsyncSession, session_id: int) -> dict
                 "feedback": m.feedback, "created_at": m.created_at,
                 "debug": analytics_map[m.id].to_debug_dict(
                     product_filter=cs.product_filter,
+                    session_uuid=str(cs.uuid),
                 ) if m.id in analytics_map else None,
             }
             for m in msgs
@@ -411,6 +413,7 @@ async def search_chat_messages(
     rows = (await session.execute(
         select(
             ChatMessage,
+            ChatSession.uuid.label("session_uuid"),
             Tenant.email.label("tenant_email"),
         )
         .join(ChatSession, ChatMessage.session_id == ChatSession.id)
@@ -423,7 +426,7 @@ async def search_chat_messages(
     items = [
         {
             "message_id": row[0].id,
-            "session_id": row[0].session_id,
+            "session_id": str(row.session_uuid),
             "role": row[0].role,
             "content": row[0].content[:500],
             "tenant_email": row.tenant_email,

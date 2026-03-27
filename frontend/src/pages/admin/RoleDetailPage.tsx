@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, Lock } from 'lucide-react'
 import { getRole, patchRole, type RoleDetail } from '../../api/admin'
 
 const FEATURE_GROUPS: Record<string, string[]> = {
@@ -143,8 +143,12 @@ export function RoleDetailPage() {
           <ArrowLeft size={14} /> {t('admin.common.back')}
         </button>
         <h1>
-          {role.is_system ? '🔒 ' : ''}
           {role.slug}
+          {role.is_system && (
+            <span className="admin-system-badge">
+              <Lock size={10} /> system
+            </span>
+          )}
         </h1>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           <Save size={14} /> {saving ? t('admin.common.saving') : t('admin.common.save')}
@@ -166,7 +170,7 @@ export function RoleDetailPage() {
         </div>
         <div className="admin-form-row">
           <label>{t('admin.roleDetail.priority')}</label>
-          <input type="number" value={priority} onChange={e => setPriority(Number(e.target.value))} />
+          <input type="number" value={priority} onChange={e => setPriority(Number(e.target.value))} style={{ maxWidth: 120 }} />
           <small>{t('admin.roleDetail.priorityHint')}</small>
         </div>
       </div>
@@ -174,8 +178,8 @@ export function RoleDetailPage() {
       <div className="admin-card">
         <h3>{t('admin.roleDetail.featurePermissions')}</h3>
         {Object.entries(FEATURE_GROUPS).map(([group, keys]) => (
-          <div key={group} style={{ marginBottom: 12 }}>
-            <strong>{GROUP_LABELS[group] || group}</strong>
+          <div key={group} className="admin-feature-group">
+            <div className="admin-feature-group-title">{GROUP_LABELS[group] || group}</div>
             <div className="admin-checkbox-grid">
               {keys.map(key => (
                 <label key={key} className="admin-checkbox-label">
@@ -194,18 +198,22 @@ export function RoleDetailPage() {
 
       <div className="admin-card">
         <h3>{t('admin.roleDetail.limits')}</h3>
-        <small>{t('admin.roleDetail.limitsHint')}</small>
-        {LIMIT_KEYS.map(({ key, label }) => (
-          <div className="admin-form-row" key={key}>
-            <label>{LIMIT_LABELS[key] || label}</label>
-            <input
-              type="number"
-              value={limits[key] || ''}
-              onChange={e => setLimits(prev => ({ ...prev, [key]: e.target.value }))}
-              placeholder={t('admin.roleDetail.unlimited')}
-            />
-          </div>
-        ))}
+        <small style={{ display: 'block', marginBottom: 12, fontSize: 12, color: 'var(--text-muted)' }}>
+          {t('admin.roleDetail.limitsHint')}
+        </small>
+        <div className="admin-limits-grid">
+          {LIMIT_KEYS.map(({ key, label }) => (
+            <div className="admin-form-row" key={key}>
+              <label>{LIMIT_LABELS[key] || label}</label>
+              <input
+                type="number"
+                value={limits[key] || ''}
+                onChange={e => setLimits(prev => ({ ...prev, [key]: e.target.value }))}
+                placeholder={t('admin.roleDetail.unlimited')}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="admin-card">
@@ -231,12 +239,12 @@ export function RoleDetailPage() {
         </div>
       </div>
 
-      <div className="admin-card">
-        <h3>{t('admin.roleDetail.permissionsJSON')}</h3>
+      <details className="admin-json-toggle">
+        <summary>{t('admin.roleDetail.permissionsJSON')}</summary>
         <pre className="admin-json-preview">
           {JSON.stringify(role.permissions, null, 2)}
         </pre>
-      </div>
+      </details>
     </div>
   )
 }

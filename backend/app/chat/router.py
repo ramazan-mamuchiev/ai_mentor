@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+import uuid as _uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -68,6 +69,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+async def _get_session_by_uuid(
+    db, session_uuid: _uuid.UUID, tenant_id=None,
+) -> ChatSession | None:
+    """Look up ChatSession by public UUID, optionally scoped to a tenant."""
+    q = select(ChatSession).where(ChatSession.uuid == session_uuid)
+    if tenant_id is not None:
+        q = q.where(ChatSession.tenant_id == tenant_id)
+    return (await db.execute(q)).scalar_one_or_none()
+
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)
 async def create_session(
@@ -102,7 +112,7 @@ async def create_session(
         )
 
         return SessionResponse(
-            id=chat_session.id,
+            id=str(chat_session.uuid),
             title=chat_session.title,
             product_id=chat_session.product_id,
             product_filter=chat_session.product_filter,
@@ -115,16 +125,16 @@ async def create_session(
         )
 
 
-@router.patch("/sessions/{session_id}", response_model=SessionResponse)
+@router.patch("/sessions/{session_uuid}", response_model=SessionResponse)
 async def update_session(
-    session_id: int,
+    session_uuid: _uuid.UUID,
     req: UpdateSessionRequest,
     tenant: Tenant = Depends(get_current_tenant),
 ):
     """Update session product/version filter."""
     async with async_session() as session:
-        chat_session = await session.get(ChatSession, session_id)
-        if not chat_session or chat_session.tenant_id != tenant.id:
+        chat_session = await _get_session_by_uuid(session, session_uuid, tenant.id)
+        if not chat_session:
             raise HTTPException(status_code=404, detail="Session not found")
 
         product_changed = (
@@ -162,7 +172,7 @@ async def update_session(
                 logger.info(
                     "Auto-resolved product_id for explicit lock",
                     extra={
-                        "session_id": session_id,
+                        "session_id": chat_session.id,
                         "product_filter": chat_session.product_filter,
                         "product_id": product.id,
                         "product_name": product.name,
@@ -172,7 +182,7 @@ async def update_session(
                 logger.warning(
                     "Could not resolve product_id for explicit lock - product not found",
                     extra={
-                        "session_id": session_id,
+                        "session_id": chat_session.id,
                         "product_filter": chat_session.product_filter,
                     },
                 )
@@ -185,14 +195,14 @@ async def update_session(
 
         msg_count = await session.scalar(
             select(func.count(ChatMessage.id)).where(
-                ChatMessage.session_id == session_id
+                ChatMessage.session_id == chat_session.id
             )
         )
 
         logger.info(
             "Chat session updated",
             extra={
-                "session_id": session_id,
+                "session_id": chat_session.id,
                 "product_id": chat_session.product_id,
                 "product_filter": chat_session.product_filter,
                 "product_filter_source": chat_session.product_filter_source,
@@ -201,7 +211,7 @@ async def update_session(
         )
 
         return SessionResponse(
-            id=chat_session.id,
+            id=str(chat_session.uuid),
             title=chat_session.title,
             product_id=chat_session.product_id,
             product_filter=chat_session.product_filter,
@@ -232,7 +242,7 @@ async def list_sessions(tenant: Tenant = Depends(get_current_tenant)):
 
         result = await session.execute(
             select(
-                ChatSession.id,
+                ChatSession.uuid,
                 ChatSession.title,
                 ChatSession.product_id,
                 ChatSession.product_filter,
@@ -253,7 +263,7 @@ async def list_sessions(tenant: Tenant = Depends(get_current_tenant)):
         logger.info("Chat sessions listed", extra={"session_count": len(rows)})
         return [
             SessionListItem(
-                id=row.id,
+                id=str(row.uuid),
                 title=row.title,
                 product_id=row.product_id,
                 product_filter=row.product_filter,
@@ -269,17 +279,17 @@ async def list_sessions(tenant: Tenant = Depends(get_current_tenant)):
         ]
 
 
-@router.get("/sessions/{session_id}", response_model=SessionDetailResponse)
-async def get_session(session_id: int, tenant: Tenant = Depends(get_current_tenant)):
+@router.get("/sessions/{session_uuid}", response_model=SessionDetailResponse)
+async def get_session(session_uuid: _uuid.UUID, tenant: Tenant = Depends(get_current_tenant)):
     """Get session with full message history."""
     async with async_session() as session:
-        chat_session = await session.get(ChatSession, session_id)
-        if not chat_session or chat_session.tenant_id != tenant.id:
+        chat_session = await _get_session_by_uuid(session, session_uuid, tenant.id)
+        if not chat_session:
             raise HTTPException(status_code=404, detail="Session not found")
 
         msgs_result = await session.execute(
             select(ChatMessage)
-            .where(ChatMessage.session_id == session_id)
+            .where(ChatMessage.session_id == chat_session.id)
             .order_by(ChatMessage.created_at)
         )
         messages = msgs_result.scalars().all()
@@ -296,7 +306,7 @@ async def get_session(session_id: int, tenant: Tenant = Depends(get_current_tena
                     analytics_map[a.message_id] = a
 
         return SessionDetailResponse(
-            id=chat_session.id,
+            id=str(chat_session.uuid),
             title=chat_session.title,
             product_id=chat_session.product_id,
             product_filter=chat_session.product_filter,
@@ -308,7 +318,7 @@ async def get_session(session_id: int, tenant: Tenant = Depends(get_current_tena
             messages=[
                 ChatMessageResponse(
                     id=m.id,
-                    session_id=m.session_id,
+                    session_id=str(chat_session.uuid),
                     role=m.role,
                     content=m.content,
                     sources=m.sources,
@@ -318,6 +328,7 @@ async def get_session(session_id: int, tenant: Tenant = Depends(get_current_tena
                     debug=analytics_map[m.id].to_debug_dict(
                         product_filter=chat_session.product_filter,
                         version_filter=chat_session.version_filter,
+                        session_uuid=str(chat_session.uuid),
                     ) if m.id in analytics_map else None,
                     created_at=m.created_at,
                 )
@@ -326,32 +337,32 @@ async def get_session(session_id: int, tenant: Tenant = Depends(get_current_tena
         )
 
 
-@router.delete("/sessions/{session_id}", status_code=204)
-async def delete_session(session_id: int, tenant: Tenant = Depends(get_current_tenant)):
+@router.delete("/sessions/{session_uuid}", status_code=204)
+async def delete_session(session_uuid: _uuid.UUID, tenant: Tenant = Depends(get_current_tenant)):
     """Delete a chat session and all its messages."""
     async with async_session() as session:
-        chat_session = await session.get(ChatSession, session_id)
-        if not chat_session or chat_session.tenant_id != tenant.id:
+        chat_session = await _get_session_by_uuid(session, session_uuid, tenant.id)
+        if not chat_session:
             raise HTTPException(status_code=404, detail="Session not found")
         await session.delete(chat_session)
         await session.commit()
-        logger.info("Chat session deleted", extra={"session_id": session_id})
+        logger.info("Chat session deleted", extra={"session_id": chat_session.id})
 
 
-@router.post("/sessions/{session_id}/messages/{message_id}/feedback", status_code=200)
+@router.post("/sessions/{session_uuid}/messages/{message_id}/feedback", status_code=200)
 async def submit_feedback(
-    session_id: int,
+    session_uuid: _uuid.UUID,
     message_id: int,
     req: FeedbackRequest,
     tenant: Tenant = Depends(get_current_tenant),
 ):
     """Submit thumbs-up/down feedback on an assistant message."""
     async with async_session() as session:
-        chat_session = await session.get(ChatSession, session_id)
-        if not chat_session or chat_session.tenant_id != tenant.id:
+        chat_session = await _get_session_by_uuid(session, session_uuid, tenant.id)
+        if not chat_session:
             raise HTTPException(status_code=404, detail="Session not found")
         msg = await session.get(ChatMessage, message_id)
-        if not msg or msg.session_id != session_id:
+        if not msg or msg.session_id != chat_session.id:
             raise HTTPException(status_code=404, detail="Message not found")
         if msg.role != "assistant":
             raise HTTPException(status_code=400, detail="Feedback is only allowed on assistant messages")
@@ -363,7 +374,7 @@ async def submit_feedback(
         logger.info(
             "Message feedback submitted",
             extra={
-                "session_id": session_id,
+                "session_id": chat_session.id,
                 "message_id": message_id,
                 "feedback": req.feedback,
                 "has_comment": bool(req.comment),
@@ -372,9 +383,9 @@ async def submit_feedback(
         return {"status": "ok", "message_id": message_id, "feedback": req.feedback}
 
 
-@router.post("/sessions/{session_id}/messages")
+@router.post("/sessions/{session_uuid}/messages")
 async def send_message(
-    session_id: int,
+    session_uuid: _uuid.UUID,
     req: SendMessageRequest,
     request: Request,
     tenant: Tenant = Depends(get_current_tenant),
@@ -393,9 +404,10 @@ async def send_message(
     api_key_id_str = str(api_key_id) if api_key_id else None
 
     async with async_session() as session:
-        chat_session = await session.get(ChatSession, session_id)
-        if not chat_session or chat_session.tenant_id != tenant.id:
+        chat_session = await _get_session_by_uuid(session, session_uuid, tenant.id)
+        if not chat_session:
             raise HTTPException(status_code=404, detail="Session not found")
+        session_id = chat_session.id
 
     async def event_stream() -> AsyncGenerator[str, None]:
         t0 = time.perf_counter()
@@ -540,7 +552,7 @@ async def send_message(
                 prompt_estimate = query_tokens + context_tokens + history_tokens + system_prompt_tokens
 
                 debug_partial = {
-                    "session_id": session_id,
+                    "session_id": str(session_uuid),
                     "user_message_id": user_msg.id,
                     "timestamp": user_msg.created_at.isoformat() if user_msg.created_at else datetime.now(timezone.utc).isoformat(),
                     "model": settings.openai_llm_model if settings.llm_provider == "openai" else settings.llm_model,
@@ -699,7 +711,7 @@ async def send_message(
                 user_output_tokens = llm_completion_tokens
 
                 debug_info = {
-                    "session_id": session_id,
+                    "session_id": str(session_uuid),
                     "message_id": assistant_msg.id,
                     "user_message_id": user_msg.id,
                     "timestamp": user_msg.created_at.isoformat() if user_msg.created_at else datetime.now(timezone.utc).isoformat(),

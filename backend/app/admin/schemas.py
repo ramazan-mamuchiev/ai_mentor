@@ -82,7 +82,7 @@ class AdminDocumentListResponse(BaseModel):
 # --- Chat Audit ---
 
 class AdminChatSessionItem(BaseModel):
-    id: int
+    id: str
     tenant_id: uuid.UUID | None
     tenant_email: str | None = None
     title: str | None
@@ -112,7 +112,7 @@ class AdminChatSessionListResponse(BaseModel):
 
 class AdminChatMessageSearchItem(BaseModel):
     message_id: int
-    session_id: int
+    session_id: str
     role: str
     content: str
     tenant_email: str | None = None

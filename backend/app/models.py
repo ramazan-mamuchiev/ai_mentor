@@ -267,6 +267,9 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4,
+    )
     tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
     api_key_id = mapped_column(UUID(as_uuid=True), nullable=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -391,10 +394,11 @@ class ChatMessageAnalytics(Base):
         self,
         product_filter: str | None = None,
         version_filter: str | None = None,
+        session_uuid: str | None = None,
     ) -> dict:
         """Convert to the debug_info dict expected by the frontend."""
         return {
-            "session_id": self.session_id,
+            "session_id": session_uuid or self.session_id,
             "message_id": self.message_id,
             "user_message_id": self.user_message_id,
             "timestamp": self.created_at.isoformat() if self.created_at else None,
