@@ -1513,8 +1513,7 @@
 .chat-attach-toast {
   position: absolute;
   bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
   white-space: nowrap;
   padding: 6px 12px;
   background: var(--bg-primary, #fff);
@@ -1528,8 +1527,8 @@
 }
 
 @keyframes attach-toast-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .chat-input {
