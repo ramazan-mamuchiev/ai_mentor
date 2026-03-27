@@ -1683,6 +1683,7 @@
   z-index: 1100;
   backdrop-filter: blur(4px);
   animation: confirm-fade-in 0.15s ease-out;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 @keyframes confirm-fade-in {
@@ -1839,6 +1840,7 @@
   border-radius: 14px;
   width: min(90vw, 900px);
   height: min(85vh, 800px);
+  height: min(85dvh, 800px);
   display: flex;
   flex-direction: column;
   animation: confirm-slide-up 0.2s ease-out;
@@ -1849,6 +1851,7 @@
 .md-preview-dialog--fullscreen {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   border-radius: 0;
   border: none;
 }
@@ -2059,12 +2062,14 @@
 @media (max-width: 640px) {
   .md-preview-dialog {
     width: 96vw;
-    height: 92vh;
+    height: 85vh;
+    height: 85dvh;
     border-radius: 10px;
   }
   .md-preview-dialog--fullscreen {
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     border-radius: 0;
     border: none;
   }
