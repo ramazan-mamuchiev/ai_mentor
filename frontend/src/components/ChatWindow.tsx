@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import { Cpu, ArrowDown, Share2 } from 'lucide-react'
 import type { SourceInfo, StreamStatus, DebugInfo, SuggestionChip } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { getSuggestions } from '../api/products'
+import { useRotatingSlogan } from '../hooks/useRotatingSlogan'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
@@ -154,6 +155,7 @@ export function ChatWindow({
   }, [sessionId])
 
   const { t, i18n } = useTranslation()
+  const { line1, line2, accent, visible: sloganVisible } = useRotatingSlogan()
   const isEmpty = messages.length === 0 && !streamingContent
 
   const [dynamicChips, setDynamicChips] = useState<SuggestionChip[] | null>(null)
@@ -202,10 +204,10 @@ export function ChatWindow({
               <img src="/logo-on-dark.svg" alt="" className="empty-logo logo-dark" />
               <span className="empty-badge"><Cpu size={14} />{t('empty.badge')}</span>
               <h1 className="empty-title">{t('empty.title')}</h1>
-              <p className="empty-slogan">{t('empty.slogan')}</p>
-              <p className="empty-subslogan">
-                <Trans i18nKey="empty.subslogan">From docs to code.</Trans>{' '}
-                <em>{t('empty.instantly')}</em>
+              <p className={`empty-slogan${sloganVisible ? '' : ' fading'}`}>{line1}</p>
+              <p className={`empty-subslogan${sloganVisible ? '' : ' fading'}`}>
+                {line2}{' '}
+                <em>{accent}</em>
               </p>
               <div className="empty-suggestions">
                 {dynamicChips

@@ -24,6 +24,7 @@ import {
   Rocket,
 } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
+import { useRotatingSlogan } from '../hooks/useRotatingSlogan'
 import '../styles/landing.css'
 
 const AUTHOR_LINKEDIN = 'https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/'
@@ -40,6 +41,7 @@ const STEP_KEYS = ['step1', 'step2', 'step3', 'step4', 'step5'] as const
 export function LandingPage() {
   const { t, i18n } = useTranslation()
   const { theme, toggle: toggleTheme } = useTheme()
+  const { line1, line2, accent, visible: sloganVisible } = useRotatingSlogan()
   const [activeStep, setActiveStep] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -185,13 +187,13 @@ export function LandingPage() {
           {t('landing.hero.badge')}
         </div>
         <h1 className="landing-hero-title">{t('landing.hero.title')}</h1>
-        <p className="landing-hero-slogan">{t('landing.hero.slogan')}</p>
+        <p className={`landing-hero-slogan${sloganVisible ? '' : ' fading'}`}>{line1}</p>
         <div className="landing-hero-divider">
           <span /><span className="landing-hero-dot">·</span><span />
         </div>
-        <p className="landing-hero-subslogan">
-          {t('landing.hero.subslogan')}{' '}
-          <em>{t('landing.hero.instantly')}</em>
+        <p className={`landing-hero-subslogan${sloganVisible ? '' : ' fading'}`}>
+          {line2}{' '}
+          <em>{accent}</em>
         </p>
         <p className="landing-hero-description">{t('landing.hero.description')}</p>
         <div className="landing-hero-cta">

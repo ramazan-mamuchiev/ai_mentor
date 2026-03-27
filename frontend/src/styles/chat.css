@@ -367,6 +367,11 @@
   font-style: italic;
   letter-spacing: -0.2px;
   margin-bottom: 12px;
+  transition: opacity 0.4s ease;
+}
+
+.empty-slogan.fading {
+  opacity: 0;
 }
 
 .empty-subslogan {
@@ -375,6 +380,11 @@
   color: var(--text-muted);
   letter-spacing: 0.3px;
   margin-bottom: 28px;
+  transition: opacity 0.4s ease;
+}
+
+.empty-subslogan.fading {
+  opacity: 0;
 }
 
 .empty-subslogan em {
