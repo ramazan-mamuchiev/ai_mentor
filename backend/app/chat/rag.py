@@ -857,176 +857,141 @@ async def build_rag_prompt(
 
     has_docs = await _has_any_documents(db)
 
-    if not has_docs:
-        query_tokens = _estimate_tokens(query)
-        system_prompt_tokens = _estimate_tokens(SYSTEM_PROMPT_NO_DOCS)
-
-        messages: list[dict] = [
-            {"role": "system", "content": SYSTEM_PROMPT_NO_DOCS},
-        ]
+    if has_docs:
         if history:
-            messages.extend(_build_history_messages(
-                history, settings.rag_history_messages, settings.rag_history_max_tokens,
-                summary=history_summary,
-            ))
-        messages.append({"role": "user", "content": query})
+            await _emit("rewriting")
+        t_rewrite = time.perf_counter()
+        search_query = await _rewrite_query(query, history) if history else query
+        rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
 
-        history_msgs = _build_history_messages(
-            history, settings.rag_history_messages, settings.rag_history_max_tokens,
-            summary=history_summary,
-        ) if history else []
-        history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
+        product_names = await _load_product_names(db)
 
-        total_ms = round((time.perf_counter() - t0) * 1000, 1)
-        rag_debug = {
-            "chunks_found": 0,
-            "top_similarity": 0,
-            "min_similarity": 0,
-            "context_tokens": 0,
-            "query_tokens": query_tokens,
-            "history_tokens": history_tokens,
-            "system_prompt_tokens": system_prompt_tokens,
-            "rewrite_ms": 0,
-            "search_ms": 0,
-            "rag_build_ms": total_ms,
-            "history_messages": len(history) if history else 0,
-            "prompt_messages": len(messages),
-            "embedding_model": _embedding_model_name(),
-            "product_filter": product_filter,
-            "version_filter": version_filter,
-            "doc_context": doc_context,
-            "auto_product": None,
-            "detected_doc_context": None,
-            "search_query": query,
-            "no_documents": True,
-            "type_max_tokens": None,
-        }
+        await _emit("classifying")
+        classify_input = search_query if search_query != query else query
+        query_type, classify_product, classify_meta = await _classify_query(db, classify_input, product_names)
+
+        auto_product = classify_product
+        if auto_product and auto_product != product_filter:
+            if product_filter_source == "explicit":
+                logger.info(
+                    "Auto-detected product ignored (explicit lock)",
+                    extra={"detected": auto_product, "locked": product_filter, "query": query[:100]},
+                )
+            else:
+                logger.info(
+                    "Auto-detected product from query via LLM classify",
+                    extra={"product": auto_product, "previous": product_filter, "query": query[:100]},
+                )
+                product_filter = auto_product
+
+        type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
+        effective_top_k = _TYPE_TOP_K.get(query_type, settings.rag_top_k)
+
+        search_meta: dict = {}
 
         logger.info(
-            "RAG prompt built (no documents in system)",
-            extra={"query": query[:100], **rag_debug},
-        )
-
-        return messages, [], rag_debug
-
-    if history:
-        await _emit("rewriting")
-    t_rewrite = time.perf_counter()
-    search_query = await _rewrite_query(query, history) if history else query
-    rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
-
-    product_names = await _load_product_names(db)
-
-    await _emit("classifying")
-    classify_input = search_query if search_query != query else query
-    query_type, classify_product, classify_meta = await _classify_query(db, classify_input, product_names)
-
-    auto_product = classify_product
-    if auto_product and auto_product != product_filter:
-        if product_filter_source == "explicit":
-            logger.info(
-                "Auto-detected product ignored (explicit lock)",
-                extra={"detected": auto_product, "locked": product_filter, "query": query[:100]},
-            )
-        else:
-            logger.info(
-                "Auto-detected product from query via LLM classify",
-                extra={"product": auto_product, "previous": product_filter, "query": query[:100]},
-            )
-            product_filter = auto_product
-
-    type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
-    effective_top_k = _TYPE_TOP_K.get(query_type, settings.rag_top_k)
-
-    search_meta: dict = {}
-
-    logger.info(
-        "RAG search params",
-        extra={
-            "product_id": product_id,
-            "product_filter": product_filter,
-            "product_filter_source": product_filter_source,
-        },
-    )
-
-    effective_product_id = product_id
-    if product_filter_source == "explicit" and product_id is None and product_filter:
-        product = await db.scalar(
-            sa_select(Product).where(Product.name.ilike(product_filter))
-        )
-        if not product:
-            product = await db.scalar(
-                sa_select(Product).where(Product.name.ilike(f"%{product_filter}%"))
-            )
-        if product:
-            effective_product_id = product.id
-            logger.info(
-                "Resolved product_id from product_filter for explicit lock",
-                extra={"product_filter": product_filter, "product_id": effective_product_id, "product_name": product.name},
-            )
-        else:
-            logger.warning(
-                "Could not resolve product_id for explicit lock - product not found",
-                extra={"product_filter": product_filter},
-            )
-
-    is_explicit_lock = product_filter_source == "explicit" and effective_product_id is not None
-
-    if query_type in _DECOMPOSE_TYPES and settings.decompose_enabled:
-        await _emit("decomposing")
-    decompose_result = await _decompose_query(search_query, query_type, product_names)
-
-    await _emit("searching", sub_queries=len(decompose_result.sub_queries) if decompose_result and decompose_result.sub_queries else 0)
-    t_search = time.perf_counter()
-
-    if decompose_result and decompose_result.sub_queries:
-        chunks = await _parallel_search(
-            db,
-            decompose_result.sub_queries,
-            decompose_result.sub_products,
-            version=version_filter,
-            doc_context=doc_context,
-            limit_per_query=max(4, effective_top_k // len(decompose_result.sub_queries)),
-            locked_product_id=effective_product_id if is_explicit_lock else None,
-            locked_product_name=product_filter if is_explicit_lock else None,
-            metadata=search_meta,
-        )
-    else:
-        chunks = await search_documents(
-            session=db,
-            query=search_query,
-            product_id=effective_product_id if is_explicit_lock else None,
-            product=product_filter if not is_explicit_lock else None,
-            version=version_filter,
-            doc_context=doc_context,
-            limit=effective_top_k,
-            metadata=search_meta,
-        )
-
-    search_ms = round((time.perf_counter() - t_search) * 1000, 1)
-
-    all_chunks_before_filter = chunks
-    if settings.rag_min_similarity > 0:
-        chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
-
-    if not chunks and all_chunks_before_filter and not is_explicit_lock and (product_filter or auto_product):
-        chunks = all_chunks_before_filter[:effective_top_k]
-        logger.info(
-            "Similarity fallback: product detected but all chunks below threshold, "
-            "returning top chunks without threshold",
+            "RAG search params",
             extra={
-                "product": product_filter or auto_product,
-                "original_threshold": settings.rag_min_similarity,
-                "chunks_recovered": len(chunks),
-                "top_similarity": chunks[0]["similarity"] if chunks else 0,
+                "product_id": product_id,
+                "product_filter": product_filter,
+                "product_filter_source": product_filter_source,
             },
         )
+
+        effective_product_id = product_id
+        if product_filter_source == "explicit" and product_id is None and product_filter:
+            product = await db.scalar(
+                sa_select(Product).where(Product.name.ilike(product_filter))
+            )
+            if not product:
+                product = await db.scalar(
+                    sa_select(Product).where(Product.name.ilike(f"%{product_filter}%"))
+                )
+            if product:
+                effective_product_id = product.id
+                logger.info(
+                    "Resolved product_id from product_filter for explicit lock",
+                    extra={"product_filter": product_filter, "product_id": effective_product_id, "product_name": product.name},
+                )
+            else:
+                logger.warning(
+                    "Could not resolve product_id for explicit lock - product not found",
+                    extra={"product_filter": product_filter},
+                )
+
+        is_explicit_lock = product_filter_source == "explicit" and effective_product_id is not None
+
+        if query_type in _DECOMPOSE_TYPES and settings.decompose_enabled:
+            await _emit("decomposing")
+        decompose_result = await _decompose_query(search_query, query_type, product_names)
+
+        await _emit("searching", sub_queries=len(decompose_result.sub_queries) if decompose_result and decompose_result.sub_queries else 0)
+        t_search = time.perf_counter()
+
+        if decompose_result and decompose_result.sub_queries:
+            chunks = await _parallel_search(
+                db,
+                decompose_result.sub_queries,
+                decompose_result.sub_products,
+                version=version_filter,
+                doc_context=doc_context,
+                limit_per_query=max(4, effective_top_k // len(decompose_result.sub_queries)),
+                locked_product_id=effective_product_id if is_explicit_lock else None,
+                locked_product_name=product_filter if is_explicit_lock else None,
+                metadata=search_meta,
+            )
+        else:
+            chunks = await search_documents(
+                session=db,
+                query=search_query,
+                product_id=effective_product_id if is_explicit_lock else None,
+                product=product_filter if not is_explicit_lock else None,
+                version=version_filter,
+                doc_context=doc_context,
+                limit=effective_top_k,
+                metadata=search_meta,
+            )
+
+        search_ms = round((time.perf_counter() - t_search) * 1000, 1)
+
+        all_chunks_before_filter = chunks
+        if settings.rag_min_similarity > 0:
+            chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
+
+        if not chunks and all_chunks_before_filter and not is_explicit_lock and (product_filter or auto_product):
+            chunks = all_chunks_before_filter[:effective_top_k]
+            logger.info(
+                "Similarity fallback: product detected but all chunks below threshold, "
+                "returning top chunks without threshold",
+                extra={
+                    "product": product_filter or auto_product,
+                    "original_threshold": settings.rag_min_similarity,
+                    "chunks_recovered": len(chunks),
+                    "top_similarity": chunks[0]["similarity"] if chunks else 0,
+                },
+            )
+    else:
+        logger.info("No documents in system — skipping search pipeline, will attempt web search")
+        search_query = query
+        rewrite_ms = 0.0
+        query_type = "overview"
+        classify_product = None
+        classify_meta: dict = {}
+        auto_product = None
+        type_max_tokens = None
+        effective_top_k = settings.rag_top_k
+        search_meta: dict = {}
+        effective_product_id = product_id
+        is_explicit_lock = False
+        decompose_result = None
+        chunks: list[dict] = []
+        search_ms = 0.0
 
     retry_used = False
     rephrase_ms = 0.0
     rephrase_query: str | None = None
 
-    if not chunks and query_type != "chitchat" and settings.search_retry_enabled and not decompose_result:
+    if has_docs and not chunks and query_type != "chitchat" and settings.search_retry_enabled and not decompose_result:
         t_rephrase = time.perf_counter()
         rephrased = await _rephrase_for_retry(search_query)
         rephrase_ms = round((time.perf_counter() - t_rephrase) * 1000, 1)
@@ -1130,23 +1095,42 @@ async def build_rag_prompt(
     context_block = f"{context_header}{context}\n</documentation_context>"
 
     if web_search_context:
+        if not has_docs or not chunks:
+            web_ctx_preamble = (
+                "No documentation is available. The following information was retrieved "
+                "from the web. Use it as the primary source to answer the user's question."
+            )
+        else:
+            web_ctx_preamble = (
+                "The following information was retrieved from the web to help answer "
+                "the user's question. Use it as a primary source when the documentation "
+                "above does not contain the needed information."
+            )
         context_block += (
-            "\n\n<web_search_context>\n"
-            "The following information was retrieved from the web to help answer "
-            "the user's question. Use it as a primary source when the documentation "
-            "above does not contain the needed information.\n\n"
+            f"\n\n<web_search_context>\n"
+            f"{web_ctx_preamble}\n\n"
             f"{web_search_context}\n"
             "</web_search_context>"
         )
 
-    system_prompt = _build_system_prompt(query_type)
+    if not has_docs and not web_search_context:
+        system_prompt = SYSTEM_PROMPT_NO_DOCS
+    else:
+        system_prompt = _build_system_prompt(query_type)
     prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:12]
 
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
     ]
 
-    if query_type == "chitchat":
+    if not has_docs and not web_search_context:
+        if history:
+            messages.extend(_build_history_messages(
+                history, settings.rag_history_messages, settings.rag_history_max_tokens,
+                summary=history_summary,
+            ))
+        messages.append({"role": "user", "content": query})
+    elif query_type == "chitchat":
         if history:
             messages.extend(_build_history_messages(
                 history, settings.rag_history_messages, settings.rag_history_max_tokens,
@@ -1155,7 +1139,7 @@ async def build_rag_prompt(
         messages.append({"role": "user", "content": query})
     else:
         messages.append({"role": "user", "content": context_block})
-        messages.append({"role": "assistant", "content": "Understood. I will use the documentation context above to answer questions. If the sources contain relevant information, I will summarize it."})
+        messages.append({"role": "assistant", "content": "Understood. I will use the provided context to answer questions. If the sources contain relevant information, I will summarize it."})
 
         if history:
             messages.extend(_build_history_messages(
@@ -1230,7 +1214,10 @@ async def build_rag_prompt(
         summary=history_summary,
     ) if history else []
     history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
-    system_prompt_tokens = _estimate_tokens(system_prompt) + _estimate_tokens(context_block)
+    if not has_docs and not web_search_context:
+        system_prompt_tokens = _estimate_tokens(system_prompt)
+    else:
+        system_prompt_tokens = _estimate_tokens(system_prompt) + _estimate_tokens(context_block)
 
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     top_sim = round(chunks[0]["similarity"], 4) if chunks else 0
@@ -1258,7 +1245,7 @@ async def build_rag_prompt(
         "auto_product": auto_product,
         "detected_doc_context": detected_doc,
         "search_query": search_query,
-        "no_documents": False,
+        "no_documents": not has_docs,
         "rerank_prompt_tokens": search_meta.get("rerank_prompt_tokens", 0),
         "rerank_completion_tokens": search_meta.get("rerank_completion_tokens", 0),
         "rerank_total_tokens": search_meta.get("rerank_total_tokens", 0),
