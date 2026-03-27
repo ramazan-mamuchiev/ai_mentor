@@ -699,9 +699,9 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 1.5rem;
-  width: min(520px, calc(100vw - 2rem));
-  max-height: calc(100vh - 4rem);
+  padding: 1.25rem;
+  width: min(600px, calc(100vw - 2rem));
+  max-height: calc(100vh - 3rem);
   overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: modal-slide-up 0.2s ease-out;
@@ -716,7 +716,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .api-key-modal-header h3 {
@@ -757,7 +757,7 @@
 .api-key-value pre {
   flex: 1;
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   overflow-x: auto;
 }
 
