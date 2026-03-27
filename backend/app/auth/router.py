@@ -340,6 +340,238 @@ async def get_usage_summary(
 
 
 # ---------------------------------------------------------------------------
+# User-level extended analytics
+# ---------------------------------------------------------------------------
+
+@router.get("/analytics/chat")
+async def user_chat_stats(
+    days: int = 30,
+    tenant: "Tenant" = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    from datetime import datetime, timedelta, timezone
+    from app.auth.schemas import UserChatStats
+
+    days = max(1, min(days, 365))
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    tid = tenant.id
+
+    total_sessions = await session.scalar(text(
+        "SELECT COUNT(*) FROM chat_sessions WHERE tenant_id = :tid AND created_at >= :since"
+    ), {"tid": tid, "since": since}) or 0
+
+    total_messages = await session.scalar(text(
+        "SELECT COUNT(*) FROM chat_messages cm "
+        "JOIN chat_sessions cs ON cs.id = cm.session_id "
+        "WHERE cs.tenant_id = :tid AND cm.created_at >= :since AND cm.role = 'assistant'"
+    ), {"tid": tid, "since": since}) or 0
+
+    avg_msgs = await session.scalar(text(
+        "SELECT AVG(mc) FROM ("
+        "  SELECT COUNT(*) AS mc FROM chat_messages cm "
+        "  JOIN chat_sessions cs ON cs.id = cm.session_id "
+        "  WHERE cs.tenant_id = :tid AND cs.created_at >= :since "
+        "  GROUP BY cs.id"
+        ") sub"
+    ), {"tid": tid, "since": since})
+
+    fb_rows = (await session.execute(text(
+        "SELECT cm.feedback, COUNT(*) AS cnt FROM chat_messages cm "
+        "JOIN chat_sessions cs ON cs.id = cm.session_id "
+        "WHERE cs.tenant_id = :tid AND cm.created_at >= :since AND cm.role = 'assistant' AND cm.feedback IS NOT NULL "
+        "GROUP BY cm.feedback"
+    ), {"tid": tid, "since": since})).mappings().all()
+    fb_pos = sum(r["cnt"] for r in fb_rows if r["feedback"] == "positive")
+    fb_neg = sum(r["cnt"] for r in fb_rows if r["feedback"] == "negative")
+    fb_total = fb_pos + fb_neg
+
+    qt_rows = (await session.execute(text(
+        "SELECT cma.query_type, COUNT(*) AS cnt FROM chat_message_analytics cma "
+        "JOIN chat_sessions cs ON cs.id = cma.session_id "
+        "WHERE cs.tenant_id = :tid AND cma.created_at >= :since AND cma.query_type IS NOT NULL "
+        "GROUP BY cma.query_type ORDER BY cnt DESC"
+    ), {"tid": tid, "since": since})).mappings().all()
+    qt_total = sum(r["cnt"] for r in qt_rows) or 1
+    query_types = [{"query_type": r["query_type"], "count": int(r["cnt"]), "pct": round(int(r["cnt"]) / qt_total * 100, 1)} for r in qt_rows]
+
+    timing = (await session.execute(text(
+        "SELECT AVG(cma.total_ms) AS avg_total, AVG(cma.tokens_per_sec) AS avg_tps "
+        "FROM chat_message_analytics cma "
+        "JOIN chat_sessions cs ON cs.id = cma.session_id "
+        "WHERE cs.tenant_id = :tid AND cma.created_at >= :since"
+    ), {"tid": tid, "since": since})).mappings().one()
+
+    resp_daily = (await session.execute(text(
+        "SELECT DATE(cma.created_at) AS d, AVG(cma.total_ms) AS avg_total "
+        "FROM chat_message_analytics cma "
+        "JOIN chat_sessions cs ON cs.id = cma.session_id "
+        "WHERE cs.tenant_id = :tid AND cma.created_at >= :since "
+        "GROUP BY DATE(cma.created_at) ORDER BY d"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    return UserChatStats(
+        total_sessions=int(total_sessions),
+        total_messages=int(total_messages),
+        avg_messages_per_session=round(float(avg_msgs), 1) if avg_msgs else None,
+        feedback_positive=fb_pos,
+        feedback_negative=fb_neg,
+        feedback_total=fb_total,
+        positive_rate=round(fb_pos / fb_total * 100, 1) if fb_total > 0 else None,
+        query_types=query_types,
+        avg_response_ms=round(float(timing["avg_total"]), 1) if timing["avg_total"] else None,
+        avg_tokens_per_sec=round(float(timing["avg_tps"]), 1) if timing["avg_tps"] else None,
+        response_daily=[{"date": str(r["d"]), "avg_total": round(float(r["avg_total"] or 0), 1)} for r in resp_daily],
+    )
+
+
+@router.get("/analytics/documents")
+async def user_doc_stats(
+    days: int = 30,
+    tenant: "Tenant" = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    from datetime import datetime, timedelta, timezone
+    from app.auth.schemas import UserDocStats
+
+    days = max(1, min(days, 365))
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    tid = tenant.id
+
+    totals = (await session.execute(text(
+        "SELECT COUNT(*) AS total, "
+        "COUNT(*) FILTER (WHERE status = 'ready') AS indexed, "
+        "COUNT(*) FILTER (WHERE status IN ('pending','processing')) AS pending, "
+        "COUNT(*) FILTER (WHERE status = 'error') AS errors, "
+        "COALESCE(SUM(total_chunks),0) AS chunks, "
+        "COALESCE(SUM(file_size_bytes),0) AS size_bytes "
+        "FROM documents WHERE tenant_id = :tid"
+    ), {"tid": tid})).mappings().one()
+
+    fmt_rows = (await session.execute(text(
+        "SELECT format, COUNT(*) AS cnt FROM documents WHERE tenant_id = :tid GROUP BY format ORDER BY cnt DESC"
+    ), {"tid": tid})).mappings().all()
+    fmt_total = sum(r["cnt"] for r in fmt_rows) or 1
+
+    prod_rows = (await session.execute(text(
+        "SELECT p.name, COUNT(*) AS cnt FROM documents d "
+        "JOIN products p ON p.id = d.product_id "
+        "WHERE d.tenant_id = :tid GROUP BY p.name ORDER BY cnt DESC LIMIT 10"
+    ), {"tid": tid})).mappings().all()
+
+    uploads = (await session.execute(text(
+        "SELECT DATE(uploaded_at) AS d, COUNT(*) AS cnt FROM documents "
+        "WHERE tenant_id = :tid AND uploaded_at >= :since "
+        "GROUP BY DATE(uploaded_at) ORDER BY d"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    return UserDocStats(
+        total_documents=int(totals["total"]),
+        documents_indexed=int(totals["indexed"]),
+        documents_pending=int(totals["pending"]),
+        documents_error=int(totals["errors"]),
+        total_chunks=int(totals["chunks"]),
+        total_size_bytes=int(totals["size_bytes"]),
+        formats=[{"format": r["format"], "count": int(r["cnt"]), "pct": round(int(r["cnt"]) / fmt_total * 100, 1)} for r in fmt_rows],
+        products=[{"name": r["name"], "count": int(r["cnt"])} for r in prod_rows],
+        uploads_daily=[{"date": str(r["d"]), "count": int(r["cnt"])} for r in uploads],
+    )
+
+
+@router.get("/analytics/search")
+async def user_search_stats(
+    days: int = 30,
+    tenant: "Tenant" = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    from datetime import datetime, timedelta, timezone
+    from app.auth.schemas import UserSearchStats
+
+    days = max(1, min(days, 365))
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    tid = tenant.id
+
+    totals = (await session.execute(text(
+        "SELECT COUNT(*) AS cnt, AVG(top_similarity) AS avg_sim, AVG(duration_ms) AS avg_dur, "
+        "COUNT(*) FILTER (WHERE result_count = 0) AS zero "
+        "FROM search_analytics WHERE tenant_id = :tid AND created_at >= :since"
+    ), {"tid": tid, "since": since})).mappings().one()
+
+    top_q = (await session.execute(text(
+        "SELECT query, COUNT(*) AS cnt FROM search_analytics "
+        "WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY query ORDER BY cnt DESC LIMIT 10"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    daily = (await session.execute(text(
+        "SELECT DATE(created_at) AS d, COUNT(*) AS cnt, AVG(top_similarity) AS avg_sim "
+        "FROM search_analytics WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY DATE(created_at) ORDER BY d"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    return UserSearchStats(
+        total_searches=int(totals["cnt"]),
+        avg_similarity=round(float(totals["avg_sim"]), 4) if totals["avg_sim"] else None,
+        avg_duration_ms=round(float(totals["avg_dur"]), 1) if totals["avg_dur"] else None,
+        zero_result_count=int(totals["zero"]),
+        top_queries=[{"query": r["query"][:100], "count": int(r["cnt"])} for r in top_q],
+        daily=[{"date": str(r["d"]), "count": int(r["cnt"]), "avg_similarity": round(float(r["avg_sim"] or 0), 4)} for r in daily],
+    )
+
+
+@router.get("/analytics/costs")
+async def user_cost_stats(
+    days: int = 30,
+    tenant: "Tenant" = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    from datetime import datetime, timedelta, timezone
+    from decimal import Decimal
+    from app.auth.schemas import UserCostStats
+
+    days = max(1, min(days, 365))
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    tid = tenant.id
+
+    totals = (await session.execute(text(
+        "SELECT COALESCE(SUM(charge_usd),0) AS charge, COUNT(*) AS cnt "
+        "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since"
+    ), {"tid": tid, "since": since})).mappings().one()
+    total_charge = Decimal(str(totals["charge"]))
+    avg_per_day = total_charge / days if days > 0 else Decimal("0")
+    forecast = avg_per_day * 30
+
+    daily = (await session.execute(text(
+        "SELECT DATE(created_at) AS d, COALESCE(SUM(charge_usd),0) AS charge, COUNT(*) AS cnt "
+        "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY DATE(created_at) ORDER BY d"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    by_model = (await session.execute(text(
+        "SELECT model, provider, COALESCE(SUM(charge_usd),0) AS charge, "
+        "COALESCE(SUM(total_tokens),0) AS tokens, COUNT(*) AS cnt "
+        "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY model, provider ORDER BY charge DESC LIMIT 10"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    by_channel = (await session.execute(text(
+        "SELECT channel, COALESCE(SUM(charge_usd),0) AS charge, COUNT(*) AS cnt "
+        "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY channel ORDER BY charge DESC"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    return UserCostStats(
+        total_charge_usd=str(total_charge),
+        avg_per_day=str(round(avg_per_day, 8)),
+        forecast_month_usd=str(round(forecast, 8)),
+        daily=[{"date": str(r["d"]), "charge_usd": str(r["charge"]), "requests": int(r["cnt"])} for r in daily],
+        by_model=[{"model": r["model"], "provider": r["provider"], "total_charge_usd": str(r["charge"]),
+                   "total_tokens": int(r["tokens"]), "request_count": int(r["cnt"])} for r in by_model],
+        by_channel=[{"channel": r["channel"], "total_charge_usd": str(r["charge"]),
+                     "request_count": int(r["cnt"])} for r in by_channel],
+    )
+
+
+# ---------------------------------------------------------------------------
 # OAuth endpoints
 # ---------------------------------------------------------------------------
 

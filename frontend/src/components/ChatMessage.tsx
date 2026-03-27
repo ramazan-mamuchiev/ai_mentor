@@ -236,7 +236,8 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               <>
                 {(debug.session_id != null) && (
                   <span className="message-ids">
-                    S#{debug.session_id}{debug.message_id ? ` M#${debug.message_id}` : ''}
+                    <span>S: {String(debug.session_id).slice(0, 8)}</span>
+                    {debug.message_id != null && <span>M: {debug.message_id}</span>}
                   </span>
                 )}
                 {debug.status === 'stopped' && (

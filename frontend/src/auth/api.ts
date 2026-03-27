@@ -185,3 +185,70 @@ export async function getUsageSummary(days = 30): Promise<UsageSummaryResponse> 
   const res = await fetch(`${BASE}/usage/summary?days=${days}`, { credentials: 'include' })
   return handleResponse(res)
 }
+
+
+// --- User-level extended analytics ---
+
+export interface UserChatStats {
+  total_sessions: number
+  total_messages: number
+  avg_messages_per_session: number | null
+  feedback_positive: number
+  feedback_negative: number
+  feedback_total: number
+  positive_rate: number | null
+  query_types: Array<{ query_type: string; count: number; pct: number }>
+  avg_response_ms: number | null
+  avg_tokens_per_sec: number | null
+  response_daily: Array<{ date: string; avg_total: number }>
+}
+
+export interface UserDocStats {
+  total_documents: number
+  documents_indexed: number
+  documents_pending: number
+  documents_error: number
+  total_chunks: number
+  total_size_bytes: number
+  formats: Array<{ format: string; count: number; pct: number }>
+  products: Array<{ name: string; count: number }>
+  uploads_daily: Array<{ date: string; count: number }>
+}
+
+export interface UserSearchStats {
+  total_searches: number
+  avg_similarity: number | null
+  avg_duration_ms: number | null
+  zero_result_count: number
+  top_queries: Array<{ query: string; count: number }>
+  daily: Array<{ date: string; count: number; avg_similarity: number }>
+}
+
+export interface UserCostStats {
+  total_charge_usd: string
+  avg_per_day: string
+  forecast_month_usd: string
+  daily: Array<{ date: string; charge_usd: string; requests: number }>
+  by_model: Array<{ model: string; provider: string; total_charge_usd: string; total_tokens: number; request_count: number }>
+  by_channel: Array<{ channel: string; total_charge_usd: string; request_count: number }>
+}
+
+export async function getUserChatStats(days = 30): Promise<UserChatStats> {
+  const res = await fetch(`${BASE}/analytics/chat?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getUserDocStats(days = 30): Promise<UserDocStats> {
+  const res = await fetch(`${BASE}/analytics/documents?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getUserSearchStats(days = 30): Promise<UserSearchStats> {
+  const res = await fetch(`${BASE}/analytics/search?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getUserCostStats(days = 30): Promise<UserCostStats> {
+  const res = await fetch(`${BASE}/analytics/costs?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}

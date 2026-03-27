@@ -339,9 +339,8 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
               <span className="sources-panel-title">{title}</span>
               {(sessionId != null || messageId != null) && (
                 <span className="sources-panel-ids">
-                  {sessionId != null && `S#${sessionId}`}
-                  {sessionId != null && messageId != null && ' '}
-                  {messageId != null && `M#${messageId}`}
+                  {sessionId != null && <span>S: {sessionId.slice(0, 8)}</span>}
+                  {messageId != null && <span>M: {messageId}</span>}
                 </span>
               )}
             </div>

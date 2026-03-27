@@ -136,3 +136,46 @@ class UsageSummaryResponse(BaseModel):
     by_action: list[ActionBreakdown]
     daily: list[DailyUsage]
     by_key: list[KeySummary]
+
+
+# --- User-level extended analytics ---
+
+class UserChatStats(BaseModel):
+    total_sessions: int = 0
+    total_messages: int = 0
+    avg_messages_per_session: float | None = None
+    feedback_positive: int = 0
+    feedback_negative: int = 0
+    feedback_total: int = 0
+    positive_rate: float | None = None
+    query_types: list[dict] = []
+    avg_response_ms: float | None = None
+    avg_tokens_per_sec: float | None = None
+    response_daily: list[dict] = []
+
+class UserDocStats(BaseModel):
+    total_documents: int = 0
+    documents_indexed: int = 0
+    documents_pending: int = 0
+    documents_error: int = 0
+    total_chunks: int = 0
+    total_size_bytes: int = 0
+    formats: list[dict] = []
+    products: list[dict] = []
+    uploads_daily: list[dict] = []
+
+class UserSearchStats(BaseModel):
+    total_searches: int = 0
+    avg_similarity: float | None = None
+    avg_duration_ms: float | None = None
+    zero_result_count: int = 0
+    top_queries: list[dict] = []
+    daily: list[dict] = []
+
+class UserCostStats(BaseModel):
+    total_charge_usd: str = "0"
+    avg_per_day: str = "0"
+    forecast_month_usd: str = "0"
+    daily: list[dict] = []
+    by_model: list[dict] = []
+    by_channel: list[dict] = []
