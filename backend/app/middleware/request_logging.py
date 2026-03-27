@@ -42,6 +42,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
         lc.active_requests_count -= 1
 
+        tenant = getattr(request.state, "tenant", None)
+        if tenant:
+            tenant_id_ctx.set(str(tenant.id))
+            tenant_name_ctx.set(tenant.name or "-")
+
         response.headers["X-Request-ID"] = req_id
 
         if request.url.path not in _SKIP_PATHS:
