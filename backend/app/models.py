@@ -1,5 +1,7 @@
 """SQLAlchemy ORM models for Lexiro."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
