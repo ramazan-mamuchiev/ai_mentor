@@ -168,6 +168,11 @@
   position: relative;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-sans);
 }
 
 .session-item:hover {

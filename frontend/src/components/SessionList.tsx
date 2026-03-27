@@ -48,7 +48,8 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
         const isActive = s.id === activeSessionId
         const isMenuOpen = menuOpenId === s.id
         return (
-          <div
+          <button
+            type="button"
             key={s.id}
             className={`session-item${isActive ? ' active' : ''}${isMenuOpen ? ' menu-open' : ''}`}
             onClick={() => onSelect(s.id)}
@@ -103,7 +104,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
                 </div>
               )}
             </div>
-          </div>
+          </button>
         )
       })}
     </div>
