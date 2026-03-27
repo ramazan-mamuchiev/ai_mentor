@@ -44,21 +44,39 @@ export function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const [headerHidden, setHeaderHidden] = useState(false)
-  const lastScrollY = useRef(0)
+  const scrollRef = useRef({ lastY: 0, anchor: 0, direction: 'up' as 'up' | 'down' })
 
   useEffect(() => {
-    const THRESHOLD = 10
+    const HIDE_AFTER = 60
+    const SHOW_AFTER = 5
     const handleScroll = () => {
       const y = window.scrollY
+      const s = scrollRef.current
+
       if (y < 64) {
         setHeaderHidden(false)
-      } else if (y - lastScrollY.current > THRESHOLD) {
-        setHeaderHidden(true)
-        setMobileMenuOpen(false)
-      } else if (lastScrollY.current - y > THRESHOLD) {
-        setHeaderHidden(false)
+        s.anchor = y
+        s.direction = 'up'
+      } else if (y > s.lastY) {
+        if (s.direction === 'up') {
+          s.anchor = y
+          s.direction = 'down'
+        }
+        if (y - s.anchor > HIDE_AFTER) {
+          setHeaderHidden(true)
+          setMobileMenuOpen(false)
+        }
+      } else if (y < s.lastY) {
+        if (s.direction === 'down') {
+          s.anchor = y
+          s.direction = 'up'
+        }
+        if (s.anchor - y > SHOW_AFTER) {
+          setHeaderHidden(false)
+        }
       }
-      lastScrollY.current = y
+
+      s.lastY = y
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
