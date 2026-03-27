@@ -45,6 +45,12 @@ class MeResponse(BaseModel):
     created_at: datetime
 
 
+# --- Update profile ---
+
+class UpdateMeRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=128)
+
+
 # --- API Keys ---
 
 class CreateApiKeyRequest(BaseModel):

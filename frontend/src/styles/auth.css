@@ -747,3 +747,78 @@
   color: var(--text-muted);
   padding: 1rem 0;
 }
+
+/* Settings tabs */
+
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settings-tab:hover {
+  color: var(--text);
+}
+
+.settings-tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Profile tab */
+
+.profile-field {
+  margin-bottom: 1.25rem;
+}
+
+.profile-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.profile-input-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.profile-input-row .auth-input {
+  flex: 1;
+}
+
+.profile-readonly {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.profile-tier-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--surface-hover);
+  color: var(--text);
+  text-transform: capitalize;
+}

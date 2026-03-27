@@ -95,6 +95,16 @@ export async function getMe(): Promise<MeResponse> {
   return handleResponse(res)
 }
 
+export async function updateMe(data: { name?: string }): Promise<MeResponse> {
+  const res = await fetch(`${BASE}/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
 export async function getApiKeys(): Promise<ApiKeyItem[]> {
   const res = await fetch(`${BASE}/api-keys`, { credentials: 'include' })
   return handleResponse(res)

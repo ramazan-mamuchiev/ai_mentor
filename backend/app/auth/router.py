@@ -14,6 +14,7 @@ from app.auth.schemas import (
     RegisterRequest,
     RegisterResponse,
     TokenResponse,
+    UpdateMeRequest,
 )
 from app.auth.service import (
     authenticate_tenant,
@@ -94,6 +95,28 @@ async def logout(
 
 @router.get("/me", response_model=MeResponse)
 async def me(tenant: Tenant = Depends(get_current_tenant)):
+    return MeResponse(
+        id=tenant.id,
+        email=tenant.email,
+        name=tenant.name,
+        slug=tenant.slug,
+        tier=tenant.tier,
+        email_verified=tenant.email_verified,
+        created_at=tenant.created_at,
+    )
+
+
+@router.patch("/me", response_model=MeResponse)
+async def update_me(
+    body: UpdateMeRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    if body.name is not None:
+        tenant.name = body.name
+    session.add(tenant)
+    await session.commit()
+    await session.refresh(tenant)
     return MeResponse(
         id=tenant.id,
         email=tenant.email,

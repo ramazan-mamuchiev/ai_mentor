@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LogOut, Key, ChevronUp, Moon, Sun, Languages } from 'lucide-react'
+import { LogOut, User, ChevronUp, Moon, Sun, Languages } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useTranslation } from 'react-i18next'
 
@@ -45,13 +45,13 @@ export function AccountBadge({ collapsed, theme, onToggleTheme }: AccountBadgePr
       <button
         className="account-badge-btn"
         onClick={() => setOpen(!open)}
-        data-tooltip={collapsed ? user.email : undefined}
+        data-tooltip={collapsed ? (user.name || user.email) : undefined}
       >
         <span className="account-avatar">{initials}</span>
         {!collapsed && (
           <>
             <span className="account-info">
-              <span className="account-email">{user.email}</span>
+              <span className="account-email">{user.name || user.email}</span>
               <span className="account-tier">{user.tier}</span>
             </span>
             <ChevronUp size={14} className={`account-chevron ${open ? 'open' : ''}`} />
@@ -62,8 +62,8 @@ export function AccountBadge({ collapsed, theme, onToggleTheme }: AccountBadgePr
       {open && (
         <div className="account-dropdown">
           <button onClick={() => { navigate('/app/settings'); setOpen(false) }}>
-            <Key size={16} />
-            {t('auth.apiKeys')}
+            <User size={16} />
+            {t('account.settings')}
           </button>
           <div className="account-dropdown-divider" />
           <button onClick={() => { onToggleTheme(); setOpen(false) }}>
