@@ -1245,7 +1245,7 @@
   margin-bottom: 6px;
 }
 
-.admin-form-row input,
+.admin-form-row input:not([type="checkbox"]),
 .admin-form-row textarea,
 .admin-form-row select {
   width: 100%;
@@ -1258,7 +1258,7 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.admin-form-row input:focus,
+.admin-form-row input:not([type="checkbox"]):focus,
 .admin-form-row textarea:focus,
 .admin-form-row select:focus {
   outline: none;
@@ -1266,7 +1266,7 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-[data-theme='dark'] .admin-form-row input:focus,
+[data-theme='dark'] .admin-form-row input:not([type="checkbox"]):focus,
 [data-theme='dark'] .admin-form-row textarea:focus,
 [data-theme='dark'] .admin-form-row select:focus {
   box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
