@@ -195,7 +195,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             <button
               className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
               onClick={handleCopy}
-              data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
               aria-label={t('chat.copy')}
               type="button"
             >
@@ -205,7 +204,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               <button
                 className="message-action-btn"
                 onClick={handleEditStart}
-                data-tooltip={t('chat.edit')}
                 aria-label={t('chat.edit')}
                 type="button"
               >
@@ -252,7 +250,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 <button
                   className="message-action-btn debug-toggle"
                   onClick={() => onShowDebug?.(debug, debug.session_id, debug.message_id)}
-                  data-tooltip={t('chat.debug')}
                 >
                   <Bug size={12} />
                 </button>
@@ -260,7 +257,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               <button
                 className={`message-action-btn feedback-btn${currentFeedback === 'up' ? ' feedback-btn--active' : ''}`}
                 onClick={() => handleFeedback('up')}
-                data-tooltip={t('chat.thumbsUp')}
                 aria-label={t('chat.thumbsUp')}
                 type="button"
               >
@@ -269,7 +265,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               <button
                 className={`message-action-btn feedback-btn${currentFeedback === 'down' ? ' feedback-btn--active' : ''}`}
                 onClick={() => handleFeedback('down')}
-                data-tooltip={t('chat.thumbsDown')}
                 aria-label={t('chat.thumbsDown')}
                 type="button"
               >
@@ -278,7 +273,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               <button
                 className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
                 onClick={handleCopy}
-                data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
                 aria-label={t('chat.copy')}
                 type="button"
               >
@@ -288,7 +282,6 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 <button
                   className="message-action-btn share-action-btn"
                   onClick={() => onShareMessage(message.id)}
-                  data-tooltip={t('share.shareAnswer')}
                   aria-label={t('share.shareAnswer')}
                   type="button"
                 >

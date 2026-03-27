@@ -107,7 +107,6 @@ function StatusBadge({
           <button
             className="docs-status-cancel"
             onClick={e => { e.stopPropagation(); onCancel() }}
-            data-tooltip={t('docs.actions.cancel')}
           >
             <X size={14} />
           </button>
@@ -517,7 +516,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       header: () => t('docs.table.uploaded'),
       cell: ({ getValue }) => {
         const v = getValue() as string | null
-        return <span className="docs-date" data-tooltip={formatDateTimeFull(v)}>{formatDateCompact(v)}</span>
+        return <span className="docs-date">{formatDateCompact(v)}</span>
       },
       enableGrouping: false,
       sortingFn: 'datetime',
@@ -528,7 +527,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       header: () => t('docs.table.indexed'),
       cell: ({ getValue }) => {
         const v = getValue() as string | null
-        return <span className="docs-date" data-tooltip={formatDateTimeFull(v)}>{formatDateCompact(v)}</span>
+        return <span className="docs-date">{formatDateCompact(v)}</span>
       },
       enableGrouping: false,
       sortingFn: 'datetime',
@@ -625,7 +624,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               className="docs-search-input"
             />
             {globalFilter && (
-              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }} data-tooltip={t('docs.search.clear')}>
+              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }}>
                 <X size={14} />
               </button>
             )}
@@ -747,27 +746,26 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                   <button
                     className="docs-action-btn"
                     onClick={() => openDebug(doc)}
-                    data-tooltip={t('docs.actions.debug')}
                   >
                     <Bug size={16} />
                   </button>
                 )}
                 {doc.status === 'ready' && (
-                  <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} data-tooltip={t('docs.actions.previewMd')}>
+                  <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)}>
                     <Eye size={16} />
                   </button>
                 )}
                 {doc.status === 'ready' && (
-                  <button className="docs-action-btn" onClick={() => handleDownload(doc)} data-tooltip={t('docs.actions.download')}>
+                  <button className="docs-action-btn" onClick={() => handleDownload(doc)}>
                     <Download size={16} />
                   </button>
                 )}
                 {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
-                  <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} data-tooltip={t('docs.actions.reindex')}>
+                  <button className="docs-action-btn" onClick={() => setReingestTarget(doc)}>
                     <RefreshCw size={16} />
                   </button>
                 )}
-                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')} data-tooltip-align="right">
+                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)}>
                   <Trash2 size={16} />
                 </button>
               </div>

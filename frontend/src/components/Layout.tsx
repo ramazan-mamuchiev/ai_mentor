@@ -183,7 +183,6 @@ export function Layout({
               className="sidebar-toggle-btn"
               onClick={() => setMobileOpen(false)}
               aria-label={t('sidebar.collapse')}
-              data-tooltip={t('sidebar.collapse')}
             >
               <X size={18} />
             </button>
@@ -192,7 +191,6 @@ export function Layout({
               className="sidebar-toggle-btn"
               onClick={toggleCollapsed}
               aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-              data-tooltip={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
             >
               {collapsed ? <SidebarExpandIcon size={18} /> : <SidebarCollapseIcon size={18} />}
             </button>
@@ -204,7 +202,6 @@ export function Layout({
             <button
               className="admin-back-btn"
               onClick={() => navigate('/app')}
-              data-tooltip={collapsed && !isMobile ? t('admin.nav.backToApp') : undefined}
             >
               <ArrowLeft size={16} />
               {(!collapsed || isMobile) && t('admin.nav.backToApp')}
@@ -220,7 +217,6 @@ export function Layout({
                   key={item.path}
                   className={`nav-item nav-item--sub${active ? ' nav-item--active' : ''}`}
                   onClick={() => navigate(item.path)}
-                  data-tooltip={collapsed && !isMobile ? t(item.labelKey) : undefined}
                 >
                   <Icon size={16} />
                   {(!collapsed || isMobile) && t(item.labelKey)}
@@ -239,8 +235,7 @@ export function Layout({
                 <button
                   key={item.path}
                   className={`nav-item${active ? ' nav-item--active' : ''}`}
-                  onClick={() => navigate(item.path)}
-                  data-tooltip={collapsed && !isMobile ? t(item.labelKey) : undefined}
+                  onClick={() => { navigate(item.path); if (isMobile) setMobileOpen(false) }}
                 >
                   <Icon size={18} />
                   {(!collapsed || isMobile) && t(item.labelKey)}
@@ -253,7 +248,6 @@ export function Layout({
                 <button
                   className={`nav-item${isAdmin ? ' nav-item--active' : ''}`}
                   onClick={() => navigate(ADMIN_NAV_ITEM.path)}
-                  data-tooltip={collapsed && !isMobile ? t(ADMIN_NAV_ITEM.labelKey) : undefined}
                 >
                   <Icon size={18} />
                   {(!collapsed || isMobile) && t(ADMIN_NAV_ITEM.labelKey)}
@@ -267,8 +261,8 @@ export function Layout({
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
-            onSelect={onSelectSession}
-            onNew={onNewSession}
+            onSelect={(id) => { onSelectSession(id); if (isMobile) setMobileOpen(false) }}
+            onNew={() => { onNewSession(); if (isMobile) setMobileOpen(false) }}
             onDelete={onDeleteSession}
           />
         ) : !isAdmin ? (
@@ -295,7 +289,6 @@ export function Layout({
               className="mobile-menu-btn"
               onClick={() => setMobileOpen(true)}
               aria-label="Menu"
-              data-tooltip={t('sidebar.menu')}
             >
               <SidebarMenuIcon size={20} />
             </button>

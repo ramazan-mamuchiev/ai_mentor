@@ -40,7 +40,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   return (
     <div className="confirm-overlay" onClick={onCancel}>
       <div className="confirm-dialog product-edit-dialog" onClick={e => e.stopPropagation()}>
-        <button className="confirm-close" onClick={onCancel} aria-label="Close" data-tooltip={t('common.close')} data-tooltip-align="right">
+        <button className="confirm-close" onClick={onCancel} aria-label="Close">
           <X size={16} />
         </button>
 

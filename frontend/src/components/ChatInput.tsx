@@ -61,7 +61,7 @@ export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }
   return (
     <div className="chat-input-container">
       <div className="chat-input-wrapper">
-        <button className="chat-attach-btn" data-tooltip={t('input.upload')} onClick={onUploadClick}>
+        <button className="chat-attach-btn" onClick={onUploadClick}>
           <Plus size={18} />
         </button>
         <textarea
@@ -74,7 +74,7 @@ export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }
           rows={1}
         />
         {isStreaming ? (
-          <button className="chat-send-btn active" onClick={onCancel} data-tooltip={t('input.stop')} data-tooltip-align="right">
+          <button className="chat-send-btn active" onClick={onCancel}>
             <Square size={16} />
           </button>
         ) : (
@@ -82,8 +82,6 @@ export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }
             className={`chat-send-btn${hasText ? ' active' : ''}`}
             onClick={handleSubmit}
             disabled={!hasText}
-            data-tooltip={t('input.send')}
-            data-tooltip-align="right"
           >
             <ArrowUp size={18} />
           </button>

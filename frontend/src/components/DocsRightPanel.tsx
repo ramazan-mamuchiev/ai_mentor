@@ -125,7 +125,6 @@ export function DocsRightPanel(props: Props) {
             <button
               className="sources-panel-share"
               onClick={() => setShareModal(true)}
-              data-tooltip={t('share.shareDebug')}
             >
               <Share2 size={14} />
             </button>

@@ -45,7 +45,6 @@ export function AccountBadge({ collapsed, theme, onToggleTheme }: AccountBadgePr
       <button
         className="account-badge-btn"
         onClick={() => setOpen(!open)}
-        data-tooltip={collapsed ? (user.name || user.email) : undefined}
       >
         <span className="account-avatar">{initials}</span>
         {!collapsed && (

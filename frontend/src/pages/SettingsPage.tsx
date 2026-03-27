@@ -222,7 +222,7 @@ function ApiKeysTab() {
                   <td className="hide-mobile">{new Date(k.created_at).toLocaleDateString()}</td>
                   <td className="hide-mobile">{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}</td>
                   <td>
-                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(k) }} className="btn-icon btn-danger" data-tooltip={t('settings.deleteKey')}>
+                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(k) }} className="btn-icon btn-danger">
                       <Trash2 size={16} />
                     </button>
                   </td>
@@ -378,7 +378,6 @@ function NewKeyModal({ newKey, onClose }: { newKey: ApiKeyCreated; onClose: () =
           <button
             onClick={() => handleCopy(newKey.key, 'new-key')}
             className="btn-icon"
-            data-tooltip={t('chat.copy')}
           >
             {copied === 'new-key' ? <Check size={16} /> : <Copy size={16} />}
           </button>
@@ -390,7 +389,6 @@ function NewKeyModal({ newKey, onClose }: { newKey: ApiKeyCreated; onClose: () =
           <button
             onClick={() => handleCopy(mcpConfig, 'mcp-config')}
             className="btn-icon"
-            data-tooltip={t('chat.copy')}
           >
             {copied === 'mcp-config' ? <Check size={16} /> : <Copy size={16} />}
           </button>

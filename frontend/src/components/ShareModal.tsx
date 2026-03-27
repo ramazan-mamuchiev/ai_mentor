@@ -164,7 +164,6 @@ export function ShareModal({ type, id, onClose }: Props) {
                     <button
                       className="share-copy-btn"
                       onClick={handleCopy}
-                      data-tooltip={copied ? t('share.linkCopied') : t('share.copyLink')}
                     >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                       <span>{copied ? t('share.linkCopied') : t('share.copyLink')}</span>

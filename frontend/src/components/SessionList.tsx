@@ -73,8 +73,6 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
                   setMenuOpenId(isMenuOpen ? null : s.id)
                 }}
                 aria-label={t('session.options')}
-                data-tooltip={t('session.options')}
-                data-tooltip-align="right"
               >
                 <MoreHorizontal size={16} />
               </button>

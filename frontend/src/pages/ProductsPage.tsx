@@ -42,15 +42,6 @@ function formatDateCompact(iso: string | null): string {
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function formatDateTimeFull(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleString(undefined, {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  })
-}
-
 function getProductStatus(p: ProductListItem): DocumentStatusValue {
   if (p.processing_documents > 0) return 'processing'
   if (p.pending_documents > 0) return 'pending'
@@ -87,9 +78,6 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
     { key: 'cancelled' as DocumentStatusValue, count: product.cancelled_documents },
   ]).filter(s => s.count > 0)
 
-  const tooltipParts = segments.map(s => `${s.count} ${t(`docs.status.${s.key}`).toLowerCase()}`)
-  const tooltip = tooltipParts.join(', ')
-
   const pct = (status === 'processing' || status === 'pending')
     ? Math.max(0, Math.min(100, product.progress_percent))
     : Math.round((product.ready_documents / total) * 100)
@@ -97,7 +85,7 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
   const canCancel = onCancel && (status === 'processing' || status === 'pending')
 
   return (
-    <div className="product-segmented-wrap" data-tooltip={tooltip}>
+    <div className="product-segmented-wrap">
       <div className="product-segmented-bar">
         {segments.map(s => (
           <div
@@ -123,7 +111,6 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
           <button
             className="docs-status-cancel"
             onClick={e => { e.stopPropagation(); onCancel() }}
-            data-tooltip={t('products.actions.cancelIngestion')}
           >
             <X size={14} />
           </button>
@@ -418,7 +405,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       header: () => t('products.table.uploaded'),
       cell: ({ getValue }) => {
         const v = getValue() as string | null
-        return <span className="docs-date" data-tooltip={formatDateTimeFull(v)}>{formatDateCompact(v)}</span>
+        return <span className="docs-date">{formatDateCompact(v)}</span>
       },
       enableGrouping: false,
       sortingFn: 'datetime',
@@ -429,7 +416,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       header: () => t('products.table.indexed'),
       cell: ({ getValue }) => {
         const v = getValue() as string | null
-        return <span className="docs-date" data-tooltip={formatDateTimeFull(v)}>{formatDateCompact(v)}</span>
+        return <span className="docs-date">{formatDateCompact(v)}</span>
       },
       enableGrouping: false,
       sortingFn: 'datetime',
@@ -528,7 +515,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
               className="docs-search-input"
             />
             {globalFilter && (
-              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }} data-tooltip={t('products.search.clear')}>
+              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }}>
                 <X size={14} />
               </button>
             )}
@@ -648,16 +635,16 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                 </div>
               )}
               <div className="docs-card-actions" onClick={e => e.stopPropagation()}>
-                <button className="docs-action-btn" onClick={() => setEditTarget(p)} data-tooltip={t('products.actions.edit')}>
+                <button className="docs-action-btn" onClick={() => setEditTarget(p)}>
                   <Pencil size={16} />
                 </button>
-                <button className="docs-action-btn" onClick={() => openDebug(p)} data-tooltip={t('products.actions.debug')}>
+                <button className="docs-action-btn" onClick={() => openDebug(p)}>
                   <Bug size={16} />
                 </button>
-                <button className="docs-action-btn" onClick={() => setReingestTarget(p)} data-tooltip={t('products.actions.reindex')}>
+                <button className="docs-action-btn" onClick={() => setReingestTarget(p)}>
                   <RefreshCw size={16} />
                 </button>
-                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)} data-tooltip={t('products.actions.delete')}>
+                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)}>
                   <Trash2 size={16} />
                 </button>
               </div>

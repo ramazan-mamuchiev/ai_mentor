@@ -188,7 +188,6 @@ export function ChatWindow({
               <button
                 className="share-chat-btn"
                 onClick={handleShareSession}
-                data-tooltip={t('share.shareChat')}
                 aria-label={t('share.shareChat')}
                 type="button"
               >
@@ -263,7 +262,7 @@ export function ChatWindow({
         </div>
 
         {showScrollBtn && status === 'streaming' && (
-          <button className="scroll-to-bottom-btn" onClick={scrollToBottom} data-tooltip={t('chat.scrollToBottom', 'Scroll to bottom')}>
+          <button className="scroll-to-bottom-btn" onClick={scrollToBottom}>
             <ArrowDown size={18} />
           </button>
         )}

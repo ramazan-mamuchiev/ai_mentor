@@ -172,7 +172,7 @@ export function DataTable<TData>({
             return (
               <span key={colId} className="docs-group-chip">
                 {label}
-                <button className="docs-group-chip-remove" onClick={() => removeGrouping(colId)} data-tooltip={t('docs.group.remove')}>
+                <button className="docs-group-chip-remove" onClick={() => removeGrouping(colId)}>
                   <X size={12} />
                 </button>
               </span>
@@ -200,8 +200,6 @@ export function DataTable<TData>({
                                 <button
                                   className="docs-col-settings-btn"
                                   onClick={() => setShowColumnSettings(v => !v)}
-                                  data-tooltip={t('docs.columns.settings')}
-                                  data-tooltip-align="right"
                                 >
                                   <Settings2 size={14} />
                                 </button>
@@ -310,7 +308,6 @@ export function DataTable<TData>({
               key={col.id}
               className={`docs-group-action-btn ${grouping.includes(col.id) ? 'docs-group-action-btn--active' : ''}`}
               onClick={() => toggleGrouping(col.id)}
-              data-tooltip={t('docs.group.toggle')}
             >
               <Layers size={12} />
               {flexRender(col.columnDef.header, { table, header: null as never, column: col })}

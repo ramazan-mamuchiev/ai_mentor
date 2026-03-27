@@ -98,7 +98,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
                 <span className="md-preview-meta">
                   {formatBytes(data.size_bytes)} &middot; {SOURCE_LABELS[data.source] || data.source}
                 </span>
-                <button className="md-preview-download-btn" onClick={handleDownload} data-tooltip={t('docs.preview.download')}>
+                <button className="md-preview-download-btn" onClick={handleDownload}>
                   <Download size={16} />
                 </button>
               </>
@@ -106,11 +106,10 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
             <button
               className="md-preview-close-btn"
               onClick={() => setFullscreen(f => !f)}
-              data-tooltip={t(fullscreen ? 'docs.preview.collapse' : 'docs.preview.expand')}
             >
               {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
-            <button className="md-preview-close-btn" onClick={onClose} data-tooltip={t('docDebug.collapse')} data-tooltip-align="right">
+            <button className="md-preview-close-btn" onClick={onClose}>
               <X size={14} />
             </button>
           </div>

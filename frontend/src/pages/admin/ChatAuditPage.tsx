@@ -162,7 +162,6 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
                           <button
                             className="message-action-btn debug-toggle"
                             onClick={() => handleShowDebug(debug, detail.id, m.id)}
-                            data-tooltip={t('chat.debug')}
                           >
                             <Bug size={12} />
                           </button>
