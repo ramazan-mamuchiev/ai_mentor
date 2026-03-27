@@ -365,10 +365,19 @@
 }
 
 /* Audit chat area — reuses .message / .message-body / .message-content from chat.css */
+.audit-detail-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: -24px -32px;
+}
+
 .audit-detail-header {
-  padding: 8px 16px 0;
+  padding: 12px 20px 0;
   max-width: 800px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .audit-chat-area .message-footer {

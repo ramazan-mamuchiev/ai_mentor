@@ -98,9 +98,10 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
   }
 
   return (
-    <div className="main-area">
-      <div className="main-area-chat">
-        <div className="audit-detail-header">
+    <div className="audit-detail-layout">
+      <div className="main-area">
+        <div className="main-area-chat">
+          <div className="audit-detail-header">
           <button className="chat-audit-back" onClick={() => navigate('/app/admin/chats')}>
             <ArrowLeft size={14} /> {t('admin.chats.backToSessions')}
           </button>
@@ -198,6 +199,7 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
           onClose={() => setRightPanel(null)}
         />
       )}
+      </div>
     </div>
   )
 }
