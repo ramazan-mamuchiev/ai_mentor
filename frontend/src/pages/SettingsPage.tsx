@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Copy, Key, Plus, Trash2, Check, User, Save, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Copy, Key, Plus, Trash2, Check, User, Save, X, ChevronDown, ChevronUp, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { getApiKeys, createApiKey, deleteApiKey, updateMe, getApiKeyUsage, type ApiKeyItem, type ApiKeyCreated, type ApiKeyUsageResponse } from '../auth/api'
@@ -14,7 +14,7 @@ export function SettingsPage() {
 
   return (
     <div className="settings-page">
-      <h1 className="settings-title">{t('settings.title')}</h1>
+      <h1 className="settings-title"><Settings size={20} /> {t('settings.title')}</h1>
 
       <div className="settings-tabs">
         <button

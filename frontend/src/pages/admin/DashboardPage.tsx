@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { LayoutDashboard } from 'lucide-react'
 import {
   getOverview, getUsageStats,
   type PlatformOverview, type DailyUsageStat,
@@ -69,7 +70,7 @@ export function DashboardPage() {
   return (
     <div>
       <div className="admin-page-header">
-        <h1>{t('admin.dashboard.title')}</h1>
+        <h1><LayoutDashboard size={20} /> {t('admin.dashboard.title')}</h1>
         <p>{t('admin.dashboard.subtitle')}</p>
       </div>
 

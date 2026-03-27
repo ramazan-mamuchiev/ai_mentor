@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, MessageSquare } from 'lucide-react'
 import {
   listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin,
   type AdminChatSessionItem, type AdminChatSessionDetail, type AdminChatMessageSearchItem,
@@ -99,7 +99,7 @@ function SessionListView() {
   return (
     <div>
       <div className="admin-page-header">
-        <h1>{t('admin.chats.title')}</h1>
+        <h1><MessageSquare size={20} /> {t('admin.chats.title')}</h1>
         <p>
           {t('admin.chats.sessionsCount', { count: total })}
           {tenantId ? t('admin.chats.filteredByTenant') : ''}

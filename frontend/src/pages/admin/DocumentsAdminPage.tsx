@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
+import { FileText } from 'lucide-react'
 import {
   listDocumentsAdmin, patchDocumentAdmin, deleteDocumentAdmin,
   type AdminDocumentItem,
@@ -73,7 +74,7 @@ export function DocumentsAdminPage() {
   return (
     <div>
       <div className="admin-page-header">
-        <h1>{t('admin.docs.title')}</h1>
+        <h1><FileText size={20} /> {t('admin.docs.title')}</h1>
         <p>{t('admin.docs.count', { count: total })}{tenantId ? t('admin.docs.filteredByTenant') : ''}</p>
       </div>
 

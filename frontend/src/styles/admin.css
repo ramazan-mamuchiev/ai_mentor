@@ -79,10 +79,18 @@
 }
 
 .admin-page-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 22px;
   font-weight: 700;
   color: var(--text);
   margin-bottom: 4px;
+}
+
+.admin-page-header h1 > svg {
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .admin-page-header p {

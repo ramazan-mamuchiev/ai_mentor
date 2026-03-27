@@ -20,7 +20,7 @@ export function AnalyticsPage() {
   if (loading) {
     return (
       <div className="analytics-page">
-        <h1 className="analytics-title">{t('analytics.title')}</h1>
+        <h1 className="analytics-title"><BarChart3 size={20} /> {t('analytics.title')}</h1>
         <p className="analytics-loading">{t('settings.loading')}</p>
       </div>
     )
@@ -29,7 +29,7 @@ export function AnalyticsPage() {
   if (error || !data) {
     return (
       <div className="analytics-page">
-        <h1 className="analytics-title">{t('analytics.title')}</h1>
+        <h1 className="analytics-title"><BarChart3 size={20} /> {t('analytics.title')}</h1>
         <p className="analytics-error">{t('analytics.noData')}</p>
       </div>
     )
@@ -39,7 +39,7 @@ export function AnalyticsPage() {
 
   return (
     <div className="analytics-page">
-      <h1 className="analytics-title">{t('analytics.title')}</h1>
+      <h1 className="analytics-title"><BarChart3 size={20} /> {t('analytics.title')}</h1>
       <p className="analytics-subtitle">{t('analytics.description')}</p>
 
       <div className="analytics-kpi-row">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { Users } from 'lucide-react'
 import { listTenants, patchTenant, type TenantListItem } from '../../api/admin'
 
 export function TenantsPage() {
@@ -49,7 +50,7 @@ export function TenantsPage() {
   return (
     <div>
       <div className="admin-page-header">
-        <h1>{t('admin.tenants.title')}</h1>
+        <h1><Users size={20} /> {t('admin.tenants.title')}</h1>
         <p>{t('admin.tenants.totalCount', { count: total })}</p>
       </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { BarChart3 } from 'lucide-react'
 import {
   getUsageStats, getModelStats, getIngestionStats, getSearchStats,
   type DailyUsageStat, type ModelUsageStat, type IngestionStat, type SearchStat,
@@ -67,7 +68,7 @@ export function StatsPage() {
   return (
     <div>
       <div className="admin-page-header">
-        <h1>{t('admin.stats.title')}</h1>
+        <h1><BarChart3 size={20} /> {t('admin.stats.title')}</h1>
         <p>{t('admin.stats.subtitle')}</p>
       </div>
 

@@ -595,9 +595,17 @@
 }
 
 .settings-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 1.5rem;
   font-weight: 700;
   margin: 0 0 2rem;
+}
+
+.settings-title > svg {
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .settings-section {
@@ -1029,9 +1037,17 @@
 }
 
 .analytics-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 1.5rem;
   font-weight: 700;
   margin-bottom: 0.25rem;
+}
+
+.analytics-title > svg {
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .analytics-subtitle {

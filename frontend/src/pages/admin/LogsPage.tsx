@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RefreshCw, X, Search, Radio, ChevronDown, ChevronRight,
-  Copy, Check, Clock, AlertTriangle,
+  Copy, Check, Clock, AlertTriangle, ScrollText,
 } from 'lucide-react'
 import { getLogs, type LogEntry } from '../../api/admin'
 
@@ -195,7 +195,7 @@ export function LogsPage() {
   return (
     <div className="logs-page">
       <div className="admin-page-header">
-        <h1>{t('admin.logs.title')}</h1>
+        <h1><ScrollText size={20} /> {t('admin.logs.title')}</h1>
         <p>{t('admin.logs.subtitle')}</p>
       </div>
 

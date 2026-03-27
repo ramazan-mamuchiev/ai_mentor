@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Plus, Shield, Trash2, Lock } from 'lucide-react'
+import { Plus, KeyRound, Trash2, Lock } from 'lucide-react'
 import { listRoles, createRole, deleteRole, type RoleListItem } from '../../api/admin'
 
 export function RolesPage() {
@@ -54,7 +54,7 @@ export function RolesPage() {
   return (
     <div className="admin-page">
       <div className="admin-page-header">
-        <h1><Shield size={20} /> {t('admin.roles.title')}</h1>
+        <h1><KeyRound size={20} /> {t('admin.roles.title')}</h1>
         <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
           <Plus size={14} /> {t('admin.roles.newRole')}
         </button>
