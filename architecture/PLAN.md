@@ -13,7 +13,7 @@
 | [DATABASE.md](DATABASE.md) | Database schema (all tables), indexes, RLS policies, vector search query, sharing model | ~340 |
 | [API.md](API.md) | REST API endpoints, MCP tools, API key flows, registration flows, error handling | ~310 |
 | [MONETIZATION.md](MONETIZATION.md) | Developer tiers, vendor tiers, billing units, marketplace strategy, revenue streams | ~270 |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Docker Compose, .env config, S3 structure, security, Celery Beat, testing, CI/CD, logging | ~370 |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Docker Compose, .env config, S3 structure, security, domain strategy (lexiro.io + lexiro.dev), Celery Beat, testing, CI/CD, logging | ~370 |
 | [FLOWS.md](FLOWS.md) | Ingestion pipeline, supported formats, E2E flows (developer, vendor docs, firmware) | ~190 |
 | [MARKET_RESEARCH.md](MARKET_RESEARCH.md) | Market sizing, competitive analysis, pricing rationale, revenue projections | ~270 |
 | [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md) | Per-component cost breakdown, unit economics, break-even, revenue vs infra cross-check | ~460 |

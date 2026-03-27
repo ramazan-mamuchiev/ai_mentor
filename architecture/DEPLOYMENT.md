@@ -450,16 +450,17 @@ CTA flow: every article on `lexiro.dev/blog` ends with **"Try Lexiro free → le
 ## Security
 
 ### Transport
-- **HTTPS only** in production — GlobalSign AlphaSSL certificate (valid until Oct 2026)
+- **HTTPS only** in production
+- `lexiro.io` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
+- `lexiro.dev` — Let's Encrypt (auto-renewal via certbot), HTTPS mandatory (`.dev` is in HSTS preload list)
 - TLS 1.2 + TLS 1.3, HTTP/2 enabled
 - HTTP → HTTPS redirect (301) for all requests
 - HSTS: `max-age=63072000; includeSubDomains; preload`
-- SSL files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
 - HTTP allowed only in development (`APP_ENV=development`)
 
 ### CORS
 - Configurable `CORS_ORIGINS` via env variable
-- Production: only `https://lexiro.io` and customer domains
+- Production: `https://lexiro.io`, `https://lexiro.dev`, and customer domains
 - Credentials mode: `allow_credentials=True` (for JWT cookies)
 
 ### Input Validation
