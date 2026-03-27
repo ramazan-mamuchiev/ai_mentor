@@ -48,6 +48,22 @@
   font-size: 12.5px;
   padding: 6px 10px 6px 14px;
   gap: 8px;
+  border-left: none;
+}
+
+.nav-item--sub.nav-item--active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.10), rgba(219, 39, 119, 0.08));
+  color: var(--accent2);
+  border-left: 2.5px solid var(--accent3);
+}
+
+[data-theme='dark'] .nav-item--sub.nav-item--active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(219, 39, 119, 0.10));
+  color: #c4b5fd;
+}
+
+.nav-item--sub:hover:not(.nav-item--active) {
+  color: var(--accent2);
 }
 
 .admin-subnav--collapsed {
@@ -63,6 +79,13 @@
   justify-content: center;
   padding: 8px;
   width: auto;
+  border-left: none;
+}
+
+.admin-subnav--collapsed .nav-item--sub.nav-item--active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(219, 39, 119, 0.08));
+  border-left: none;
+  border-radius: 8px;
 }
 
 .admin-page-header {
