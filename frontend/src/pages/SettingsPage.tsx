@@ -180,32 +180,34 @@ function ApiKeysTab() {
       ) : keys.length === 0 ? (
         <p className="settings-empty">{t('settings.noKeys')}</p>
       ) : (
-        <table className="api-keys-table">
-          <thead>
-            <tr>
-              <th>{t('settings.keyName')}</th>
-              <th>{t('settings.keyPrefix')}</th>
-              <th>{t('settings.keyCreated')}</th>
-              <th>{t('settings.keyLastUsed')}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {keys.map(k => (
-              <tr key={k.id}>
-                <td>{k.name || '—'}</td>
-                <td><code>{k.key_prefix}</code></td>
-                <td>{new Date(k.created_at).toLocaleDateString()}</td>
-                <td>{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}</td>
-                <td>
-                  <button onClick={() => setDeleteTarget(k)} className="btn-icon btn-danger" data-tooltip={t('settings.deleteKey')}>
-                    <Trash2 size={16} />
-                  </button>
-                </td>
+        <div className="api-keys-table-wrap">
+          <table className="api-keys-table">
+            <thead>
+              <tr>
+                <th>{t('settings.keyName')}</th>
+                <th>{t('settings.keyPrefix')}</th>
+                <th className="hide-mobile">{t('settings.keyCreated')}</th>
+                <th className="hide-mobile">{t('settings.keyLastUsed')}</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {keys.map(k => (
+                <tr key={k.id}>
+                  <td>{k.name || '—'}</td>
+                  <td><code>{k.key_prefix}</code></td>
+                  <td className="hide-mobile">{new Date(k.created_at).toLocaleDateString()}</td>
+                  <td className="hide-mobile">{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}</td>
+                  <td>
+                    <button onClick={() => setDeleteTarget(k)} className="btn-icon btn-danger" data-tooltip={t('settings.deleteKey')}>
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {deleteTarget && (

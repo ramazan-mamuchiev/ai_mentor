@@ -815,6 +815,11 @@
   margin-top: 0.75rem;
 }
 
+.api-keys-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .api-keys-table {
   width: 100%;
   border-collapse: collapse;
@@ -943,4 +948,18 @@
 [data-theme="dark"] .profile-tier-badge[data-tier="pro"] {
   background: rgba(139, 92, 246, 0.15);
   color: #a78bfa;
+}
+
+@media (max-width: 640px) {
+  .hide-mobile {
+    display: none;
+  }
+
+  .api-key-create {
+    flex-direction: column;
+  }
+
+  .settings-page {
+    padding: 1.25rem;
+  }
 }
