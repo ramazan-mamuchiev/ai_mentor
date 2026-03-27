@@ -11,7 +11,7 @@ export interface SourceInfo {
 }
 
 export interface DebugInfo {
-  session_id: number
+  session_id: string
   message_id: number
   user_message_id: number
   timestamp: string
@@ -98,7 +98,7 @@ export interface DebugInfo {
 
 export interface ChatMessage {
   id: number
-  session_id: number
+  session_id: string
   role: 'user' | 'assistant'
   content: string
   sources?: SourceInfo[] | null
@@ -111,7 +111,7 @@ export interface ChatMessage {
 }
 
 export interface ChatSession {
-  id: number
+  id: string
   title: string | null
   product_id: number | null
   product_filter: string | null
@@ -124,7 +124,7 @@ export interface ChatSession {
 }
 
 export interface SessionDetail {
-  id: number
+  id: string
   title: string | null
   product_id: number | null
   product_filter: string | null
@@ -353,7 +353,7 @@ export interface ProductDebugInfo {
 
 export interface DocumentUsageEntry {
   created_at: string
-  session_id: number
+  session_id: string
   message_id: number
   heading_path: string
   similarity: number

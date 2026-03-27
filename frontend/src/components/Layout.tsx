@@ -71,11 +71,11 @@ const ADMIN_SUB_NAV: readonly { path: string; icon: typeof LayoutDashboard; labe
 
 interface Props {
   sessions: ChatSession[]
-  activeSessionId: number | null
+  activeSessionId: string | null
   theme: 'light' | 'dark'
-  onSelectSession: (id: number) => void
+  onSelectSession: (id: string) => void
   onNewSession: () => void
-  onDeleteSession: (id: number) => void
+  onDeleteSession: (id: string) => void
   onToggleTheme: () => void
   onLogoClick?: () => void
   children: ReactNode

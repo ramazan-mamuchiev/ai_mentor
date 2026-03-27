@@ -5,15 +5,15 @@ import type { ChatSession } from '../types'
 
 interface Props {
   sessions: ChatSession[]
-  activeSessionId: number | null
-  onSelect: (id: number) => void
+  activeSessionId: string | null
+  onSelect: (id: string) => void
   onNew: () => void
-  onDelete: (id: number) => void
+  onDelete: (id: string) => void
 }
 
 export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDelete }: Props) {
   const { t } = useTranslation()
-  const [menuOpenId, setMenuOpenId] = useState<number | null>(null)
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const closeMenu = useCallback(() => setMenuOpenId(null), [])

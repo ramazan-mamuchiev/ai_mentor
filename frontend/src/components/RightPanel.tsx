@@ -62,7 +62,7 @@ type PanelContent = SourcesContent | DebugContent
 
 interface Props {
   content: PanelContent
-  sessionId?: number
+  sessionId?: string
   messageId?: number
   onClose: () => void
 }

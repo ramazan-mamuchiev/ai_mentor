@@ -12,8 +12,8 @@ interface Props {
   streamingSources?: SourceInfo[]
   streamingStage?: string
   onRetry?: () => void
-  onShowSources?: (sources: SourceInfo[], sessionId?: number, messageId?: number) => void
-  onShowDebug?: (debug: DebugInfo, sessionId?: number, messageId?: number) => void
+  onShowSources?: (sources: SourceInfo[], sessionId?: string, messageId?: number) => void
+  onShowDebug?: (debug: DebugInfo, sessionId?: string, messageId?: number) => void
   onEditMessage?: (content: string) => void
   onShareMessage?: (messageId: number) => void
   onFeedbackChange?: (messageId: number, feedback: 'up' | 'down') => void

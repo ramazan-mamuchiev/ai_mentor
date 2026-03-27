@@ -32,7 +32,7 @@ interface Props {
   onClearProduct?: () => void
   onLockProduct?: () => void
   onUnlockProduct?: () => void
-  sessionId?: number | null
+  sessionId?: string | null
 }
 
 export function ChatWindow({
@@ -127,15 +127,15 @@ export function ChatWindow({
     mode: 'sources' | 'debug'
     sources?: SourceInfo[]
     debug?: DebugInfo
-    sessionId?: number
+    sessionId?: string
     messageId?: number
   } | null>(null)
 
-  const handleShowSources = useCallback((sources: SourceInfo[], sessionId?: number, messageId?: number) => {
+  const handleShowSources = useCallback((sources: SourceInfo[], sessionId?: string, messageId?: number) => {
     setRightPanel({ mode: 'sources', sources, sessionId, messageId })
   }, [])
 
-  const handleShowDebug = useCallback((debug: DebugInfo, sessionId?: number, messageId?: number) => {
+  const handleShowDebug = useCallback((debug: DebugInfo, sessionId?: string, messageId?: number) => {
     setRightPanel({ mode: 'debug', debug, sessionId, messageId })
   }, [])
 
@@ -143,7 +143,7 @@ export function ChatWindow({
     handleSend(content)
   }, [handleSend])
 
-  const [shareModal, setShareModal] = useState<{ type: 'session' | 'message'; id: number } | null>(null)
+  const [shareModal, setShareModal] = useState<{ type: 'session' | 'message'; id: number | string } | null>(null)
 
   const handleShareMessage = useCallback((messageId: number) => {
     setShareModal({ type: 'message', id: messageId })
@@ -242,7 +242,7 @@ export function ChatWindow({
                 <ChatMessageComponent
                   message={{
                     id: -1,
-                    session_id: 0,
+                    session_id: '',
                     role: 'assistant',
                     content: '',
                     created_at: new Date().toISOString(),

@@ -7,9 +7,11 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
+    ApiKey,
     ChatMessage,
     ChatMessageAnalytics,
     ChatSession,
+    Chunk,
     Document,
     DocumentUsageLog,
     FirmwareVersion,
@@ -17,6 +19,7 @@ from app.models import (
     PromptTemplate,
     Role,
     SearchAnalytics,
+    SharedLink,
     Tenant,
     TenantRole,
     UsageLog,
@@ -468,6 +471,14 @@ async def get_platform_overview(session: AsyncSession) -> dict:
         "FROM usage_log WHERE created_at >= :since"
     ), {"since": since})).mappings().one()
 
+    total_chunks = await session.scalar(select(func.count()).select_from(Chunk)) or 0
+    total_api_keys = await session.scalar(select(func.count()).select_from(ApiKey)) or 0
+    total_shared_links = await session.scalar(select(func.count()).select_from(SharedLink)) or 0
+    total_prompts = await session.scalar(select(func.count()).select_from(PromptTemplate)) or 0
+    customized_prompts = await session.scalar(
+        select(func.count()).select_from(PromptTemplate).where(PromptTemplate.is_customized.is_(True))
+    ) or 0
+
     return {
         "total_tenants": total_tenants,
         "active_tenants": active_tenants,
@@ -480,6 +491,11 @@ async def get_platform_overview(session: AsyncSession) -> dict:
         "total_tokens_30d": int(usage["tokens"]),
         "total_requests_30d": int(usage["cnt"]),
         "total_charge_usd_30d": str(usage["charge"]),
+        "total_chunks": total_chunks,
+        "total_api_keys": total_api_keys,
+        "total_shared_links": total_shared_links,
+        "total_prompts": total_prompts,
+        "customized_prompts": customized_prompts,
     }
 
 
@@ -687,6 +703,26 @@ async def get_chat_stats(session: AsyncSession, days: int = 30) -> dict:
         },
         "models": models,
         "avg_messages_per_session": round(float(avg_msgs), 1) if avg_msgs else None,
+        "error_rate": await _get_error_rate(session, since),
+    }
+
+
+async def _get_error_rate(session: AsyncSession, since: datetime) -> dict:
+    total = await session.scalar(
+        select(func.count()).select_from(ChatMessageAnalytics)
+        .where(ChatMessageAnalytics.created_at >= since)
+    ) or 0
+    errors = await session.scalar(
+        select(func.count()).select_from(ChatMessageAnalytics)
+        .where(
+            ChatMessageAnalytics.created_at >= since,
+            ChatMessageAnalytics.finish_reason.notin_(["stop", "STOP", None, ""]),
+        )
+    ) or 0
+    return {
+        "total": total,
+        "errors": errors,
+        "rate": round(errors / total * 100, 1) if total > 0 else 0.0,
     }
 
 
@@ -767,6 +803,12 @@ async def get_document_stats(session: AsyncSession, days: int = 30) -> dict:
             for r in format_rows
         ],
         "unused_count": unused,
+        "total_chunks": await session.scalar(select(func.count()).select_from(Chunk)) or 0,
+        "total_size_bytes": await session.scalar(select(func.sum(Document.file_size_bytes))) or 0,
+        "used_chunks_count": await session.scalar(
+            select(func.count(func.distinct(DocumentUsageLog.chunk_id)))
+            .where(DocumentUsageLog.chunk_id.isnot(None))
+        ) or 0,
     }
 
 
@@ -873,7 +915,26 @@ async def get_cost_stats(session: AsyncSession, days: int = 30) -> dict:
              "request_count": int(r["cnt"])}
             for r in by_channel
         ],
+        "top_api_keys": await _get_top_api_keys(session, since),
     }
+
+
+async def _get_top_api_keys(session: AsyncSession, since: datetime) -> list[dict]:
+    rows = (await session.execute(text(
+        "SELECT ul.api_key_id, ak.key_prefix, t.email, "
+        "COUNT(*) AS cnt, COALESCE(SUM(ul.charge_usd),0) AS charge "
+        "FROM usage_log ul "
+        "JOIN api_keys ak ON ak.id = ul.api_key_id "
+        "JOIN tenants t ON t.id = ak.tenant_id "
+        "WHERE ul.created_at >= :since AND ul.api_key_id IS NOT NULL "
+        "GROUP BY ul.api_key_id, ak.key_prefix, t.email "
+        "ORDER BY cnt DESC LIMIT 10"
+    ), {"since": since})).mappings().all()
+    return [
+        {"key_prefix": r["key_prefix"], "email": r["email"],
+         "request_count": int(r["cnt"]), "charge_usd": str(r["charge"])}
+        for r in rows
+    ]
 
 
 # ---------------------------------------------------------------------------

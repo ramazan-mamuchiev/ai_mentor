@@ -22,7 +22,7 @@ interface Props {
 async function createShareLink(type: ShareType, id: number | string): Promise<SharedLinkResponse> {
   switch (type) {
     case 'session':
-      return shareSession(id as number)
+      return shareSession(id as string)
     case 'message':
       return shareMessage(id as number)
     case 'debug_chat':

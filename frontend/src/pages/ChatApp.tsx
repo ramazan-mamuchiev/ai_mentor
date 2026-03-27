@@ -19,10 +19,10 @@ import { SettingsPage } from './SettingsPage'
 export function ChatApp() {
   const { theme, toggle: toggleTheme } = useTheme()
   const [sessions, setSessions] = useState<ChatSession[]>([])
-  const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
 
-  const handleProductDetected = useCallback((sessionId: number, update: {
+  const handleProductDetected = useCallback((sessionId: string, update: {
     product_filter?: string | null
     product_filter_source?: string | null
     version_filter?: string | null
@@ -72,7 +72,7 @@ export function ChatApp() {
     }
   }, [reset])
 
-  const handleSelectSession = useCallback(async (id: number) => {
+  const handleSelectSession = useCallback(async (id: string) => {
     reset()
     setActiveSessionId(id)
     try {
@@ -83,7 +83,7 @@ export function ChatApp() {
     }
   }, [reset, setMessages])
 
-  const handleDeleteSession = useCallback(async (id: number) => {
+  const handleDeleteSession = useCallback(async (id: string) => {
     try {
       await deleteSession(id)
       setSessions(prev => prev.filter(s => s.id !== id))
@@ -106,8 +106,8 @@ export function ChatApp() {
         sessionId = session.id
       } catch {
         setMessages([
-          { id: Date.now(), session_id: 0, role: 'user', content, created_at: new Date().toISOString() },
-          { id: Date.now() + 1, session_id: 0, role: 'assistant', content: '', error_code: 'networkError', created_at: new Date().toISOString() },
+          { id: Date.now(), session_id: '', role: 'user', content, created_at: new Date().toISOString() },
+          { id: Date.now() + 1, session_id: '', role: 'assistant', content: '', error_code: 'networkError', created_at: new Date().toISOString() },
         ])
         return
       }

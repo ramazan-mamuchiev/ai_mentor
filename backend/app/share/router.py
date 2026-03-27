@@ -1,6 +1,7 @@
 """Share API — public snapshot links for chat sessions, messages, and debug info."""
 
 import logging
+import uuid as _uuid
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -53,17 +54,19 @@ def _build_message_snapshot(msg: ChatMessage) -> dict:
     }
 
 
-@router.post("/share/session/{session_id}", response_model=SharedLinkResponse, status_code=201)
-async def share_session(session_id: int, request: Request):
+@router.post("/share/session/{session_uuid}", response_model=SharedLinkResponse, status_code=201)
+async def share_session(session_uuid: _uuid.UUID, request: Request):
     """Create a public snapshot link for an entire chat session."""
     async with async_session() as db:
-        chat_session = await db.get(ChatSession, session_id)
+        chat_session = (await db.execute(
+            select(ChatSession).where(ChatSession.uuid == session_uuid)
+        )).scalar_one_or_none()
         if not chat_session:
             raise HTTPException(status_code=404, detail="Session not found")
 
         msgs_result = await db.execute(
             select(ChatMessage)
-            .where(ChatMessage.session_id == session_id)
+            .where(ChatMessage.session_id == chat_session.id)
             .order_by(ChatMessage.created_at)
         )
         messages = msgs_result.scalars().all()
@@ -74,7 +77,7 @@ async def share_session(session_id: int, request: Request):
             "version": 1,
             "share_type": "session",
             "session": {
-                "id": chat_session.id,
+                "id": str(chat_session.uuid),
                 "title": chat_session.title,
                 "product_filter": chat_session.product_filter,
                 "version_filter": chat_session.version_filter,
@@ -87,7 +90,7 @@ async def share_session(session_id: int, request: Request):
 
         link = SharedLink(
             token=token,
-            session_id=session_id,
+            session_id=chat_session.id,
             share_type="session",
             title=title,
             snapshot_json=snapshot,
@@ -96,7 +99,7 @@ async def share_session(session_id: int, request: Request):
         await db.commit()
         await db.refresh(link)
 
-        logger.info("Shared session", extra={"session_id": session_id, "token": token})
+        logger.info("Shared session", extra={"session_id": chat_session.id, "token": token})
         return _link_response(link, request)
 
 
@@ -344,12 +347,17 @@ async def deactivate_shared_link(token: str):
 
 
 @router.get("/share/links", response_model=list[SharedLinkResponse])
-async def list_shared_links(request: Request, session_id: int | None = None):
-    """List all active shared links, optionally filtered by session_id."""
+async def list_shared_links(request: Request, session_uuid: _uuid.UUID | None = None):
+    """List all active shared links, optionally filtered by session UUID."""
     async with async_session() as db:
         query = select(SharedLink).where(SharedLink.is_active.is_(True))
-        if session_id is not None:
-            query = query.where(SharedLink.session_id == session_id)
+        if session_uuid is not None:
+            cs = (await db.execute(
+                select(ChatSession.id).where(ChatSession.uuid == session_uuid)
+            )).scalar_one_or_none()
+            if cs is None:
+                return []
+            query = query.where(SharedLink.session_id == cs)
         query = query.order_by(SharedLink.created_at.desc())
 
         result = await db.execute(query)

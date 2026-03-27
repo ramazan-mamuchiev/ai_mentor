@@ -493,6 +493,7 @@ async def send_message(
                             progress_callback=_on_progress,
                             role_ids=_role_ids,
                             allowed_query_types=_allowed_qt,
+                            tenant_id=tenant_id_str,
                         )
                         rag_result_holder["messages"] = msgs
                         rag_result_holder["sources"] = srcs

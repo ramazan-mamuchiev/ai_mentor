@@ -178,7 +178,7 @@ export async function deleteDocumentAdmin(id: number): Promise<void> {
 // --- Chat Audit ---
 
 export interface AdminChatSessionItem {
-  id: number
+  id: string
   tenant_id: string | null
   tenant_email: string | null
   title: string | null
@@ -221,7 +221,7 @@ export interface AdminChatSessionListResponse {
 
 export interface AdminChatMessageSearchItem {
   message_id: number
-  session_id: number
+  session_id: string
   role: string
   content: string
   tenant_email: string | null
@@ -247,7 +247,7 @@ export async function listChatSessionsAdmin(params: {
   return handleResponse(res)
 }
 
-export async function getChatSessionAdmin(id: number): Promise<AdminChatSessionDetail> {
+export async function getChatSessionAdmin(id: string): Promise<AdminChatSessionDetail> {
   const res = await fetch(`${BASE}/chat/sessions/${id}`, { credentials: 'include' })
   return handleResponse(res)
 }
@@ -276,6 +276,11 @@ export interface PlatformOverview {
   total_tokens_30d: number
   total_requests_30d: number
   total_charge_usd_30d: string
+  total_chunks: number
+  total_api_keys: number
+  total_shared_links: number
+  total_prompts: number
+  customized_prompts: number
 }
 
 export interface DailyUsageStat {
@@ -361,12 +366,19 @@ export interface ResponseTimeStat {
   daily: Array<{ date: string; avg_total: number; avg_llm: number; avg_rag: number }>
 }
 
+export interface ErrorRateStat {
+  total: number
+  errors: number
+  rate: number
+}
+
 export interface ChatStats {
   feedback: FeedbackStat
   query_types: QueryTypeStat[]
   response_time: ResponseTimeStat
   models: ModelUsageStat[]
   avg_messages_per_session: number | null
+  error_rate: ErrorRateStat
 }
 
 export interface TopDocumentStat {
@@ -393,6 +405,9 @@ export interface DocumentStats {
   top_documents: TopDocumentStat[]
   formats: DocumentFormatStat[]
   unused_count: number
+  total_chunks: number
+  total_size_bytes: number
+  used_chunks_count: number
 }
 
 export interface SearchSourceStat {
@@ -420,6 +435,13 @@ export interface CostByChannelStat {
   request_count: number
 }
 
+export interface TopApiKeyStat {
+  key_prefix: string
+  email: string
+  request_count: number
+  charge_usd: string
+}
+
 export interface CostStats {
   total_charge_usd: string
   total_cogs_usd: string
@@ -429,6 +451,7 @@ export interface CostStats {
   daily: Array<{ date: string; charge_usd: string; cogs_usd: string; requests: number }>
   by_model: CostByModelStat[]
   by_channel: CostByChannelStat[]
+  top_api_keys: TopApiKeyStat[]
 }
 
 export async function getChatStats(days = 30): Promise<ChatStats> {

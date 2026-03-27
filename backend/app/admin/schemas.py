@@ -137,6 +137,11 @@ class PlatformOverview(BaseModel):
     total_tokens_30d: int
     total_requests_30d: int
     total_charge_usd_30d: str
+    total_chunks: int = 0
+    total_api_keys: int = 0
+    total_shared_links: int = 0
+    total_prompts: int = 0
+    customized_prompts: int = 0
 
 class DailyUsageStat(BaseModel):
     date: str
@@ -193,12 +198,18 @@ class ResponseTimeStat(BaseModel):
     avg_tokens_per_sec: float | None
     daily: list[dict] = []
 
+class ErrorRateStat(BaseModel):
+    total: int
+    errors: int
+    rate: float
+
 class ChatStats(BaseModel):
     feedback: FeedbackStat
     query_types: list[QueryTypeStat]
     response_time: ResponseTimeStat
     models: list[ModelUsageStat]
     avg_messages_per_session: float | None
+    error_rate: ErrorRateStat
 
 class TopDocumentStat(BaseModel):
     document_id: int
@@ -222,6 +233,9 @@ class DocumentStats(BaseModel):
     top_documents: list[TopDocumentStat] = []
     formats: list[DocumentFormatStat] = []
     unused_count: int = 0
+    total_chunks: int = 0
+    total_size_bytes: int = 0
+    used_chunks_count: int = 0
 
 class SearchSourceStat(BaseModel):
     source: str
@@ -249,6 +263,12 @@ class CostByChannelStat(BaseModel):
     total_charge_usd: str
     request_count: int
 
+class TopApiKeyStat(BaseModel):
+    key_prefix: str
+    email: str
+    request_count: int
+    charge_usd: str
+
 class CostStats(BaseModel):
     total_charge_usd: str
     total_cogs_usd: str
@@ -258,6 +278,7 @@ class CostStats(BaseModel):
     daily: list[dict] = []
     by_model: list[CostByModelStat] = []
     by_channel: list[CostByChannelStat] = []
+    top_api_keys: list[TopApiKeyStat] = []
 
 
 # --- Logs ---

@@ -1,7 +1,7 @@
 import { apiFetch } from './client'
 import type { SharedContentResponse, SharedDebugContentResponse, SharedLinkResponse } from '../types'
 
-export async function shareSession(sessionId: number): Promise<SharedLinkResponse> {
+export async function shareSession(sessionId: string): Promise<SharedLinkResponse> {
   return apiFetch<SharedLinkResponse>(`/share/session/${sessionId}`, {
     method: 'POST',
     body: '{}',
@@ -44,7 +44,7 @@ export async function deleteSharedLink(token: string): Promise<void> {
   return apiFetch<void>(`/share/${token}`, { method: 'DELETE' })
 }
 
-export async function listSharedLinks(sessionId?: number): Promise<SharedLinkResponse[]> {
-  const params = sessionId != null ? `?session_id=${sessionId}` : ''
+export async function listSharedLinks(sessionId?: string): Promise<SharedLinkResponse[]> {
+  const params = sessionId != null ? `?session_uuid=${sessionId}` : ''
   return apiFetch<SharedLinkResponse[]>(`/share/links${params}`)
 }

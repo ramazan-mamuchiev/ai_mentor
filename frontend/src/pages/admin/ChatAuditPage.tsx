@@ -48,7 +48,7 @@ function toSourceInfos(sources: AdminChatMessage['sources']): SourceInfo[] {
   }))
 }
 
-function SessionDetail({ sessionId }: { sessionId: number }) {
+function SessionDetail({ sessionId }: { sessionId: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [detail, setDetail] = useState<AdminChatSessionDetail | null>(null)
@@ -59,7 +59,7 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
     mode: 'sources' | 'debug'
     sources?: SourceInfo[]
     debug?: DebugInfo
-    sessionId?: number
+    sessionId?: string
     messageId?: number
   } | null>(null)
 
@@ -72,11 +72,11 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
       .finally(() => setLoading(false))
   }, [sessionId])
 
-  const handleShowSources = useCallback((sources: SourceInfo[], sid?: number, mid?: number) => {
+  const handleShowSources = useCallback((sources: SourceInfo[], sid?: string, mid?: number) => {
     setRightPanel({ mode: 'sources', sources, sessionId: sid, messageId: mid })
   }, [])
 
-  const handleShowDebug = useCallback((debug: DebugInfo, sid?: number, mid?: number) => {
+  const handleShowDebug = useCallback((debug: DebugInfo, sid?: string, mid?: number) => {
     setRightPanel({ mode: 'debug', debug, sessionId: sid, messageId: mid })
   }, [])
 
@@ -106,7 +106,7 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
             <ArrowLeft size={14} /> {t('admin.chats.backToSessions')}
           </button>
           <div className="admin-page-header" style={{ marginTop: 8 }}>
-            <h1>{detail.title || `#${detail.id}`}</h1>
+            <h1>{detail.title || detail.id.slice(0, 8)}</h1>
             <p>
               {detail.tenant_email || t('admin.chats.unknownTenant')}
               {detail.product_filter ? ` · ${detail.product_filter}` : ''}
@@ -150,7 +150,7 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
                         </>
                       )}
                       <span className="audit-meta-sep">·</span>
-                      <span className="message-ids">S#{detail.id} M#{m.id}</span>
+                      <span className="message-ids">S:{String(detail.id).slice(0, 8)} M#{m.id}</span>
                       {m.feedback && (
                         <>
                           <span className="audit-meta-sep">·</span>
@@ -176,7 +176,7 @@ function SessionDetail({ sessionId }: { sessionId: number }) {
                       <span className="audit-meta-sep">·</span>
                       <span className="audit-meta-time">{fmtTime(m.created_at)}</span>
                       <span className="audit-meta-sep">·</span>
-                      <span className="message-ids">S#{detail.id} M#{m.id}</span>
+                      <span className="message-ids">S:{String(detail.id).slice(0, 8)} M#{m.id}</span>
                     </div>
                   )}
                 </div>
@@ -435,7 +435,7 @@ function SessionListView() {
               <div className="chat-audit-msg-row__header">
                 <span className={`badge ${m.role === 'user' ? 'badge--blue' : 'badge--gray'}`}>{m.role}</span>
                 <span className="chat-audit-msg-row__tenant">{m.tenant_email || '—'}</span>
-                <span className="chat-audit-msg-row__session">#{m.session_id}</span>
+                <span className="chat-audit-msg-row__session">{String(m.session_id).slice(0, 8)}</span>
                 <span className="chat-audit-msg-row__date">{new Date(m.created_at).toLocaleDateString()}</span>
                 <ChevronRight size={14} className="chat-audit-msg-row__arrow" />
               </div>
@@ -457,7 +457,7 @@ function SessionListView() {
                 onClick={() => navigate(`/app/admin/chats/${s.id}`)}
               >
                 <div className="chat-audit-session-row__main">
-                  <span className="chat-audit-session-row__id">#{s.id}</span>
+                  <span className="chat-audit-session-row__id">{String(s.id).slice(0, 8)}</span>
                   <span className="chat-audit-session-row__title">
                     {s.title || t('admin.chats.untitled')}
                   </span>
@@ -494,6 +494,6 @@ function SessionListView() {
 
 export function ChatAuditPage() {
   const { id } = useParams<{ id: string }>()
-  if (id) return <SessionDetail sessionId={Number(id)} />
+  if (id) return <SessionDetail sessionId={id} />
   return <SessionListView />
 }
