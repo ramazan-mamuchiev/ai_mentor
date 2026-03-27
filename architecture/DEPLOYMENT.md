@@ -388,7 +388,7 @@ Two domains with distinct purposes:
 | `lexiro.io/vendors` | Vendor partnership page (planned) |
 | `lexiro.io/enterprise` | Enterprise demo booking (planned) |
 
-### lexiro.dev — Developer Hub (planned)
+### lexiro.dev — Developer Hub (Phase 1: 301 → lexiro.io)
 
 | URL | Content |
 |-----|---------|
@@ -413,8 +413,8 @@ Two domains with distinct purposes:
 
 ### SSL
 
-- `lexiro.io` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/lexiro/ssl/`
-- `lexiro.dev` — Let's Encrypt (auto-renewal via certbot). **HTTPS is mandatory** for `.dev` domains (HSTS preload list)
+- `lexiro.io` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
+- `lexiro.dev` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.dev.fullchain.pem` + `lexiro.dev.key`. **HTTPS is mandatory** for `.dev` domains (HSTS preload list)
 
 ### Nginx Configuration
 
@@ -430,8 +430,8 @@ lexiro.dev  →  Phase 1: 301 redirect → lexiro.io
 
 | Phase | When | lexiro.dev behavior |
 |-------|------|---------------------|
-| **Phase 1** (now) | March 2026 | SSL + 301 redirect → `lexiro.io` |
-| **Phase 2** | Month 1-2 | Static site with API docs + MCP guide |
+| **Phase 1** ✅ | March 2026 | SSL + 301 redirect → `lexiro.io` |
+| **Phase 2** (now) | Month 1-2 | Static site with API docs + MCP guide |
 | **Phase 3** | Month 3-4 | Add blog (first SEO articles from GTM strategy) |
 | **Phase 4** | Month 6+ | Full Developer Hub: docs, blog, guides, changelog, status |
 
@@ -452,7 +452,7 @@ CTA flow: every article on `lexiro.dev/blog` ends with **"Try Lexiro free → le
 ### Transport
 - **HTTPS only** in production
 - `lexiro.io` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
-- `lexiro.dev` — Let's Encrypt (auto-renewal via certbot), HTTPS mandatory (`.dev` is in HSTS preload list)
+- `lexiro.dev` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.dev.fullchain.pem` + `lexiro.dev.key`, HTTPS mandatory (`.dev` is in HSTS preload list)
 - TLS 1.2 + TLS 1.3, HTTP/2 enabled
 - HTTP → HTTPS redirect (301) for all requests
 - HSTS: `max-age=63072000; includeSubDomains; preload`
