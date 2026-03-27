@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Save } from 'lucide-react'
 import { getRole, patchRole, type RoleDetail } from '../../api/admin'
 
@@ -25,6 +26,22 @@ const LIMIT_KEYS = [
 const ALL_QUERY_TYPES = ['overview', 'technical', 'code', 'comparison', 'troubleshooting', 'chitchat']
 
 export function RoleDetailPage() {
+  const { t } = useTranslation()
+  const GROUP_LABELS: Record<string, string> = {
+    Chat: t('admin.roleDetail.groupChat'),
+    Documents: t('admin.roleDetail.groupDocuments'),
+    Products: t('admin.roleDetail.groupProducts'),
+    Other: t('admin.roleDetail.groupOther'),
+    Admin: t('admin.roleDetail.groupAdmin'),
+  }
+  const LIMIT_LABELS: Record<string, string> = {
+    max_documents: t('admin.roleDetail.maxDocuments'),
+    max_tokens_per_day: t('admin.roleDetail.maxTokensPerDay'),
+    max_file_size_mb: t('admin.roleDetail.maxFileSizeMB'),
+    max_sessions: t('admin.roleDetail.maxSessions'),
+    max_api_keys: t('admin.roleDetail.maxApiKeys'),
+  }
+
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [role, setRole] = useState<RoleDetail | null>(null)
@@ -97,7 +114,7 @@ export function RoleDetailPage() {
 
       const updated = await patchRole(Number(id), { name, description, priority, permissions })
       setRole(updated)
-      setSuccess('Saved')
+      setSuccess(t('admin.common.saved'))
       setTimeout(() => setSuccess(''), 2000)
     } catch (e: any) {
       setError(e.message)
@@ -112,25 +129,25 @@ export function RoleDetailPage() {
 
   const toggleQueryType = (qt: string) => {
     setQueryTypes(prev =>
-      prev.includes(qt) ? prev.filter(t => t !== qt) : [...prev, qt]
+      prev.includes(qt) ? prev.filter(x => x !== qt) : [...prev, qt]
     )
   }
 
-  if (loading) return <div className="admin-loading">Loading...</div>
-  if (!role) return <div className="admin-error">Role not found</div>
+  if (loading) return <div className="admin-loading">{t('admin.roleDetail.loading')}</div>
+  if (!role) return <div className="admin-error">{t('admin.roleDetail.notFound')}</div>
 
   return (
     <div className="admin-page">
       <div className="admin-page-header">
         <button className="btn" onClick={() => navigate('/app/admin/roles')}>
-          <ArrowLeft size={14} /> Back
+          <ArrowLeft size={14} /> {t('admin.common.back')}
         </button>
         <h1>
           {role.is_system ? '🔒 ' : ''}
           {role.slug}
         </h1>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          <Save size={14} /> {saving ? 'Saving...' : 'Save'}
+          <Save size={14} /> {saving ? t('admin.common.saving') : t('admin.common.save')}
         </button>
       </div>
 
@@ -138,27 +155,27 @@ export function RoleDetailPage() {
       {success && <div className="admin-success">{success}</div>}
 
       <div className="admin-card">
-        <h3>Basic Info</h3>
+        <h3>{t('admin.roleDetail.basicInfo')}</h3>
         <div className="admin-form-row">
-          <label>Name</label>
+          <label>{t('admin.roleDetail.name')}</label>
           <input value={name} onChange={e => setName(e.target.value)} />
         </div>
         <div className="admin-form-row">
-          <label>Description</label>
+          <label>{t('admin.roleDetail.description')}</label>
           <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} />
         </div>
         <div className="admin-form-row">
-          <label>Priority</label>
+          <label>{t('admin.roleDetail.priority')}</label>
           <input type="number" value={priority} onChange={e => setPriority(Number(e.target.value))} />
-          <small>Higher priority wins for prompt overrides when user has multiple roles</small>
+          <small>{t('admin.roleDetail.priorityHint')}</small>
         </div>
       </div>
 
       <div className="admin-card">
-        <h3>Feature Permissions</h3>
+        <h3>{t('admin.roleDetail.featurePermissions')}</h3>
         {Object.entries(FEATURE_GROUPS).map(([group, keys]) => (
           <div key={group} style={{ marginBottom: 12 }}>
-            <strong>{group}</strong>
+            <strong>{GROUP_LABELS[group] || group}</strong>
             <div className="admin-checkbox-grid">
               {keys.map(key => (
                 <label key={key} className="admin-checkbox-label">
@@ -176,25 +193,25 @@ export function RoleDetailPage() {
       </div>
 
       <div className="admin-card">
-        <h3>Limits</h3>
-        <small>Leave empty for unlimited</small>
+        <h3>{t('admin.roleDetail.limits')}</h3>
+        <small>{t('admin.roleDetail.limitsHint')}</small>
         {LIMIT_KEYS.map(({ key, label }) => (
           <div className="admin-form-row" key={key}>
-            <label>{label}</label>
+            <label>{LIMIT_LABELS[key] || label}</label>
             <input
               type="number"
               value={limits[key] || ''}
               onChange={e => setLimits(prev => ({ ...prev, [key]: e.target.value }))}
-              placeholder="unlimited"
+              placeholder={t('admin.roleDetail.unlimited')}
             />
           </div>
         ))}
       </div>
 
       <div className="admin-card">
-        <h3>Chat Context</h3>
+        <h3>{t('admin.roleDetail.chatContext')}</h3>
         <div className="admin-form-row">
-          <label>Allowed Query Types</label>
+          <label>{t('admin.roleDetail.allowedQueryTypes')}</label>
           <div className="admin-checkbox-grid">
             {ALL_QUERY_TYPES.map(qt => (
               <label key={qt} className="admin-checkbox-label">
@@ -209,13 +226,13 @@ export function RoleDetailPage() {
           </div>
         </div>
         <div className="admin-form-row">
-          <label>Suggestion Template Role</label>
+          <label>{t('admin.roleDetail.suggestionTemplateRole')}</label>
           <input value={suggestionRole} onChange={e => setSuggestionRole(e.target.value)} />
         </div>
       </div>
 
       <div className="admin-card">
-        <h3>Permissions JSON</h3>
+        <h3>{t('admin.roleDetail.permissionsJSON')}</h3>
         <pre className="admin-json-preview">
           {JSON.stringify(role.permissions, null, 2)}
         </pre>

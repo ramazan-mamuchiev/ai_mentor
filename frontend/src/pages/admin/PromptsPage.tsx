@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Plus, MessageSquareCode, Lock, Pencil } from 'lucide-react'
 import {
@@ -13,6 +14,7 @@ interface GroupedPrompt {
 }
 
 export function PromptsPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [prompts, setPrompts] = useState<PromptTemplateItem[]>([])
   const [roles, setRoles] = useState<RoleListItem[]>([])
@@ -74,9 +76,9 @@ export function PromptsPage() {
   return (
     <div className="admin-page">
       <div className="admin-page-header">
-        <h1><MessageSquareCode size={20} /> Prompt Templates</h1>
+        <h1><MessageSquareCode size={20} /> {t('admin.prompts.title')}</h1>
         <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={14} /> New Override
+          <Plus size={14} /> {t('admin.prompts.newOverride')}
         </button>
       </div>
 
@@ -84,28 +86,28 @@ export function PromptsPage() {
 
       {showCreate && (
         <div className="admin-card" style={{ marginBottom: 16 }}>
-          <h3>Create Prompt Override</h3>
+          <h3>{t('admin.prompts.createOverride')}</h3>
           <div className="admin-form-row">
-            <label>Query Type</label>
+            <label>{t('admin.prompts.queryType')}</label>
             <select value={newQueryType} onChange={e => setNewQueryType(e.target.value)}>
-              <option value="">— select —</option>
+              <option value="">{t('admin.prompts.selectType')}</option>
               {baseQueryTypes.map(qt => (
                 <option key={qt} value={qt}>{qt}</option>
               ))}
-              <option value="__custom">Custom type...</option>
+              <option value="__custom">{t('admin.prompts.customType')}</option>
             </select>
             {newQueryType === '__custom' && (
               <input
                 style={{ marginTop: 4 }}
-                placeholder="custom_type"
+                placeholder={t('admin.prompts.customTypePlaceholder')}
                 onChange={e => setNewQueryType(e.target.value)}
               />
             )}
           </div>
           <div className="admin-form-row">
-            <label>Role (empty = base prompt)</label>
+            <label>{t('admin.prompts.role')}</label>
             <select value={newRoleId} onChange={e => setNewRoleId(e.target.value === '' ? '' : Number(e.target.value))}>
-              <option value="">— base (no role) —</option>
+              <option value="">{t('admin.prompts.baseNoRole')}</option>
               {roles.filter(r => !r.is_system || r.slug !== 'admin').map(r => (
                 <option key={r.id} value={r.id}>{r.name} ({r.slug})</option>
               ))}
@@ -113,15 +115,15 @@ export function PromptsPage() {
           </div>
           <div className="admin-form-actions">
             <button className="btn btn-primary" onClick={handleCreate} disabled={!newQueryType || newQueryType === '__custom'}>
-              Create
+              {t('admin.common.create')}
             </button>
-            <button className="btn" onClick={() => setShowCreate(false)}>Cancel</button>
+            <button className="btn" onClick={() => setShowCreate(false)}>{t('admin.common.cancel')}</button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="admin-loading">Loading...</div>
+        <div className="admin-loading">{t('admin.common.loading')}</div>
       ) : (
         <div className="admin-prompts-grid">
           {grouped.map(g => (
@@ -137,8 +139,8 @@ export function PromptsPage() {
                 >
                   <span>
                     {g.base.is_system ? <Lock size={12} /> : null}
-                    {' '}Base prompt
-                    {g.base.is_customized && <span className="admin-badge admin-badge--warning"> edited</span>}
+                    {' '}{t('admin.prompts.basePrompt')}
+                    {g.base.is_customized && <span className="admin-badge admin-badge--warning">{t('admin.prompts.edited')}</span>}
                   </span>
                   <Pencil size={14} />
                 </div>
@@ -152,14 +154,14 @@ export function PromptsPage() {
                     onClick={() => navigate(`/app/admin/prompts/${ovr.id}`)}
                   >
                     <span>
-                      Role: <strong>{ovr.role_slug}</strong>
+                      {t('admin.prompts.roleLabel')} <strong>{ovr.role_slug}</strong>
                     </span>
                     <Pencil size={14} />
                   </div>
                 ))
               ) : (
                 <div className="admin-prompt-row admin-prompt-row--empty">
-                  No role overrides
+                  {t('admin.prompts.noOverrides')}
                 </div>
               )}
             </div>

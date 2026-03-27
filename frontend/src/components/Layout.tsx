@@ -58,15 +58,15 @@ const NAV_ITEMS = [
 
 const ADMIN_NAV_ITEM = { path: '/app/admin', icon: Shield, labelKey: 'nav.admin' } as const
 
-const ADMIN_SUB_NAV: readonly { path: string; icon: typeof LayoutDashboard; label: string; exact?: boolean }[] = [
-  { path: '/app/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
-  { path: '/app/admin/tenants', icon: Users, label: 'Tenants' },
-  { path: '/app/admin/documents', icon: FileText, label: 'Documents' },
-  { path: '/app/admin/chats', icon: MessageSquare, label: 'Chat Audit' },
-  { path: '/app/admin/roles', icon: KeyRound, label: 'Roles' },
-  { path: '/app/admin/prompts', icon: MessageSquareCode, label: 'Prompts' },
-  { path: '/app/admin/logs', icon: ScrollText, label: 'Logs' },
-  { path: '/app/admin/stats', icon: BarChart3, label: 'Stats' },
+const ADMIN_SUB_NAV: readonly { path: string; icon: typeof LayoutDashboard; labelKey: string; exact?: boolean }[] = [
+  { path: '/app/admin', icon: LayoutDashboard, labelKey: 'admin.nav.dashboard', exact: true },
+  { path: '/app/admin/tenants', icon: Users, labelKey: 'admin.nav.tenants' },
+  { path: '/app/admin/documents', icon: FileText, labelKey: 'admin.nav.documents' },
+  { path: '/app/admin/chats', icon: MessageSquare, labelKey: 'admin.nav.chatAudit' },
+  { path: '/app/admin/roles', icon: KeyRound, labelKey: 'admin.nav.roles' },
+  { path: '/app/admin/prompts', icon: MessageSquareCode, labelKey: 'admin.nav.prompts' },
+  { path: '/app/admin/logs', icon: ScrollText, labelKey: 'admin.nav.logs' },
+  { path: '/app/admin/stats', icon: BarChart3, labelKey: 'admin.nav.stats' },
 ]
 
 interface Props {
@@ -199,68 +199,68 @@ export function Layout({
           )}
         </div>
 
-        <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => {
-            const Icon = item.icon
-            const active = item.path === '/app'
-              ? isChat
-              : location.pathname.startsWith(item.path) && !location.pathname.startsWith('/app/admin')
-            return (
-              <button
-                key={item.path}
-                className={`nav-item${active ? ' nav-item--active' : ''}`}
-                onClick={() => navigate(item.path)}
-                data-tooltip={collapsed && !isMobile ? t(item.labelKey) : undefined}
-              >
-                <Icon size={18} />
-                {(!collapsed || isMobile) && t(item.labelKey)}
-              </button>
-            )
-          })}
-          {(user?.permissions as any)?.features?.admin && (() => {
-            const Icon = ADMIN_NAV_ITEM.icon
-            const active = isAdmin
-            return (
-              <button
-                className={`nav-item${active ? ' nav-item--active' : ''}`}
-                onClick={() => navigate(ADMIN_NAV_ITEM.path)}
-                data-tooltip={collapsed && !isMobile ? t(ADMIN_NAV_ITEM.labelKey) : undefined}
-              >
-                <Icon size={18} />
-                {(!collapsed || isMobile) && t(ADMIN_NAV_ITEM.labelKey)}
-              </button>
-            )
-          })()}
-        </nav>
-
-        {isAdmin && (
-          <div className={`admin-subnav${collapsed && !isMobile ? ' admin-subnav--collapsed' : ''}`}>
-            {(!collapsed || isMobile) && (
-              <button className="admin-subnav-back" onClick={() => navigate('/app')}>
-                <ArrowLeft size={14} />
-                {t('nav.chat')}
-              </button>
-            )}
-            <div className="admin-subnav-list">
-              {ADMIN_SUB_NAV.map(item => {
-                const Icon = item.icon
-                const active = item.exact
-                  ? location.pathname === item.path || location.pathname === item.path + '/'
-                  : location.pathname.startsWith(item.path)
-                return (
-                  <button
-                    key={item.path}
-                    className={`nav-item nav-item--sub${active ? ' nav-item--active' : ''}`}
-                    onClick={() => navigate(item.path)}
-                    data-tooltip={collapsed && !isMobile ? item.label : undefined}
-                  >
-                    <Icon size={collapsed && !isMobile ? 16 : 15} />
-                    {(!collapsed || isMobile) && item.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+        {isAdmin ? (
+          <nav className="sidebar-nav sidebar-nav--admin">
+            <button
+              className="admin-back-btn"
+              onClick={() => navigate('/app')}
+              data-tooltip={collapsed && !isMobile ? t('admin.nav.backToApp') : undefined}
+            >
+              <ArrowLeft size={16} />
+              {(!collapsed || isMobile) && t('admin.nav.backToApp')}
+            </button>
+            <div className="nav-divider" />
+            {ADMIN_SUB_NAV.map(item => {
+              const Icon = item.icon
+              const active = item.exact
+                ? location.pathname === item.path || location.pathname === item.path + '/'
+                : location.pathname.startsWith(item.path)
+              return (
+                <button
+                  key={item.path}
+                  className={`nav-item nav-item--sub${active ? ' nav-item--active' : ''}`}
+                  onClick={() => navigate(item.path)}
+                  data-tooltip={collapsed && !isMobile ? t(item.labelKey) : undefined}
+                >
+                  <Icon size={16} />
+                  {(!collapsed || isMobile) && t(item.labelKey)}
+                </button>
+              )
+            })}
+          </nav>
+        ) : (
+          <nav className="sidebar-nav">
+            {NAV_ITEMS.map(item => {
+              const Icon = item.icon
+              const active = item.path === '/app'
+                ? isChat
+                : location.pathname.startsWith(item.path)
+              return (
+                <button
+                  key={item.path}
+                  className={`nav-item${active ? ' nav-item--active' : ''}`}
+                  onClick={() => navigate(item.path)}
+                  data-tooltip={collapsed && !isMobile ? t(item.labelKey) : undefined}
+                >
+                  <Icon size={18} />
+                  {(!collapsed || isMobile) && t(item.labelKey)}
+                </button>
+              )
+            })}
+            {(user?.permissions as any)?.features?.admin && (() => {
+              const Icon = ADMIN_NAV_ITEM.icon
+              return (
+                <button
+                  className={`nav-item${isAdmin ? ' nav-item--active' : ''}`}
+                  onClick={() => navigate(ADMIN_NAV_ITEM.path)}
+                  data-tooltip={collapsed && !isMobile ? t(ADMIN_NAV_ITEM.labelKey) : undefined}
+                >
+                  <Icon size={18} />
+                  {(!collapsed || isMobile) && t(ADMIN_NAV_ITEM.labelKey)}
+                </button>
+              )
+            })()}
+          </nav>
         )}
 
         {(!collapsed || isMobile) && isChat && !isAdmin ? (

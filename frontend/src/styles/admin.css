@@ -6,48 +6,44 @@
   padding: 24px 32px;
 }
 
-/* Admin sub-navigation in sidebar */
-.admin-subnav {
-  display: flex;
-  flex-direction: column;
-  padding: 4px 8px;
+/* Admin nav — variant 3: full replacement */
+.sidebar-nav--admin {
   flex: 1;
-  overflow-y: auto;
-  border-top: 1px solid var(--border);
 }
 
-.admin-subnav-back {
+.admin-back-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-muted);
-  background: none;
-  border: none;
   cursor: pointer;
-  padding: 6px 10px;
-  margin-bottom: 2px;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
+  transition: background 0.15s, color 0.15s;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
   font-family: var(--font-sans);
+  white-space: nowrap;
 }
 
-.admin-subnav-back:hover {
+.admin-back-btn:hover {
   color: var(--accent);
   background: var(--surface-hover);
 }
 
-.admin-subnav-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+.sidebar--collapsed .admin-back-btn {
+  justify-content: center;
+  padding: 8px;
+  width: auto;
 }
 
 .nav-item--sub {
-  font-size: 12.5px;
-  padding: 6px 10px 6px 14px;
-  gap: 8px;
+  font-size: 13px;
+  gap: 10px;
   border-left: none;
 }
 
@@ -66,24 +62,14 @@
   color: var(--accent2);
 }
 
-.admin-subnav--collapsed {
-  padding: 4px 4px;
-  align-items: center;
-}
-
-.admin-subnav--collapsed .admin-subnav-list {
-  align-items: center;
-}
-
-.admin-subnav--collapsed .nav-item--sub {
+.sidebar--collapsed .nav-item--sub {
   justify-content: center;
   padding: 8px;
   width: auto;
   border-left: none;
 }
 
-.admin-subnav--collapsed .nav-item--sub.nav-item--active {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(219, 39, 119, 0.08));
+.sidebar--collapsed .nav-item--sub.nav-item--active {
   border-left: none;
   border-radius: 8px;
 }
@@ -384,10 +370,21 @@
    ============================================================ */
 
 :root {
+  --log-info: #2563eb;
+  --log-warn: #b45309;
+  --log-error: #dc2626;
+  --log-debug: #6b7280;
+  --log-key: #16a34a;
+  --log-highlight-bg: #fef08a;
+}
+
+[data-theme='dark'] {
   --log-info: #58a6ff;
   --log-warn: #d29922;
   --log-error: #f85149;
   --log-debug: #8b949e;
+  --log-key: #7ee787;
+  --log-highlight-bg: #e3b34180;
 }
 
 /* Page layout */
@@ -677,7 +674,7 @@
 .log-viewer {
   flex: 1;
   min-height: 0;
-  background: #0d1117;
+  background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   padding: 4px 0;
@@ -696,15 +693,15 @@
 }
 
 .log-row:nth-child(even) {
-  background: #161b2205;
+  background: var(--surface-hover);
 }
 
 .log-row:hover {
-  background: #1f2937;
+  background: var(--surface-hover);
 }
 
 .log-row--expanded {
-  background: #161b22;
+  background: var(--surface-hover);
   border-left-color: var(--accent);
 }
 
@@ -718,7 +715,7 @@
 .log-row__expand {
   display: flex;
   align-items: center;
-  color: #484f58;
+  color: var(--text-muted);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -728,7 +725,7 @@
 }
 
 .log-row__ts {
-  color: #484f58;
+  color: var(--text-muted);
   white-space: nowrap;
   font-size: 11px;
   flex-shrink: 0;
@@ -750,7 +747,7 @@
 .log-row__level--debug { color: var(--log-debug); }
 
 .log-row__summary {
-  color: #c9d1d9;
+  color: var(--text);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -768,7 +765,7 @@
   align-items: center;
   background: none;
   border: none;
-  color: #484f58;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 2px;
   flex-shrink: 0;
@@ -800,7 +797,7 @@
 }
 
 .log-row__key {
-  color: #7ee787;
+  color: var(--log-key);
   white-space: nowrap;
   min-width: 120px;
 }
@@ -810,14 +807,14 @@
 }
 
 .log-row__value {
-  color: #8b949e;
+  color: var(--text-secondary);
   word-break: break-word;
 }
 
 /* Search highlight */
 .log-highlight {
-  background: #e3b34180;
-  color: #fff;
+  background: var(--log-highlight-bg);
+  color: var(--text);
   border-radius: 2px;
   padding: 0 1px;
 }

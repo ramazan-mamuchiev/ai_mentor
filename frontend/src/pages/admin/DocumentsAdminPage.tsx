@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import {
   listDocumentsAdmin, patchDocumentAdmin, deleteDocumentAdmin,
@@ -23,6 +24,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function DocumentsAdminPage() {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<AdminDocumentItem[]>([])
   const [total, setTotal] = useState(0)
@@ -59,7 +61,7 @@ export function DocumentsAdminPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this document and all its chunks?')) return
+    if (!confirm(t('admin.docs.confirmDelete'))) return
     try {
       await deleteDocumentAdmin(id)
       load()
@@ -71,15 +73,15 @@ export function DocumentsAdminPage() {
   return (
     <div>
       <div className="admin-page-header">
-        <h1>Documents</h1>
-        <p>{total} documents{tenantId ? ' (filtered by tenant)' : ''}</p>
+        <h1>{t('admin.docs.title')}</h1>
+        <p>{t('admin.docs.count', { count: total })}{tenantId ? t('admin.docs.filteredByTenant') : ''}</p>
       </div>
 
       <div className="admin-table-wrapper">
         <div className="admin-toolbar">
           <input
             className="admin-search"
-            placeholder="Search by title or filename..."
+            placeholder={t('admin.docs.searchPlaceholder')}
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
           />
@@ -88,40 +90,40 @@ export function DocumentsAdminPage() {
             value={statusFilter}
             onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
           >
-            <option value="">All statuses</option>
-            <option value="ready">Ready</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="error">Error</option>
-            <option value="blocked">Blocked</option>
+            <option value="">{t('admin.docs.allStatuses')}</option>
+            <option value="ready">{t('admin.status.ready')}</option>
+            <option value="pending">{t('admin.status.pending')}</option>
+            <option value="processing">{t('admin.status.processing')}</option>
+            <option value="error">{t('admin.status.error')}</option>
+            <option value="blocked">{t('admin.status.blocked')}</option>
           </select>
           {tenantId && (
             <button
               className="admin-btn admin-btn--sm"
               onClick={() => { setSearchParams({}); setPage(1) }}
             >
-              Clear tenant filter
+              {t('admin.docs.clearTenantFilter')}
             </button>
           )}
         </div>
 
         {loading ? (
-          <div className="admin-loading">Loading...</div>
+          <div className="admin-loading">{t('admin.common.loading')}</div>
         ) : items.length === 0 ? (
-          <div className="admin-empty">No documents found</div>
+          <div className="admin-empty">{t('admin.docs.noDocuments')}</div>
         ) : (
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Title</th>
-                <th>Tenant</th>
-                <th>Product</th>
-                <th>Status</th>
-                <th>Format</th>
-                <th>Size</th>
-                <th>Chunks</th>
-                <th>Uploaded</th>
-                <th>Actions</th>
+                <th>{t('admin.docs.title_col')}</th>
+                <th>{t('admin.docs.tenant')}</th>
+                <th>{t('admin.docs.product')}</th>
+                <th>{t('admin.docs.status')}</th>
+                <th>{t('admin.docs.format')}</th>
+                <th>{t('admin.docs.size')}</th>
+                <th>{t('admin.docs.chunks')}</th>
+                <th>{t('admin.docs.uploaded')}</th>
+                <th>{t('admin.common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -158,7 +160,7 @@ export function DocumentsAdminPage() {
                         className="admin-btn admin-btn--sm admin-btn--danger"
                         onClick={() => handleDelete(d.id)}
                       >
-                        Delete
+                        {t('admin.common.delete')}
                       </button>
                     </div>
                   </td>
@@ -170,10 +172,10 @@ export function DocumentsAdminPage() {
 
         {totalPages > 1 && (
           <div className="admin-pagination">
-            <span>Page {page} of {totalPages}</span>
+            <span>{t('admin.common.page', { page, total: totalPages })}</span>
             <div className="admin-pagination-buttons">
-              <button className="admin-btn admin-btn--sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</button>
-              <button className="admin-btn admin-btn--sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</button>
+              <button className="admin-btn admin-btn--sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t('admin.common.prev')}</button>
+              <button className="admin-btn admin-btn--sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t('admin.common.next')}</button>
             </div>
           </div>
         )}

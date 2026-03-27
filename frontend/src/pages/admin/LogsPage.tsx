@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   RefreshCw, X, Search, Radio, ChevronDown, ChevronRight,
   Copy, Check, Clock, AlertTriangle,
@@ -73,6 +74,7 @@ function highlightSearch(text: string, query: string): React.ReactNode {
 function LogRow({ entry, search, defaultExpanded }: {
   entry: LogEntry; search: string; defaultExpanded: boolean
 }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [copied, setCopied] = useState(false)
   const parsed = useMemo(() => tryParseJSON(entry.message), [entry.message])
@@ -109,7 +111,7 @@ function LogRow({ entry, search, defaultExpanded }: {
         <span className="log-row__ts">{formatTimestamp(entry.timestamp)}</span>
         <span className={`log-row__level log-row__level--${lvl}`}>{lvl === 'warning' ? 'WARN' : lvl.toUpperCase()}</span>
         <span className="log-row__summary">{highlightSearch(String(summary), search)}</span>
-        <button className="log-row__copy" onClick={handleCopy} title="Copy raw message">
+        <button className="log-row__copy" onClick={handleCopy} title={t('admin.logs.copyRaw')}>
           {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
@@ -128,6 +130,7 @@ function LogRow({ entry, search, defaultExpanded }: {
 }
 
 export function LogsPage() {
+  const { t } = useTranslation()
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [service, setService] = useState('api')
   const [level, setLevel] = useState('')
@@ -161,10 +164,10 @@ export function LogsPage() {
       })
       setEntries(res.entries)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load logs')
+      setError(err instanceof Error ? err.message : t('admin.logs.failedToLoad'))
     }
     setLoading(false)
-  }, [service, level, debouncedSearch, timeRange])
+  }, [service, level, debouncedSearch, timeRange, t])
 
   useEffect(() => {
     setLoading(true)
@@ -192,8 +195,8 @@ export function LogsPage() {
   return (
     <div className="logs-page">
       <div className="admin-page-header">
-        <h1>Logs</h1>
-        <p>View platform logs via Loki</p>
+        <h1>{t('admin.logs.title')}</h1>
+        <p>{t('admin.logs.subtitle')}</p>
       </div>
 
       {/* Toolbar */}
@@ -205,7 +208,7 @@ export function LogsPage() {
           </select>
 
           {/* Time range chips */}
-          <div className="logs-chips" role="group" aria-label="Time range">
+          <div className="logs-chips" role="group" aria-label={t('admin.logs.timeRange')}>
             <Clock size={13} className="logs-chips__icon" />
             {TIME_RANGES.map(r => (
               <button
@@ -223,20 +226,20 @@ export function LogsPage() {
             <Search size={14} className="logs-search-wrap__icon" />
             <input
               className="logs-search"
-              placeholder="Search logs..."
+              placeholder={t('admin.logs.searchPlaceholder')}
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && load()}
             />
             {search && (
-              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
+              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label={t('admin.logs.clear')}>
                 <X size={14} />
               </button>
             )}
           </div>
 
           {/* Refresh & Live tail */}
-          <button className="logs-icon-btn" onClick={load} title="Refresh">
+          <button className="logs-icon-btn" onClick={load} title={t('admin.logs.refresh')}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
           </button>
           <button
@@ -244,25 +247,25 @@ export function LogsPage() {
             onClick={() => setAutoRefresh(v => !v)}
           >
             <Radio size={13} />
-            Live
+            {t('admin.logs.live')}
           </button>
         </div>
 
         {/* Level filter chips */}
         <div className="logs-toolbar__row">
-          <div className="logs-level-chips" role="group" aria-label="Log level">
+          <div className="logs-level-chips" role="group" aria-label={t('admin.logs.logLevel')}>
             {LEVELS.map(l => (
               <button
                 key={l.value}
                 className={`logs-level-chip logs-level-chip--${l.value || 'all'}${level === l.value ? ' logs-level-chip--active' : ''}`}
                 onClick={() => setLevel(l.value)}
               >
-                {l.label}
+                {l.value === '' ? t('admin.logs.levelAll') : l.label}
                 {l.value && <span className="logs-level-chip__count">{levelCounts[l.value] ?? 0}</span>}
               </button>
             ))}
           </div>
-          <span className="logs-count">{entries.length} entries</span>
+          <span className="logs-count">{t('admin.logs.entries', { count: entries.length })}</span>
         </div>
       </div>
 
@@ -276,9 +279,9 @@ export function LogsPage() {
 
       {/* Log viewer */}
       {loading ? (
-        <div className="admin-loading">Loading logs...</div>
+        <div className="admin-loading">{t('admin.logs.loadingLogs')}</div>
       ) : entries.length === 0 && !error ? (
-        <div className="admin-empty">No log entries found for the selected filters.</div>
+        <div className="admin-empty">{t('admin.logs.noEntries')}</div>
       ) : (
         <div className="log-viewer" ref={containerRef}>
           {entries.map((entry, i) => (

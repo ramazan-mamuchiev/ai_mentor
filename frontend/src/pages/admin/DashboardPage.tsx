@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   getOverview, getUsageStats,
@@ -46,6 +47,7 @@ function MiniBarChart({ data, label }: { data: DailyUsageStat[]; label: string }
 }
 
 export function DashboardPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [overview, setOverview] = useState<PlatformOverview | null>(null)
   const [daily, setDaily] = useState<DailyUsageStat[]>([])
@@ -61,32 +63,45 @@ export function DashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="admin-loading">Loading dashboard...</div>
-  if (!overview) return <div className="admin-empty">Failed to load overview</div>
+  if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
+  if (!overview) return <div className="admin-empty">{t('admin.dashboard.loadFailed')}</div>
 
   return (
     <div>
       <div className="admin-page-header">
-        <h1>Dashboard</h1>
-        <p>Platform overview</p>
+        <h1>{t('admin.dashboard.title')}</h1>
+        <p>{t('admin.dashboard.subtitle')}</p>
       </div>
 
       <div className="stats-grid">
-        <StatCard label="Total Tenants" value={overview.total_tenants} sub={`${overview.active_tenants} active`} />
-        <StatCard label="Documents" value={overview.total_documents} sub={`${overview.documents_indexed} indexed`} variant="accent" />
         <StatCard
-          label="Pending / Error"
+          label={t('admin.dashboard.totalTenants')}
+          value={overview.total_tenants}
+          sub={t('admin.dashboard.activeSub', { count: overview.active_tenants })}
+        />
+        <StatCard
+          label={t('admin.dashboard.documents')}
+          value={overview.total_documents}
+          sub={t('admin.dashboard.indexedSub', { count: overview.documents_indexed })}
+          variant="accent"
+        />
+        <StatCard
+          label={t('admin.dashboard.pendingError')}
           value={overview.documents_pending}
-          sub={`${overview.documents_error} errors`}
+          sub={t('admin.dashboard.errorsSub', { count: overview.documents_error })}
           variant={overview.documents_error > 0 ? 'danger' : 'warning'}
         />
-        <StatCard label="Chat Sessions" value={overview.total_sessions} sub={`${overview.total_messages} messages`} />
-        <StatCard label="Requests (30d)" value={overview.total_requests_30d.toLocaleString()} variant="accent" />
-        <StatCard label="Tokens (30d)" value={overview.total_tokens_30d.toLocaleString()} />
-        <StatCard label="Revenue (30d)" value={`$${overview.total_charge_usd_30d}`} variant="success" />
+        <StatCard
+          label={t('admin.dashboard.chatSessions')}
+          value={overview.total_sessions}
+          sub={t('admin.dashboard.messagesSub', { count: overview.total_messages })}
+        />
+        <StatCard label={t('admin.dashboard.requests30d')} value={overview.total_requests_30d.toLocaleString()} variant="accent" />
+        <StatCard label={t('admin.dashboard.tokens30d')} value={overview.total_tokens_30d.toLocaleString()} />
+        <StatCard label={t('admin.dashboard.revenue30d')} value={`$${overview.total_charge_usd_30d}`} variant="success" />
       </div>
 
-      <MiniBarChart data={daily} label="Requests per day (30d)" />
+      <MiniBarChart data={daily} label={t('admin.dashboard.requestsPerDay')} />
 
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
         <div
@@ -94,24 +109,24 @@ export function DashboardPage() {
           style={{ cursor: 'pointer' }}
           onClick={() => navigate('/app/admin/tenants')}
         >
-          <span className="stat-card__label">Manage Tenants</span>
-          <span className="stat-card__sub">View and edit all tenant accounts</span>
+          <span className="stat-card__label">{t('admin.dashboard.manageTenants')}</span>
+          <span className="stat-card__sub">{t('admin.dashboard.manageTenantsDesc')}</span>
         </div>
         <div
           className="stat-card"
           style={{ cursor: 'pointer' }}
           onClick={() => navigate('/app/admin/documents')}
         >
-          <span className="stat-card__label">Moderate Documents</span>
-          <span className="stat-card__sub">Review and manage uploaded content</span>
+          <span className="stat-card__label">{t('admin.dashboard.moderateDocs')}</span>
+          <span className="stat-card__sub">{t('admin.dashboard.moderateDocsDesc')}</span>
         </div>
         <div
           className="stat-card"
           style={{ cursor: 'pointer' }}
           onClick={() => navigate('/app/admin/chats')}
         >
-          <span className="stat-card__label">Chat Audit</span>
-          <span className="stat-card__sub">Review chat sessions across tenants</span>
+          <span className="stat-card__label">{t('admin.dashboard.chatAudit')}</span>
+          <span className="stat-card__sub">{t('admin.dashboard.chatAuditDesc')}</span>
         </div>
       </div>
     </div>
