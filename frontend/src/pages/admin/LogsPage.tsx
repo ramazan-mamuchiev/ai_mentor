@@ -104,7 +104,7 @@ function LogRow({ entry, search, defaultExpanded }: {
     : Object.entries(entry.extra || {})
 
   return (
-    <div className={`log-row ${expanded ? 'log-row--expanded' : ''}`} onClick={() => setExpanded(v => !v)}>
+    <div className={`log-row ${expanded ? 'log-row--expanded' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; setExpanded(v => !v) }}>
       <div className="log-row__header">
         <span className="log-row__expand">
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
