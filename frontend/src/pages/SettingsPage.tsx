@@ -66,7 +66,7 @@ function ProfileTab() {
   if (!user) return null
 
   return (
-    <section className="settings-section">
+    <section className="settings-section profile-section">
       <div className="profile-field">
         <label className="profile-label">{t('settings.profileName')}</label>
         <div className="profile-input-row">
@@ -101,7 +101,7 @@ function ProfileTab() {
 
       <div className="profile-field">
         <label className="profile-label">{t('settings.profileTier')}</label>
-        <span className="profile-tier-badge">{user.tier}</span>
+        <span className="profile-tier-badge" data-tier={user.tier.toLowerCase()}>{user.tier}</span>
       </div>
     </section>
   )
