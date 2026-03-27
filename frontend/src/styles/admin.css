@@ -2,8 +2,11 @@
 
 .admin-main {
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   padding: 24px 32px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Admin nav — variant 3: full replacement */
@@ -362,16 +365,10 @@
 }
 
 /* Audit chat area — reuses .message / .message-body / .message-content from chat.css */
-.audit-detail {
+.audit-detail-header {
+  padding: 8px 16px 0;
   max-width: 800px;
   margin: 0 auto;
-  padding: 0 16px;
-}
-
-.audit-chat-area {
-  padding: 16px 0 32px;
-  display: flex;
-  flex-direction: column;
 }
 
 .audit-chat-area .message-footer {
