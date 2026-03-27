@@ -233,12 +233,14 @@ export function Layout({
           })()}
         </nav>
 
-        {isAdmin && (!collapsed || isMobile) && (
-          <div className="admin-subnav">
-            <button className="admin-subnav-back" onClick={() => navigate('/app')}>
-              <ArrowLeft size={14} />
-              {t('nav.chat')}
-            </button>
+        {isAdmin && (
+          <div className={`admin-subnav${collapsed && !isMobile ? ' admin-subnav--collapsed' : ''}`}>
+            {(!collapsed || isMobile) && (
+              <button className="admin-subnav-back" onClick={() => navigate('/app')}>
+                <ArrowLeft size={14} />
+                {t('nav.chat')}
+              </button>
+            )}
             <div className="admin-subnav-list">
               {ADMIN_SUB_NAV.map(item => {
                 const Icon = item.icon
@@ -250,9 +252,10 @@ export function Layout({
                     key={item.path}
                     className={`nav-item nav-item--sub${active ? ' nav-item--active' : ''}`}
                     onClick={() => navigate(item.path)}
+                    data-tooltip={collapsed && !isMobile ? item.label : undefined}
                   >
-                    <Icon size={15} />
-                    {item.label}
+                    <Icon size={collapsed && !isMobile ? 16 : 15} />
+                    {(!collapsed || isMobile) && item.label}
                   </button>
                 )
               })}
@@ -268,7 +271,7 @@ export function Layout({
             onNew={onNewSession}
             onDelete={onDeleteSession}
           />
-        ) : !isAdmin || (collapsed && !isMobile) ? (
+        ) : !isAdmin ? (
           <div className="sidebar-spacer" />
         ) : null}
 

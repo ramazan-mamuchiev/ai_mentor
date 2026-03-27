@@ -50,6 +50,21 @@
   gap: 8px;
 }
 
+.admin-subnav--collapsed {
+  padding: 4px 4px;
+  align-items: center;
+}
+
+.admin-subnav--collapsed .admin-subnav-list {
+  align-items: center;
+}
+
+.admin-subnav--collapsed .nav-item--sub {
+  justify-content: center;
+  padding: 8px;
+  width: auto;
+}
+
 .admin-page-header {
   margin-bottom: 24px;
 }
