@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from app.config import settings
+from app.llm.credentials import llm_credentials
 from app.llm.http_client import gemini_client
 from app.ingestion.text_cleaner import clean_for_embedding
 
@@ -96,10 +97,11 @@ async def _call_rerank_api(
     usage: RerankUsage,
 ) -> list[float] | None:
     """Single API call to get rerank scores. Returns scores list or None on failure."""
-    url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+    api_key, base_url = llm_credentials()
+    url = f"{base_url.rstrip('/')}/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {settings.gemini_api_key}",
+        "Authorization": f"Bearer {api_key}",
     }
     payload = {
         "model": settings.rerank_model,
@@ -157,8 +159,9 @@ async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResul
     if not results or len(results) <= 1:
         return RerankResult(results=results[:top_k], usage=empty_usage)
 
-    if not settings.gemini_api_key:
-        logger.warning("Gemini API key not configured, skipping rerank")
+    api_key, _ = llm_credentials()
+    if not api_key:
+        logger.warning("LLM API key not configured, skipping rerank")
         return RerankResult(results=results[:top_k], usage=empty_usage)
 
     chunks_text = _build_chunks_text(results)

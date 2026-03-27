@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select as sa_select
 
 from app.config import settings
+from app.llm.credentials import llm_credentials
 from app.llm.http_client import gemini_client, ollama_client
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
 from app.models import ChatMessage, Product
@@ -170,17 +171,17 @@ async def _classify_query(db: AsyncSession, query: str, product_names: list[str]
 
     try:
         t0 = time.perf_counter()
-        url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+        api_key, base_url = llm_credentials()
+        url = f"{base_url.rstrip('/')}/chat/completions"
         payload = {
             "model": settings.classifier_model,
             "messages": messages,
             "temperature": 0,
             "max_tokens": 60,
-            "reasoning_effort": "none",
         }
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {settings.gemini_api_key}",
+            "Authorization": f"Bearer {api_key}",
         }
         resp = await gemini_client().post(url, json=payload, headers=headers, timeout=10.0)
         resp.raise_for_status()
@@ -390,17 +391,17 @@ async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> str:
 
 
 async def _llm_rewrite_openai(messages: list[dict]) -> str:
-    url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+    api_key, base_url = llm_credentials()
+    url = f"{base_url.rstrip('/')}/chat/completions"
     payload = {
         "model": settings.openai_llm_model,
         "messages": messages,
         "temperature": 0,
         "max_tokens": 256,
-        "reasoning_effort": "none",
     }
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {settings.gemini_api_key}",
+        "Authorization": f"Bearer {api_key}",
     }
     resp = await gemini_client().post(url, json=payload, headers=headers, timeout=15.0)
     resp.raise_for_status()
@@ -477,17 +478,17 @@ async def _decompose_query(
 
     try:
         t0 = time.perf_counter()
-        url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+        api_key, base_url = llm_credentials()
+        url = f"{base_url.rstrip('/')}/chat/completions"
         payload = {
             "model": settings.decompose_model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0,
             "max_tokens": 200,
-            "reasoning_effort": "none",
         }
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {settings.gemini_api_key}",
+            "Authorization": f"Bearer {api_key}",
         }
         resp = await gemini_client().post(url, json=payload, headers=headers, timeout=10.0)
         resp.raise_for_status()
@@ -658,17 +659,17 @@ async def summarize_history(
 
     try:
         t0 = time.perf_counter()
-        url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+        api_key, base_url = llm_credentials()
+        url = f"{base_url.rstrip('/')}/chat/completions"
         payload = {
             "model": settings.summary_model,
             "messages": llm_messages,
             "temperature": 0,
             "max_tokens": settings.summary_max_tokens,
-            "reasoning_effort": "none",
         }
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {settings.gemini_api_key}",
+            "Authorization": f"Bearer {api_key}",
         }
         resp = await gemini_client().post(url, json=payload, headers=headers, timeout=15.0)
         resp.raise_for_status()

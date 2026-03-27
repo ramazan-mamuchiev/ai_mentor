@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     bothub_api_key: str = ""
     bothub_base_url: str = "https://bothub.chat/api/v2/openai/v1"
     bothub_llm_model: str = "gemini-2.5-flash"
+    bothub_embedding_model: str = "text-embedding-3-large"
 
     llm_reasoning_effort: str = "low"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 

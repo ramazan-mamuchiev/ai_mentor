@@ -339,7 +339,7 @@ async def crawl_confluence(
         CrawlResult with all crawled pages.
     """
     from app.ingestion.converters.ocr import (
-        detect_language_via_gemini,
+        detect_language_via_llm,
         ocr_enabled as _ocr_enabled,
     )
 
@@ -401,7 +401,7 @@ async def crawl_confluence(
 
             if do_ocr and markdown:
                 if ocr_languages is None:
-                    ocr_languages = detect_language_via_gemini(markdown)
+                    ocr_languages = detect_language_via_llm(markdown)
                 t_ocr = time.perf_counter()
                 try:
                     markdown, page_ocr_stats = await asyncio.to_thread(

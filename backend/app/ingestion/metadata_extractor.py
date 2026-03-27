@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from app.config import settings
+from app.llm.credentials import llm_credentials
 from app.llm.http_client import gemini_client
 
 logger = logging.getLogger(__name__)
@@ -132,7 +133,8 @@ def _parse_response(raw: str, expected_count: int) -> list[ChunkMetadata]:
 
 def _call_llm_sync(prompt: str) -> tuple[str, dict]:
     """Synchronous LLM call for use in Celery worker. Returns (response_text, usage_dict)."""
-    url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+    api_key, base_url = llm_credentials()
+    url = f"{base_url.rstrip('/')}/chat/completions"
     payload = {
         "model": settings.metadata_extraction_model,
         "messages": [
@@ -141,11 +143,10 @@ def _call_llm_sync(prompt: str) -> tuple[str, dict]:
         ],
         "temperature": 0,
         "max_tokens": 2048,
-        "reasoning_effort": "none",
     }
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {settings.gemini_api_key}",
+        "Authorization": f"Bearer {api_key}",
     }
 
     with httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
@@ -160,7 +161,8 @@ def _call_llm_sync(prompt: str) -> tuple[str, dict]:
 
 async def _call_llm_async(prompt: str) -> tuple[str, dict]:
     """Async LLM call for use in FastAPI endpoints."""
-    url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+    api_key, base_url = llm_credentials()
+    url = f"{base_url.rstrip('/')}/chat/completions"
     payload = {
         "model": settings.metadata_extraction_model,
         "messages": [
@@ -169,11 +171,10 @@ async def _call_llm_async(prompt: str) -> tuple[str, dict]:
         ],
         "temperature": 0,
         "max_tokens": 2048,
-        "reasoning_effort": "none",
     }
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {settings.gemini_api_key}",
+        "Authorization": f"Bearer {api_key}",
     }
 
     resp = await gemini_client().post(url, json=payload, headers=headers, timeout=30.0)

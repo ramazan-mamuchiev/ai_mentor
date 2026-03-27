@@ -21,7 +21,7 @@ import pymupdf4llm
 
 from app.ingestion.converters.ocr import (
     OCR_IMAGE_MIN_AREA,
-    detect_language_via_gemini,
+    detect_language_via_llm,
     enrich_markdown_with_ocr_files,
     ocr_enabled,
 )
@@ -259,7 +259,7 @@ def convert_pdf(
 
         if will_ocr:
             try:
-                detected_langs = detect_language_via_gemini(md_text)
+                detected_langs = detect_language_via_llm(md_text)
                 metadata["detected_languages"] = detected_langs
                 metadata["detected_languages_str"] = ",".join(detected_langs)
 

@@ -44,38 +44,60 @@ def ocr_enabled() -> bool:
     return settings.ocr_enabled and ocr_available()
 
 
-def detect_language_via_gemini(md_text: str) -> list[str]:
-    """Detect document language(s) from extracted text using Gemini.
+def detect_language_via_llm(md_text: str) -> list[str]:
+    """Detect document language(s) from extracted text using the configured LLM provider.
 
     Returns EasyOCR-compatible language codes (e.g. ["en", "ru"]).
     Falls back to ["en"] on any error.
     """
     from app.config import settings
+    from app.llm.credentials import llm_credentials
 
-    if not settings.gemini_api_key:
-        logger.warning("No Gemini API key, falling back to default OCR language")
+    api_key, _ = llm_credentials()
+    if not api_key:
+        logger.warning("No LLM API key, falling back to default OCR language")
         return ["en"]
 
     sample = md_text[:3000].strip()
     if not sample:
         return ["en"]
 
+    prompt = (
+        "Determine the language(s) of this text. "
+        "Return ONLY ISO 639-1 language codes separated by commas, nothing else. "
+        "Examples: en  |  ru  |  en,ru  |  zh  |  de,en\n\n"
+        f"Text:\n{sample}"
+    )
+
     try:
-        from app.ingestion.embedder import _get_gemini_client
-        client = _get_gemini_client()
+        if settings.llm_provider == "gemini":
+            from app.ingestion.embedder import _get_gemini_client
+            client = _get_gemini_client()
+            response = client.models.generate_content(
+                model=settings.ocr_lang_detect_model,
+                contents=prompt,
+            )
+            raw = response.text.strip().lower().replace(" ", "")
+        else:
+            import httpx
+            api_key, base_url = llm_credentials()
+            url = f"{base_url.rstrip('/')}/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            }
+            payload = {
+                "model": settings.ocr_lang_detect_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0,
+                "max_tokens": 30,
+            }
+            with httpx.Client(timeout=httpx.Timeout(15.0, connect=5.0)) as http_client:
+                resp = http_client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+            raw = data["choices"][0]["message"]["content"].strip().lower().replace(" ", "")
 
-        prompt = (
-            "Determine the language(s) of this text. "
-            "Return ONLY ISO 639-1 language codes separated by commas, nothing else. "
-            "Examples: en  |  ru  |  en,ru  |  zh  |  de,en\n\n"
-            f"Text:\n{sample}"
-        )
-
-        response = client.models.generate_content(
-            model=settings.ocr_lang_detect_model,
-            contents=prompt,
-        )
-        raw = response.text.strip().lower().replace(" ", "")
         codes = [c.strip() for c in raw.split(",") if c.strip()]
 
         easyocr_langs = []
@@ -87,8 +109,9 @@ def detect_language_via_gemini(md_text: str) -> list[str]:
         if not easyocr_langs:
             easyocr_langs = ["en"]
 
-        logger.info("Language detected via Gemini", extra={
+        logger.info("Language detected via LLM", extra={
             "raw_response": raw, "easyocr_langs": easyocr_langs,
+            "provider": settings.llm_provider,
         })
         return easyocr_langs
 
