@@ -7,6 +7,7 @@ import { ProductAutocomplete, type ProductSelection } from './ProductAutocomplet
 export interface ProductContext {
   name: string
   manufacturer?: string
+  version?: string
 }
 
 interface FileUploadProps {
@@ -42,7 +43,7 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
   const [productSel, setProductSel] = useState<ProductSelection>({
     productName: productContext?.name ?? '',
     manufacturer: productContext?.manufacturer ?? '',
-    firmwareVersion: '1.0',
+    firmwareVersion: productContext?.version ?? '1.0',
     isExisting: false,
   })
   const productName = productSel.productName
@@ -271,8 +272,8 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                     value={firmwareVersion}
                     onChange={e => setProductSel(prev => ({ ...prev, firmwareVersion: e.target.value }))}
                     placeholder={t('upload.versionPlaceholder')}
-                    readOnly={productSel.isExisting}
-                    className={productSel.isExisting ? 'input-readonly' : ''}
+                    readOnly={hasProductContext || productSel.isExisting}
+                    className={hasProductContext || productSel.isExisting ? 'input-readonly' : ''}
                     autoFocus={hasProductContext}
                   />
                 </label>
@@ -283,8 +284,8 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                     value={manufacturer}
                     onChange={e => setProductSel(prev => ({ ...prev, manufacturer: e.target.value }))}
                     placeholder={t('upload.manufacturerPlaceholder')}
-                    readOnly={productSel.isExisting || (hasProductContext && !!productContext?.manufacturer)}
-                    className={productSel.isExisting || (hasProductContext && !!productContext?.manufacturer) ? 'input-readonly' : ''}
+                    readOnly={hasProductContext || productSel.isExisting}
+                    className={hasProductContext || productSel.isExisting ? 'input-readonly' : ''}
                   />
                 </label>
               </div>

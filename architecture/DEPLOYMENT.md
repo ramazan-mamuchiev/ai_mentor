@@ -149,6 +149,7 @@ services:
 |---------|-----|-------------|
 | Web UI + Landing | https://lexiro.io | Landing (`/`) + App (`/app`) via nginx |
 | API | https://lexiro.io/api/ | Proxied to api:8000 by nginx |
+| Developer Hub | https://lexiro.dev | Currently 301 → lexiro.io. Will become Developer Portal |
 
 ### Planned Docker Compose (Production)
 
@@ -167,7 +168,9 @@ Production environment.
 
 | Parameter | Value |
 |-----------|-------|
-| Domain | `lexiro.io` |
+| Primary domain | `lexiro.io` (SaaS product) |
+| Developer domain | `lexiro.dev` (Developer Hub — docs, blog, API reference) |
+| Domain registrar | [hb.by](https://hb.by/) (`lexiro.dev`) |
 | IP | `82.38.66.177` |
 | OS | Ubuntu (Docker pre-installed) |
 | Access | `ssh root@lexiro.io` |
@@ -361,6 +364,86 @@ CLAMAV_PORT=3310
 EMAIL_PROVIDER=sendgrid
 SENDGRID_API_KEY=SG....
 ```
+
+---
+
+## Domain Strategy
+
+Two domains with distinct purposes:
+
+| Domain | Purpose | Audience | Content |
+|--------|---------|----------|---------|
+| **lexiro.io** | SaaS product | End-users: developers, CTOs, vendors | Landing, app, API, MCP |
+| **lexiro.dev** | Developer Hub | Developers integrating with Lexiro | Docs, blog, guides, changelog |
+
+### lexiro.io — Product (current)
+
+| URL | Content |
+|-----|---------|
+| `lexiro.io` | Marketing landing page |
+| `lexiro.io/app` | SaaS application (chat, upload, products) |
+| `lexiro.io/api/v1/...` | REST API (FastAPI) |
+| `lexiro.io/mcp` | MCP endpoint for Cursor/IDE |
+| `lexiro.io/pricing` | Pricing page (planned) |
+| `lexiro.io/vendors` | Vendor partnership page (planned) |
+| `lexiro.io/enterprise` | Enterprise demo booking (planned) |
+
+### lexiro.dev — Developer Hub (planned)
+
+| URL | Content |
+|-----|---------|
+| `lexiro.dev` | Developer Hub landing ("Build with Lexiro") |
+| `lexiro.dev/docs` | API documentation (Swagger/Redoc or custom) |
+| `lexiro.dev/docs/mcp` | MCP integration guide for Cursor |
+| `lexiro.dev/docs/api-keys` | API key management guide |
+| `lexiro.dev/blog` | Technical blog (SEO articles from [GTM_STRATEGY.md](GTM_STRATEGY.md)) |
+| `lexiro.dev/guides` | Integration guides ("Hikvision ISAPI auth", "ONVIF PTZ Python") |
+| `lexiro.dev/changelog` | Product changelog |
+| `lexiro.dev/status` | Status page (uptime monitoring) |
+| `lexiro.dev/sdk` | SDK/libraries (future) |
+
+### DNS Configuration (hb.by)
+
+`lexiro.dev` DNS managed at [hb.by](https://hb.by/):
+
+| Type | Name | Value | TTL |
+|------|------|-------|-----|
+| `A` | `@` | `82.38.66.177` | 3600 |
+| `CNAME` | `www` | `lexiro.dev` | 3600 |
+
+### SSL
+
+- `lexiro.io` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/lexiro/ssl/`
+- `lexiro.dev` — Let's Encrypt (auto-renewal via certbot). **HTTPS is mandatory** for `.dev` domains (HSTS preload list)
+
+### Nginx Configuration
+
+Both domains served by one nginx instance on VPS, as separate server blocks:
+
+```
+lexiro.io   →  Docker web container (React SPA + /api/ proxy to backend)
+lexiro.dev  →  Phase 1: 301 redirect → lexiro.io
+                Phase 2: static site (Docusaurus / VitePress / Astro)
+```
+
+### Rollout Timeline
+
+| Phase | When | lexiro.dev behavior |
+|-------|------|---------------------|
+| **Phase 1** (now) | March 2026 | SSL + 301 redirect → `lexiro.io` |
+| **Phase 2** | Month 1-2 | Static site with API docs + MCP guide |
+| **Phase 3** | Month 3-4 | Add blog (first SEO articles from GTM strategy) |
+| **Phase 4** | Month 6+ | Full Developer Hub: docs, blog, guides, changelog, status |
+
+CTA flow: every article on `lexiro.dev/blog` ends with **"Try Lexiro free → lexiro.io"** — content drives product signups.
+
+### Industry Examples
+
+| Product domain | Developer domain |
+|----------------|-----------------|
+| stripe.com | stripe.dev |
+| vercel.com | nextjs.dev |
+| firebase.google.com | firebase.dev |
 
 ---
 

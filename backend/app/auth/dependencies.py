@@ -1,15 +1,22 @@
 """FastAPI dependencies for authentication (JWT cookie + API Key header)."""
 
+from __future__ import annotations
+
+import logging
 import uuid
 
 import jwt as pyjwt
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth.jwt import decode_access_token, hash_refresh_token
+from app.auth.permissions import has_permission, merge_permissions
 from app.database import get_session
-from app.models import ApiKey, Tenant
+from app.models import ApiKey, Role, Tenant, TenantRole
+
+logger = logging.getLogger(__name__)
 
 _BEARER = "Bearer "
 
@@ -54,6 +61,27 @@ async def _resolve_jwt(token: str, session: AsyncSession) -> Tenant:
     return tenant
 
 
+async def _load_tenant_roles(tenant_id: uuid.UUID, session: AsyncSession) -> list[Role]:
+    """Load roles for a tenant, sorted by priority descending."""
+    result = await session.execute(
+        select(Role)
+        .join(TenantRole, TenantRole.role_id == Role.id)
+        .where(TenantRole.tenant_id == tenant_id)
+        .order_by(Role.priority.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def _enrich_with_roles(
+    tenant: Tenant, request: Request, session: AsyncSession,
+) -> Tenant:
+    """Load tenant roles and compute effective permissions into request.state."""
+    roles = await _load_tenant_roles(tenant.id, session)
+    request.state.tenant_roles = roles
+    request.state.permissions = merge_permissions(roles)
+    return tenant
+
+
 async def get_current_tenant(
     request: Request,
     session: AsyncSession = Depends(get_session),
@@ -73,13 +101,15 @@ async def get_current_tenant(
         if token.startswith("ipx_"):
             tenant, api_key_id = await _resolve_api_key(token, session)
             request.state.api_key_id = api_key_id
-            return tenant
+            return await _enrich_with_roles(tenant, request, session)
         request.state.api_key_id = None
-        return await _resolve_jwt(token, session)
+        tenant = await _resolve_jwt(token, session)
+        return await _enrich_with_roles(tenant, request, session)
 
     if access_token:
         request.state.api_key_id = None
-        return await _resolve_jwt(access_token, session)
+        tenant = await _resolve_jwt(access_token, session)
+        return await _enrich_with_roles(tenant, request, session)
 
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
 

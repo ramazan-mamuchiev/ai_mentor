@@ -47,6 +47,7 @@ celery.conf.update(
         "check_stale_reindex_jobs": {"queue": "monitoring"},
         "ensure_usage_partitions": {"queue": "monitoring"},
         "cleanup_expired_shares": {"queue": "monitoring"},
+        "s3_health_probe": {"queue": "monitoring"},
     },
     beat_schedule={
         "cleanup-expired-uploads": {
@@ -68,6 +69,10 @@ celery.conf.update(
         "cleanup-expired-shares": {
             "task": "cleanup_expired_shares",
             "schedule": 86400.0,
+        },
+        "s3-health-probe": {
+            "task": "s3_health_probe",
+            "schedule": 60.0,
         },
     },
 )
@@ -916,7 +921,10 @@ def ingest_confluence_task(self, document_id: int):
             with Session(engine) as s:
                 ph = s.get(Document, document_id)
                 if ph:
-                    ph.progress_stage = f"crawling ({pages_total} found, {dispatched} queued)"
+                    stage = f"crawling ({pages_total} found, {dispatched} queued)"
+                    if errors:
+                        stage += f", {errors} storage errors!"
+                    ph.progress_stage = stage
                     ph.title = f"{page.title}" if pages_total == 1 else ph.title
                     s.commit()
         except Exception:
@@ -953,13 +961,29 @@ def ingest_confluence_task(self, document_id: int):
         placeholder = session.get(Document, document_id)
         if placeholder:
             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-            placeholder.status = "ready"
             placeholder.progress_percent = 100
-            placeholder.progress_stage = "done"
             placeholder.ingest_duration_ms = duration_ms
             placeholder.total_chunks = dispatched
             if result.root_title:
                 placeholder.title = f"{result.root_title} ({result.total_pages} pages)"
+
+            crawled = pages_total - skipped
+            if crawled > 0 and errors >= crawled:
+                placeholder.status = "error"
+                placeholder.progress_stage = "done"
+                placeholder.error_message = (
+                    f"Storage write failures: all {errors} pages failed to save. "
+                    "Check MinIO health (disk, drives)."
+                )
+            elif errors > 0:
+                placeholder.status = "ready"
+                placeholder.progress_stage = "done"
+                placeholder.error_message = (
+                    f"Partial storage failures: {errors}/{crawled} pages could not be saved."
+                )
+            else:
+                placeholder.status = "ready"
+                placeholder.progress_stage = "done"
             session.commit()
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -1283,6 +1307,17 @@ def ensure_usage_partitions_task(self):
         "Usage partitions ensured",
         extra={"event": "usage_partitions", "partitions": created},
     )
+
+
+@celery.task(name="s3_health_probe", bind=True)
+def s3_health_probe_task(self):
+    """Periodic (60s): write+delete a probe object to detect MinIO degradation early."""
+    from app.s3 import check_write_health
+
+    if check_write_health():
+        logger.info("S3 health probe OK")
+    else:
+        logger.error("S3 health probe FAILED — storage may be degraded or unreachable")
 
 
 @celery.task(name="cleanup_expired_shares", bind=True)

@@ -29,8 +29,12 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
   }, [manufacturer, productSlug, navigate])
 
   const productCtx = useMemo<ProductContext | undefined>(() =>
-    product ? { name: product.name, manufacturer: product.manufacturer || undefined } : undefined,
-    [product?.name, product?.manufacturer],
+    product ? {
+      name: product.name,
+      manufacturer: product.manufacturer || undefined,
+      version: product.firmware_versions[0] || undefined,
+    } : undefined,
+    [product?.name, product?.manufacturer, product?.firmware_versions],
   )
 
   const handleUploadClick = useCallback(() => {

@@ -141,7 +141,7 @@ All dashboards use Loki as the sole datasource. Panels use LogQL queries with `j
 
 ## Alert Rules
 
-8 alert rules provisioned via `monitoring/grafana/provisioning/alerting/rules.yml`:
+10 alert rules provisioned via `monitoring/grafana/provisioning/alerting/rules.yml`:
 
 | Alert | Condition | For | Severity |
 |-------|-----------|-----|----------|
@@ -153,8 +153,20 @@ All dashboards use Loki as the sole datasource. Panels use LogQL queries with `j
 | **Chat High Latency** | Chat p95 > 60s over 5 min | 5m | Warning |
 | **Chat Errors** | >5 chat stream errors in 15 min | 0s | Warning |
 | **Ollama Unreachable** | >2 Ollama connection failures in 5 min | 2m | Critical |
+| **S3 Write Failures** | >3 S3 write errors in 5 min | 0s | Critical |
+| **MinIO Unhealthy** | Write probe failed >2 times in 5 min | 0s | Critical |
 
 All alerts query Loki via LogQL expressions. `noDataState: OK` for most rules (no data = no problem). `Service Down` uses `noDataState: Alerting` (no data = service is down).
+
+### S3/MinIO Storage Monitoring
+
+MinIO health is monitored at two levels:
+
+1. **Proactive write probe** (`s3_health_probe` Celery Beat task, every 60s) — writes and deletes a tiny test object to `_health/write-probe`. Emits `"S3 health probe OK"` or `"S3 health probe FAILED"`. Detects degraded storage (e.g. drives-offline) before user-facing operations fail.
+
+2. **Reactive write failure tracking** — `upload_file()` in `app/s3.py` catches `ClientError`, logs `"S3 write failed"` with `error_code` and `is_throttle` fields, then re-raises. This enables Grafana to alert on any S3 write failures regardless of the calling code.
+
+3. **User-visible progress** — Confluence crawl shows storage errors in `progress_stage` (e.g. `"crawling (50 found, 20 queued, 30 storage errors!)"`). If all pages fail to save, the document is marked as `error` with an actionable message.
 
 ---
 

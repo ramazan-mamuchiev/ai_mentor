@@ -454,6 +454,15 @@ async def lifespan(app: FastAPI):
         ensure_bucket()
     except Exception:
         logger.warning("S3 bucket init failed (will retry on first upload)", exc_info=True)
+
+    try:
+        from app.admin.seed_prompts import seed_prompts
+        from app.database import async_session
+        async with async_session() as session:
+            await seed_prompts(session)
+    except Exception:
+        logger.warning("Prompt templates seed failed", exc_info=True)
+
     monitor_task = asyncio.create_task(_system_monitor())
     async with mcp.session_manager.run():
         yield

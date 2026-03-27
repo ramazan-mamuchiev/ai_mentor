@@ -697,3 +697,94 @@ class UsageLog(Base):
         Index("idx_usage_log_request", "request_id"),
         Index("idx_usage_log_api_key", "api_key_id", "created_at"),
     )
+
+
+# ---------------------------------------------------------------------------
+# RBAC models
+# ---------------------------------------------------------------------------
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    permissions: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant_links: Mapped[list["TenantRole"]] = relationship(
+        back_populates="role", cascade="all, delete-orphan",
+    )
+    prompt_overrides: Mapped[list["PromptTemplate"]] = relationship(
+        back_populates="role", cascade="all, delete-orphan",
+    )
+
+
+class TenantRole(Base):
+    __tablename__ = "tenant_roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role_id: Mapped[int] = mapped_column(
+        ForeignKey("roles.id", ondelete="CASCADE"), nullable=False,
+    )
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant: Mapped["Tenant"] = relationship()
+    role: Mapped["Role"] = relationship(back_populates="tenant_links")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "role_id"),
+        Index("idx_tenant_roles_tenant", "tenant_id"),
+    )
+
+
+class PromptTemplate(Base):
+    __tablename__ = "prompt_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    query_type: Mapped[str] = mapped_column(Text, nullable=False)
+    role_id: Mapped[int | None] = mapped_column(
+        ForeignKey("roles.id", ondelete="CASCADE"), nullable=True,
+    )
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prompt_templates.id", ondelete="SET NULL"), nullable=True,
+    )
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_customized: Mapped[bool] = mapped_column(Boolean, default=False)
+    body: Mapped[str] = mapped_column(Text, default="")
+    classifier_hint: Mapped[str] = mapped_column(Text, default="")
+    max_response_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rag_top_k: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    role: Mapped["Role | None"] = relationship(back_populates="prompt_overrides")
+    parent: Mapped["PromptTemplate | None"] = relationship(remote_side=[id])
+
+    __table_args__ = (
+        UniqueConstraint("query_type", "role_id"),
+        Index("idx_prompt_templates_query_type", "query_type"),
+    )
