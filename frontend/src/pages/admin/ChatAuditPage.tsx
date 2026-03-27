@@ -150,7 +150,7 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
                         </>
                       )}
                       <span className="audit-meta-sep">·</span>
-                      <span className="message-ids"><span>S: {String(detail.id).slice(0, 8)}</span><span>M: {m.id}</span></span>
+                      <span className="message-ids">S: {String(detail.id).slice(0, 8)} · M: {m.id}</span>
                       {m.feedback && (
                         <>
                           <span className="audit-meta-sep">·</span>
@@ -176,7 +176,7 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
                       <span className="audit-meta-sep">·</span>
                       <span className="audit-meta-time">{fmtTime(m.created_at)}</span>
                       <span className="audit-meta-sep">·</span>
-                      <span className="message-ids"><span>S: {String(detail.id).slice(0, 8)}</span><span>M: {m.id}</span></span>
+                      <span className="message-ids">S: {String(detail.id).slice(0, 8)} · M: {m.id}</span>
                     </div>
                   )}
                 </div>

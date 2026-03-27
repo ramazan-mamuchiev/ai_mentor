@@ -236,8 +236,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               <>
                 {(debug.session_id != null) && (
                   <span className="message-ids">
-                    <span>S: {String(debug.session_id).slice(0, 8)}</span>
-                    {debug.message_id != null && <span>M: {debug.message_id}</span>}
+                    S: {String(debug.session_id).slice(0, 8)}{debug.message_id != null ? ` · M: ${debug.message_id}` : ''}
                   </span>
                 )}
                 {debug.status === 'stopped' && (
