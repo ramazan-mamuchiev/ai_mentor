@@ -116,6 +116,13 @@ function ApiKeysTab() {
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ApiKeyItem | null>(null)
 
+  useEffect(() => {
+    if (!deleteTarget) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setDeleteTarget(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [deleteTarget])
+
   const load = useCallback(async () => {
     try {
       const data = await getApiKeys()
@@ -232,6 +239,12 @@ function ApiKeysTab() {
 function NewKeyModal({ newKey, onClose }: { newKey: ApiKeyCreated; onClose: () => void }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
