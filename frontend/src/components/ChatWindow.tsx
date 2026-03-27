@@ -24,7 +24,6 @@ interface Props {
   onCancel: () => void
   onRetry?: () => void
   editValue?: string
-  onUploadClick?: () => void
   productFilter?: string | null
   versionFilter?: string | null
   autoDetected?: boolean
@@ -46,7 +45,6 @@ export function ChatWindow({
   onCancel,
   onRetry,
   editValue,
-  onUploadClick,
   productFilter,
   versionFilter,
   autoDetected,
@@ -267,7 +265,7 @@ export function ChatWindow({
           </button>
         )}
 
-        <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} onUploadClick={onUploadClick} />
+        <ChatInput onSend={handleSend} onCancel={onCancel} status={status} editValue={editValue} />
       </div>
 
       {rightPanel && (

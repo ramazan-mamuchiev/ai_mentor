@@ -45,6 +45,7 @@
   "input.upload": "Upload documentation",
   "input.send": "Send message",
   "input.stop": "Stop generating",
+  "input.attachComingSoon": "Attach files to chat — coming soon!",
 
   "chat.searching": "Searching documentation & generating response...",
   "chat.stageRewriting": "Rewriting query...",

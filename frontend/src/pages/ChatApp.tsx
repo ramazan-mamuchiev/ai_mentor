@@ -219,7 +219,6 @@ export function ChatApp() {
           : undefined
       }
       editValue={lastUserPrompt}
-      onUploadClick={() => setShowUpload(true)}
       productFilter={activeSession?.product_filter}
       versionFilter={activeSession?.version_filter}
       autoDetected={activeSession?.product_filter_source === 'auto'}
