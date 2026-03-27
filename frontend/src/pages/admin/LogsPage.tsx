@@ -1,30 +1,170 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { RefreshCw, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  RefreshCw, X, Search, Radio, ChevronDown, ChevronRight,
+  Copy, Check, Clock, AlertTriangle,
+} from 'lucide-react'
 import { getLogs, type LogEntry } from '../../api/admin'
 
 const SERVICES = ['api', 'worker', 'beat', 'web', 'postgres', 'redis'] as const
-const LEVELS = ['', 'info', 'warning', 'error', 'debug'] as const
+
+const LEVELS = [
+  { value: '', label: 'All', color: '' },
+  { value: 'info', label: 'INFO', color: 'var(--log-info)' },
+  { value: 'warning', label: 'WARN', color: 'var(--log-warn)' },
+  { value: 'error', label: 'ERROR', color: 'var(--log-error)' },
+  { value: 'debug', label: 'DEBUG', color: 'var(--log-debug)' },
+] as const
+
+const TIME_RANGES = [
+  { value: '15m', label: '15m' },
+  { value: '1h', label: '1h' },
+  { value: '3h', label: '3h' },
+  { value: '6h', label: '6h' },
+  { value: '24h', label: '24h' },
+  { value: '7d', label: '7d' },
+] as const
+
+function timeRangeToISO(range: string): { start: string; end: string } {
+  const now = Date.now()
+  const units: Record<string, number> = { m: 60_000, h: 3_600_000, d: 86_400_000 }
+  const match = range.match(/^(\d+)([mhd])$/)
+  if (!match) return { start: '', end: '' }
+  const ms = parseInt(match[1]) * units[match[2]]
+  return {
+    start: new Date(now - ms).toISOString(),
+    end: new Date(now).toISOString(),
+  }
+}
+
+function formatTimestamp(ts: string): string {
+  try {
+    const ns = BigInt(ts)
+    const ms = Number(ns / BigInt(1_000_000))
+    const d = new Date(ms)
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mi = String(d.getMinutes()).padStart(2, '0')
+    const ss = String(d.getSeconds()).padStart(2, '0')
+    return `${dd}.${mm} ${hh}:${mi}:${ss}`
+  } catch {
+    return ts
+  }
+}
+
+function tryParseJSON(msg: string): Record<string, unknown> | null {
+  if (!msg.startsWith('{')) return null
+  try { return JSON.parse(msg) } catch { return null }
+}
+
+function highlightSearch(text: string, query: string): React.ReactNode {
+  if (!query || query.length < 2) return text
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="log-highlight">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
+
+function LogRow({ entry, search, defaultExpanded }: {
+  entry: LogEntry; search: string; defaultExpanded: boolean
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  const [copied, setCopied] = useState(false)
+  const parsed = useMemo(() => tryParseJSON(entry.message), [entry.message])
+  const lvl = entry.level?.toLowerCase() || 'info'
+
+  const summary = useMemo(() => {
+    if (!parsed) return entry.message
+    const event = parsed.event || parsed.msg || parsed.message || ''
+    const method = parsed.method || ''
+    const path = parsed.path || ''
+    const status = parsed.status_code || parsed.status || ''
+    const duration = parsed.duration_ms ? `${parsed.duration_ms}ms` : ''
+    const parts = [event, method && path ? `${method} ${path}` : '', status, duration].filter(Boolean)
+    return parts.join(' · ') || entry.message
+  }, [parsed, entry.message])
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(entry.message)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const extraKeys = parsed
+    ? Object.entries(parsed).filter(([k]) => !['event', 'msg', 'message', 'level', 'timestamp', 'logger'].includes(k))
+    : Object.entries(entry.extra || {})
+
+  return (
+    <div className={`log-row ${expanded ? 'log-row--expanded' : ''}`} onClick={() => setExpanded(v => !v)}>
+      <div className="log-row__header">
+        <span className="log-row__expand">
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </span>
+        <span className="log-row__ts">{formatTimestamp(entry.timestamp)}</span>
+        <span className={`log-row__level log-row__level--${lvl}`}>{lvl === 'warning' ? 'WARN' : lvl.toUpperCase()}</span>
+        <span className="log-row__summary">{highlightSearch(String(summary), search)}</span>
+        <button className="log-row__copy" onClick={handleCopy} title="Copy raw message">
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+        </button>
+      </div>
+      {expanded && extraKeys.length > 0 && (
+        <div className="log-row__details">
+          {extraKeys.map(([k, v]) => (
+            <div className="log-row__field" key={k}>
+              <span className="log-row__key">{k}</span>
+              <span className="log-row__value">{highlightSearch(String(v), search)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function LogsPage() {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [service, setService] = useState('api')
   const [level, setLevel] = useState('')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [timeRange, setTimeRange] = useState('1h')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [search])
 
   const load = useCallback(async () => {
+    setError('')
     try {
+      const { start, end } = timeRangeToISO(timeRange)
       const res = await getLogs({
-        service, level: level || undefined,
-        search: search || undefined, limit: 500,
+        service,
+        level: level || undefined,
+        search: debouncedSearch || undefined,
+        start: start || undefined,
+        end: end || undefined,
+        limit: 500,
       })
       setEntries(res.entries)
-    } catch { /* ignore */ }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load logs')
+    }
     setLoading(false)
-  }, [service, level, search])
+  }, [service, level, debouncedSearch, timeRange])
 
   useEffect(() => {
     setLoading(true)
@@ -40,77 +180,109 @@ export function LogsPage() {
     }
   }, [autoRefresh, load])
 
-  const formatTimestamp = (ts: string): string => {
-    try {
-      const ns = BigInt(ts)
-      const ms = Number(ns / BigInt(1_000_000))
-      return new Date(ms).toLocaleString()
-    } catch {
-      return ts
+  const levelCounts = useMemo(() => {
+    const counts: Record<string, number> = { info: 0, warning: 0, error: 0, debug: 0 }
+    for (const e of entries) {
+      const l = e.level?.toLowerCase() || 'info'
+      if (l in counts) counts[l]++
     }
-  }
+    return counts
+  }, [entries])
 
   return (
-    <div>
+    <div className="logs-page">
       <div className="admin-page-header">
         <h1>Logs</h1>
         <p>View platform logs via Loki</p>
       </div>
 
-      <div className="admin-toolbar" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: 16 }}>
-        <select className="admin-select" value={service} onChange={e => setService(e.target.value)}>
-          {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className="admin-select" value={level} onChange={e => setLevel(e.target.value)}>
-          <option value="">All levels</option>
-          {LEVELS.filter(Boolean).map(l => <option key={l} value={l}>{l}</option>)}
-        </select>
-        <div style={{ position: 'relative', flex: 1 }}>
-          <input
-            className="admin-search"
-            style={{ width: '100%', paddingRight: search ? 28 : undefined }}
-            placeholder="Search logs..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && load()}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              style={{
-                position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer', padding: 2,
-                color: 'var(--text-secondary)', display: 'flex', alignItems: 'center',
-              }}
-              aria-label="Clear search"
-            >
-              <X size={14} />
-            </button>
-          )}
+      {/* Toolbar */}
+      <div className="logs-toolbar">
+        <div className="logs-toolbar__row">
+          {/* Service select */}
+          <select className="logs-select" value={service} onChange={e => setService(e.target.value)}>
+            {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          {/* Time range chips */}
+          <div className="logs-chips" role="group" aria-label="Time range">
+            <Clock size={13} className="logs-chips__icon" />
+            {TIME_RANGES.map(r => (
+              <button
+                key={r.value}
+                className={`logs-chip${timeRange === r.value ? ' logs-chip--active' : ''}`}
+                onClick={() => setTimeRange(r.value)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div className="logs-search-wrap">
+            <Search size={14} className="logs-search-wrap__icon" />
+            <input
+              className="logs-search"
+              placeholder="Search logs..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && load()}
+            />
+            {search && (
+              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Refresh & Live tail */}
+          <button className="logs-icon-btn" onClick={load} title="Refresh">
+            <RefreshCw size={14} className={loading ? 'spin' : ''} />
+          </button>
+          <button
+            className={`logs-live-btn${autoRefresh ? ' logs-live-btn--active' : ''}`}
+            onClick={() => setAutoRefresh(v => !v)}
+          >
+            <Radio size={13} />
+            Live
+          </button>
         </div>
-        <button className="admin-btn admin-btn--sm" onClick={load}>
-          <RefreshCw size={14} />
-        </button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />
-          Live tail
-        </label>
+
+        {/* Level filter chips */}
+        <div className="logs-toolbar__row">
+          <div className="logs-level-chips" role="group" aria-label="Log level">
+            {LEVELS.map(l => (
+              <button
+                key={l.value}
+                className={`logs-level-chip logs-level-chip--${l.value || 'all'}${level === l.value ? ' logs-level-chip--active' : ''}`}
+                onClick={() => setLevel(l.value)}
+              >
+                {l.label}
+                {l.value && <span className="logs-level-chip__count">{levelCounts[l.value] ?? 0}</span>}
+              </button>
+            ))}
+          </div>
+          <span className="logs-count">{entries.length} entries</span>
+        </div>
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div className="logs-error">
+          <AlertTriangle size={14} />
+          {error}
+        </div>
+      )}
+
+      {/* Log viewer */}
       {loading ? (
         <div className="admin-loading">Loading logs...</div>
-      ) : entries.length === 0 ? (
-        <div className="admin-empty">No log entries found. Loki might not be reachable from the backend.</div>
+      ) : entries.length === 0 && !error ? (
+        <div className="admin-empty">No log entries found for the selected filters.</div>
       ) : (
         <div className="log-viewer" ref={containerRef}>
           {entries.map((entry, i) => (
-            <div key={i} className="log-entry">
-              <span className="log-entry__ts">{formatTimestamp(entry.timestamp)}</span>
-              <span className={`log-entry__level log-entry__level--${entry.level.toLowerCase()}`}>
-                {entry.level || 'info'}
-              </span>
-              <span className="log-entry__msg">{entry.message}</span>
-            </div>
+            <LogRow key={i} entry={entry} search={debouncedSearch} defaultExpanded={false} />
           ))}
         </div>
       )}
