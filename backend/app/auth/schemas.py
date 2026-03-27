@@ -89,3 +89,40 @@ class RequestPasswordResetRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
+
+
+# --- Usage analytics ---
+
+class ActionBreakdown(BaseModel):
+    action: str
+    count: int
+    tokens: int
+
+class DailyUsage(BaseModel):
+    date: str
+    requests: int
+    tokens: int
+
+class ApiKeyUsageResponse(BaseModel):
+    total_requests: int
+    total_tokens: int
+    total_charge_usd: str
+    by_action: list[ActionBreakdown]
+    daily: list[DailyUsage]
+
+class KeySummary(BaseModel):
+    key_id: str
+    key_name: str
+    key_prefix: str
+    total_requests: int
+    total_tokens: int
+    total_charge_usd: str
+
+class UsageSummaryResponse(BaseModel):
+    total_requests: int
+    total_tokens: int
+    total_charge_usd: str
+    active_keys: int
+    by_action: list[ActionBreakdown]
+    daily: list[DailyUsage]
+    by_key: list[KeySummary]

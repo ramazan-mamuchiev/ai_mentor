@@ -126,3 +126,52 @@ export async function deleteApiKey(id: string): Promise<void> {
     credentials: 'include',
   })
 }
+
+export interface ActionBreakdown {
+  action: string
+  count: number
+  tokens: number
+}
+
+export interface DailyUsage {
+  date: string
+  requests: number
+  tokens: number
+}
+
+export interface ApiKeyUsageResponse {
+  total_requests: number
+  total_tokens: number
+  total_charge_usd: string
+  by_action: ActionBreakdown[]
+  daily: DailyUsage[]
+}
+
+export interface KeySummary {
+  key_id: string
+  key_name: string
+  key_prefix: string
+  total_requests: number
+  total_tokens: number
+  total_charge_usd: string
+}
+
+export interface UsageSummaryResponse {
+  total_requests: number
+  total_tokens: number
+  total_charge_usd: string
+  active_keys: number
+  by_action: ActionBreakdown[]
+  daily: DailyUsage[]
+  by_key: KeySummary[]
+}
+
+export async function getApiKeyUsage(keyId: string): Promise<ApiKeyUsageResponse> {
+  const res = await fetch(`${BASE}/api-keys/${keyId}/usage`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getUsageSummary(days = 30): Promise<UsageSummaryResponse> {
+  const res = await fetch(`${BASE}/usage/summary?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}

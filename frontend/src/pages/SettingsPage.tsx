@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Copy, Key, Plus, Trash2, Check, User, Save, X } from 'lucide-react'
+import { Copy, Key, Plus, Trash2, Check, User, Save, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getApiKeys, createApiKey, deleteApiKey, updateMe, type ApiKeyItem, type ApiKeyCreated } from '../auth/api'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { getApiKeys, createApiKey, deleteApiKey, updateMe, getApiKeyUsage, type ApiKeyItem, type ApiKeyCreated, type ApiKeyUsageResponse } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
 
 type Tab = 'profile' | 'api-keys'
@@ -115,6 +116,9 @@ function ApiKeysTab() {
   const [keyName, setKeyName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ApiKeyItem | null>(null)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [usageData, setUsageData] = useState<Record<string, ApiKeyUsageResponse>>({})
+  const [usageLoading, setUsageLoading] = useState<string | null>(null)
 
   useEffect(() => {
     if (!deleteTarget) return
@@ -149,6 +153,22 @@ function ApiKeysTab() {
     await deleteApiKey(deleteTarget.id)
     setDeleteTarget(null)
     await load()
+  }
+
+  const toggleUsage = async (keyId: string) => {
+    if (expandedKey === keyId) {
+      setExpandedKey(null)
+      return
+    }
+    setExpandedKey(keyId)
+    if (!usageData[keyId]) {
+      setUsageLoading(keyId)
+      try {
+        const data = await getApiKeyUsage(keyId)
+        setUsageData(prev => ({ ...prev, [keyId]: data }))
+      } catch { /* ignore */ }
+      setUsageLoading(null)
+    }
   }
 
   return (
@@ -192,17 +212,33 @@ function ApiKeysTab() {
           </thead>
           <tbody>
             {keys.map(k => (
-              <tr key={k.id}>
-                <td>{k.name || '—'}</td>
-                <td><code>{k.key_prefix}</code></td>
-                <td className="hide-mobile">{new Date(k.created_at).toLocaleDateString()}</td>
-                <td className="hide-mobile">{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}</td>
-                <td>
-                  <button onClick={() => setDeleteTarget(k)} className="btn-icon btn-danger" data-tooltip={t('settings.deleteKey')}>
-                    <Trash2 size={16} />
-                  </button>
-                </td>
-              </tr>
+              <>
+                <tr key={k.id} className={expandedKey === k.id ? 'row-expanded' : ''} style={{ cursor: 'pointer' }} onClick={() => toggleUsage(k.id)}>
+                  <td>
+                    {expandedKey === k.id ? <ChevronUp size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} /> : <ChevronDown size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />}
+                    {k.name || '—'}
+                  </td>
+                  <td><code>{k.key_prefix}</code></td>
+                  <td className="hide-mobile">{new Date(k.created_at).toLocaleDateString()}</td>
+                  <td className="hide-mobile">{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}</td>
+                  <td>
+                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(k) }} className="btn-icon btn-danger" data-tooltip={t('settings.deleteKey')}>
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+                {expandedKey === k.id && (
+                  <tr key={`${k.id}-usage`} className="usage-detail-row">
+                    <td colSpan={5}>
+                      {usageLoading === k.id ? (
+                        <p className="settings-loading">{t('settings.loading')}</p>
+                      ) : usageData[k.id] ? (
+                        <KeyUsagePanel usage={usageData[k.id]} />
+                      ) : null}
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
           </tbody>
         </table>
@@ -233,6 +269,68 @@ function ApiKeysTab() {
         </div>
       )}
     </section>
+  )
+}
+
+function KeyUsagePanel({ usage }: { usage: ApiKeyUsageResponse }) {
+  const { t } = useTranslation()
+  const formatNum = (n: number) => n.toLocaleString()
+
+  return (
+    <div className="key-usage-panel">
+      <div className="key-usage-kpi">
+        <div className="kpi-card">
+          <span className="kpi-value">{formatNum(usage.total_requests)}</span>
+          <span className="kpi-label">{t('analytics.kpiRequests')}</span>
+        </div>
+        <div className="kpi-card">
+          <span className="kpi-value">{formatNum(usage.total_tokens)}</span>
+          <span className="kpi-label">{t('analytics.kpiTokens')}</span>
+        </div>
+        <div className="kpi-card">
+          <span className="kpi-value">${usage.total_charge_usd}</span>
+          <span className="kpi-label">{t('analytics.kpiCharge')}</span>
+        </div>
+      </div>
+
+      {usage.daily.length > 0 && (
+        <div className="key-usage-chart">
+          <ResponsiveContainer width="100%" height={120}>
+            <AreaChart data={usage.daily}>
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={d => d.slice(5)} />
+              <YAxis hide />
+              <Tooltip />
+              <Area type="monotone" dataKey="requests" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.15} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {usage.by_action.length > 0 && (
+        <table className="usage-breakdown-table">
+          <thead>
+            <tr>
+              <th>{t('analytics.action')}</th>
+              <th>{t('analytics.kpiRequests')}</th>
+              <th>{t('analytics.kpiTokens')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {usage.by_action.map(a => (
+              <tr key={a.action}>
+                <td><code>{a.action}</code></td>
+                <td>{formatNum(a.count)}</td>
+                <td>{formatNum(a.tokens)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {usage.total_requests === 0 && (
+        <p className="settings-empty">{t('analytics.noData')}</p>
+      )}
+    </div>
   )
 }
 

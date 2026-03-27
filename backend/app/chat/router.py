@@ -10,10 +10,11 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
+from app.auth.dependencies import get_current_tenant
 from app.billing.usage_writer import write_usage_log
 from app.chat.rag import build_rag_prompt, summarize_history
 from app.chat.schemas import (
@@ -29,7 +30,7 @@ from app.chat.schemas import (
 from app.config import settings
 from app.database import async_session
 from app.llm.client import LLMError, stream_chat_completion
-from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, DocumentUsageLog, Product
+from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, DocumentUsageLog, Product, Tenant
 
 MAX_CONTINUATIONS = settings.llm_max_continuations
 CONTINUE_PROMPT = (
@@ -69,11 +70,18 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)
-async def create_session(req: CreateSessionRequest):
+async def create_session(
+    req: CreateSessionRequest,
+    request: Request,
+    tenant: Tenant = Depends(get_current_tenant),
+):
     """Create a new chat session."""
+    api_key_id = getattr(request.state, "api_key_id", None)
     async with async_session() as session:
         chat_session = ChatSession(
             title=req.title,
+            tenant_id=tenant.id,
+            api_key_id=api_key_id,
             product_id=req.product_id,
             product_filter=req.product_filter,
             product_filter_source=req.product_filter_source or ("explicit" if req.product_id or req.product_filter else None),
@@ -108,11 +116,15 @@ async def create_session(req: CreateSessionRequest):
 
 
 @router.patch("/sessions/{session_id}", response_model=SessionResponse)
-async def update_session(session_id: int, req: UpdateSessionRequest):
+async def update_session(
+    session_id: int,
+    req: UpdateSessionRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+):
     """Update session product/version filter."""
     async with async_session() as session:
         chat_session = await session.get(ChatSession, session_id)
-        if not chat_session:
+        if not chat_session or chat_session.tenant_id != tenant.id:
             raise HTTPException(status_code=404, detail="Session not found")
 
         product_changed = (
@@ -203,7 +215,7 @@ async def update_session(session_id: int, req: UpdateSessionRequest):
 
 
 @router.get("/sessions", response_model=list[SessionListItem])
-async def list_sessions():
+async def list_sessions(tenant: Tenant = Depends(get_current_tenant)):
     """List all chat sessions, newest first."""
     async with async_session() as session:
         subq = (
@@ -233,6 +245,7 @@ async def list_sessions():
                 subq.c.last_user_msg,
             )
             .outerjoin(subq, ChatSession.id == subq.c.session_id)
+            .where(ChatSession.tenant_id == tenant.id)
             .order_by(ChatSession.updated_at.desc())
         )
 
@@ -257,11 +270,11 @@ async def list_sessions():
 
 
 @router.get("/sessions/{session_id}", response_model=SessionDetailResponse)
-async def get_session(session_id: int):
+async def get_session(session_id: int, tenant: Tenant = Depends(get_current_tenant)):
     """Get session with full message history."""
     async with async_session() as session:
         chat_session = await session.get(ChatSession, session_id)
-        if not chat_session:
+        if not chat_session or chat_session.tenant_id != tenant.id:
             raise HTTPException(status_code=404, detail="Session not found")
 
         msgs_result = await session.execute(
@@ -314,11 +327,11 @@ async def get_session(session_id: int):
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
-async def delete_session(session_id: int):
+async def delete_session(session_id: int, tenant: Tenant = Depends(get_current_tenant)):
     """Delete a chat session and all its messages."""
     async with async_session() as session:
         chat_session = await session.get(ChatSession, session_id)
-        if not chat_session:
+        if not chat_session or chat_session.tenant_id != tenant.id:
             raise HTTPException(status_code=404, detail="Session not found")
         await session.delete(chat_session)
         await session.commit()
@@ -326,9 +339,17 @@ async def delete_session(session_id: int):
 
 
 @router.post("/sessions/{session_id}/messages/{message_id}/feedback", status_code=200)
-async def submit_feedback(session_id: int, message_id: int, req: FeedbackRequest):
+async def submit_feedback(
+    session_id: int,
+    message_id: int,
+    req: FeedbackRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+):
     """Submit thumbs-up/down feedback on an assistant message."""
     async with async_session() as session:
+        chat_session = await session.get(ChatSession, session_id)
+        if not chat_session or chat_session.tenant_id != tenant.id:
+            raise HTTPException(status_code=404, detail="Session not found")
         msg = await session.get(ChatMessage, message_id)
         if not msg or msg.session_id != session_id:
             raise HTTPException(status_code=404, detail="Message not found")
@@ -352,7 +373,12 @@ async def submit_feedback(session_id: int, message_id: int, req: FeedbackRequest
 
 
 @router.post("/sessions/{session_id}/messages")
-async def send_message(session_id: int, req: SendMessageRequest):
+async def send_message(
+    session_id: int,
+    req: SendMessageRequest,
+    request: Request,
+    tenant: Tenant = Depends(get_current_tenant),
+):
     """Send a message and receive an SSE-streamed response.
 
     SSE events:
@@ -362,9 +388,13 @@ async def send_message(session_id: int, req: SendMessageRequest):
     - {"type": "done", "message_id": N, "duration_ms": F} — stream complete
     - {"type": "error", "error_code": "...", "status_code": N} — error occurred
     """
+    api_key_id = getattr(request.state, "api_key_id", None)
+    tenant_id_str = str(tenant.id)
+    api_key_id_str = str(api_key_id) if api_key_id else None
+
     async with async_session() as session:
         chat_session = await session.get(ChatSession, session_id)
-        if not chat_session:
+        if not chat_session or chat_session.tenant_id != tenant.id:
             raise HTTPException(status_code=404, detail="Session not found")
 
     async def event_stream() -> AsyncGenerator[str, None]:
@@ -754,6 +784,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                     duration_ms=duration_ms,
                     search_ms=rag_debug.get("search_ms", 0),
                     llm_ms=llm_ms,
+                    tenant_id=tenant_id_str,
+                    api_key_id=api_key_id_str,
                 )
 
                 classify_prompt_tokens = rag_debug.get("classify_prompt_tokens", 0)
@@ -770,6 +802,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         query_text=req.content,
                         product_filter=chat_session.product_filter,
                         duration_ms=rag_debug.get("classify_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
                     )
 
                 if rag_debug.get("retry_used"):
@@ -783,6 +817,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         completion_tokens=0,
                         query_text=req.content,
                         duration_ms=rag_debug.get("rephrase_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
                     )
 
                 if summary_meta.get("summary_total_tokens", 0) > 0:
@@ -797,6 +833,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         query_text=req.content,
                         product_filter=chat_session.product_filter,
                         duration_ms=summary_meta.get("summary_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
                     )
 
                 decompose_prompt_tokens = rag_debug.get("decompose_prompt_tokens", 0)
@@ -813,6 +851,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         query_text=req.content,
                         product_filter=chat_session.product_filter,
                         duration_ms=rag_debug.get("decompose_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
                     )
 
                 web_search_total = rag_debug.get("web_search_total_tokens", 0)
@@ -828,6 +868,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                         query_text=req.content,
                         product_filter=chat_session.product_filter,
                         duration_ms=rag_debug.get("web_search_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
                     )
 
                 if sources:
@@ -855,6 +897,8 @@ async def send_message(session_id: int, req: SendMessageRequest):
                                 charge_usd=Decimal(str(round(
                                     float(debug_info.get("charge_usd", 0) or 0) * share, 8
                                 ))),
+                                tenant_id=tenant.id,
+                                api_key_id=api_key_id,
                             ))
                         await db.commit()
                     except Exception:

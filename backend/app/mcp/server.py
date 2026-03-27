@@ -9,7 +9,7 @@ from sqlalchemy import text
 from app.billing.usage_writer import write_usage_log
 from app.config import settings
 from app.database import async_session
-from app.mcp.auth_middleware import current_tenant_id
+from app.mcp.auth_middleware import current_api_key_id, current_tenant_id
 from app.models import SearchAnalytics
 from app.search.service import search_documents, search_endpoint
 
@@ -29,6 +29,8 @@ async def _save_search_analytics(
     top_similarity: float = 0.0,
     product_filter: str | None = None,
     version_filter: str | None = None,
+    tenant_id: str | None = None,
+    api_key_id: str | None = None,
 ) -> None:
     """Persist a search analytics record (fire-and-forget, errors logged)."""
     try:
@@ -43,6 +45,8 @@ async def _save_search_analytics(
                 top_similarity=top_similarity,
                 duration_ms=duration_ms,
                 embedding_model=_embedding_model_name(),
+                tenant_id=tenant_id,
+                api_key_id=api_key_id,
             ))
             await session.commit()
     except Exception:
@@ -115,6 +119,8 @@ async def tool_search_documentation(
         top_similarity=top_similarity,
         product_filter=product,
         version_filter=version,
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
     )
 
     if not results:
@@ -142,6 +148,7 @@ async def tool_search_documentation(
         version_filter=version,
         duration_ms=duration_ms,
         tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
     )
 
     return response_text
@@ -205,6 +212,8 @@ async def tool_get_api_endpoint(
         result_count=result_count,
         top_similarity=top_similarity,
         product_filter=product,
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
     )
 
     if not results:
@@ -232,6 +241,7 @@ async def tool_get_api_endpoint(
         product_filter=product,
         duration_ms=duration_ms,
         tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
     )
 
     return response_text
@@ -305,6 +315,8 @@ async def tool_list_products(
         query=query or "",
         duration_ms=duration_ms,
         result_count=len(rows),
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
     )
 
     if not rows:
@@ -340,6 +352,7 @@ async def tool_list_products(
         cogs_usd=Decimal("0"),
         charge_usd=Decimal("0"),
         tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
     )
 
     return response_text

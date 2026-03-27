@@ -13,6 +13,7 @@ from app.models import ApiKey, Tenant
 logger = logging.getLogger(__name__)
 
 current_tenant_id: ContextVar[str | None] = ContextVar("current_tenant_id", default=None)
+current_api_key_id: ContextVar[str | None] = ContextVar("current_api_key_id", default=None)
 
 
 class McpApiKeyAuthMiddleware:
@@ -68,11 +69,13 @@ class McpApiKeyAuthMiddleware:
             await self._send_401(send, "Authentication service unavailable")
             return
 
-        token = current_tenant_id.set(str(tenant.id))
+        token_tid = current_tenant_id.set(str(tenant.id))
+        token_akid = current_api_key_id.set(str(api_key.id))
         try:
             await self.app(scope, receive, send)
         finally:
-            current_tenant_id.reset(token)
+            current_api_key_id.reset(token_akid)
+            current_tenant_id.reset(token_tid)
 
     @staticmethod
     async def _send_401(send, detail: str):

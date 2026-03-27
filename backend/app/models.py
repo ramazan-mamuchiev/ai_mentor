@@ -267,6 +267,7 @@ class ChatSession(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
+    api_key_id = mapped_column(UUID(as_uuid=True), nullable=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -445,6 +446,7 @@ class DocumentUsageLog(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     tenant_id = mapped_column(UUID(as_uuid=True), nullable=True)
+    api_key_id = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
     )
@@ -480,6 +482,7 @@ class DocumentUsageLog(Base):
         Index("idx_dul_product", "product_id", "created_at"),
         Index("idx_dul_session", "session_id"),
         Index("idx_dul_created", "created_at"),
+        Index("idx_dul_api_key", "api_key_id"),
     )
 
 
@@ -520,6 +523,7 @@ class SearchAnalytics(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     tenant_id = mapped_column(UUID(as_uuid=True), nullable=True)
+    api_key_id = mapped_column(UUID(as_uuid=True), nullable=True)
     source: Mapped[str] = mapped_column(Text, nullable=False)
     tool_name: Mapped[str] = mapped_column(Text, nullable=False)
     query: Mapped[str] = mapped_column(Text, default="")
@@ -684,9 +688,11 @@ class UsageLog(Base):
     charge_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
 
     tenant_id = mapped_column(UUID(as_uuid=True), nullable=True)
+    api_key_id = mapped_column(UUID(as_uuid=True), nullable=True)
 
     __table_args__ = (
         Index("idx_usage_log_channel", "channel", "created_at"),
         Index("idx_usage_log_action", "action", "created_at"),
         Index("idx_usage_log_request", "request_id"),
+        Index("idx_usage_log_api_key", "api_key_id", "created_at"),
     )

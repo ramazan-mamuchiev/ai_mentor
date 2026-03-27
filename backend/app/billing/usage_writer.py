@@ -44,6 +44,7 @@ async def write_usage_log(
     cogs_usd: Decimal | None = None,
     charge_usd: Decimal | None = None,
     tenant_id: str | None = None,
+    api_key_id: str | None = None,
 ) -> None:
     """Persist a usage_log record for billing audit.
 
@@ -105,6 +106,7 @@ async def write_usage_log(
                 cogs_usd=cogs_usd,
                 charge_usd=charge_usd,
                 tenant_id=tenant_id,
+                api_key_id=api_key_id,
             ))
             await session.commit()
 

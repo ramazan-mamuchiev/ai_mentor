@@ -14,8 +14,8 @@ from app.models import ApiKey, Tenant
 _BEARER = "Bearer "
 
 
-async def _resolve_api_key(raw_key: str, session: AsyncSession) -> Tenant:
-    """Look up tenant by raw API key (ipx_...)."""
+async def _resolve_api_key(raw_key: str, session: AsyncSession) -> tuple[Tenant, uuid.UUID]:
+    """Look up tenant by raw API key (ipx_...). Returns (tenant, api_key_id)."""
     import hashlib
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
     result = await session.execute(
@@ -35,7 +35,7 @@ async def _resolve_api_key(raw_key: str, session: AsyncSession) -> Tenant:
     from datetime import datetime, timezone
     api_key.last_used_at = datetime.now(timezone.utc)
     await session.commit()
-    return tenant
+    return tenant, api_key.id
 
 
 async def _resolve_jwt(token: str, session: AsyncSession) -> Tenant:
@@ -71,10 +71,14 @@ async def get_current_tenant(
     if auth_header and auth_header.startswith(_BEARER):
         token = auth_header[len(_BEARER):]
         if token.startswith("ipx_"):
-            return await _resolve_api_key(token, session)
+            tenant, api_key_id = await _resolve_api_key(token, session)
+            request.state.api_key_id = api_key_id
+            return tenant
+        request.state.api_key_id = None
         return await _resolve_jwt(token, session)
 
     if access_token:
+        request.state.api_key_id = None
         return await _resolve_jwt(access_token, session)
 
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")

@@ -7,6 +7,7 @@ from app.auth.dependencies import get_current_tenant
 from app.auth.schemas import (
     ApiKeyCreatedResponse,
     ApiKeyResponse,
+    ApiKeyUsageResponse,
     CreateApiKeyRequest,
     LoginRequest,
     MeResponse,
@@ -15,6 +16,7 @@ from app.auth.schemas import (
     RegisterResponse,
     TokenResponse,
     UpdateMeRequest,
+    UsageSummaryResponse,
 )
 from app.auth.service import (
     authenticate_tenant,
@@ -188,6 +190,134 @@ async def remove_key(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid key id")
     if not await delete_api_key(tenant.id, kid, session):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+
+
+# ---------------------------------------------------------------------------
+# Usage analytics
+# ---------------------------------------------------------------------------
+
+@router.get("/api-keys/{key_id}/usage", response_model=ApiKeyUsageResponse)
+async def get_api_key_usage(
+    key_id: str,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Usage statistics for a specific API key (last 30 days)."""
+    import uuid as _uuid
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import func, text
+
+    try:
+        kid = _uuid.UUID(key_id)
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid key id")
+
+    from sqlalchemy import select as sa_select
+
+    from app.models import ApiKey
+    ak = await session.scalar(
+        sa_select(ApiKey).where(ApiKey.id == kid, ApiKey.tenant_id == tenant.id)
+    )
+    if not ak:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+
+    since = datetime.now(timezone.utc) - timedelta(days=30)
+
+    totals = (await session.execute(text(
+        "SELECT COUNT(*) AS cnt, COALESCE(SUM(total_tokens),0) AS tokens, "
+        "COALESCE(SUM(charge_usd),0) AS charge "
+        "FROM usage_log WHERE api_key_id = :kid AND created_at >= :since"
+    ), {"kid": kid, "since": since})).mappings().one()
+
+    by_action_rows = (await session.execute(text(
+        "SELECT action, COUNT(*) AS cnt, COALESCE(SUM(total_tokens),0) AS tokens "
+        "FROM usage_log WHERE api_key_id = :kid AND created_at >= :since "
+        "GROUP BY action ORDER BY cnt DESC"
+    ), {"kid": kid, "since": since})).mappings().all()
+
+    daily_rows = (await session.execute(text(
+        "SELECT DATE(created_at) AS d, COUNT(*) AS cnt, COALESCE(SUM(total_tokens),0) AS tokens "
+        "FROM usage_log WHERE api_key_id = :kid AND created_at >= :since "
+        "GROUP BY DATE(created_at) ORDER BY d"
+    ), {"kid": kid, "since": since})).mappings().all()
+
+    from app.auth.schemas import ActionBreakdown, DailyUsage
+    return ApiKeyUsageResponse(
+        total_requests=int(totals["cnt"]),
+        total_tokens=int(totals["tokens"]),
+        total_charge_usd=str(totals["charge"]),
+        by_action=[ActionBreakdown(action=r["action"], count=int(r["cnt"]), tokens=int(r["tokens"])) for r in by_action_rows],
+        daily=[DailyUsage(date=str(r["d"]), requests=int(r["cnt"]), tokens=int(r["tokens"])) for r in daily_rows],
+    )
+
+
+@router.get("/usage/summary", response_model=UsageSummaryResponse)
+async def get_usage_summary(
+    days: int = 30,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Aggregated usage summary for the current tenant."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import text
+
+    days = max(1, min(days, 365))
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    tid = tenant.id
+
+    totals = (await session.execute(text(
+        "SELECT COUNT(*) AS cnt, COALESCE(SUM(total_tokens),0) AS tokens, "
+        "COALESCE(SUM(charge_usd),0) AS charge "
+        "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since"
+    ), {"tid": tid, "since": since})).mappings().one()
+
+    by_action_rows = (await session.execute(text(
+        "SELECT action, COUNT(*) AS cnt, COALESCE(SUM(total_tokens),0) AS tokens "
+        "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY action ORDER BY cnt DESC"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    daily_rows = (await session.execute(text(
+        "SELECT DATE(created_at) AS d, COUNT(*) AS cnt, COALESCE(SUM(total_tokens),0) AS tokens "
+        "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY DATE(created_at) ORDER BY d"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    by_key_rows = (await session.execute(text(
+        "SELECT u.api_key_id, k.name AS key_name, k.key_prefix, "
+        "COUNT(*) AS cnt, COALESCE(SUM(u.total_tokens),0) AS tokens, "
+        "COALESCE(SUM(u.charge_usd),0) AS charge "
+        "FROM usage_log u "
+        "LEFT JOIN api_keys k ON k.id = u.api_key_id "
+        "WHERE u.tenant_id = :tid AND u.created_at >= :since AND u.api_key_id IS NOT NULL "
+        "GROUP BY u.api_key_id, k.name, k.key_prefix "
+        "ORDER BY cnt DESC LIMIT 50"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    from app.models import ApiKey
+    active_keys = await session.scalar(text(
+        "SELECT COUNT(*) FROM api_keys WHERE tenant_id = :tid AND is_active = true"
+    ), {"tid": tid})
+
+    from app.auth.schemas import ActionBreakdown, DailyUsage, KeySummary
+    return UsageSummaryResponse(
+        total_requests=int(totals["cnt"]),
+        total_tokens=int(totals["tokens"]),
+        total_charge_usd=str(totals["charge"]),
+        active_keys=int(active_keys or 0),
+        by_action=[ActionBreakdown(action=r["action"], count=int(r["cnt"]), tokens=int(r["tokens"])) for r in by_action_rows],
+        daily=[DailyUsage(date=str(r["d"]), requests=int(r["cnt"]), tokens=int(r["tokens"])) for r in daily_rows],
+        by_key=[KeySummary(
+            key_id=str(r["api_key_id"]),
+            key_name=r["key_name"] or "",
+            key_prefix=r["key_prefix"] or "",
+            total_requests=int(r["cnt"]),
+            total_tokens=int(r["tokens"]),
+            total_charge_usd=str(r["charge"]),
+        ) for r in by_key_rows],
+    )
 
 
 # ---------------------------------------------------------------------------

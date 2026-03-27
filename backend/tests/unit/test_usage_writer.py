@@ -177,3 +177,44 @@ class TestWriteUsageLog:
         usage_log = mock_session.add.call_args[0][0]
         assert usage_log.cogs_usd == Decimal("0.50")
         assert usage_log.charge_usd > 0
+
+    @pytest.mark.asyncio
+    async def test_api_key_id_and_tenant_id_persisted(self):
+        """api_key_id and tenant_id are forwarded to UsageLog."""
+        mock_cm, mock_session = _mock_session_context()
+
+        with patch("app.billing.usage_writer.async_session", return_value=mock_cm):
+            await write_usage_log(
+                channel="mcp",
+                action="search_documentation",
+                request_id="test-uuid-audit",
+                query_text="ONVIF",
+                result_count=3,
+                duration_ms=100.0,
+                tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                api_key_id="11111111-2222-3333-4444-555555555555",
+            )
+
+        usage_log = mock_session.add.call_args[0][0]
+        assert usage_log.tenant_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        assert usage_log.api_key_id == "11111111-2222-3333-4444-555555555555"
+
+    @pytest.mark.asyncio
+    async def test_api_key_id_none_when_jwt(self):
+        """api_key_id defaults to None for JWT-authenticated requests."""
+        mock_cm, mock_session = _mock_session_context()
+
+        with patch("app.billing.usage_writer.async_session", return_value=mock_cm):
+            await write_usage_log(
+                channel="chat",
+                action="chat_completion",
+                request_id="test-uuid-jwt",
+                llm_model="gemini-2.5-flash",
+                prompt_tokens=100,
+                completion_tokens=50,
+                tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            )
+
+        usage_log = mock_session.add.call_args[0][0]
+        assert usage_log.tenant_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        assert usage_log.api_key_id is None
