@@ -23,6 +23,13 @@ export interface TokenResponse {
   token_type: string
 }
 
+export interface RoleBrief {
+  id: number
+  slug: string
+  name: string
+  priority: number
+}
+
 export interface MeResponse {
   id: string
   email: string
@@ -30,6 +37,8 @@ export interface MeResponse {
   slug: string
   tier: string
   role: string
+  roles: RoleBrief[]
+  permissions: Record<string, unknown>
   email_verified: boolean
   created_at: string
 }

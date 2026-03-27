@@ -463,6 +463,11 @@ async def send_message(
 
                 async def _run_rag() -> None:
                     try:
+                        _perms = getattr(request.state, "permissions", {})
+                        _roles = getattr(request.state, "tenant_roles", [])
+                        _role_ids = [r.id for r in _roles] if _roles else None
+                        _allowed_qt = _perms.get("chat_context", {}).get("allowed_query_types")
+
                         msgs, srcs, dbg = await build_rag_prompt(
                             db=db,
                             query=req.content,
@@ -474,6 +479,8 @@ async def send_message(
                             product_filter_source=chat_session.product_filter_source,
                             history_summary=current_summary,
                             progress_callback=_on_progress,
+                            role_ids=_role_ids,
+                            allowed_query_types=_allowed_qt,
                         )
                         rag_result_holder["messages"] = msgs
                         rag_result_holder["sources"] = srcs

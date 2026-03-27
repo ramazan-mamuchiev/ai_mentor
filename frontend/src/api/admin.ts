@@ -345,3 +345,207 @@ export async function getLogs(params: {
   const res = await fetch(`${BASE}/logs?${sp}`, { credentials: 'include' })
   return handleResponse(res)
 }
+
+
+// --- Roles ---
+
+export interface RoleListItem {
+  id: number
+  slug: string
+  name: string
+  description: string
+  is_system: boolean
+  priority: number
+  tenants_count: number
+  created_at: string
+}
+
+export interface RoleDetail extends RoleListItem {
+  permissions: Record<string, unknown>
+  updated_at: string
+}
+
+export async function listRoles(): Promise<RoleListItem[]> {
+  const res = await fetch(`${BASE}/roles`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getRole(id: number): Promise<RoleDetail> {
+  const res = await fetch(`${BASE}/roles/${id}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function createRole(data: {
+  slug: string
+  name: string
+  description?: string
+  priority?: number
+  permissions?: Record<string, unknown>
+}): Promise<RoleDetail> {
+  const res = await fetch(`${BASE}/roles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function patchRole(id: number, data: {
+  name?: string
+  description?: string
+  priority?: number
+  permissions?: Record<string, unknown>
+}): Promise<RoleDetail> {
+  const res = await fetch(`${BASE}/roles/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function deleteRole(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/roles/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+}
+
+export interface TenantRoleItem {
+  id: number
+  role_id: number
+  role_slug: string
+  role_name: string
+  assigned_at: string
+}
+
+export async function getTenantRoles(tenantId: string): Promise<TenantRoleItem[]> {
+  const res = await fetch(`${BASE}/tenants/${tenantId}/roles`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function assignTenantRole(tenantId: string, roleId: number): Promise<TenantRoleItem> {
+  const res = await fetch(`${BASE}/tenants/${tenantId}/roles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role_id: roleId }),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function unassignTenantRole(tenantId: string, roleId: number): Promise<void> {
+  const res = await fetch(`${BASE}/tenants/${tenantId}/roles/${roleId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+}
+
+
+// --- Prompt Templates ---
+
+export interface PromptTemplateItem {
+  id: number
+  query_type: string
+  role_id: number | null
+  role_slug: string | null
+  parent_id: number | null
+  is_system: boolean
+  is_customized: boolean
+  classifier_hint: string
+  max_response_tokens: number | null
+  rag_top_k: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PromptTemplateDetail extends PromptTemplateItem {
+  body: string
+}
+
+export interface PromptPreview {
+  query_type: string
+  resolved_body: string
+  resolved_classifier_hint: string
+  resolved_max_response_tokens: number | null
+  resolved_rag_top_k: number | null
+}
+
+export async function listPrompts(): Promise<PromptTemplateItem[]> {
+  const res = await fetch(`${BASE}/prompts`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getPrompt(id: number): Promise<PromptTemplateDetail> {
+  const res = await fetch(`${BASE}/prompts/${id}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function createPrompt(data: {
+  query_type: string
+  role_id?: number | null
+  body?: string
+  classifier_hint?: string
+  max_response_tokens?: number | null
+  rag_top_k?: number | null
+}): Promise<PromptTemplateDetail> {
+  const res = await fetch(`${BASE}/prompts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function patchPrompt(id: number, data: {
+  body?: string
+  classifier_hint?: string
+  max_response_tokens?: number | null
+  rag_top_k?: number | null
+}): Promise<PromptTemplateDetail> {
+  const res = await fetch(`${BASE}/prompts/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function deletePrompt(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/prompts/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+}
+
+export async function previewPrompt(id: number): Promise<PromptPreview> {
+  const res = await fetch(`${BASE}/prompts/${id}/preview`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function seedPrompts(): Promise<{ seeded: number }> {
+  const res = await fetch(`${BASE}/prompts/seed`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}

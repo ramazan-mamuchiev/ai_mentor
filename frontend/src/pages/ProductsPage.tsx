@@ -6,16 +6,14 @@ import {
   Upload,
   Globe,
   Loader2,
-  Clock,
   CheckCircle,
-  AlertCircle,
   Search,
   X,
   Bug,
   RefreshCw,
   Pencil,
   Trash2,
-  Ban,
+  MoreHorizontal,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listProducts, deleteProduct, reingestProduct, cancelProductIngestion } from '../api/products'
@@ -37,12 +35,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
 }
 
-function formatDateTime(iso: string | null): string {
+function formatDateCompact(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  return `${date}\n${time}`
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function formatDateTimeFull(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
 }
 
 function getProductStatus(p: ProductListItem): DocumentStatusValue {
@@ -56,50 +61,63 @@ function getProductStatus(p: ProductListItem): DocumentStatusValue {
 function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; onCancel?: () => void }) {
   const { t } = useTranslation()
   const status = getProductStatus(product)
+  const total = product.total_documents
 
-  const allReady = product.total_documents > 0
-    && product.ready_documents === product.total_documents
+  const allReady = total > 0 && product.ready_documents === total
 
   if (allReady) {
     return (
-      <div className="docs-status-wrap">
-        <span className="docs-status docs-status--ready">
-          <CheckCircle size={14} />
-          {t('docs.status.ready')}
-        </span>
-      </div>
+      <span className="docs-status docs-status--ready">
+        <CheckCircle size={14} />
+        {t('docs.status.ready')}
+      </span>
     )
   }
 
-  const counters: { key: DocumentStatusValue; count: number; icon: React.ReactNode }[] = [
-    { key: 'ready', count: product.ready_documents, icon: <CheckCircle size={12} /> },
-    { key: 'processing', count: product.processing_documents, icon: <Loader2 size={12} className="spin-icon" /> },
-    { key: 'pending', count: product.pending_documents, icon: <Clock size={12} /> },
-    { key: 'error', count: product.error_documents, icon: <AlertCircle size={12} /> },
-    { key: 'cancelled', count: product.cancelled_documents, icon: <Ban size={12} /> },
-  ]
+  if (total === 0) {
+    return <span className="docs-date">—</span>
+  }
 
-  const pct = status === 'processing' || status === 'pending'
+  const segments = ([
+    { key: 'ready' as DocumentStatusValue, count: product.ready_documents },
+    { key: 'processing' as DocumentStatusValue, count: product.processing_documents },
+    { key: 'pending' as DocumentStatusValue, count: product.pending_documents },
+    { key: 'error' as DocumentStatusValue, count: product.error_documents },
+    { key: 'cancelled' as DocumentStatusValue, count: product.cancelled_documents },
+  ]).filter(s => s.count > 0)
+
+  const tooltipParts = segments.map(s => `${s.count} ${t(`docs.status.${s.key}`).toLowerCase()}`)
+  const tooltip = tooltipParts.join(', ')
+
+  const pct = (status === 'processing' || status === 'pending')
     ? Math.max(0, Math.min(100, product.progress_percent))
-    : 0
+    : Math.round((product.ready_documents / total) * 100)
+
   const canCancel = onCancel && (status === 'processing' || status === 'pending')
 
   return (
-    <div className="docs-status-wrap">
-      <div className="product-status-summary">
-        {counters
-          .filter(c => c.count > 0)
-          .map(c => (
-            <span
-              key={c.key}
-              className={`product-status-counter product-status-counter--${c.key}`}
-              title={`${c.count} ${t(`docs.status.${c.key}`).toLowerCase()}`}
-            >
-              {c.icon}
-              <span className="product-status-counter-num">{c.count}</span>
-            </span>
-          ))
-        }
+    <div className="product-segmented-wrap" data-tooltip={tooltip}>
+      <div className="product-segmented-bar">
+        {segments.map(s => (
+          <div
+            key={s.key}
+            className={`product-segmented-segment product-segmented-segment--${s.key}`}
+            style={{ width: `${(s.count / total) * 100}%` }}
+          />
+        ))}
+      </div>
+      <div className="product-segmented-text">
+        {(status === 'processing' || status === 'pending') && (
+          <span className="product-segmented-pct">{pct}%</span>
+        )}
+        <span className="product-segmented-fraction">
+          {product.ready_documents} / {total}
+        </span>
+        {product.error_documents > 0 && (
+          <span className="product-segmented-error-hint">
+            ({product.error_documents} {t('docs.status.error').toLowerCase()})
+          </span>
+        )}
         {canCancel && (
           <button
             className="docs-status-cancel"
@@ -110,22 +128,70 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
           </button>
         )}
       </div>
-      {(status === 'processing' || status === 'pending') && (
-        <>
-          <div className="docs-progress-bar">
-            <div
-              className={`docs-progress-fill docs-progress-fill--${status}`}
-              style={pct > 0 ? { width: `${pct}%`, animation: 'none' } : undefined}
-            />
+    </div>
+  )
+}
+
+function ProductActions({
+  product: p,
+  onEdit,
+  onDelete,
+  onReingest,
+  onDebug,
+}: {
+  product: ProductListItem
+  onEdit: (p: ProductListItem) => void
+  onDelete: (p: ProductListItem) => void
+  onReingest: (p: ProductListItem) => void
+  onDebug: (p: ProductListItem) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div className="docs-actions">
+      <button
+        className="docs-action-btn"
+        onClick={() => onEdit(p)}
+        data-tooltip={t('products.actions.edit')}
+      >
+        <Pencil size={16} />
+      </button>
+      <div className="docs-actions-more" ref={ref}>
+        <button
+          className="docs-action-btn"
+          onClick={() => setOpen(v => !v)}
+          data-tooltip={t('products.table.actions')}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+        {open && (
+          <div className="docs-actions-dropdown">
+            <button className="docs-actions-dropdown-item" onClick={() => { onDebug(p); setOpen(false) }}>
+              <Bug size={15} />
+              {t('products.actions.debug')}
+            </button>
+            <button className="docs-actions-dropdown-item" onClick={() => { onReingest(p); setOpen(false) }}>
+              <RefreshCw size={15} />
+              {t('products.actions.reindex')}
+            </button>
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(p); setOpen(false) }}>
+              <Trash2 size={15} />
+              {t('products.actions.delete')}
+            </button>
           </div>
-          {product.progress_detail && (
-            <div className="docs-progress-info">
-              {pct > 0 && <span className="docs-progress-pct">{pct}%</span>}
-              <span className="docs-progress-stage">{product.progress_detail}</span>
-            </div>
-          )}
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -325,7 +391,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       id: 'uploaded',
       accessorFn: row => row.uploaded_at,
       header: () => t('products.table.uploaded'),
-      cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return <span className="docs-date" data-tooltip={formatDateTimeFull(v)}>{formatDateCompact(v)}</span>
+      },
       enableGrouping: false,
       sortingFn: 'datetime',
     },
@@ -333,7 +402,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       id: 'indexed',
       accessorFn: row => row.indexed_at,
       header: () => t('products.table.indexed'),
-      cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return <span className="docs-date" data-tooltip={formatDateTimeFull(v)}>{formatDateCompact(v)}</span>
+      },
       enableGrouping: false,
       sortingFn: 'datetime',
     },
@@ -344,43 +416,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       cell: ({ row }) => {
         const p = row.original
-        const isDebugOpen = debugPanel?.id === p.id
-        return (
-          <div className="docs-actions">
-            <button
-              className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
-              onClick={() => openDebug(p)}
-              data-tooltip={t('products.actions.debug')}
-            >
-              <Bug size={16} />
-            </button>
-            <button
-              className="docs-action-btn"
-              onClick={() => setReingestTarget(p)}
-              data-tooltip={t('products.actions.reindex')}
-            >
-              <RefreshCw size={16} />
-            </button>
-            <button
-              className="docs-action-btn"
-              onClick={() => setEditTarget(p)}
-              data-tooltip={t('products.actions.edit')}
-            >
-              <Pencil size={16} />
-            </button>
-            <button
-              className="docs-action-btn docs-action-btn--danger"
-              onClick={() => setDeleteTarget(p)}
-              data-tooltip={t('products.actions.delete')}
-              data-tooltip-align="right"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        )
+        return <ProductActions product={p} onEdit={setEditTarget} onDelete={setDeleteTarget} onReingest={setReingestTarget} onDebug={openDebug} />
       },
     },
-  ], [t, navigate, debugPanel, openDebug])
+  ], [t, navigate, openDebug])
 
   const {
     table,
@@ -571,6 +610,8 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
               <div className="docs-card-meta">
                 <span>{t('products.table.documents')}: {p.total_documents}</span>
                 <span>{formatBytes(p.total_file_size_bytes)}</span>
+                {p.total_chunks > 0 && <span>{t('products.table.chunks')}: {p.total_chunks}</span>}
+                {p.uploaded_at && <span>{formatDateCompact(p.uploaded_at)}</span>}
               </div>
               {p.formats.length > 0 && (
                 <div className="docs-card-meta" style={{ marginTop: 4 }}>
@@ -582,18 +623,14 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                 </div>
               )}
               <div className="docs-card-actions" onClick={e => e.stopPropagation()}>
-                <button
-                  className={`docs-action-btn docs-debug-toggle${debugPanel?.id === p.id ? ' docs-debug-toggle--active' : ''}`}
-                  onClick={() => openDebug(p)}
-                  data-tooltip={t('products.actions.debug')}
-                >
+                <button className="docs-action-btn" onClick={() => setEditTarget(p)} data-tooltip={t('products.actions.edit')}>
+                  <Pencil size={16} />
+                </button>
+                <button className="docs-action-btn" onClick={() => openDebug(p)} data-tooltip={t('products.actions.debug')}>
                   <Bug size={16} />
                 </button>
                 <button className="docs-action-btn" onClick={() => setReingestTarget(p)} data-tooltip={t('products.actions.reindex')}>
                   <RefreshCw size={16} />
-                </button>
-                <button className="docs-action-btn" onClick={() => setEditTarget(p)} data-tooltip={t('products.actions.edit')}>
-                  <Pencil size={16} />
                 </button>
                 <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)} data-tooltip={t('products.actions.delete')}>
                   <Trash2 size={16} />

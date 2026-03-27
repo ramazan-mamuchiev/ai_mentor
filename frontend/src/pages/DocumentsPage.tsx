@@ -17,6 +17,7 @@ import {
   Ban,
   ExternalLink,
   Eye,
+  MoreHorizontal,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
 import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
@@ -38,12 +39,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
 }
 
-function formatDateTime(iso: string | null): string {
+function formatDateCompact(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  return `${date}\n${time}`
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function formatDateTimeFull(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
 }
 
 function isUrl(value: string): boolean {
@@ -164,6 +172,84 @@ const docGlobalFilter: FilterFn<DocumentListItem> = (row, _columnId, filterValue
     d.original_filename.toLowerCase().includes(q) ||
     (d.source_container || '').toLowerCase().includes(q) ||
     (d.source_path || '').toLowerCase().includes(q)
+  )
+}
+
+function DocActions({
+  doc,
+  onDebug,
+  onPreview,
+  onDownload,
+  onReingest,
+  onDelete,
+}: {
+  doc: DocumentListItem
+  onDebug: (d: DocumentListItem) => void
+  onPreview: (d: DocumentListItem) => void
+  onDownload: (d: DocumentListItem) => void
+  onReingest: (d: DocumentListItem) => void
+  onDelete: (d: DocumentListItem) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div className="docs-actions">
+      {doc.status === 'ready' && (
+        <button
+          className="docs-action-btn"
+          onClick={() => onDebug(doc)}
+          data-tooltip={t('docs.actions.debug')}
+        >
+          <Bug size={16} />
+        </button>
+      )}
+      <div className="docs-actions-more" ref={ref}>
+        <button
+          className="docs-action-btn"
+          onClick={() => setOpen(v => !v)}
+          data-tooltip={t('docs.table.actions')}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+        {open && (
+          <div className="docs-actions-dropdown">
+            {doc.status === 'ready' && (
+              <button className="docs-actions-dropdown-item" onClick={() => { onPreview(doc); setOpen(false) }}>
+                <Eye size={15} />
+                {t('docs.actions.previewMd')}
+              </button>
+            )}
+            {doc.status === 'ready' && (
+              <button className="docs-actions-dropdown-item" onClick={() => { onDownload(doc); setOpen(false) }}>
+                <Download size={15} />
+                {t('docs.actions.download')}
+              </button>
+            )}
+            {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
+              <button className="docs-actions-dropdown-item" onClick={() => { onReingest(doc); setOpen(false) }}>
+                <RefreshCw size={15} />
+                {t('docs.actions.reindex')}
+              </button>
+            )}
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
+              <Trash2 size={15} />
+              {t('docs.actions.delete')}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -404,7 +490,10 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       id: 'uploaded',
       accessorFn: row => row.uploaded_at,
       header: () => t('docs.table.uploaded'),
-      cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return <span className="docs-date" data-tooltip={formatDateTimeFull(v)}>{formatDateCompact(v)}</span>
+      },
       enableGrouping: false,
       sortingFn: 'datetime',
     },
@@ -412,7 +501,10 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       id: 'indexed',
       accessorFn: row => row.indexed_at,
       header: () => t('docs.table.indexed'),
-      cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return <span className="docs-date" data-tooltip={formatDateTimeFull(v)}>{formatDateCompact(v)}</span>
+      },
       enableGrouping: false,
       sortingFn: 'datetime',
     },
@@ -421,43 +513,18 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       header: () => t('docs.table.actions'),
       enableSorting: false,
       enableGrouping: false,
-      cell: ({ row }) => {
-        const doc = row.original
-        const isDebugOpen = debugPanel?.id === doc.id
-        return (
-          <div className="docs-actions">
-            {doc.status === 'ready' && (
-              <button
-                className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
-                onClick={() => openDebug(doc)}
-                data-tooltip={t('docs.actions.debug')}
-              >
-                <Bug size={16} />
-              </button>
-            )}
-            {doc.status === 'ready' && (
-              <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} data-tooltip={t('docs.actions.previewMd')}>
-                <Eye size={16} />
-              </button>
-            )}
-            {doc.status === 'ready' && (
-              <button className="docs-action-btn" onClick={() => handleDownload(doc)} data-tooltip={t('docs.actions.download')}>
-                <Download size={16} />
-              </button>
-            )}
-            {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
-              <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} data-tooltip={t('docs.actions.reindex')}>
-                <RefreshCw size={16} />
-              </button>
-            )}
-            <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')} data-tooltip-align="right">
-              <Trash2 size={16} />
-            </button>
-          </div>
-        )
-      },
+      cell: ({ row }) => (
+        <DocActions
+          doc={row.original}
+          onDebug={openDebug}
+          onPreview={setPreviewTarget}
+          onDownload={handleDownload}
+          onReingest={setReingestTarget}
+          onDelete={setDeleteTarget}
+        />
+      ),
     },
-  ], [t, handleDownload, debugPanel, openDebug])
+  ], [t, handleDownload, openDebug])
 
   const {
     table,
@@ -646,13 +713,14 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                   {doc.detected_language && <span className="docs-lang-badge" title={doc.detected_language}>{doc.detected_language}</span>}
                 </span>
                 <span>{formatBytes(doc.file_size_bytes)}</span>
+                {doc.total_chunks > 0 && <span>{t('docs.table.chunks')}: {doc.total_chunks}</span>}
                 {doc.product_name && <span>{doc.product_name}</span>}
-                <span>{formatDateTime(doc.uploaded_at)}</span>
+                <span>{formatDateCompact(doc.uploaded_at)}</span>
               </div>
               <div className="docs-card-actions">
                 {doc.status === 'ready' && (
                   <button
-                    className={`docs-action-btn docs-debug-toggle${debugPanel?.id === doc.id ? ' docs-debug-toggle--active' : ''}`}
+                    className="docs-action-btn"
                     onClick={() => openDebug(doc)}
                     data-tooltip={t('docs.actions.debug')}
                   >

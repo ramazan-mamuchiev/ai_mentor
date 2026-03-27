@@ -180,3 +180,84 @@ class LogEntry(BaseModel):
 class LogsResponse(BaseModel):
     entries: list[LogEntry]
     total: int
+
+
+# --- Roles ---
+
+class RoleListItem(BaseModel):
+    id: int
+    slug: str
+    name: str
+    description: str
+    is_system: bool
+    priority: int
+    tenants_count: int = 0
+    created_at: datetime
+
+class RoleDetail(RoleListItem):
+    permissions: dict = {}
+    updated_at: datetime
+
+class RoleCreateRequest(BaseModel):
+    slug: str = Field(min_length=2, max_length=64)
+    name: str = Field(min_length=1, max_length=128)
+    description: str = ""
+    priority: int = 0
+    permissions: dict = Field(default_factory=dict)
+
+class RolePatchRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    priority: int | None = None
+    permissions: dict | None = None
+
+class TenantRoleAssignRequest(BaseModel):
+    role_id: int
+
+class TenantRoleItem(BaseModel):
+    id: int
+    role_id: int
+    role_slug: str
+    role_name: str
+    assigned_at: datetime
+
+
+# --- Prompt Templates ---
+
+class PromptTemplateItem(BaseModel):
+    id: int
+    query_type: str
+    role_id: int | None
+    role_slug: str | None = None
+    parent_id: int | None
+    is_system: bool
+    is_customized: bool
+    classifier_hint: str
+    max_response_tokens: int | None
+    rag_top_k: int | None
+    created_at: datetime
+    updated_at: datetime
+
+class PromptTemplateDetail(PromptTemplateItem):
+    body: str
+
+class PromptTemplateCreateRequest(BaseModel):
+    query_type: str = Field(min_length=1, max_length=64)
+    role_id: int | None = None
+    body: str = ""
+    classifier_hint: str = ""
+    max_response_tokens: int | None = None
+    rag_top_k: int | None = None
+
+class PromptTemplatePatchRequest(BaseModel):
+    body: str | None = None
+    classifier_hint: str | None = None
+    max_response_tokens: int | None = Field(default=None)
+    rag_top_k: int | None = Field(default=None)
+
+class PromptPreviewResponse(BaseModel):
+    query_type: str
+    resolved_body: str
+    resolved_classifier_hint: str
+    resolved_max_response_tokens: int | None
+    resolved_rag_top_k: int | None

@@ -12,8 +12,11 @@ from app.models import (
     ChatSession,
     Document,
     Product,
+    PromptTemplate,
+    Role,
     SearchAnalytics,
     Tenant,
+    TenantRole,
     UsageLog,
 )
 
@@ -552,4 +555,371 @@ async def get_search_stats(session: AsyncSession, days: int = 30) -> dict:
         "avg_duration_ms": round(float(avg_dur), 1) if avg_dur else None,
         "top_queries": [{"query": r.query[:200], "count": r.cnt} for r in top_queries],
         "zero_result_count": zero_results,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Roles
+# ---------------------------------------------------------------------------
+
+async def list_roles(session: AsyncSession) -> list[dict]:
+    result = await session.execute(
+        select(
+            Role,
+            func.count(TenantRole.id).label("tenants_count"),
+        )
+        .outerjoin(TenantRole, TenantRole.role_id == Role.id)
+        .group_by(Role.id)
+        .order_by(Role.priority.desc(), Role.name)
+    )
+    rows = result.all()
+    return [
+        {
+            "id": role.id,
+            "slug": role.slug,
+            "name": role.name,
+            "description": role.description,
+            "is_system": role.is_system,
+            "priority": role.priority,
+            "tenants_count": cnt,
+            "created_at": role.created_at,
+        }
+        for role, cnt in rows
+    ]
+
+
+async def get_role_detail(session: AsyncSession, role_id: int) -> dict | None:
+    result = await session.execute(
+        select(
+            Role,
+            func.count(TenantRole.id).label("tenants_count"),
+        )
+        .outerjoin(TenantRole, TenantRole.role_id == Role.id)
+        .where(Role.id == role_id)
+        .group_by(Role.id)
+    )
+    row = result.one_or_none()
+    if not row:
+        return None
+    role, cnt = row
+    return {
+        "id": role.id,
+        "slug": role.slug,
+        "name": role.name,
+        "description": role.description,
+        "is_system": role.is_system,
+        "priority": role.priority,
+        "permissions": role.permissions,
+        "tenants_count": cnt,
+        "created_at": role.created_at,
+        "updated_at": role.updated_at,
+    }
+
+
+async def create_role(
+    session: AsyncSession,
+    *,
+    slug: str,
+    name: str,
+    description: str = "",
+    priority: int = 0,
+    permissions: dict | None = None,
+) -> Role:
+    role = Role(
+        slug=slug,
+        name=name,
+        description=description,
+        is_system=False,
+        priority=priority,
+        permissions=permissions or {},
+    )
+    session.add(role)
+    await session.commit()
+    await session.refresh(role)
+    return role
+
+
+async def patch_role(
+    session: AsyncSession,
+    role_id: int,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    priority: int | None = None,
+    permissions: dict | None = None,
+) -> dict | None:
+    result = await session.execute(select(Role).where(Role.id == role_id))
+    role = result.scalar_one_or_none()
+    if not role:
+        return None
+    if name is not None:
+        role.name = name
+    if description is not None:
+        role.description = description
+    if priority is not None:
+        role.priority = priority
+    if permissions is not None:
+        role.permissions = permissions
+    session.add(role)
+    await session.commit()
+    return await get_role_detail(session, role_id)
+
+
+async def delete_role(session: AsyncSession, role_id: int) -> bool:
+    result = await session.execute(select(Role).where(Role.id == role_id))
+    role = result.scalar_one_or_none()
+    if not role:
+        return False
+    if role.is_system:
+        raise ValueError("Cannot delete system role")
+    await session.delete(role)
+    await session.commit()
+    return True
+
+
+async def get_tenant_roles(
+    session: AsyncSession, tenant_id: uuid.UUID,
+) -> list[dict]:
+    result = await session.execute(
+        select(TenantRole, Role)
+        .join(Role, TenantRole.role_id == Role.id)
+        .where(TenantRole.tenant_id == tenant_id)
+        .order_by(Role.priority.desc())
+    )
+    return [
+        {
+            "id": tr.id,
+            "role_id": role.id,
+            "role_slug": role.slug,
+            "role_name": role.name,
+            "assigned_at": tr.assigned_at,
+        }
+        for tr, role in result.all()
+    ]
+
+
+async def assign_role_to_tenant(
+    session: AsyncSession, tenant_id: uuid.UUID, role_id: int,
+) -> dict:
+    tenant_exists = await session.execute(
+        select(Tenant.id).where(Tenant.id == tenant_id)
+    )
+    if not tenant_exists.scalar_one_or_none():
+        raise ValueError("Tenant not found")
+
+    role_exists = await session.execute(select(Role).where(Role.id == role_id))
+    if not role_exists.scalar_one_or_none():
+        raise ValueError("Role not found")
+
+    existing = await session.execute(
+        select(TenantRole).where(
+            TenantRole.tenant_id == tenant_id,
+            TenantRole.role_id == role_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise ValueError("Role already assigned")
+
+    tr = TenantRole(tenant_id=tenant_id, role_id=role_id)
+    session.add(tr)
+    await session.commit()
+    await session.refresh(tr)
+
+    role = (await session.execute(select(Role).where(Role.id == role_id))).scalar_one()
+    return {
+        "id": tr.id,
+        "role_id": role.id,
+        "role_slug": role.slug,
+        "role_name": role.name,
+        "assigned_at": tr.assigned_at,
+    }
+
+
+async def unassign_role_from_tenant(
+    session: AsyncSession, tenant_id: uuid.UUID, role_id: int,
+) -> bool:
+    result = await session.execute(
+        select(TenantRole).where(
+            TenantRole.tenant_id == tenant_id,
+            TenantRole.role_id == role_id,
+        )
+    )
+    tr = result.scalar_one_or_none()
+    if not tr:
+        return False
+    await session.delete(tr)
+    await session.commit()
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Prompt Templates
+# ---------------------------------------------------------------------------
+
+async def list_prompt_templates(session: AsyncSession) -> list[dict]:
+    result = await session.execute(
+        select(PromptTemplate, Role.slug.label("role_slug"))
+        .outerjoin(Role, PromptTemplate.role_id == Role.id)
+        .order_by(PromptTemplate.query_type, PromptTemplate.role_id.is_(None).desc())
+    )
+    return [
+        {
+            "id": pt.id,
+            "query_type": pt.query_type,
+            "role_id": pt.role_id,
+            "role_slug": role_slug,
+            "parent_id": pt.parent_id,
+            "is_system": pt.is_system,
+            "is_customized": pt.is_customized,
+            "classifier_hint": pt.classifier_hint,
+            "max_response_tokens": pt.max_response_tokens,
+            "rag_top_k": pt.rag_top_k,
+            "created_at": pt.created_at,
+            "updated_at": pt.updated_at,
+        }
+        for pt, role_slug in result.all()
+    ]
+
+
+async def get_prompt_template(session: AsyncSession, prompt_id: int) -> dict | None:
+    result = await session.execute(
+        select(PromptTemplate, Role.slug.label("role_slug"))
+        .outerjoin(Role, PromptTemplate.role_id == Role.id)
+        .where(PromptTemplate.id == prompt_id)
+    )
+    row = result.one_or_none()
+    if not row:
+        return None
+    pt, role_slug = row
+    return {
+        "id": pt.id,
+        "query_type": pt.query_type,
+        "role_id": pt.role_id,
+        "role_slug": role_slug,
+        "parent_id": pt.parent_id,
+        "is_system": pt.is_system,
+        "is_customized": pt.is_customized,
+        "body": pt.body,
+        "classifier_hint": pt.classifier_hint,
+        "max_response_tokens": pt.max_response_tokens,
+        "rag_top_k": pt.rag_top_k,
+        "created_at": pt.created_at,
+        "updated_at": pt.updated_at,
+    }
+
+
+async def create_prompt_template(
+    session: AsyncSession,
+    *,
+    query_type: str,
+    role_id: int | None = None,
+    body: str = "",
+    classifier_hint: str = "",
+    max_response_tokens: int | None = None,
+    rag_top_k: int | None = None,
+) -> PromptTemplate:
+    parent_id = None
+    if role_id is not None:
+        base = await session.execute(
+            select(PromptTemplate).where(
+                PromptTemplate.query_type == query_type,
+                PromptTemplate.role_id.is_(None),
+            )
+        )
+        base_pt = base.scalar_one_or_none()
+        if base_pt:
+            parent_id = base_pt.id
+
+    pt = PromptTemplate(
+        query_type=query_type,
+        role_id=role_id,
+        parent_id=parent_id,
+        is_system=False,
+        is_customized=True,
+        body=body,
+        classifier_hint=classifier_hint,
+        max_response_tokens=max_response_tokens,
+        rag_top_k=rag_top_k,
+    )
+    session.add(pt)
+    await session.commit()
+    await session.refresh(pt)
+    return pt
+
+
+async def patch_prompt_template(
+    session: AsyncSession,
+    prompt_id: int,
+    *,
+    body: str | None = None,
+    classifier_hint: str | None = None,
+    max_response_tokens: int | None = ...,
+    rag_top_k: int | None = ...,
+) -> dict | None:
+    result = await session.execute(
+        select(PromptTemplate).where(PromptTemplate.id == prompt_id)
+    )
+    pt = result.scalar_one_or_none()
+    if not pt:
+        return None
+    if body is not None:
+        pt.body = body
+    if classifier_hint is not None:
+        pt.classifier_hint = classifier_hint
+    if max_response_tokens is not ...:
+        pt.max_response_tokens = max_response_tokens
+    if rag_top_k is not ...:
+        pt.rag_top_k = rag_top_k
+    pt.is_customized = True
+    session.add(pt)
+    await session.commit()
+    return await get_prompt_template(session, prompt_id)
+
+
+async def delete_prompt_template(session: AsyncSession, prompt_id: int) -> bool:
+    result = await session.execute(
+        select(PromptTemplate).where(PromptTemplate.id == prompt_id)
+    )
+    pt = result.scalar_one_or_none()
+    if not pt:
+        return False
+    if pt.is_system:
+        raise ValueError("Cannot delete system prompt template")
+    await session.delete(pt)
+    await session.commit()
+    return True
+
+
+async def preview_prompt_template(
+    session: AsyncSession, prompt_id: int,
+) -> dict | None:
+    result = await session.execute(
+        select(PromptTemplate).where(PromptTemplate.id == prompt_id)
+    )
+    pt = result.scalar_one_or_none()
+    if not pt:
+        return None
+
+    body = pt.body
+    hint = pt.classifier_hint
+    max_tok = pt.max_response_tokens
+    top_k = pt.rag_top_k
+
+    if pt.parent_id:
+        parent_res = await session.execute(
+            select(PromptTemplate).where(PromptTemplate.id == pt.parent_id)
+        )
+        parent = parent_res.scalar_one_or_none()
+        if parent:
+            body = body or parent.body
+            hint = hint or parent.classifier_hint
+            max_tok = max_tok or parent.max_response_tokens
+            top_k = top_k or parent.rag_top_k
+
+    return {
+        "query_type": pt.query_type,
+        "resolved_body": body,
+        "resolved_classifier_hint": hint,
+        "resolved_max_response_tokens": max_tok,
+        "resolved_rag_top_k": top_k,
     }

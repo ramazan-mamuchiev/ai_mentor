@@ -111,6 +111,23 @@ export function DataTable<TData>({
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const colSettingsRef = useRef<HTMLDivElement>(null)
+  const tableWrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = tableWrapRef.current
+    if (!el) return
+    const update = () => {
+      const hasScrollLeft = el.scrollLeft > 1
+      const hasScrollRight = el.scrollWidth - el.clientWidth - el.scrollLeft > 1
+      el.classList.toggle('docs-table-wrap--scrolled-left', hasScrollLeft)
+      el.classList.toggle('docs-table-wrap--scrolled-right', hasScrollRight)
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', update); ro.disconnect() }
+  }, [])
 
   useEffect(() => {
     if (!showColumnSettings) return
@@ -165,7 +182,7 @@ export function DataTable<TData>({
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="docs-table-wrap">
+        <div className="docs-table-wrap" ref={tableWrapRef}>
           <table className="docs-table">
             <thead>
               {table.getHeaderGroups().map(headerGroup => (

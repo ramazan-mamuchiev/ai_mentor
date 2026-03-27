@@ -96,7 +96,10 @@ async def logout(
 # ---------------------------------------------------------------------------
 
 @router.get("/me", response_model=MeResponse)
-async def me(tenant: Tenant = Depends(get_current_tenant)):
+async def me(request: Request, tenant: Tenant = Depends(get_current_tenant)):
+    from app.auth.schemas import RoleBrief
+    tenant_roles = getattr(request.state, "tenant_roles", [])
+    permissions = getattr(request.state, "permissions", {})
     return MeResponse(
         id=tenant.id,
         email=tenant.email,
@@ -104,6 +107,11 @@ async def me(tenant: Tenant = Depends(get_current_tenant)):
         slug=tenant.slug,
         tier=tenant.tier,
         role=tenant.role,
+        roles=[
+            RoleBrief(id=r.id, slug=r.slug, name=r.name, priority=r.priority)
+            for r in tenant_roles
+        ],
+        permissions=permissions,
         email_verified=tenant.email_verified,
         created_at=tenant.created_at,
     )
@@ -111,15 +119,19 @@ async def me(tenant: Tenant = Depends(get_current_tenant)):
 
 @router.patch("/me", response_model=MeResponse)
 async def update_me(
+    request: Request,
     body: UpdateMeRequest,
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
+    from app.auth.schemas import RoleBrief
     if body.name is not None:
         tenant.name = body.name
     session.add(tenant)
     await session.commit()
     await session.refresh(tenant)
+    tenant_roles = getattr(request.state, "tenant_roles", [])
+    permissions = getattr(request.state, "permissions", {})
     return MeResponse(
         id=tenant.id,
         email=tenant.email,
@@ -127,6 +139,11 @@ async def update_me(
         slug=tenant.slug,
         tier=tenant.tier,
         role=tenant.role,
+        roles=[
+            RoleBrief(id=r.id, slug=r.slug, name=r.name, priority=r.priority)
+            for r in tenant_roles
+        ],
+        permissions=permissions,
         email_verified=tenant.email_verified,
         created_at=tenant.created_at,
     )

@@ -151,6 +151,19 @@ def _build_system_prompt(query_type: str) -> str:
     return _BASE_PROMPT
 
 
+async def _build_system_prompt_with_roles(
+    query_type: str,
+    db: AsyncSession,
+    role_ids: list[int] | None = None,
+) -> str:
+    """Build system prompt using DB-backed PromptRegistry with role overrides."""
+    from app.chat.prompt_registry import prompt_registry
+    resolved = await prompt_registry.get_prompt(query_type, role_ids, db)
+    if resolved:
+        return f"{_BASE_PROMPT}\n\n{resolved.body}"
+    return _build_system_prompt(query_type)
+
+
 def _embedding_model_name() -> str:
     return settings.embedding_model_gemini
 
@@ -837,6 +850,8 @@ async def build_rag_prompt(
     product_filter_source: str | None = None,
     history_summary: str | None = None,
     progress_callback: ProgressCallback | None = None,
+    role_ids: list[int] | None = None,
+    allowed_query_types: list[str] | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """Build a complete prompt with RAG context for the LLM.
 
@@ -870,6 +885,10 @@ async def build_rag_prompt(
         classify_input = search_query if search_query != query else query
         query_type, classify_product, classify_meta = await _classify_query(db, classify_input, product_names)
 
+        if allowed_query_types and query_type not in allowed_query_types:
+            query_type = allowed_query_types[0] if allowed_query_types else "overview"
+            classify_meta["query_type_filtered"] = True
+
         auto_product = classify_product
         if auto_product and auto_product != product_filter:
             if product_filter_source == "explicit":
@@ -884,8 +903,10 @@ async def build_rag_prompt(
                 )
                 product_filter = auto_product
 
-        type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
-        effective_top_k = _TYPE_TOP_K.get(query_type, settings.rag_top_k)
+        from app.chat.prompt_registry import prompt_registry
+        _resolved = await prompt_registry.get_prompt(query_type, role_ids, db)
+        type_max_tokens = (_resolved.max_response_tokens if _resolved else None) or _TYPE_MAX_TOKENS.get(query_type)
+        effective_top_k = (_resolved.rag_top_k if _resolved else None) or _TYPE_TOP_K.get(query_type, settings.rag_top_k)
 
         search_meta: dict = {}
 
@@ -1045,7 +1066,7 @@ async def build_rag_prompt(
             detected_doc = next(iter(titles))
 
     effective_max_tokens = type_max_tokens or settings.llm_max_tokens
-    pre_system_prompt = _build_system_prompt(query_type)
+    pre_system_prompt = await _build_system_prompt_with_roles(query_type, db, role_ids)
     pre_history_msgs = _build_history_messages(
         history, settings.rag_history_messages, settings.rag_history_max_tokens,
         summary=history_summary,
@@ -1116,7 +1137,7 @@ async def build_rag_prompt(
     if not has_docs and not web_search_context:
         system_prompt = SYSTEM_PROMPT_NO_DOCS
     else:
-        system_prompt = _build_system_prompt(query_type)
+        system_prompt = await _build_system_prompt_with_roles(query_type, db, role_ids)
     prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:12]
 
     messages: list[dict] = [

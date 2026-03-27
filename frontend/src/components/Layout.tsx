@@ -203,7 +203,7 @@ export function Layout({
               </button>
             )
           })}
-          {user?.role === 'admin' && (() => {
+          {(user?.permissions as any)?.features?.admin && (() => {
             const Icon = ADMIN_NAV_ITEM.icon
             const active = location.pathname.startsWith(ADMIN_NAV_ITEM.path)
             return (

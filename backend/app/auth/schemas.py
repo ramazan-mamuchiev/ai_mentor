@@ -35,6 +35,13 @@ class TokenResponse(BaseModel):
 
 # --- Me ---
 
+class RoleBrief(BaseModel):
+    id: int
+    slug: str
+    name: str
+    priority: int
+
+
 class MeResponse(BaseModel):
     id: uuid.UUID
     email: str
@@ -42,6 +49,8 @@ class MeResponse(BaseModel):
     slug: str
     tier: str
     role: str
+    roles: list[RoleBrief] = []
+    permissions: dict = {}
     email_verified: bool
     created_at: datetime
 

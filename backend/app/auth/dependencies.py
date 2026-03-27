@@ -114,11 +114,28 @@ async def get_current_tenant(
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
 
 
+def require_permission(key: str):
+    """Factory: return a FastAPI dependency that checks a feature permission."""
+    async def _dep(
+        request: Request,
+        tenant: Tenant = Depends(get_current_tenant),
+    ) -> Tenant:
+        if not has_permission(request.state.permissions, key):
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                f"Permission '{key}' required",
+            )
+        return tenant
+    _dep.__doc__ = f"Require permission '{key}'."
+    return _dep
+
+
 async def require_admin(
+    request: Request,
     tenant: Tenant = Depends(get_current_tenant),
 ) -> Tenant:
-    """Raise 403 unless the authenticated tenant has role='admin'."""
-    if tenant.role != "admin":
+    """Raise 403 unless the tenant has the 'admin' feature permission."""
+    if not has_permission(request.state.permissions, "admin"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
     return tenant
 

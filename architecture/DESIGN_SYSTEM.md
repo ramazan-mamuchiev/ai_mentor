@@ -476,11 +476,52 @@ tr:hover td {
 }
 ```
 
+#### Responsive strategy: sticky edges + scroll fallback
+
+Tables in Products and Documents are **reference catalogs**, not analytics grids. The approach:
+
+- **First column** (name/title) is `position: sticky; left: 0` -- always visible
+- **Last column** (actions) is `position: sticky; right: 0` -- always visible
+- **Middle columns** have `min-width` to prevent text truncation
+- On wide screens everything fits with no scroll; on narrow screens horizontal scroll activates with sticky edges
+- **<768px**: table is hidden, replaced by mobile cards (`.docs-cards`)
+- Scroll shadows (`.docs-table-wrap--scrolled-left/right`) hint at scrollable content
+
+Column min-widths (set via `.col-*` classes):
+
+| Column | min-width | Notes |
+|--------|-----------|-------|
+| `col-name` / `col-title` | 180px | Sticky left |
+| `col-documents` | 70px | |
+| `col-format` | 100px | |
+| `col-status` | 120px | Segmented bar in Products |
+| `col-size` | 70px | |
+| `col-chunks` | 60px | |
+| `col-product` | 100px | Documents only |
+| `col-uploaded` / `col-indexed` | 90px | Compact date, full datetime in tooltip |
+| `col-actions` | 72px | Sticky right, primary btn + "..." dropdown |
+
+#### Actions dropdown
+
+Instead of 4-5 inline icon buttons, actions use a compact layout:
+- **One primary button** always visible (edit for Products, debug for Documents)
+- **"..." button** opens a dropdown with remaining actions (reindex, delete, etc.)
+- Dropdown: `.docs-actions-dropdown`, positioned absolutely, auto-closes on outside click
+
+#### Product segmented status bar
+
+Products use a segmented color bar instead of individual status badges:
+- Segments: green (ready), blue (processing), yellow (pending), red (error), gray (cancelled)
+- Width proportional to document count in each status
+- Compact text below: "90% 155/174"
+- Full breakdown in tooltip on hover
+- CSS: `.product-segmented-bar`, `.product-segmented-segment--{status}`
+
 #### CSS-классы таблицы
 
 | Класс | Назначение |
 |-------|-----------|
-| `.docs-table-wrap` | Контейнер с overflow: auto |
+| `.docs-table-wrap` | Контейнер с overflow: auto, scroll detection |
 | `.docs-table` | Элемент `<table>` |
 | `.docs-th` | Заголовок колонки |
 | `.docs-th-inner` | Flex-контейнер внутри th (drag handle + label) |
@@ -492,6 +533,8 @@ tr:hover td {
 | `.docs-col-settings-*` | Dropdown настроек колонок |
 | `.docs-group-bar` | Полоска активных группировок |
 | `.docs-group-actions` | Кнопки группировки под таблицей |
+| `.docs-actions-dropdown` | Dropdown-меню действий |
+| `.product-segmented-bar` | Сегментированный статус-бар продукта |
 | `.docs-row-group` | Строка-группа (bg-secondary) |
 | `.docs-group-cell` | Ячейка с toggle expand/collapse |
 
@@ -775,7 +818,7 @@ frontend/src/styles/
   globals.css      — CSS-переменные, reset, scrollbar, base styles
   chat.css         — Sidebar, layout, messages, input, sources, debug, file upload, code blocks
   landing.css      — ✅ Лендинг: header, hero, секции, карточки, steps, footer, responsive
-  documents.css    — ✅ Навигация sidebar, таблица документов, статус-бейджи, карточки (mobile), stub-pages, responsive
+  documents.css    — ✅ Таблицы (sticky columns, min-widths, scroll shadows), статус-бейджи, segmented bar, actions dropdown, карточки (mobile), responsive
 ```
 
 ### Правила
@@ -820,7 +863,7 @@ frontend/src/styles/
 - **Touch targets**: минимум 44×44px для кнопок на mobile (Apple HIG)
 - **Лендинг**: hero — одна колонка на mobile; карточки — 1 колонка mobile, 2 tablet, 3 desktop
 - **App sidebar**: на tablet/mobile — скрыт, открывается по hamburger (overlay)
-- **Таблица документов**: на mobile — заменяется карточками
+- **Таблицы Products/Documents**: sticky name + sticky actions + horizontal scroll fallback on desktop; mobile cards on <768px (see section 6.5)
 - **Header лендинга**: на mobile — hamburger-меню вместо горизонтальной навигации
 - **CTA-кнопки**: на mobile — full-width
 - **Все отступы/шрифты**: уменьшаются через media queries

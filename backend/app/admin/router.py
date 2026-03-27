@@ -21,10 +21,21 @@ from app.admin.schemas import (
     LogsResponse,
     ModelUsageStat,
     PlatformOverview,
+    PromptPreviewResponse,
+    PromptTemplateCreateRequest,
+    PromptTemplateDetail,
+    PromptTemplateItem,
+    PromptTemplatePatchRequest,
+    RoleCreateRequest,
+    RoleDetail,
+    RoleListItem,
+    RolePatchRequest,
     SearchStat,
     TenantDetail,
     TenantListResponse,
     TenantPatchRequest,
+    TenantRoleAssignRequest,
+    TenantRoleItem,
     UsageStatsResponse,
 )
 
@@ -278,3 +289,177 @@ async def get_logs(
     entries.sort(key=lambda e: e["timestamp"], reverse=True)
 
     return LogsResponse(entries=entries[:limit], total=len(entries))
+
+
+# ---------------------------------------------------------------------------
+# Roles
+# ---------------------------------------------------------------------------
+
+@router.get("/roles", response_model=list[RoleListItem])
+async def list_roles(session: AsyncSession = Depends(get_session)):
+    return await service.list_roles(session)
+
+
+@router.get("/roles/{role_id}", response_model=RoleDetail)
+async def get_role(role_id: int, session: AsyncSession = Depends(get_session)):
+    detail = await service.get_role_detail(session, role_id)
+    if not detail:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Role not found")
+    return detail
+
+
+@router.post("/roles", response_model=RoleDetail, status_code=201)
+async def create_role(body: RoleCreateRequest, session: AsyncSession = Depends(get_session)):
+    try:
+        role = await service.create_role(
+            session,
+            slug=body.slug, name=body.name, description=body.description,
+            priority=body.priority, permissions=body.permissions,
+        )
+    except Exception as e:
+        if "unique" in str(e).lower():
+            raise HTTPException(status.HTTP_409_CONFLICT, "Role slug already exists")
+        raise
+    return await service.get_role_detail(session, role.id)
+
+
+@router.patch("/roles/{role_id}", response_model=RoleDetail)
+async def patch_role(
+    role_id: int,
+    body: RolePatchRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await service.patch_role(
+        session, role_id,
+        name=body.name, description=body.description,
+        priority=body.priority, permissions=body.permissions,
+    )
+    if not result:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Role not found")
+    return result
+
+
+@router.delete("/roles/{role_id}", status_code=204)
+async def delete_role(role_id: int, session: AsyncSession = Depends(get_session)):
+    try:
+        if not await service.delete_role(session, role_id):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Role not found")
+    except ValueError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e))
+
+
+# ---------------------------------------------------------------------------
+# Tenant Roles
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants/{tenant_id}/roles", response_model=list[TenantRoleItem])
+async def get_tenant_roles(
+    tenant_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_tenant_roles(session, tenant_id)
+
+
+@router.post("/tenants/{tenant_id}/roles", response_model=TenantRoleItem, status_code=201)
+async def assign_tenant_role(
+    tenant_id: uuid.UUID,
+    body: TenantRoleAssignRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    try:
+        return await service.assign_role_to_tenant(session, tenant_id, body.role_id)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+
+
+@router.delete("/tenants/{tenant_id}/roles/{role_id}", status_code=204)
+async def unassign_tenant_role(
+    tenant_id: uuid.UUID,
+    role_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    if not await service.unassign_role_from_tenant(session, tenant_id, role_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Role assignment not found")
+
+
+# ---------------------------------------------------------------------------
+# Prompt Templates
+# ---------------------------------------------------------------------------
+
+@router.get("/prompts", response_model=list[PromptTemplateItem])
+async def list_prompts(session: AsyncSession = Depends(get_session)):
+    return await service.list_prompt_templates(session)
+
+
+@router.get("/prompts/{prompt_id}", response_model=PromptTemplateDetail)
+async def get_prompt(prompt_id: int, session: AsyncSession = Depends(get_session)):
+    detail = await service.get_prompt_template(session, prompt_id)
+    if not detail:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt template not found")
+    return detail
+
+
+@router.post("/prompts", response_model=PromptTemplateDetail, status_code=201)
+async def create_prompt(
+    body: PromptTemplateCreateRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    try:
+        pt = await service.create_prompt_template(
+            session,
+            query_type=body.query_type, role_id=body.role_id,
+            body=body.body, classifier_hint=body.classifier_hint,
+            max_response_tokens=body.max_response_tokens,
+            rag_top_k=body.rag_top_k,
+        )
+    except Exception as e:
+        if "unique" in str(e).lower():
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Prompt template for this query_type + role already exists",
+            )
+        raise
+    return await service.get_prompt_template(session, pt.id)
+
+
+@router.patch("/prompts/{prompt_id}", response_model=PromptTemplateDetail)
+async def patch_prompt(
+    prompt_id: int,
+    body: PromptTemplatePatchRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    kwargs: dict = {}
+    if body.body is not None:
+        kwargs["body"] = body.body
+    if body.classifier_hint is not None:
+        kwargs["classifier_hint"] = body.classifier_hint
+    kwargs["max_response_tokens"] = body.max_response_tokens
+    kwargs["rag_top_k"] = body.rag_top_k
+    result = await service.patch_prompt_template(session, prompt_id, **kwargs)
+    if not result:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt template not found")
+    return result
+
+
+@router.delete("/prompts/{prompt_id}", status_code=204)
+async def delete_prompt(prompt_id: int, session: AsyncSession = Depends(get_session)):
+    try:
+        if not await service.delete_prompt_template(session, prompt_id):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt template not found")
+    except ValueError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e))
+
+
+@router.post("/prompts/{prompt_id}/preview", response_model=PromptPreviewResponse)
+async def preview_prompt(prompt_id: int, session: AsyncSession = Depends(get_session)):
+    result = await service.preview_prompt_template(session, prompt_id)
+    if not result:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt template not found")
+    return result
+
+
+@router.post("/prompts/seed")
+async def seed_prompts_from_files(session: AsyncSession = Depends(get_session)):
+    from app.admin.seed_prompts import seed_prompts
+    count = await seed_prompts(session)
+    return {"seeded": count}

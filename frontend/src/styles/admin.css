@@ -542,3 +542,227 @@
   padding: 48px;
   color: var(--text-muted);
 }
+
+/* --- Roles & Prompts --- */
+
+.admin-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.admin-page-header h1 {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.admin-form-row {
+  margin-bottom: 12px;
+}
+
+.admin-form-row label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.admin-form-row input,
+.admin-form-row textarea,
+.admin-form-row select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.admin-form-row input:focus,
+.admin-form-row textarea:focus,
+.admin-form-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.admin-form-row small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.admin-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin-checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+
+.admin-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.admin-checkbox-label input[type="checkbox"] {
+  width: auto;
+}
+
+.admin-json-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  overflow-x: auto;
+  max-height: 300px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.admin-success {
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.admin-error {
+  background: var(--error-bg, #f8d7da);
+  color: var(--error-text, #721c24);
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.admin-table-row-clickable {
+  cursor: pointer;
+}
+
+.admin-table-row-clickable:hover {
+  background: var(--bg-hover, rgba(0,0,0,0.02));
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.btn-danger {
+  background: var(--error-text, #dc3545);
+  color: #fff;
+  border: none;
+}
+
+.btn-danger:hover {
+  opacity: 0.9;
+}
+
+.admin-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-hover, #e9ecef);
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.admin-badge--info {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.admin-badge--warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+/* Prompts grid */
+.admin-prompts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.admin-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.admin-card-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.admin-prompt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.admin-prompt-row:hover {
+  background: var(--bg-hover, rgba(0,0,0,0.03));
+}
+
+.admin-prompt-row--base {
+  border-color: var(--accent);
+  background: var(--accent-bg, rgba(79, 70, 229, 0.04));
+}
+
+.admin-prompt-row--empty {
+  color: var(--text-muted);
+  cursor: default;
+  border-style: dashed;
+}
+
+.admin-prompt-editor {
+  width: 100%;
+  min-height: 400px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.admin-prompt-editor:focus {
+  outline: none;
+  border-color: var(--accent);
+}

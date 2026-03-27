@@ -21,7 +21,7 @@ function AdminRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="auth-loading" />
   if (!user) return <Navigate to="/login" replace />
-  if (user.role !== 'admin') return <Navigate to="/app" replace />
+  if (!(user.permissions as any)?.features?.admin) return <Navigate to="/app" replace />
   return <>{children}</>
 }
 
