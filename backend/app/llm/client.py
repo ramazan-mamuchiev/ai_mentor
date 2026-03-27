@@ -213,7 +213,11 @@ async def _stream_openai_compatible(
             "stream_options": {"include_usage": True},
         }
         if attempt_reasoning:
-            payload["reasoning_effort"] = attempt_reasoning
+            _THINKING_ONLY_MODELS = ("gemini-2.5-pro",)
+            if attempt_reasoning == "none" and any(attempt_model.startswith(m) for m in _THINKING_ONLY_MODELS):
+                attempt_reasoning = "low"
+            if attempt_reasoning != "none":
+                payload["reasoning_effort"] = attempt_reasoning
 
         t0 = time.perf_counter()
         token_count = 0
