@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, X } from 'lucide-react'
 import { getLogs, type LogEntry } from '../../api/admin'
 
 const SERVICES = ['api', 'worker', 'beat', 'web', 'postgres', 'redis'] as const
@@ -65,13 +65,29 @@ export function LogsPage() {
           <option value="">All levels</option>
           {LEVELS.filter(Boolean).map(l => <option key={l} value={l}>{l}</option>)}
         </select>
-        <input
-          className="admin-search"
-          placeholder="Search logs..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && load()}
-        />
+        <div style={{ position: 'relative', flex: 1 }}>
+          <input
+            className="admin-search"
+            style={{ width: '100%', paddingRight: search ? 28 : undefined }}
+            placeholder="Search logs..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && load()}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+                color: 'var(--text-secondary)', display: 'flex', alignItems: 'center',
+              }}
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
         <button className="admin-btn admin-btn--sm" onClick={load}>
           <RefreshCw size={14} />
         </button>
