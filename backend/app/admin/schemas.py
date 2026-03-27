@@ -48,6 +48,7 @@ class AdminDocumentItem(BaseModel):
     tenant_email: str | None = None
     product_name: str | None = None
     manufacturer: str | None = None
+    firmware_version: str | None = None
     title: str
     original_filename: str
     format: str

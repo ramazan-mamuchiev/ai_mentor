@@ -11,6 +11,7 @@ from app.models import (
     ChatMessageAnalytics,
     ChatSession,
     Document,
+    FirmwareVersion,
     Product,
     PromptTemplate,
     Role,
@@ -156,24 +157,38 @@ async def list_documents_admin(
             Tenant.email.label("tenant_email"),
             Product.name.label("product_name"),
             Product.manufacturer.label("manufacturer"),
+            FirmwareVersion.version.label("firmware_version"),
         )
         .outerjoin(Tenant, Document.tenant_id == Tenant.id)
         .outerjoin(Product, Document.product_id == Product.id)
+        .outerjoin(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
     )
-    count_q = select(func.count()).select_from(Document)
+    count_base = (
+        select(func.count())
+        .select_from(Document)
+        .outerjoin(Tenant, Document.tenant_id == Tenant.id)
+        .outerjoin(Product, Document.product_id == Product.id)
+    )
 
     if status_filter:
         base = base.where(Document.status == status_filter)
-        count_q = count_q.where(Document.status == status_filter)
+        count_base = count_base.where(Document.status == status_filter)
     if tenant_id:
         base = base.where(Document.tenant_id == tenant_id)
-        count_q = count_q.where(Document.tenant_id == tenant_id)
+        count_base = count_base.where(Document.tenant_id == tenant_id)
     if search:
         like = f"%{search}%"
-        base = base.where(Document.title.ilike(like) | Document.original_filename.ilike(like))
-        count_q = count_q.where(Document.title.ilike(like) | Document.original_filename.ilike(like))
+        search_cond = (
+            Document.title.ilike(like)
+            | Document.original_filename.ilike(like)
+            | Tenant.email.ilike(like)
+            | Product.name.ilike(like)
+            | Product.manufacturer.ilike(like)
+        )
+        base = base.where(search_cond)
+        count_base = count_base.where(search_cond)
 
-    total = await session.scalar(count_q) or 0
+    total = await session.scalar(count_base) or 0
 
     rows = (await session.execute(
         base.order_by(Document.uploaded_at.desc())
@@ -189,6 +204,7 @@ async def list_documents_admin(
             "tenant_email": row.tenant_email,
             "product_name": row.product_name,
             "manufacturer": row.manufacturer,
+            "firmware_version": row.firmware_version,
             "title": doc.title, "original_filename": doc.original_filename,
             "format": doc.format, "status": doc.status,
             "file_size_bytes": doc.file_size_bytes,

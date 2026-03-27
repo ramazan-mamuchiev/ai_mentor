@@ -720,7 +720,7 @@
   "admin.docs.title": "Документы",
   "admin.docs.count": "{{count}} документов",
   "admin.docs.filteredByTenant": " (по пользователю)",
-  "admin.docs.searchPlaceholder": "Поиск по названию или файлу...",
+  "admin.docs.searchPlaceholder": "Поиск по названию, пользователю, продукту...",
   "admin.docs.allStatuses": "Все статусы",
   "admin.docs.clearTenantFilter": "Сбросить фильтр",
   "admin.docs.noDocuments": "Документы не найдены",
@@ -731,6 +731,7 @@
   "admin.docs.format": "Формат",
   "admin.docs.size": "Размер",
   "admin.docs.chunks": "Чанки",
+  "admin.docs.version": "Версия",
   "admin.docs.uploaded": "Загружен",
   "admin.docs.confirmDelete": "Удалить этот документ и все его чанки?",
 

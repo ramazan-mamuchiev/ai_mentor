@@ -720,7 +720,7 @@
   "admin.docs.title": "Documents",
   "admin.docs.count": "{{count}} documents",
   "admin.docs.filteredByTenant": " (filtered by tenant)",
-  "admin.docs.searchPlaceholder": "Search by title or filename...",
+  "admin.docs.searchPlaceholder": "Search by title, user, product...",
   "admin.docs.allStatuses": "All statuses",
   "admin.docs.clearTenantFilter": "Clear tenant filter",
   "admin.docs.noDocuments": "No documents found",
@@ -731,6 +731,7 @@
   "admin.docs.format": "Format",
   "admin.docs.size": "Size",
   "admin.docs.chunks": "Chunks",
+  "admin.docs.version": "Version",
   "admin.docs.uploaded": "Uploaded",
   "admin.docs.confirmDelete": "Delete this document and all its chunks?",
 

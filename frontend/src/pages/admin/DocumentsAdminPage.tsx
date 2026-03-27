@@ -119,6 +119,7 @@ export function DocumentsAdminPage() {
                 <th>{t('admin.docs.title_col')}</th>
                 <th>{t('admin.docs.tenant')}</th>
                 <th>{t('admin.docs.product')}</th>
+                <th>{t('admin.docs.version')}</th>
                 <th>{t('admin.docs.status')}</th>
                 <th>{t('admin.docs.format')}</th>
                 <th>{t('admin.docs.size')}</th>
@@ -139,6 +140,7 @@ export function DocumentsAdminPage() {
                   <td style={{ fontSize: 12 }}>
                     {d.manufacturer && d.product_name ? `${d.manufacturer} / ${d.product_name}` : d.product_name || '—'}
                   </td>
+                  <td style={{ fontSize: 12 }}>{d.firmware_version || '—'}</td>
                   <td><span className={`badge ${statusBadge(d.status)}`}>{d.status}</span></td>
                   <td><span className="badge badge--gray">{d.format}</span></td>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{formatBytes(d.file_size_bytes)}</td>
