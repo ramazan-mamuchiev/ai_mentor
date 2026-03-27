@@ -48,6 +48,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             response_size = int(response.headers.get("Content-Length", 0))
             query_string = str(request.url.query) if request.url.query else ""
 
+            tenant = getattr(request.state, "tenant", None)
+            tenant_id = tenant.id if tenant else getattr(request.state, "tenant_id", None)
+            tenant_name = tenant.name if tenant else None
+
             log_data = {
                 "method": request.method,
                 "path": request.url.path,
@@ -60,6 +64,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 "request_size": request_size,
                 "response_size": response_size,
                 "active_requests": lc.active_requests_count,
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
             }
 
             msg = (
