@@ -5,9 +5,10 @@ import logging
 import os
 import time
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy import func, select
 
+from app.auth.dependencies import get_current_tenant
 from app.database import async_session
 from app.documents.schemas import (
     ArchiveFileResult,
@@ -24,7 +25,7 @@ from app.documents.schemas import (
     UrlIngestRequest,
     UrlIngestResponse,
 )
-from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, FirmwareVersion
+from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, FirmwareVersion, Tenant
 from app.s3 import delete_file, generate_presigned_url, s3_key_for_document, upload_file
 from app.config import settings
 
@@ -45,6 +46,7 @@ async def ingest_document(
     manufacturer: str = Form(default=""),
     format: str = Form(default="auto"),
     force: bool = Form(default=False),
+    tenant: Tenant = Depends(get_current_tenant),
 ):
     """Upload a documentation file and trigger background ingestion.
 
@@ -94,7 +96,7 @@ async def ingest_document(
     )
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, product_name, manufacturer)
+        product = await _get_or_create_product(session, product_name, manufacturer, tenant_id=tenant.id)
         fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
         if not force:
@@ -131,6 +133,7 @@ async def ingest_document(
             title=os.path.splitext(original_filename)[0],
             status="pending",
             source_hash=source_hash,
+            tenant_id=tenant.id,
         )
         session.add(doc)
         await session.flush()
@@ -168,7 +171,7 @@ async def ingest_document(
 
 
 @router.post("/ingest-url", response_model=UrlIngestResponse)
-async def ingest_url(request: Request, body: UrlIngestRequest):
+async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
     """Import documentation from a web URL.
 
     Creates Product + FirmwareVersion + Document placeholder synchronously,
@@ -199,7 +202,7 @@ async def ingest_url(request: Request, body: UrlIngestRequest):
     doc_format = "confluence" if is_confluence else "url"
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, body.product_name, body.manufacturer)
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, tenant_id=tenant.id)
         fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
 
         placeholder = Document(
@@ -212,6 +215,7 @@ async def ingest_url(request: Request, body: UrlIngestRequest):
             source_path=url,
             source_container=url,
             progress_stage="queued",
+            tenant_id=tenant.id,
         )
         session.add(placeholder)
         await session.flush()
@@ -268,6 +272,7 @@ async def ingest_archive(
     firmware_version: str = Form(default="1.0"),
     manufacturer: str = Form(default=""),
     force: bool = Form(default=False),
+    tenant: Tenant = Depends(get_current_tenant),
 ):
     """Upload an archive containing multiple documentation files for a single product.
 
@@ -319,7 +324,7 @@ async def ingest_archive(
     errors = 0
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, product_name, manufacturer)
+        product = await _get_or_create_product(session, product_name, manufacturer, tenant_id=tenant.id)
         fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
         for arc_path, entry_data in entries:
@@ -350,6 +355,7 @@ async def ingest_archive(
                     status="pending",
                     source_hash=entry_hash,
                     source_container=original_filename,
+                    tenant_id=tenant.id,
                 )
                 session.add(doc)
                 await session.flush()
@@ -1078,7 +1084,7 @@ async def _find_by_hash(
     return result.scalar_one_or_none()
 
 
-async def _get_or_create_product(session, name: str, manufacturer: str):
+async def _get_or_create_product(session, name: str, manufacturer: str, *, tenant_id=None):
     from app.slugify import slugify
 
     result = await session.execute(
@@ -1099,6 +1105,7 @@ async def _get_or_create_product(session, name: str, manufacturer: str):
         model=name,
         slug=slug,
         manufacturer_slug=mfr_slug,
+        tenant_id=tenant_id,
     )
     session.add(product)
     await session.flush()

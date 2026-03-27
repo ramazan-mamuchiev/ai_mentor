@@ -958,7 +958,7 @@ def ingest_from_bytes(
         return {"status": "error", "error": str(e), "document_id": document.id}
 
 
-async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str) -> Product:
+async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str, *, tenant_id=None) -> Product:
     from app.slugify import slugify
 
     result = await session.execute(
@@ -980,6 +980,7 @@ async def _get_or_create_product(session: AsyncSession, name: str, manufacturer:
         model=name,
         slug=slug,
         manufacturer_slug=mfr_slug,
+        tenant_id=tenant_id,
     )
     session.add(product)
     await session.flush()

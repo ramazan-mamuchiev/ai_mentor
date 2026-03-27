@@ -322,6 +322,8 @@ def ingest_archive_task(
             logger.error("Archive document not found", extra={"document_id": archive_document_id})
             return {"status": "error", "error": "Archive document not found"}
 
+        archive_tenant_id = archive_doc.tenant_id
+
         archive_doc.status = "processing"
         session.commit()
 
@@ -358,7 +360,7 @@ def ingest_archive_task(
             sa_select(Product).where(Product.name == product_name)
         ).scalar_one_or_none()
         if product_row is None:
-            product_row = Product(name=product_name, manufacturer=manufacturer)
+            product_row = Product(name=product_name, manufacturer=manufacturer, tenant_id=archive_tenant_id)
             session.add(product_row)
             session.flush()
 
@@ -404,6 +406,7 @@ def ingest_archive_task(
                 status="pending",
                 source_hash=entry_hash,
                 source_container=archive_filename,
+                tenant_id=archive_tenant_id,
             )
             session.add(child_doc)
             session.flush()
@@ -459,12 +462,14 @@ def ingest_archive_from_s3_task(
     firmware_version: str = "1.0",
     manufacturer: str = "",
     force: bool = False,
+    tenant_id_str: str | None = None,
 ):
     """Download archive from S3, extract files, create Documents for each inner file.
 
     Unlike ingest_archive_task, this does NOT require a Document record for the
     archive itself — it works directly with an S3 key.
     """
+    import uuid as _uuid
     from app.models import Document, Product, FirmwareVersion
     from app.s3 import download_file, upload_file, s3_key_for_document, delete_file as s3_delete
     from app.documents.archive import extract_archive
@@ -497,6 +502,8 @@ def ingest_archive_from_s3_task(
             logger.warning("No supported files in archive", extra={"archive_filename": archive_filename})
             return {"status": "error", "error": "No supported files in archive"}
 
+        _tenant_id = _uuid.UUID(tenant_id_str) if tenant_id_str else None
+
         from sqlalchemy import select as sa_select
         product_row = session.execute(
             sa_select(Product).where(Product.name == product_name)
@@ -508,6 +515,7 @@ def ingest_archive_from_s3_task(
                 manufacturer=manufacturer,
                 slug=slugify(product_name),
                 manufacturer_slug=slugify(manufacturer) if manufacturer else "default",
+                tenant_id=_tenant_id,
             )
             session.add(product_row)
             session.flush()
@@ -552,6 +560,7 @@ def ingest_archive_from_s3_task(
                 status="pending",
                 source_hash=entry_hash,
                 source_container=archive_filename,
+                tenant_id=_tenant_id,
             )
             session.add(child_doc)
             session.flush()
@@ -805,6 +814,7 @@ def ingest_confluence_task(self, document_id: int):
         url = placeholder.source_path
         product_id = placeholder.product_id
         firmware_version_id = placeholder.firmware_version_id
+        confluence_tenant_id = placeholder.tenant_id
 
         placeholder.status = "processing"
         placeholder.progress_stage = "crawling"
@@ -860,6 +870,7 @@ def ingest_confluence_task(self, document_id: int):
                     source_hash=source_hash,
                     source_container=url,
                     source_path=page.url,
+                    tenant_id=confluence_tenant_id,
                 )
                 if page.ocr_images_total > 0 or page.ocr_error:
                     doc.ocr_ms = page.ocr_ms
