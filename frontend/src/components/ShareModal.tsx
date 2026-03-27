@@ -162,11 +162,11 @@ export function ShareModal({ type, id, onClose }: Props) {
                       onFocus={e => e.target.select()}
                     />
                     <button
-                      className="share-copy-btn"
+                      className={`share-copy-btn${copied ? ' share-copy-btn--copied' : ''}`}
                       onClick={handleCopy}
+                      aria-label={t('share.copyLink')}
                     >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
-                      <span>{copied ? t('share.linkCopied') : t('share.copyLink')}</span>
                     </button>
                   </div>
                   <div className="share-actions">

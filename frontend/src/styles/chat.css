@@ -2708,21 +2708,20 @@
 }
 
 .share-link-field {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
+  position: relative;
 }
 
 .share-link-input {
-  flex: 1;
+  width: 100%;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 10px 40px 10px 12px;
   font-size: 13px;
   color: var(--text);
   font-family: var(--font-mono, monospace);
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .share-link-input:focus {
@@ -2731,23 +2730,34 @@
 }
 
 .share-copy-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: var(--accent);
-  color: white;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
   border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
+  border-radius: 6px;
+  color: var(--text-muted);
   cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .share-copy-btn:hover {
-  opacity: 0.9;
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.share-copy-btn--copied {
+  color: var(--success, #22c55e);
+}
+
+.share-copy-btn--copied:hover {
+  color: var(--success, #22c55e);
 }
 
 .share-actions {
