@@ -2,12 +2,34 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight,
+  ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight, Clock, Users,
 } from 'lucide-react'
 import {
-  listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin,
+  listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin, listTenants,
   type AdminChatSessionItem, type AdminChatSessionDetail, type AdminChatMessageSearchItem,
+  type TenantListItem,
 } from '../../api/admin'
+
+const TIME_RANGES = [
+  { value: '', label: 'All' },
+  { value: '24h', label: '24h' },
+  { value: '7d', label: '7d' },
+  { value: '30d', label: '30d' },
+  { value: '90d', label: '90d' },
+] as const
+
+function timeRangeToISO(range: string): { start?: string; end?: string } {
+  if (!range) return {}
+  const now = Date.now()
+  const units: Record<string, number> = { h: 3_600_000, d: 86_400_000 }
+  const match = range.match(/^(\d+)([hd])$/)
+  if (!match) return {}
+  const ms = parseInt(match[1]) * units[match[2]]
+  return {
+    start: new Date(now - ms).toISOString(),
+    end: new Date(now).toISOString(),
+  }
+}
 
 function SessionDetail({ sessionId }: { sessionId: number }) {
   const { t } = useTranslation()
@@ -76,14 +98,22 @@ function SessionListView() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [timeRange, setTimeRange] = useState('')
+  const [selectedTenant, setSelectedTenant] = useState('')
+  const [tenants, setTenants] = useState<TenantListItem[]>([])
   const [msgResults, setMsgResults] = useState<AdminChatMessageSearchItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchMode, setSearchMode] = useState<'sessions' | 'messages'>('sessions')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const tenantId = searchParams.get('tenant_id') || undefined
+  const tenantIdFromUrl = searchParams.get('tenant_id') || undefined
+  const activeTenantId = selectedTenant || tenantIdFromUrl
   const pageSize = 50
+
+  useEffect(() => {
+    listTenants({ page_size: 200 }).then(res => setTenants(res.items)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -104,10 +134,13 @@ function SessionListView() {
         setItems([])
         setTotal(res.total)
       } else {
+        const { start, end } = timeRangeToISO(timeRange)
         const res = await listChatSessionsAdmin({
           page, page_size: pageSize,
           search: debouncedSearch || undefined,
-          tenant_id: tenantId,
+          tenant_id: activeTenantId,
+          created_after: start,
+          created_before: end,
         })
         setItems(res.items)
         setTotal(res.total)
@@ -117,7 +150,7 @@ function SessionListView() {
       setError(err instanceof Error ? err.message : 'Failed to load')
     }
     setLoading(false)
-  }, [page, debouncedSearch, tenantId, searchMode])
+  }, [page, debouncedSearch, activeTenantId, searchMode, timeRange])
 
   useEffect(() => { load() }, [load])
 
@@ -127,10 +160,10 @@ function SessionListView() {
     <div className="chat-audit-page">
       <div className="admin-page-header">
         <h1><MessageSquare size={20} /> {t('admin.chats.title')}</h1>
-        <p>{t('admin.chats.sessionsCount', { count: total })}{tenantId ? t('admin.chats.filteredByTenant') : ''}</p>
+        <p>{t('admin.chats.sessionsCount', { count: total })}{activeTenantId ? t('admin.chats.filteredByTenant') : ''}</p>
       </div>
 
-      {/* Unified search toolbar */}
+      {/* Toolbar row 1: search + mode */}
       <div className="chat-audit-toolbar">
         <div className="chat-audit-search-wrap">
           <Search size={14} className="chat-audit-search-wrap__icon" />
@@ -162,6 +195,40 @@ function SessionListView() {
             {t('admin.chats.content')}
           </button>
         </div>
+      </div>
+
+      {/* Toolbar row 2: time range + tenant filter */}
+      <div className="chat-audit-toolbar chat-audit-toolbar--filters">
+        <div className="logs-chips" role="group" aria-label="Time range">
+          <Clock size={13} className="logs-chips__icon" />
+          {TIME_RANGES.map(r => (
+            <button
+              key={r.value}
+              className={`logs-chip${timeRange === r.value ? ' logs-chip--active' : ''}`}
+              onClick={() => { setTimeRange(r.value); setPage(1) }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="chat-audit-tenant-filter">
+          <Users size={13} className="chat-audit-tenant-filter__icon" />
+          <select
+            className="logs-select"
+            value={selectedTenant}
+            onChange={e => { setSelectedTenant(e.target.value); setPage(1) }}
+          >
+            <option value="">{t('admin.chats.allTenants', { defaultValue: 'All users' })}</option>
+            {tenants.map(tn => (
+              <option key={tn.id} value={tn.id}>
+                {tn.name || tn.email}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <span className="logs-count">{total} {t('admin.chats.sessionsLabel', { defaultValue: 'sessions' })}</span>
       </div>
 
       {/* Error */}

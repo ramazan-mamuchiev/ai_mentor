@@ -288,6 +288,8 @@ async def list_chat_sessions_admin(
     page_size: int = 50,
     tenant_id: uuid.UUID | None = None,
     search: str | None = None,
+    created_after: datetime | None = None,
+    created_before: datetime | None = None,
 ) -> tuple[list[dict], int]:
     base = (
         select(
@@ -308,6 +310,12 @@ async def list_chat_sessions_admin(
         like = f"%{search}%"
         base = base.where(ChatSession.title.ilike(like))
         count_q = count_q.where(ChatSession.title.ilike(like))
+    if created_after:
+        base = base.where(ChatSession.created_at >= created_after)
+        count_q = count_q.where(ChatSession.created_at >= created_after)
+    if created_before:
+        base = base.where(ChatSession.created_at <= created_before)
+        count_q = count_q.where(ChatSession.created_at <= created_before)
 
     total = await session.scalar(count_q) or 0
 

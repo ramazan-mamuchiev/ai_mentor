@@ -95,7 +95,7 @@ class AdminChatMessage(BaseModel):
     id: int
     role: str
     content: str
-    sources: dict | None = None
+    sources: list | dict | None = None
     duration_ms: float | None
     feedback: str | None
     created_at: datetime

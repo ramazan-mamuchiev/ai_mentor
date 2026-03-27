@@ -185,11 +185,17 @@ async def list_chat_sessions(
     page_size: int = Query(50, ge=1, le=200),
     tenant_id: uuid.UUID | None = None,
     search: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
     session: AsyncSession = Depends(get_session),
 ):
+    from datetime import datetime
+    ca = datetime.fromisoformat(created_after) if created_after else None
+    cb = datetime.fromisoformat(created_before) if created_before else None
     items, total = await service.list_chat_sessions_admin(
         session, page=page, page_size=page_size,
         tenant_id=tenant_id, search=search,
+        created_after=ca, created_before=cb,
     )
     return AdminChatSessionListResponse(items=items, total=total, page=page, page_size=page_size)
 

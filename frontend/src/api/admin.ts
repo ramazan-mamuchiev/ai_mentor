@@ -223,12 +223,16 @@ export async function listChatSessionsAdmin(params: {
   page_size?: number
   tenant_id?: string
   search?: string
+  created_after?: string
+  created_before?: string
 } = {}): Promise<AdminChatSessionListResponse> {
   const sp = new URLSearchParams()
   if (params.page) sp.set('page', String(params.page))
   if (params.page_size) sp.set('page_size', String(params.page_size))
   if (params.tenant_id) sp.set('tenant_id', params.tenant_id)
   if (params.search) sp.set('search', params.search)
+  if (params.created_after) sp.set('created_after', params.created_after)
+  if (params.created_before) sp.set('created_before', params.created_before)
   const res = await fetch(`${BASE}/chat/sessions?${sp}`, { credentials: 'include' })
   return handleResponse(res)
 }

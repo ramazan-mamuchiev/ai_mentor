@@ -1415,6 +1415,23 @@
   opacity: 0.9;
 }
 
+/* Filters row */
+.chat-audit-toolbar--filters {
+  margin-bottom: 12px;
+  gap: 10px;
+}
+
+.chat-audit-tenant-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-audit-tenant-filter__icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 /* Error */
 .chat-audit-error {
   display: flex;
