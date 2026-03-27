@@ -335,6 +335,122 @@ export async function getSearchStats(days = 30): Promise<SearchStat> {
   return handleResponse(res)
 }
 
+// --- Extended Stats ---
+
+export interface FeedbackStat {
+  total_messages: number
+  rated_count: number
+  positive: number
+  negative: number
+  positive_rate: number | null
+}
+
+export interface QueryTypeStat {
+  query_type: string
+  count: number
+  pct: number
+}
+
+export interface ResponseTimeStat {
+  avg_total_ms: number | null
+  avg_rag_ms: number | null
+  avg_llm_ms: number | null
+  avg_search_ms: number | null
+  avg_first_token_ms: number | null
+  avg_tokens_per_sec: number | null
+  daily: Array<{ date: string; avg_total: number; avg_llm: number; avg_rag: number }>
+}
+
+export interface ChatStats {
+  feedback: FeedbackStat
+  query_types: QueryTypeStat[]
+  response_time: ResponseTimeStat
+  models: ModelUsageStat[]
+  avg_messages_per_session: number | null
+}
+
+export interface TopDocumentStat {
+  document_id: number
+  title: string
+  product_name: string | null
+  usage_count: number
+  context_tokens: number
+  charge_usd: string
+}
+
+export interface DocumentFormatStat {
+  format: string
+  count: number
+  pct: number
+}
+
+export interface DocumentStats {
+  total: number
+  avg_size_bytes: number | null
+  avg_chunks: number | null
+  uploads_daily: Array<{ date: string; count: number }>
+  top_products: Array<{ name: string; count: number }>
+  top_documents: TopDocumentStat[]
+  formats: DocumentFormatStat[]
+  unused_count: number
+}
+
+export interface SearchSourceStat {
+  source: string
+  count: number
+  pct: number
+}
+
+export interface ExtendedSearchStats extends SearchStat {
+  sources: SearchSourceStat[]
+  daily: Array<{ date: string; count: number; avg_similarity: number; zero_count: number }>
+}
+
+export interface CostByModelStat {
+  model: string
+  provider: string | null
+  total_charge_usd: string
+  total_tokens: number
+  request_count: number
+}
+
+export interface CostByChannelStat {
+  channel: string
+  total_charge_usd: string
+  request_count: number
+}
+
+export interface CostStats {
+  total_charge_usd: string
+  total_cogs_usd: string
+  avg_per_day: string
+  avg_per_user: string
+  forecast_month_usd: string
+  daily: Array<{ date: string; charge_usd: string; cogs_usd: string; requests: number }>
+  by_model: CostByModelStat[]
+  by_channel: CostByChannelStat[]
+}
+
+export async function getChatStats(days = 30): Promise<ChatStats> {
+  const res = await fetch(`${BASE}/stats/chat?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getDocumentStats(days = 30): Promise<DocumentStats> {
+  const res = await fetch(`${BASE}/stats/documents?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getExtendedSearchStats(days = 30): Promise<ExtendedSearchStats> {
+  const res = await fetch(`${BASE}/stats/search-extended?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getCostStats(days = 30): Promise<CostStats> {
+  const res = await fetch(`${BASE}/stats/costs?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
 
 // --- Logs ---
 

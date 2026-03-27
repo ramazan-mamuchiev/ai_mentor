@@ -19,6 +19,10 @@ from app.admin.schemas import (
     AdminDocumentDetail,
     AdminDocumentListResponse,
     AdminDocumentPatchRequest,
+    ChatStats,
+    CostStats,
+    DocumentStats,
+    ExtendedSearchStats,
     IngestionStat,
     LogsResponse,
     ModelUsageStat,
@@ -266,6 +270,38 @@ async def stats_search(
     session: AsyncSession = Depends(get_session),
 ):
     return await service.get_search_stats(session, days=days)
+
+
+@router.get("/stats/chat", response_model=ChatStats)
+async def stats_chat(
+    days: int = Query(30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_chat_stats(session, days=days)
+
+
+@router.get("/stats/documents", response_model=DocumentStats)
+async def stats_documents(
+    days: int = Query(30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_document_stats(session, days=days)
+
+
+@router.get("/stats/search-extended", response_model=ExtendedSearchStats)
+async def stats_search_extended(
+    days: int = Query(30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_extended_search_stats(session, days=days)
+
+
+@router.get("/stats/costs", response_model=CostStats)
+async def stats_costs(
+    days: int = Query(30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_cost_stats(session, days=days)
 
 
 # ---------------------------------------------------------------------------

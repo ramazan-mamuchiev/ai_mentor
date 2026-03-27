@@ -11,6 +11,7 @@ from app.models import (
     ChatMessageAnalytics,
     ChatSession,
     Document,
+    DocumentUsageLog,
     FirmwareVersion,
     Product,
     PromptTemplate,
@@ -591,6 +592,284 @@ async def get_search_stats(session: AsyncSession, days: int = 30) -> dict:
         "avg_duration_ms": round(float(avg_dur), 1) if avg_dur else None,
         "top_queries": [{"query": r.query[:200], "count": r.cnt} for r in top_queries],
         "zero_result_count": zero_results,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Extended Stats
+# ---------------------------------------------------------------------------
+
+async def get_chat_stats(session: AsyncSession, days: int = 30) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    total_msgs = await session.scalar(
+        select(func.count()).select_from(ChatMessage)
+        .where(ChatMessage.role == "assistant", ChatMessage.created_at >= since)
+    ) or 0
+
+    positive = await session.scalar(
+        select(func.count()).select_from(ChatMessage)
+        .where(ChatMessage.created_at >= since, ChatMessage.feedback == "positive")
+    ) or 0
+    negative = await session.scalar(
+        select(func.count()).select_from(ChatMessage)
+        .where(ChatMessage.created_at >= since, ChatMessage.feedback == "negative")
+    ) or 0
+    rated = positive + negative
+
+    qt_rows = (await session.execute(
+        select(
+            ChatMessageAnalytics.query_type,
+            func.count().label("cnt"),
+        )
+        .where(ChatMessageAnalytics.created_at >= since, ChatMessageAnalytics.query_type.isnot(None))
+        .group_by(ChatMessageAnalytics.query_type)
+        .order_by(func.count().desc())
+    )).all()
+    qt_total = sum(r.cnt for r in qt_rows) or 1
+
+    timing = (await session.execute(
+        select(
+            func.avg(ChatMessageAnalytics.total_ms),
+            func.avg(ChatMessageAnalytics.rag_ms),
+            func.avg(ChatMessageAnalytics.llm_ms),
+            func.avg(ChatMessageAnalytics.search_ms),
+            func.avg(ChatMessageAnalytics.first_token_ms),
+            func.avg(ChatMessageAnalytics.tokens_per_sec),
+        ).where(ChatMessageAnalytics.created_at >= since)
+    )).one()
+
+    timing_daily = (await session.execute(text(
+        "SELECT DATE(created_at) AS d, "
+        "AVG(total_ms) AS avg_total, AVG(llm_ms) AS avg_llm, AVG(rag_ms) AS avg_rag "
+        "FROM chat_message_analytics WHERE created_at >= :since "
+        "GROUP BY DATE(created_at) ORDER BY d"
+    ), {"since": since})).mappings().all()
+
+    models = await get_model_stats(session, days=days)
+
+    avg_msgs = await session.scalar(text(
+        "SELECT AVG(cnt) FROM ("
+        "  SELECT COUNT(*) AS cnt FROM chat_messages cm "
+        "  JOIN chat_sessions cs ON cm.session_id = cs.id "
+        "  WHERE cs.created_at >= :since GROUP BY cs.id"
+        ") sub"
+    ), {"since": since})
+
+    return {
+        "feedback": {
+            "total_messages": total_msgs,
+            "rated_count": rated,
+            "positive": positive,
+            "negative": negative,
+            "positive_rate": round(positive / rated * 100, 1) if rated > 0 else None,
+        },
+        "query_types": [
+            {"query_type": r.query_type, "count": r.cnt, "pct": round(r.cnt / qt_total * 100, 1)}
+            for r in qt_rows
+        ],
+        "response_time": {
+            "avg_total_ms": round(float(timing[0]), 1) if timing[0] else None,
+            "avg_rag_ms": round(float(timing[1]), 1) if timing[1] else None,
+            "avg_llm_ms": round(float(timing[2]), 1) if timing[2] else None,
+            "avg_search_ms": round(float(timing[3]), 1) if timing[3] else None,
+            "avg_first_token_ms": round(float(timing[4]), 1) if timing[4] else None,
+            "avg_tokens_per_sec": round(float(timing[5]), 1) if timing[5] else None,
+            "daily": [
+                {"date": str(r["d"]), "avg_total": round(float(r["avg_total"] or 0), 1),
+                 "avg_llm": round(float(r["avg_llm"] or 0), 1),
+                 "avg_rag": round(float(r["avg_rag"] or 0), 1)}
+                for r in timing_daily
+            ],
+        },
+        "models": models,
+        "avg_messages_per_session": round(float(avg_msgs), 1) if avg_msgs else None,
+    }
+
+
+async def get_document_stats(session: AsyncSession, days: int = 30) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    total = await session.scalar(select(func.count()).select_from(Document)) or 0
+    avg_size = await session.scalar(select(func.avg(Document.file_size_bytes)))
+    avg_chunks = await session.scalar(
+        select(func.avg(Document.total_chunks)).where(Document.status == "ready")
+    )
+
+    uploads_daily = (await session.execute(text(
+        "SELECT DATE(uploaded_at) AS d, COUNT(*) AS cnt "
+        "FROM documents WHERE uploaded_at >= :since "
+        "GROUP BY DATE(uploaded_at) ORDER BY d"
+    ), {"since": since})).mappings().all()
+
+    top_products = (await session.execute(
+        select(Product.name, Product.manufacturer, func.count(Document.id).label("cnt"))
+        .join(Document, Document.product_id == Product.id)
+        .group_by(Product.id, Product.name, Product.manufacturer)
+        .order_by(func.count(Document.id).desc())
+        .limit(10)
+    )).all()
+
+    format_rows = (await session.execute(
+        select(Document.format, func.count().label("cnt"))
+        .group_by(Document.format)
+        .order_by(func.count().desc())
+    )).all()
+    fmt_total = sum(r.cnt for r in format_rows) or 1
+
+    top_docs = (await session.execute(
+        select(
+            DocumentUsageLog.document_id,
+            Document.title,
+            Product.name.label("product_name"),
+            func.count(DocumentUsageLog.id).label("usage_count"),
+            func.sum(DocumentUsageLog.context_tokens).label("ctx_tokens"),
+            func.sum(DocumentUsageLog.charge_usd).label("charge"),
+        )
+        .join(Document, Document.id == DocumentUsageLog.document_id)
+        .outerjoin(Product, Product.id == Document.product_id)
+        .where(DocumentUsageLog.created_at >= since)
+        .group_by(DocumentUsageLog.document_id, Document.title, Product.name)
+        .order_by(func.count(DocumentUsageLog.id).desc())
+        .limit(10)
+    )).all()
+
+    used_ids_subq = select(DocumentUsageLog.document_id).distinct().subquery()
+    unused = await session.scalar(
+        select(func.count()).select_from(Document)
+        .where(Document.status == "ready", ~Document.id.in_(select(used_ids_subq)))
+    ) or 0
+
+    return {
+        "total": total,
+        "avg_size_bytes": round(float(avg_size), 0) if avg_size else None,
+        "avg_chunks": round(float(avg_chunks), 1) if avg_chunks else None,
+        "uploads_daily": [{"date": str(r["d"]), "count": r["cnt"]} for r in uploads_daily],
+        "top_products": [
+            {"name": f"{r.manufacturer} / {r.name}" if r.manufacturer else r.name, "count": r.cnt}
+            for r in top_products
+        ],
+        "top_documents": [
+            {
+                "document_id": r.document_id, "title": r.title or "—",
+                "product_name": r.product_name,
+                "usage_count": r.usage_count,
+                "context_tokens": int(r.ctx_tokens or 0),
+                "charge_usd": str(r.charge or 0),
+            }
+            for r in top_docs
+        ],
+        "formats": [
+            {"format": r.format, "count": r.cnt, "pct": round(r.cnt / fmt_total * 100, 1)}
+            for r in format_rows
+        ],
+        "unused_count": unused,
+    }
+
+
+async def get_extended_search_stats(session: AsyncSession, days: int = 30) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    base = await get_search_stats(session, days=days)
+
+    source_rows = (await session.execute(
+        select(SearchAnalytics.source, func.count().label("cnt"))
+        .where(SearchAnalytics.created_at >= since)
+        .group_by(SearchAnalytics.source)
+        .order_by(func.count().desc())
+    )).all()
+    src_total = sum(r.cnt for r in source_rows) or 1
+
+    daily = (await session.execute(text(
+        "SELECT DATE(created_at) AS d, COUNT(*) AS cnt, "
+        "AVG(top_similarity) AS avg_sim, "
+        "SUM(CASE WHEN result_count = 0 THEN 1 ELSE 0 END) AS zero_cnt "
+        "FROM search_analytics WHERE created_at >= :since "
+        "GROUP BY DATE(created_at) ORDER BY d"
+    ), {"since": since})).mappings().all()
+
+    return {
+        **base,
+        "sources": [
+            {"source": r.source, "count": r.cnt, "pct": round(r.cnt / src_total * 100, 1)}
+            for r in source_rows
+        ],
+        "daily": [
+            {"date": str(r["d"]), "count": r["cnt"],
+             "avg_similarity": round(float(r["avg_sim"] or 0), 4),
+             "zero_count": int(r["zero_cnt"] or 0)}
+            for r in daily
+        ],
+    }
+
+
+async def get_cost_stats(session: AsyncSession, days: int = 30) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    totals = (await session.execute(text(
+        "SELECT COUNT(*) AS cnt, COALESCE(SUM(charge_usd),0) AS charge, "
+        "COALESCE(SUM(cogs_usd),0) AS cogs "
+        "FROM usage_log WHERE created_at >= :since"
+    ), {"since": since})).mappings().one()
+
+    active_tenants = await session.scalar(
+        select(func.count(func.distinct(UsageLog.tenant_id)))
+        .where(UsageLog.created_at >= since, UsageLog.tenant_id.isnot(None))
+    ) or 1
+
+    daily = (await session.execute(text(
+        "SELECT DATE(created_at) AS d, "
+        "COALESCE(SUM(charge_usd),0) AS charge, "
+        "COALESCE(SUM(cogs_usd),0) AS cogs, "
+        "COUNT(*) AS cnt "
+        "FROM usage_log WHERE created_at >= :since "
+        "GROUP BY DATE(created_at) ORDER BY d"
+    ), {"since": since})).mappings().all()
+
+    by_model = (await session.execute(text(
+        "SELECT llm_model, llm_provider, "
+        "COALESCE(SUM(charge_usd),0) AS charge, "
+        "COALESCE(SUM(total_tokens),0) AS tokens, "
+        "COUNT(*) AS cnt "
+        "FROM usage_log WHERE created_at >= :since AND llm_model IS NOT NULL "
+        "GROUP BY llm_model, llm_provider ORDER BY charge DESC"
+    ), {"since": since})).mappings().all()
+
+    by_channel = (await session.execute(text(
+        "SELECT channel, "
+        "COALESCE(SUM(charge_usd),0) AS charge, "
+        "COUNT(*) AS cnt "
+        "FROM usage_log WHERE created_at >= :since "
+        "GROUP BY channel ORDER BY charge DESC"
+    ), {"since": since})).mappings().all()
+
+    total_charge = float(totals["charge"])
+    total_cogs = float(totals["cogs"])
+    day_count = max(len(daily), 1)
+    avg_day = total_charge / day_count
+    forecast = avg_day * 30
+
+    return {
+        "total_charge_usd": f"{total_charge:.8f}",
+        "total_cogs_usd": f"{total_cogs:.8f}",
+        "avg_per_day": f"{avg_day:.8f}",
+        "avg_per_user": f"{total_charge / active_tenants:.8f}",
+        "forecast_month_usd": f"{forecast:.8f}",
+        "daily": [
+            {"date": str(r["d"]), "charge_usd": str(r["charge"]),
+             "cogs_usd": str(r["cogs"]), "requests": int(r["cnt"])}
+            for r in daily
+        ],
+        "by_model": [
+            {"model": r["llm_model"] or "—", "provider": r["llm_provider"],
+             "total_charge_usd": str(r["charge"]),
+             "total_tokens": int(r["tokens"]), "request_count": int(r["cnt"])}
+            for r in by_model
+        ],
+        "by_channel": [
+            {"channel": r["channel"], "total_charge_usd": str(r["charge"]),
+             "request_count": int(r["cnt"])}
+            for r in by_channel
+        ],
     }
 
 

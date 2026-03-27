@@ -170,6 +170,96 @@ class UsageStatsResponse(BaseModel):
     daily: list[DailyUsageStat]
 
 
+# --- Extended Stats ---
+
+class FeedbackStat(BaseModel):
+    total_messages: int
+    rated_count: int
+    positive: int
+    negative: int
+    positive_rate: float | None
+
+class QueryTypeStat(BaseModel):
+    query_type: str
+    count: int
+    pct: float
+
+class ResponseTimeStat(BaseModel):
+    avg_total_ms: float | None
+    avg_rag_ms: float | None
+    avg_llm_ms: float | None
+    avg_search_ms: float | None
+    avg_first_token_ms: float | None
+    avg_tokens_per_sec: float | None
+    daily: list[dict] = []
+
+class ChatStats(BaseModel):
+    feedback: FeedbackStat
+    query_types: list[QueryTypeStat]
+    response_time: ResponseTimeStat
+    models: list[ModelUsageStat]
+    avg_messages_per_session: float | None
+
+class TopDocumentStat(BaseModel):
+    document_id: int
+    title: str
+    product_name: str | None
+    usage_count: int
+    context_tokens: int
+    charge_usd: str
+
+class DocumentFormatStat(BaseModel):
+    format: str
+    count: int
+    pct: float
+
+class DocumentStats(BaseModel):
+    total: int
+    avg_size_bytes: float | None
+    avg_chunks: float | None
+    uploads_daily: list[dict] = []
+    top_products: list[dict] = []
+    top_documents: list[TopDocumentStat] = []
+    formats: list[DocumentFormatStat] = []
+    unused_count: int = 0
+
+class SearchSourceStat(BaseModel):
+    source: str
+    count: int
+    pct: float
+
+class ExtendedSearchStats(BaseModel):
+    total_searches: int
+    avg_similarity: float | None
+    avg_duration_ms: float | None
+    zero_result_count: int
+    top_queries: list[dict] = []
+    sources: list[SearchSourceStat] = []
+    daily: list[dict] = []
+
+class CostByModelStat(BaseModel):
+    model: str
+    provider: str | None
+    total_charge_usd: str
+    total_tokens: int
+    request_count: int
+
+class CostByChannelStat(BaseModel):
+    channel: str
+    total_charge_usd: str
+    request_count: int
+
+class CostStats(BaseModel):
+    total_charge_usd: str
+    total_cogs_usd: str
+    avg_per_day: str
+    avg_per_user: str
+    forecast_month_usd: str
+    daily: list[dict] = []
+    by_model: list[CostByModelStat] = []
+    by_channel: list[CostByChannelStat] = []
+
+
 # --- Logs ---
 
 class LogEntry(BaseModel):
