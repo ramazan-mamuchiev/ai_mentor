@@ -1,6 +1,10 @@
 const BASE = '/api/v1/admin'
 
 async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    window.location.href = '/login'
+    throw new Error('Session expired')
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || `HTTP ${res.status}`)
@@ -97,6 +101,7 @@ export interface AdminDocumentItem {
   tenant_email: string | null
   product_name: string | null
   manufacturer: string | null
+  firmware_version: string | null
   title: string
   original_filename: string
   format: string
@@ -331,6 +336,7 @@ export async function getLogs(params: {
   service?: string
   level?: string
   search?: string
+  tenant?: string
   start?: string
   end?: string
   limit?: number
@@ -339,10 +345,23 @@ export async function getLogs(params: {
   if (params.service) sp.set('service', params.service)
   if (params.level) sp.set('level', params.level)
   if (params.search) sp.set('search', params.search)
+  if (params.tenant) sp.set('tenant', params.tenant)
   if (params.start) sp.set('start', params.start)
   if (params.end) sp.set('end', params.end)
   if (params.limit) sp.set('limit', String(params.limit))
   const res = await fetch(`${BASE}/logs?${sp}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export interface TenantSearchResult {
+  id: string
+  name: string
+  email: string
+}
+
+export async function searchTenants(q: string, limit = 10): Promise<TenantSearchResult[]> {
+  const sp = new URLSearchParams({ q, limit: String(limit) })
+  const res = await fetch(`${BASE}/tenants/search/autocomplete?${sp}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
