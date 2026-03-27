@@ -45,6 +45,7 @@ celery.conf.update(
         "queue_status_snapshot": {"queue": "monitoring"},
         "cleanup_expired_uploads": {"queue": "monitoring"},
         "check_stale_reindex_jobs": {"queue": "monitoring"},
+        "check_stale_documents": {"queue": "monitoring"},
         "ensure_usage_partitions": {"queue": "monitoring"},
         "cleanup_expired_shares": {"queue": "monitoring"},
         "s3_health_probe": {"queue": "monitoring"},
@@ -73,6 +74,10 @@ celery.conf.update(
         "s3-health-probe": {
             "task": "s3_health_probe",
             "schedule": 60.0,
+        },
+        "check-stale-documents": {
+            "task": "check_stale_documents",
+            "schedule": 120.0,
         },
     },
 )
@@ -883,6 +888,9 @@ def ingest_confluence_task(self, document_id: int):
                     doc.ocr_images_success = page.ocr_images_success
                     doc.ocr_images_empty = page.ocr_images_empty
                     doc.ocr_images_failed = page.ocr_images_failed
+                    doc.ocr_prompt_tokens = page.ocr_prompt_tokens
+                    doc.ocr_completion_tokens = page.ocr_completion_tokens
+                    doc.ocr_model = settings.ocr_vision_model
                 if page.ocr_error:
                     doc.error_message = f"OCR failed: {page.ocr_error}"
                 s.add(doc)
@@ -1236,6 +1244,52 @@ def check_stale_reindex_jobs_task(self):
 
         if stale_jobs:
             session.commit()
+
+
+@celery.task(name="check_stale_documents", bind=True)
+def check_stale_documents_task(self):
+    """Periodic task: reset documents stuck in 'processing' for too long."""
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select
+    from app.models import Document
+
+    engine = _get_sync_engine()
+    threshold = datetime.now(timezone.utc) - timedelta(
+        seconds=settings.document_stale_timeout_sec
+    )
+
+    with Session(engine) as session:
+        stale_docs = session.execute(
+            select(Document).where(
+                Document.status == "processing",
+                Document.uploaded_at < threshold,
+            )
+        ).scalars().all()
+
+        for doc in stale_docs:
+            doc.status = "error"
+            doc.error_message = (
+                f"Auto-reset: document stuck in 'processing' since {doc.uploaded_at}. "
+                f"Exceeded stale timeout of {settings.document_stale_timeout_sec}s."
+            )
+            doc.progress_percent = 0
+            doc.progress_stage = ""
+            logger.warning(
+                "Document auto-reset from processing to error",
+                extra={
+                    "event": "document_stale_reset",
+                    "document_id": doc.id,
+                    "title": doc.title,
+                    "uploaded_at": str(doc.uploaded_at),
+                },
+            )
+
+        if stale_docs:
+            session.commit()
+            logger.info(
+                "Stale documents reset",
+                extra={"count": len(stale_docs)},
+            )
 
 
 @celery.task(name="queue_status_snapshot", bind=True)

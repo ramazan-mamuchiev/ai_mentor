@@ -243,6 +243,9 @@ export interface DocumentDebugInfo {
   ocr_images_success: number | null
   ocr_images_empty: number | null
   ocr_images_failed: number | null
+  ocr_prompt_tokens: number | null
+  ocr_completion_tokens: number | null
+  ocr_model: string | null
   detected_language: string | null
 
   extract_ms: number | null

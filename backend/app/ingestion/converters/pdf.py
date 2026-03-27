@@ -1,8 +1,8 @@
-"""PDF -> Markdown converter with optional OCR (EasyOCR).
+"""PDF -> Markdown converter with optional OCR (Gemini Vision).
 
 Two-pass pipeline:
   Pass 1: pymupdf4llm.to_markdown() -- text layer extraction (parallel, chunked)
-  Pass 2: OCR images via EasyOCR with auto-detected language
+  Pass 2: OCR images via Gemini Vision API with auto-detected language
 
 Language detection uses Gemini (same API key as embeddings) between passes.
 """

@@ -160,6 +160,10 @@ class UserDocStats(BaseModel):
     documents_error: int = 0
     total_chunks: int = 0
     total_size_bytes: int = 0
+    ocr_prompt_tokens: int = 0
+    ocr_completion_tokens: int = 0
+    ocr_total_tokens: int = 0
+    ocr_documents: int = 0
     formats: list[dict] = []
     products: list[dict] = []
     uploads_daily: list[dict] = []
@@ -176,6 +180,8 @@ class UserCostStats(BaseModel):
     total_charge_usd: str = "0"
     avg_per_day: str = "0"
     forecast_month_usd: str = "0"
+    ocr_total_tokens: int = 0
+    ocr_cost_usd: str = "0"
     daily: list[dict] = []
     by_model: list[dict] = []
     by_channel: list[dict] = []

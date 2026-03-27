@@ -219,6 +219,9 @@ function DocumentsTab({ days, t }: { days: number; t: any }) {
         <StatCard label={t('analytics.docs.totalChunks')} value={data.total_chunks.toLocaleString()} />
         <StatCard label={t('analytics.docs.pending')} value={data.documents_pending} variant={data.documents_pending > 0 ? 'warning' : undefined} />
         <StatCard label={t('analytics.docs.errors')} value={data.documents_error} variant={data.documents_error > 0 ? 'warning' : undefined} />
+        {data.ocr_total_tokens > 0 && (
+          <StatCard label={t('analytics.docs.ocrTokens')} value={data.ocr_total_tokens.toLocaleString()} sub={`${data.ocr_documents} ${t('analytics.docs.ocrDocs')}`} />
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '16px 0' }}>
@@ -321,6 +324,9 @@ function CostsTab({ days, t }: { days: number; t: any }) {
         <StatCard label={t('analytics.costs.total')} value={fmtUsd(data.total_charge_usd)} variant="accent" />
         <StatCard label={t('analytics.costs.forecast')} value={fmtUsd(data.forecast_month_usd)} />
         <StatCard label={t('analytics.costs.perDay')} value={fmtUsd(data.avg_per_day)} />
+        {data.ocr_total_tokens > 0 && (
+          <StatCard label={t('analytics.costs.ocrCost')} value={fmtUsd(data.ocr_cost_usd)} sub={`${data.ocr_total_tokens.toLocaleString()} ${t('analytics.costs.ocrTokens')}`} />
+        )}
       </div>
 
       <div style={{ margin: '16px 0' }}>

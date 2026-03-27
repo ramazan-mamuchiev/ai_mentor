@@ -224,6 +224,9 @@ class Document(Base):
     ocr_images_success: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ocr_images_empty: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ocr_images_failed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ocr_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    ocr_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    ocr_model: Mapped[str | None] = mapped_column(Text, nullable=True)
     detected_language: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     source_container: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -442,7 +442,10 @@ async def user_doc_stats(
         "COUNT(*) FILTER (WHERE status IN ('pending','processing')) AS pending, "
         "COUNT(*) FILTER (WHERE status = 'error') AS errors, "
         "COALESCE(SUM(total_chunks),0) AS chunks, "
-        "COALESCE(SUM(file_size_bytes),0) AS size_bytes "
+        "COALESCE(SUM(file_size_bytes),0) AS size_bytes, "
+        "COALESCE(SUM(ocr_prompt_tokens),0) AS ocr_prompt, "
+        "COALESCE(SUM(ocr_completion_tokens),0) AS ocr_completion, "
+        "COUNT(*) FILTER (WHERE ocr_prompt_tokens > 0 OR ocr_completion_tokens > 0) AS ocr_docs "
         "FROM documents WHERE tenant_id = :tid"
     ), {"tid": tid})).mappings().one()
 
@@ -463,6 +466,9 @@ async def user_doc_stats(
         "GROUP BY DATE(uploaded_at) ORDER BY d"
     ), {"tid": tid, "since": since})).mappings().all()
 
+    ocr_prompt = int(totals["ocr_prompt"])
+    ocr_completion = int(totals["ocr_completion"])
+
     return UserDocStats(
         total_documents=int(totals["total"]),
         documents_indexed=int(totals["indexed"]),
@@ -470,6 +476,10 @@ async def user_doc_stats(
         documents_error=int(totals["errors"]),
         total_chunks=int(totals["chunks"]),
         total_size_bytes=int(totals["size_bytes"]),
+        ocr_prompt_tokens=ocr_prompt,
+        ocr_completion_tokens=ocr_completion,
+        ocr_total_tokens=ocr_prompt + ocr_completion,
+        ocr_documents=int(totals["ocr_docs"]),
         formats=[{"format": r["format"], "count": int(r["cnt"]), "pct": round(int(r["cnt"]) / fmt_total * 100, 1)} for r in fmt_rows],
         products=[{"name": r["name"], "count": int(r["cnt"])} for r in prod_rows],
         uploads_daily=[{"date": str(r["d"]), "count": int(r["cnt"])} for r in uploads],
@@ -539,6 +549,18 @@ async def user_cost_stats(
     avg_per_day = total_charge / days if days > 0 else Decimal("0")
     forecast = avg_per_day * 30
 
+    ocr_totals = (await session.execute(text(
+        "SELECT COALESCE(SUM(ocr_prompt_tokens),0) AS ocr_prompt, "
+        "COALESCE(SUM(ocr_completion_tokens),0) AS ocr_completion "
+        "FROM documents WHERE tenant_id = :tid AND uploaded_at >= :since"
+    ), {"tid": tid, "since": since})).mappings().one()
+    ocr_prompt = int(ocr_totals["ocr_prompt"])
+    ocr_completion = int(ocr_totals["ocr_completion"])
+    ocr_total_tokens = ocr_prompt + ocr_completion
+
+    from app.billing.pricing import calculate_llm_charge
+    ocr_cost = calculate_llm_charge("gemini-2.0-flash", ocr_prompt, ocr_completion)
+
     daily = (await session.execute(text(
         "SELECT DATE(created_at) AS d, COALESCE(SUM(charge_usd),0) AS charge, COUNT(*) AS cnt "
         "FROM usage_log WHERE tenant_id = :tid AND created_at >= :since "
@@ -562,6 +584,8 @@ async def user_cost_stats(
         total_charge_usd=str(total_charge),
         avg_per_day=str(round(avg_per_day, 8)),
         forecast_month_usd=str(round(forecast, 8)),
+        ocr_total_tokens=ocr_total_tokens,
+        ocr_cost_usd=str(ocr_cost),
         daily=[{"date": str(r["d"]), "charge_usd": str(r["charge"]), "requests": int(r["cnt"])} for r in daily],
         by_model=[{"model": r["model"], "provider": r["provider"], "total_charge_usd": str(r["charge"]),
                    "total_tokens": int(r["tokens"]), "request_count": int(r["cnt"])} for r in by_model],

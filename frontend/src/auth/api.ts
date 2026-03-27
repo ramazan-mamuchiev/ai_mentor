@@ -210,6 +210,10 @@ export interface UserDocStats {
   documents_error: number
   total_chunks: number
   total_size_bytes: number
+  ocr_prompt_tokens: number
+  ocr_completion_tokens: number
+  ocr_total_tokens: number
+  ocr_documents: number
   formats: Array<{ format: string; count: number; pct: number }>
   products: Array<{ name: string; count: number }>
   uploads_daily: Array<{ date: string; count: number }>
@@ -228,6 +232,8 @@ export interface UserCostStats {
   total_charge_usd: string
   avg_per_day: string
   forecast_month_usd: string
+  ocr_total_tokens: number
+  ocr_cost_usd: string
   daily: Array<{ date: string; charge_usd: string; requests: number }>
   by_model: Array<{ model: string; provider: string; total_charge_usd: string; total_tokens: number; request_count: number }>
   by_channel: Array<{ channel: string; total_charge_usd: string; request_count: number }>

@@ -84,6 +84,9 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_total INT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_success INT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_empty INT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_failed INT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_model TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS detected_language TEXT;
 
 -- Source container (archive filename or URL the document was extracted from)

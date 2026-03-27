@@ -1,4 +1,4 @@
-"""Tests for PDF/OCR converter (migrated from doc2md-mcp).
+"""Tests for PDF/OCR converter (Gemini Vision API).
 
 Tests cover: IMG_REF_RE regex, ocr_image_file, _find_ocr_pages,
 enrich_markdown_with_ocr_files, and the main convert_pdf function.
@@ -20,6 +20,9 @@ from app.ingestion.converters.ocr import (
     enrich_markdown_with_ocr_files,
     ocr_image_file,
 )
+
+
+_USAGE_STUB = {"prompt_tokens": 10, "completion_tokens": 5}
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +76,7 @@ class TestImgRefRegex:
 
 
 # ---------------------------------------------------------------------------
-# _ocr_image_file — PIL-based reading (non-ASCII path support)
+# _ocr_image_file — Gemini Vision based OCR
 # ---------------------------------------------------------------------------
 
 class TestOcrImageFile:
@@ -88,13 +91,11 @@ class TestOcrImageFile:
         img = subdir / "test.png"
         self._make_white_png(img)
 
-        with patch("app.ingestion.converters.ocr.get_ocr_reader") as mock_reader:
-            mock_reader.return_value.readtext.return_value = [
-                (None, "hello", 0.9),
-            ]
-            result = ocr_image_file(str(img), ["en"])
+        with patch("app.ingestion.converters.ocr._ocr_via_gemini", return_value=("hello", _USAGE_STUB)):
+            text, usage = ocr_image_file(str(img), ["en"])
 
-        assert result == "hello"
+        assert text == "hello"
+        assert usage["prompt_tokens"] == 10
 
     def test_path_with_parentheses(self, tmp_path):
         subdir = tmp_path / "Guide(v2)"
@@ -102,13 +103,10 @@ class TestOcrImageFile:
         img = subdir / "img(0).png"
         self._make_white_png(img)
 
-        with patch("app.ingestion.converters.ocr.get_ocr_reader") as mock_reader:
-            mock_reader.return_value.readtext.return_value = [
-                (None, "world", 0.95),
-            ]
-            result = ocr_image_file(str(img), ["en"])
+        with patch("app.ingestion.converters.ocr._ocr_via_gemini", return_value=("world", _USAGE_STUB)):
+            text, usage = ocr_image_file(str(img), ["en"])
 
-        assert result == "world"
+        assert text == "world"
 
     def test_path_with_spaces(self, tmp_path):
         subdir = tmp_path / "My Documents"
@@ -116,11 +114,10 @@ class TestOcrImageFile:
         img = subdir / "photo.png"
         self._make_white_png(img)
 
-        with patch("app.ingestion.converters.ocr.get_ocr_reader") as mock_reader:
-            mock_reader.return_value.readtext.return_value = []
-            result = ocr_image_file(str(img), ["en"])
+        with patch("app.ingestion.converters.ocr._ocr_via_gemini", return_value=("", {"prompt_tokens": 5, "completion_tokens": 0})):
+            text, usage = ocr_image_file(str(img), ["en"])
 
-        assert result == ""
+        assert text == ""
 
 
 # ---------------------------------------------------------------------------
@@ -205,19 +202,19 @@ class TestEnrichMarkdownWithOcrFiles:
         img.touch()
         md = f"Before\n![alt]({img})\nAfter"
 
-        with patch("app.ingestion.converters.ocr.ocr_image_file", return_value="recognized text"), \
-             patch("app.ingestion.converters.ocr.get_ocr_reader"):
+        with patch("app.ingestion.converters.ocr.ocr_image_file", return_value=("recognized text", _USAGE_STUB)):
             result, stats = enrich_markdown_with_ocr_files(md, ["en"])
 
         assert "recognized text" in result
         assert "![alt]" not in result
         assert stats["ocr_images_success"] == 1
         assert stats["ocr_images_total"] == 1
+        assert stats["ocr_prompt_tokens"] == 10
+        assert stats["ocr_completion_tokens"] == 5
 
     def test_file_not_found(self):
         md = "![alt](/nonexistent/image.png)"
-        with patch("app.ingestion.converters.ocr.get_ocr_reader"):
-            result, stats = enrich_markdown_with_ocr_files(md, ["en"])
+        result, stats = enrich_markdown_with_ocr_files(md, ["en"])
         assert "![alt]" not in result
         assert stats["ocr_images_success"] == 0
         assert stats["ocr_images_failed"] == 1
@@ -227,8 +224,7 @@ class TestEnrichMarkdownWithOcrFiles:
         img.touch()
         md = f"Text\n![x]({img})\nMore"
 
-        with patch("app.ingestion.converters.ocr.ocr_image_file", return_value="   "), \
-             patch("app.ingestion.converters.ocr.get_ocr_reader"):
+        with patch("app.ingestion.converters.ocr.ocr_image_file", return_value=("   ", {"prompt_tokens": 3, "completion_tokens": 1})):
             result, stats = enrich_markdown_with_ocr_files(md, ["en"])
 
         assert "![x]" not in result
@@ -240,8 +236,7 @@ class TestEnrichMarkdownWithOcrFiles:
         img.touch()
         md = f"![x]({img})"
 
-        with patch("app.ingestion.converters.ocr.ocr_image_file", side_effect=RuntimeError("OCR crashed")), \
-             patch("app.ingestion.converters.ocr.get_ocr_reader"):
+        with patch("app.ingestion.converters.ocr.ocr_image_file", side_effect=RuntimeError("OCR crashed")):
             result, stats = enrich_markdown_with_ocr_files(md, ["en"])
 
         assert "![x]" not in result
@@ -263,17 +258,18 @@ class TestEnrichMarkdownWithOcrFiles:
 
         def mock_ocr(path, langs=None):
             if "a.png" in path:
-                return "alpha text"
-            return "beta text"
+                return ("alpha text", _USAGE_STUB)
+            return ("beta text", _USAGE_STUB)
 
-        with patch("app.ingestion.converters.ocr.ocr_image_file", side_effect=mock_ocr), \
-             patch("app.ingestion.converters.ocr.get_ocr_reader"):
+        with patch("app.ingestion.converters.ocr.ocr_image_file", side_effect=mock_ocr):
             result, stats = enrich_markdown_with_ocr_files(md, ["en"])
 
         assert "alpha text" in result
         assert "beta text" in result
         assert stats["ocr_images_success"] == 2
         assert stats["ocr_images_total"] == 2
+        assert stats["ocr_prompt_tokens"] == 20
+        assert stats["ocr_completion_tokens"] == 10
 
     def test_path_with_parentheses(self, tmp_path):
         subdir = tmp_path / "Guide_V2.6.1(2)"
@@ -282,8 +278,7 @@ class TestEnrichMarkdownWithOcrFiles:
         img.touch()
         md = f"Text\n![alt]({img})\nEnd"
 
-        with patch("app.ingestion.converters.ocr.ocr_image_file", return_value="found text"), \
-             patch("app.ingestion.converters.ocr.get_ocr_reader"):
+        with patch("app.ingestion.converters.ocr.ocr_image_file", return_value=("found text", _USAGE_STUB)):
             result, stats = enrich_markdown_with_ocr_files(md, ["en"])
 
         assert "found text" in result
@@ -303,8 +298,7 @@ class TestEnrichMarkdownWithOcrFiles:
 
         md = f"![small]({small_img})\n![big]({large_img})"
 
-        with patch("app.ingestion.converters.ocr.ocr_image_file", return_value="big text"), \
-             patch("app.ingestion.converters.ocr.get_ocr_reader"):
+        with patch("app.ingestion.converters.ocr.ocr_image_file", return_value=("big text", _USAGE_STUB)):
             result, stats = enrich_markdown_with_ocr_files(md, ["en"])
 
         assert stats["ocr_images_total"] == 2
@@ -324,8 +318,7 @@ class TestEnrichMarkdownWithOcrFiles:
 
         md = f"Text\n![a]({img1})\n![b]({img2})\nEnd"
 
-        with patch("app.ingestion.converters.ocr.ocr_image_file") as mock_ocr, \
-             patch("app.ingestion.converters.ocr.get_ocr_reader"):
+        with patch("app.ingestion.converters.ocr.ocr_image_file") as mock_ocr:
             result, stats = enrich_markdown_with_ocr_files(md, ["en"])
 
         mock_ocr.assert_not_called()
@@ -356,7 +349,7 @@ class TestConvertPdf:
         md_text, meta = convert_pdf(str(sample_text_pdf))
         assert meta["ocr_applied"] is False
 
-    def test_no_ocr_when_easyocr_unavailable(self, sample_image_pdf):
+    def test_no_ocr_when_unavailable(self, sample_image_pdf):
         with patch("app.ingestion.converters.ocr.ocr_enabled", return_value=False):
             md_text, meta = convert_pdf(str(sample_image_pdf))
         assert meta["ocr_applied"] is False

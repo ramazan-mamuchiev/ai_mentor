@@ -2,7 +2,7 @@
 
 Crawls a Confluence page tree via REST API and converts each page to Markdown.
 Supports public (anonymous) Confluence instances.
-When OCR is enabled, downloads images from pages and extracts text via EasyOCR.
+When OCR is enabled, downloads images from pages and extracts text via Gemini Vision.
 
 Discovery strategy (in order of priority):
   1. Child pages via REST API  (parent → child hierarchy)
@@ -62,6 +62,8 @@ class ConfluencePage:
     ocr_images_success: int = 0
     ocr_images_empty: int = 0
     ocr_images_failed: int = 0
+    ocr_prompt_tokens: int = 0
+    ocr_completion_tokens: int = 0
     ocr_ms: float = 0.0
     ocr_error: str = ""
 
@@ -77,6 +79,8 @@ class CrawlResult:
     errors: list[str] = field(default_factory=list)
     ocr_images_total: int = 0
     ocr_images_success: int = 0
+    ocr_prompt_tokens: int = 0
+    ocr_completion_tokens: int = 0
     ocr_ms: float = 0.0
 
 
@@ -244,7 +248,6 @@ def _enrich_confluence_markdown_with_ocr(
     from app.ingestion.converters.ocr import (
         IMG_REF_RE,
         OCR_IMAGE_MIN_AREA,
-        get_ocr_reader,
         image_size_from_bytes,
         ocr_image_bytes,
     )
@@ -255,12 +258,12 @@ def _enrich_confluence_markdown_with_ocr(
         "ocr_images_success": 0,
         "ocr_images_empty": 0,
         "ocr_images_failed": 0,
+        "ocr_prompt_tokens": 0,
+        "ocr_completion_tokens": 0,
     }
 
     if not matches:
         return md_text, stats
-
-    get_ocr_reader(languages)
 
     def _process_image_url(img_url: str) -> str:
         if not img_url or not img_url.startswith(("http://", "https://")):
@@ -281,7 +284,9 @@ def _enrich_confluence_markdown_with_ocr(
             except Exception:
                 pass
 
-            ocr_text = ocr_image_bytes(data, languages)
+            ocr_text, usage = ocr_image_bytes(data, languages)
+            stats["ocr_prompt_tokens"] += usage.get("prompt_tokens", 0)
+            stats["ocr_completion_tokens"] += usage.get("completion_tokens", 0)
             if not ocr_text.strip():
                 stats["ocr_images_empty"] += 1
                 return ""
@@ -442,6 +447,8 @@ async def crawl_confluence(
                 ocr_images_success=page_ocr_stats.get("ocr_images_success", 0),
                 ocr_images_empty=page_ocr_stats.get("ocr_images_empty", 0),
                 ocr_images_failed=page_ocr_stats.get("ocr_images_failed", 0),
+                ocr_prompt_tokens=page_ocr_stats.get("ocr_prompt_tokens", 0),
+                ocr_completion_tokens=page_ocr_stats.get("ocr_completion_tokens", 0),
                 ocr_ms=page_ocr_ms,
                 ocr_error=page_ocr_stats.get("ocr_error", ""),
             )
@@ -450,6 +457,8 @@ async def crawl_confluence(
 
             result.ocr_images_total += page.ocr_images_total
             result.ocr_images_success += page.ocr_images_success
+            result.ocr_prompt_tokens += page.ocr_prompt_tokens
+            result.ocr_completion_tokens += page.ocr_completion_tokens
             result.ocr_ms += page_ocr_ms
 
             if pages_done == 1:

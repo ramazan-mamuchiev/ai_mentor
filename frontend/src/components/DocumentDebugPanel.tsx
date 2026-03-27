@@ -172,6 +172,14 @@ export function DocumentDebugContent({ documentId, initialDebug, initialUsage }:
             <div className="doc-debug-row"><span>{t('docDebug.ocrSuccess')}</span><code>{fmt(debug.ocr_images_success)}</code></div>
             <div className="doc-debug-row"><span>{t('docDebug.ocrEmpty')}</span><code>{fmt(debug.ocr_images_empty)}</code></div>
             <div className="doc-debug-row"><span>{t('docDebug.ocrFailed')}</span><code>{fmt(debug.ocr_images_failed)}</code></div>
+            {debug.ocr_model && <div className="doc-debug-row"><span>{t('docDebug.ocrModel')}</span><code className="doc-debug-embed-model">{debug.ocr_model}</code></div>}
+            {(debug.ocr_prompt_tokens != null && debug.ocr_prompt_tokens > 0) && (
+              <>
+                <div className="doc-debug-row"><span>{t('docDebug.ocrPromptTokens')}</span><code>{fmt(debug.ocr_prompt_tokens)}</code></div>
+                <div className="doc-debug-row"><span>{t('docDebug.ocrCompletionTokens')}</span><code>{fmt(debug.ocr_completion_tokens)}</code></div>
+                <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.ocrTotalTokens')}</span><code>{fmt((debug.ocr_prompt_tokens ?? 0) + (debug.ocr_completion_tokens ?? 0))}</code></div>
+              </>
+            )}
           </div>
         )}
 

@@ -416,6 +416,10 @@
   "docDebug.ocrSuccess": "Распознано",
   "docDebug.ocrEmpty": "Пустой результат",
   "docDebug.ocrFailed": "Ошибка",
+  "docDebug.ocrModel": "Модель OCR",
+  "docDebug.ocrPromptTokens": "OCR prompt токены",
+  "docDebug.ocrCompletionTokens": "OCR completion токены",
+  "docDebug.ocrTotalTokens": "OCR токены (всего)",
 
   "docDebug.extraction": "Извлечение метаданных",
   "docDebug.extractTime": "Время извлечения",
@@ -571,6 +575,8 @@
   "analytics.docs.uploadsDaily": "Загрузки по дням",
   "analytics.docs.topProducts": "Топ продуктов",
   "analytics.docs.formats": "Форматы",
+  "analytics.docs.ocrTokens": "OCR токены",
+  "analytics.docs.ocrDocs": "документов с OCR",
 
   "analytics.search.totalSearches": "Всего поисков",
   "analytics.search.avgSimilarity": "Сред. сходство",
@@ -587,6 +593,8 @@
   "analytics.costs.chargePerDay": "Расход ($) / день",
   "analytics.costs.byModel": "По моделям",
   "analytics.costs.byChannel": "По каналам",
+  "analytics.costs.ocrCost": "OCR расходы",
+  "analytics.costs.ocrTokens": "токенов OCR",
 
   "settings.title": "Настройки",
   "settings.description": "API-ключи, управление командой, биллинг и настройки интеграции.",

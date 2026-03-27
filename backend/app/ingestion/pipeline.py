@@ -408,6 +408,9 @@ async def ingest_file(
             doc.ocr_images_success = ocr_stats.get("ocr_images_success")
             doc.ocr_images_empty = ocr_stats.get("ocr_images_empty")
             doc.ocr_images_failed = ocr_stats.get("ocr_images_failed")
+            doc.ocr_prompt_tokens = ocr_stats.get("ocr_prompt_tokens", 0)
+            doc.ocr_completion_tokens = ocr_stats.get("ocr_completion_tokens", 0)
+            doc.ocr_model = _settings.ocr_vision_model
 
         await session.commit()
 
@@ -915,6 +918,9 @@ def ingest_from_bytes(
             document.ocr_images_success = ocr_stats.get("ocr_images_success")
             document.ocr_images_empty = ocr_stats.get("ocr_images_empty")
             document.ocr_images_failed = ocr_stats.get("ocr_images_failed")
+            document.ocr_prompt_tokens = ocr_stats.get("ocr_prompt_tokens", 0)
+            document.ocr_completion_tokens = ocr_stats.get("ocr_completion_tokens", 0)
+            document.ocr_model = _settings.ocr_vision_model
 
         if convert_metadata.get("ocr_error"):
             document.error_message = f"OCR failed: {convert_metadata['ocr_error']}"

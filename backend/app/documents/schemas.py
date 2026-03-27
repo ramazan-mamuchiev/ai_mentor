@@ -185,6 +185,9 @@ class DocumentDebugInfo(BaseModel):
     ocr_images_success: int | None = None
     ocr_images_empty: int | None = None
     ocr_images_failed: int | None = None
+    ocr_prompt_tokens: int | None = None
+    ocr_completion_tokens: int | None = None
+    ocr_model: str | None = None
     detected_language: str | None = None
 
     extract_ms: float | None = None
