@@ -561,6 +561,8 @@
   "auth.continueGoogle": "Продолжить с Google",
   "auth.continueGithub": "Продолжить с GitHub",
   "auth.orEmail": "или по email",
+  "auth.nameLabel": "Имя",
+  "auth.namePlaceholder": "Как к вам обращаться?",
   "auth.emailLabel": "Email",
   "auth.emailPlaceholder": "you@company.com",
   "auth.passwordLabel": "Пароль",

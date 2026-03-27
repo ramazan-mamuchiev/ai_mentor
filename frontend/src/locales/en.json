@@ -561,6 +561,8 @@
   "auth.continueGoogle": "Continue with Google",
   "auth.continueGithub": "Continue with GitHub",
   "auth.orEmail": "or continue with email",
+  "auth.nameLabel": "Name",
+  "auth.namePlaceholder": "How should we call you?",
   "auth.emailLabel": "Email",
   "auth.emailPlaceholder": "you@company.com",
   "auth.passwordLabel": "Password",

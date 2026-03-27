@@ -55,7 +55,7 @@ export function LoginPage() {
           {currentLang.toUpperCase()}
         </button>
         <button className="theme-toggle" onClick={toggleTheme} aria-label={t('theme.toggle')}>
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
       </div>
       <div className="auth-card">

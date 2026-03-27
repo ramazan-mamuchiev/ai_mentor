@@ -53,7 +53,7 @@ def _set_tokens(response: Response, access: str, refresh: str) -> None:
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 async def register(body: RegisterRequest, response: Response, session: AsyncSession = Depends(get_session)):
-    tenant, raw_key = await register_tenant(body.email, body.password, session)
+    tenant, raw_key = await register_tenant(body.email, body.password, session, name=body.name)
     access, refresh = await create_token_pair(tenant.id, session)
     _set_tokens(response, access, refresh)
     return RegisterResponse(id=tenant.id, email=tenant.email, slug=tenant.slug, api_key=raw_key)
@@ -248,6 +248,7 @@ async def oauth_callback(
             userinfo = userinfo_resp.json()
             oauth_id = userinfo["id"]
             email = userinfo["email"]
+            oauth_name = userinfo.get("name")
 
     elif provider == "github":
         async with httpx.AsyncClient(timeout=30) as client:
@@ -274,6 +275,7 @@ async def oauth_callback(
             )
             user_data = user_resp.json()
             oauth_id = str(user_data["id"])
+            oauth_name = user_data.get("name") or user_data.get("login")
 
             emails_resp = await client.get(
                 "https://api.github.com/user/emails",
@@ -287,7 +289,7 @@ async def oauth_callback(
     else:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown provider: {provider}")
 
-    tenant, is_new = await find_or_create_oauth_tenant(provider, oauth_id, email, session)
+    tenant, is_new = await find_or_create_oauth_tenant(provider, oauth_id, email, session, name=oauth_name)
     access, refresh = await create_token_pair(tenant.id, session)
 
     from starlette.responses import RedirectResponse

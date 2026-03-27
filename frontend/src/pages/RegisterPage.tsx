@@ -18,6 +18,7 @@ export function RegisterPage() {
   const currentLang = i18n.language?.startsWith('ru') ? 'ru' : 'en'
   const nextLang = currentLang === 'ru' ? 'en' : 'ru'
 
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -39,7 +40,7 @@ export function RegisterPage() {
     setError('')
     setLoading(true)
     try {
-      await register(email, password)
+      await register(email, password, name || undefined)
       navigate('/app?onboarding=true')
     } catch (err: any) {
       setError(err.message || t('auth.registerError'))
@@ -55,7 +56,7 @@ export function RegisterPage() {
           {currentLang.toUpperCase()}
         </button>
         <button className="theme-toggle" onClick={toggleTheme} aria-label={t('theme.toggle')}>
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
       </div>
       <div className="auth-card">
@@ -98,6 +99,19 @@ export function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <div className="auth-error">{error}</div>}
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="register-name">{t('auth.nameLabel')}</label>
+            <input
+              id="register-name"
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder={t('auth.namePlaceholder')}
+              className="auth-input"
+              autoComplete="name"
+              maxLength={128}
+            />
+          </div>
           <div className="auth-field">
             <label className="auth-label" htmlFor="register-email">{t('auth.emailLabel')}</label>
             <input

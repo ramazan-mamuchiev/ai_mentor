@@ -239,6 +239,43 @@ align-items: center;
 justify-content: center;
 ```
 
+**Toggle button (language / theme switch):**
+Единый стиль для ВСЕХ страниц (auth, landing, app). Квадратная кнопка 36×36px.
+```css
+width: 36px;
+height: 36px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+background: var(--surface);
+border: 1px solid var(--border);
+color: var(--text-secondary);
+border-radius: 10px;
+font-size: 0.8rem;
+font-weight: 600;
+```
+Hover: `background: var(--surface-hover); border-color: var(--text-muted); color: var(--text)`.
+- Language toggle: shows `RU` / `EN` text
+- Theme toggle: shows `Sun` (18px) in dark mode, `Moon` (18px) in light mode
+- CSS classes: `.landing-toggle-btn` (landing), `.theme-toggle` / `.lang-toggle` (auth pages)
+
+**Primary CTA (gradient):**
+Used for main call-to-action buttons on landing and auth pages.
+```css
+display: inline-flex;
+align-items: center;
+gap: 8px;
+padding: 10px 24px;
+background: var(--gradient);
+color: #fff;
+font-size: 14px;
+font-weight: 600;
+border: none;
+border-radius: 8px;
+```
+Hover: `opacity: 0.9; transform: translateY(-1px)`.
+Auth submit button uses the same gradient via `var(--gradient)`.
+
 ### 6.2 Инпуты
 
 ```css

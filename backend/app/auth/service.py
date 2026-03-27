@@ -44,6 +44,7 @@ async def register_tenant(
     email: str,
     password: str,
     session: AsyncSession,
+    name: str | None = None,
 ) -> tuple[Tenant, str]:
     """Create tenant + first API key. Returns (tenant, raw_api_key)."""
     existing = await session.execute(select(Tenant.id).where(Tenant.email == email))
@@ -56,6 +57,7 @@ async def register_tenant(
         email=email,
         password_hash=hash_password(password),
         slug=slug,
+        name=name,
     )
     session.add(tenant)
     await session.flush()
@@ -157,6 +159,7 @@ async def find_or_create_oauth_tenant(
     oauth_id: str,
     email: str,
     session: AsyncSession,
+    name: str | None = None,
 ) -> tuple[Tenant, bool]:
     """Find existing tenant by OAuth link, or link to existing email, or create new.
     Returns (tenant, is_new_account).
@@ -171,6 +174,8 @@ async def find_or_create_oauth_tenant(
     if link:
         result = await session.execute(select(Tenant).where(Tenant.id == link.tenant_id))
         tenant = result.scalar_one()
+        if not tenant.name and name:
+            tenant.name = name
         return tenant, False
 
     result = await session.execute(select(Tenant).where(Tenant.email == email))
@@ -179,7 +184,7 @@ async def find_or_create_oauth_tenant(
 
     if not tenant:
         slug = await _ensure_unique_slug(_slug_from_email(email), session)
-        tenant = Tenant(email=email, slug=slug, email_verified=True)
+        tenant = Tenant(email=email, slug=slug, email_verified=True, name=name)
         session.add(tenant)
         await session.flush()
 
@@ -187,6 +192,8 @@ async def find_or_create_oauth_tenant(
         api_key = ApiKey(tenant_id=tenant.id, key_hash=key_hash, key_prefix=prefix, name="Default")
         session.add(api_key)
         is_new = True
+    elif not tenant.name and name:
+        tenant.name = name
 
     oauth_link = TenantOAuthLink(
         tenant_id=tenant.id,
