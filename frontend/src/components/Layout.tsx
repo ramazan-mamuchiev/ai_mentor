@@ -108,6 +108,7 @@ export function Layout({
 
   useEffect(() => { if (!isMobile) setMobileOpen(false) }, [isMobile])
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
+  useEffect(() => { if (isMobile) setMobileOpen(false) }, [activeSessionId])
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed(prev => {
@@ -235,7 +236,7 @@ export function Layout({
                 <button
                   key={item.path}
                   className={`nav-item${active ? ' nav-item--active' : ''}`}
-                  onClick={() => { navigate(item.path); if (isMobile) setMobileOpen(false) }}
+                  onClick={() => { if (isMobile) setMobileOpen(false); navigate(item.path) }}
                 >
                   <Icon size={18} />
                   {(!collapsed || isMobile) && t(item.labelKey)}
@@ -261,8 +262,8 @@ export function Layout({
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
-            onSelect={(id) => { onSelectSession(id); if (isMobile) setMobileOpen(false) }}
-            onNew={() => { onNewSession(); if (isMobile) setMobileOpen(false) }}
+            onSelect={(id) => { if (isMobile) setMobileOpen(false); onSelectSession(id) }}
+            onNew={() => { if (isMobile) setMobileOpen(false); onNewSession() }}
             onDelete={onDeleteSession}
           />
         ) : !isAdmin ? (
