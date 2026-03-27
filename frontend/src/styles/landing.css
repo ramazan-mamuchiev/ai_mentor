@@ -649,6 +649,8 @@
   .landing-hero-cta .landing-btn-secondary {
     width: 100%;
     justify-content: center;
+    padding: 12px 24px;
+    font-size: 15px;
   }
 
   .landing-elevator {
