@@ -192,15 +192,28 @@ function DocActions({
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (dropRef.current && !dropRef.current.contains(e.target as Node) &&
+          btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const handleToggle = useCallback(() => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.right - 200 })
+    }
+    setOpen(v => !v)
   }, [open])
 
   return (
@@ -214,41 +227,39 @@ function DocActions({
           <Bug size={16} />
         </button>
       )}
-      <div className="docs-actions-more" ref={ref}>
-        <button
-          className="docs-action-btn"
-          onClick={() => setOpen(v => !v)}
-          data-tooltip={t('docs.table.actions')}
-        >
-          <MoreHorizontal size={16} />
-        </button>
-        {open && (
-          <div className="docs-actions-dropdown">
-            {doc.status === 'ready' && (
-              <button className="docs-actions-dropdown-item" onClick={() => { onPreview(doc); setOpen(false) }}>
-                <Eye size={15} />
-                {t('docs.actions.previewMd')}
-              </button>
-            )}
-            {doc.status === 'ready' && (
-              <button className="docs-actions-dropdown-item" onClick={() => { onDownload(doc); setOpen(false) }}>
-                <Download size={15} />
-                {t('docs.actions.download')}
-              </button>
-            )}
-            {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
-              <button className="docs-actions-dropdown-item" onClick={() => { onReingest(doc); setOpen(false) }}>
-                <RefreshCw size={15} />
-                {t('docs.actions.reindex')}
-              </button>
-            )}
-            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
-              <Trash2 size={15} />
-              {t('docs.actions.delete')}
+      <button
+        ref={btnRef}
+        className="docs-action-btn"
+        onClick={handleToggle}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: Math.max(8, pos.left) }}>
+          {doc.status === 'ready' && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onPreview(doc); setOpen(false) }}>
+              <Eye size={15} />
+              {t('docs.actions.previewMd')}
             </button>
-          </div>
-        )}
-      </div>
+          )}
+          {doc.status === 'ready' && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onDownload(doc); setOpen(false) }}>
+              <Download size={15} />
+              {t('docs.actions.download')}
+            </button>
+          )}
+          {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onReingest(doc); setOpen(false) }}>
+              <RefreshCw size={15} />
+              {t('docs.actions.reindex')}
+            </button>
+          )}
+          <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
+            <Trash2 size={15} />
+            {t('docs.actions.delete')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

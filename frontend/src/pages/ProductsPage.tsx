@@ -147,15 +147,28 @@ function ProductActions({
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (dropRef.current && !dropRef.current.contains(e.target as Node) &&
+          btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const handleToggle = useCallback(() => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.right - 200 })
+    }
+    setOpen(v => !v)
   }, [open])
 
   return (
@@ -167,31 +180,29 @@ function ProductActions({
       >
         <Pencil size={16} />
       </button>
-      <div className="docs-actions-more" ref={ref}>
-        <button
-          className="docs-action-btn"
-          onClick={() => setOpen(v => !v)}
-          data-tooltip={t('products.table.actions')}
-        >
-          <MoreHorizontal size={16} />
-        </button>
-        {open && (
-          <div className="docs-actions-dropdown">
-            <button className="docs-actions-dropdown-item" onClick={() => { onDebug(p); setOpen(false) }}>
-              <Bug size={15} />
-              {t('products.actions.debug')}
-            </button>
-            <button className="docs-actions-dropdown-item" onClick={() => { onReingest(p); setOpen(false) }}>
-              <RefreshCw size={15} />
-              {t('products.actions.reindex')}
-            </button>
-            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(p); setOpen(false) }}>
-              <Trash2 size={15} />
-              {t('products.actions.delete')}
-            </button>
-          </div>
-        )}
-      </div>
+      <button
+        ref={btnRef}
+        className="docs-action-btn"
+        onClick={handleToggle}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: Math.max(8, pos.left) }}>
+          <button className="docs-actions-dropdown-item" onClick={() => { onDebug(p); setOpen(false) }}>
+            <Bug size={15} />
+            {t('products.actions.debug')}
+          </button>
+          <button className="docs-actions-dropdown-item" onClick={() => { onReingest(p); setOpen(false) }}>
+            <RefreshCw size={15} />
+            {t('products.actions.reindex')}
+          </button>
+          <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(p); setOpen(false) }}>
+            <Trash2 size={15} />
+            {t('products.actions.delete')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
