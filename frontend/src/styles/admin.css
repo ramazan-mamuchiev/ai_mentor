@@ -159,7 +159,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
   margin-bottom: 24px;
 }
 
@@ -202,6 +202,7 @@
 
 .admin-table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -216,6 +217,10 @@
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--border);
   background: var(--bg-secondary);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .admin-table td {
@@ -838,7 +843,6 @@
 
 /* Log row */
 .log-row {
-  cursor: pointer;
   border-left: 3px solid transparent;
   transition: background 0.1s;
 }
@@ -861,6 +865,7 @@
   align-items: flex-start;
   gap: 8px;
   padding: 4px 12px;
+  cursor: pointer;
 }
 
 .log-row__expand {
