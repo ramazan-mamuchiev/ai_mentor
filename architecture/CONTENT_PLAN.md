@@ -4,7 +4,7 @@
 > **Author**: Oleg Voitekhovich
 > **Purpose**: Structured plan for populating the Lexiro knowledge base with vendor documentation, protocol specs, and industry standards
 >
-> Related: [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) · [GTM_STRATEGY.md](GTM_STRATEGY.md) · [FLOWS.md](FLOWS.md) · [MARKET_RESEARCH.md](MARKET_RESEARCH.md)
+> Related: [CONTENT_SOURCES.md](CONTENT_SOURCES.md) · [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) · [GTM_STRATEGY.md](GTM_STRATEGY.md) · [FLOWS.md](FLOWS.md) · [MARKET_RESEARCH.md](MARKET_RESEARCH.md)
 
 ---
 

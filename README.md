@@ -42,7 +42,7 @@ lexiro/
 ├── frontend/             React SPA (TypeScript + Vite)
 │   ├── src/pages/        Landing, Chat, Documents, Products, Analytics, Admin
 │   └── src/locales/      i18n (EN/RU)
-├── architecture/         Architecture docs (16 files — see below)
+├── architecture/         Architecture docs (17 files — see below)
 ├── monitoring/           Grafana + Loki + Promtail + Prometheus configs
 │   └── grafana/          9 dashboards, 10 alert rules
 └── docker-compose.yml    Full stack: 12 services
@@ -213,6 +213,7 @@ Detailed architecture documentation is in the [`architecture/`](architecture/) d
 | [BRAND.md](architecture/BRAND.md) | Brand platform, naming, visual identity, risk analysis |
 | [BRAND_SLOGANS.md](architecture/BRAND_SLOGANS.md) | Taglines, slogans, messaging |
 | [CONTENT_PLAN.md](architecture/CONTENT_PLAN.md) | Documentation sources, vendor priorities, ingestion roadmap |
+| [CONTENT_SOURCES.md](architecture/CONTENT_SOURCES.md) | Verified import URLs, link verification log, quick start |
 | [BACKLOG.md](architecture/BACKLOG.md) | Feature backlog, priorities, roadmap |
 
 ## License
