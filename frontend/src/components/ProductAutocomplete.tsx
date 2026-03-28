@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search } from 'lucide-react'
 import { suggestProducts, type ProductSuggestion } from '../api/products'
 import { useDebounce } from '../hooks/useDebounce'
 
@@ -52,24 +51,19 @@ export function ProductAutocomplete({ value = '', onSelect, onChange, placeholde
 
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
-      <div style={{ position: 'relative' }}>
-        <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-        <input
-          value={query}
-          onChange={e => {
-            setQuery(e.target.value)
-            setOpen(true)
-            if (onChange) {
-              onChange(prev => ({ ...prev, productName: e.target.value, isExisting: false, productId: undefined }))
-            }
-          }}
-          onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
-          placeholder={placeholder}
-          className="admin-input"
-          style={{ paddingLeft: 28, width: '100%' }}
-          autoFocus={autoFocus}
-        />
-      </div>
+      <input
+        value={query}
+        onChange={e => {
+          setQuery(e.target.value)
+          setOpen(true)
+          if (onChange) {
+            onChange(prev => ({ ...prev, productName: e.target.value, isExisting: false, productId: undefined }))
+          }
+        }}
+        onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+      />
       {open && suggestions.length > 0 && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0,

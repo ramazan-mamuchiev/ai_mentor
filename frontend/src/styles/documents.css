@@ -145,6 +145,21 @@
   background: var(--surface-1, #1f2937);
 }
 
+.url-import-toggle {
+  display: flex;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.url-import-toggle input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
 /* ── Header actions ── */
 .docs-header-actions {
   display: flex;
