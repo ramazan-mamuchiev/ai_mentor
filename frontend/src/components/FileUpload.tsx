@@ -290,13 +290,13 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
         {globalStatus === 'selecting' && (
           <>
             <div
-              className={`file-upload-dropzone ${isDragOver ? 'dragover' : ''}`}
+              className={`file-upload-dropzone ${isDragOver ? 'dragover' : ''} ${files.length > 0 ? 'compact' : ''}`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
             >
-              <UploadIcon size={32} />
-              <p>{t('upload.dropzoneMulti')}</p>
+              {files.length === 0 && <UploadIcon size={32} />}
+              {files.length === 0 && <p>{t('upload.dropzoneMulti')}</p>}
               <div className="file-upload-browse-row">
                 <button
                   type="button"
@@ -314,9 +314,11 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                   {t('upload.browseFolder')}
                 </button>
               </div>
-              <span className="file-upload-hint">
-                {t('upload.formats')}
-              </span>
+              {files.length === 0 && (
+                <span className="file-upload-hint">
+                  {t('upload.formats')}
+                </span>
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
