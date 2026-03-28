@@ -488,6 +488,37 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     onGlobalFilterChange: setGlobalFilter,
   })
 
+  const categoryFacets: FacetValue[] = useMemo(() =>
+    categories.map(c => ({ value: c.slug, label: c.slug, count: c.count })), [categories])
+
+  const tagFacets: FacetValue[] = useMemo(() =>
+    allTags.map(t => ({ value: t.slug, label: t.slug, count: t.count })), [allTags])
+
+  const manufacturerFacets: FacetValue[] = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const p of products) {
+      if (p.manufacturer) map.set(p.manufacturer, (map.get(p.manufacturer) ?? 0) + 1)
+    }
+    return [...map.entries()].map(([v, c]) => ({ value: v, label: v, count: c })).sort((a, b) => b.count - a.count)
+  }, [products])
+
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{ facet: string; value: string; label: string }> = []
+    for (const v of selectedCategories) chips.push({ facet: 'category', value: v, label: v })
+    for (const v of selectedTags) chips.push({ facet: 'tag', value: v, label: v })
+    return chips
+  }, [selectedCategories, selectedTags])
+
+  const handleRemoveFilter = useCallback((facet: string, value: string) => {
+    if (facet === 'category') setSelectedCategories(prev => prev.filter(v => v !== value))
+    if (facet === 'tag') setSelectedTags(prev => prev.filter(v => v !== value))
+  }, [])
+
+  const handleClearAllFilters = useCallback(() => {
+    setSelectedCategories([])
+    setSelectedTags([])
+  }, [])
+
   const handleResetAll = useCallback(() => {
     resetSettings()
     setGlobalFilter('')
@@ -530,37 +561,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       </div>
     )
   }
-
-  const categoryFacets: FacetValue[] = useMemo(() =>
-    categories.map(c => ({ value: c.slug, label: c.slug, count: c.count })), [categories])
-
-  const tagFacets: FacetValue[] = useMemo(() =>
-    allTags.map(t => ({ value: t.slug, label: t.slug, count: t.count })), [allTags])
-
-  const manufacturerFacets: FacetValue[] = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const p of products) {
-      if (p.manufacturer) map.set(p.manufacturer, (map.get(p.manufacturer) ?? 0) + 1)
-    }
-    return [...map.entries()].map(([v, c]) => ({ value: v, label: v, count: c })).sort((a, b) => b.count - a.count)
-  }, [products])
-
-  const activeFilterChips = useMemo(() => {
-    const chips: Array<{ facet: string; value: string; label: string }> = []
-    for (const v of selectedCategories) chips.push({ facet: 'category', value: v, label: v })
-    for (const v of selectedTags) chips.push({ facet: 'tag', value: v, label: v })
-    return chips
-  }, [selectedCategories, selectedTags])
-
-  const handleRemoveFilter = useCallback((facet: string, value: string) => {
-    if (facet === 'category') setSelectedCategories(prev => prev.filter(v => v !== value))
-    if (facet === 'tag') setSelectedTags(prev => prev.filter(v => v !== value))
-  }, [])
-
-  const handleClearAllFilters = useCallback(() => {
-    setSelectedCategories([])
-    setSelectedTags([])
-  }, [])
 
   return (
     <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
