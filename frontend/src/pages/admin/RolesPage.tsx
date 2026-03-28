@@ -101,7 +101,7 @@ export function RolesPage() {
             </tr>
           </thead>
           <tbody>
-            {roles.map(role => (
+            {[...roles].sort((a, b) => a.slug.localeCompare(b.slug)).map(role => (
               <tr key={role.id} className="admin-table-row-clickable" onClick={() => navigate(`/app/admin/roles/${role.id}`)}>
                 <td><code>{role.slug}</code></td>
                 <td>{role.name}</td>

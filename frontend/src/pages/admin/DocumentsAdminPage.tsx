@@ -130,7 +130,7 @@ export function DocumentsAdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map(d => (
+                {[...items].sort((a, b) => (a.title || a.original_filename).localeCompare(b.title || b.original_filename)).map(d => (
                   <tr key={d.id}>
                     <td>
                       <div style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

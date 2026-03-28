@@ -103,7 +103,7 @@ export function TenantsPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map(tenant => (
+              {[...items].sort((a, b) => a.email.localeCompare(b.email)).map(tenant => (
                 <tr key={tenant.id} className="admin-table-clickable" onClick={() => navigate(`/app/admin/tenants/${tenant.id}`)}>
                   <td>{tenant.email}</td>
                   <td>{tenant.name || '—'}</td>

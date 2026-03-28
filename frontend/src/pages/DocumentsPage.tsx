@@ -563,6 +563,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     columns,
     storageKey: STORAGE_KEY,
     defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+    defaultSorting: [{ id: 'title', desc: false }],
     getRowId: row => String(row.id),
     columnFilters,
     globalFilter,

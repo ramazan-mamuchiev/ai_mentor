@@ -446,6 +446,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     columns,
     storageKey: STORAGE_KEY,
     defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+    defaultSorting: [{ id: 'name', desc: false }],
     getRowId: row => row.firmware_version_id ? `${row.id}-${row.firmware_version_id}` : String(row.id),
     columnFilters,
     globalFilter,

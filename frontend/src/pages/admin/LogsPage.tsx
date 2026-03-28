@@ -148,7 +148,7 @@ function entriesToTXT(entries: LogEntry[]): string {
   return entries.map(e => {
     const p = parseLogEntry(e)
     const ts = formatTimestamp(e.timestamp)
-    const lvl = (p.level || 'info').toUpperCase().padEnd(5)
+    const lvl = String(p.level || 'info').toUpperCase().padEnd(5)
     const svc = p.service ? `[${p.service}]` : ''
     const event = String(p.event || p.message || e.message || '')
     const extra = Object.entries(p)

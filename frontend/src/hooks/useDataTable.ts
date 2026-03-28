@@ -44,6 +44,7 @@ export interface UseDataTableOptions<TData extends RowData> {
   columns: ColumnDef<TData, unknown>[]
   storageKey: string
   defaultColumnOrder: string[]
+  defaultSorting?: SortingState
   getRowId: (row: TData) => string
   columnFilters?: ColumnFiltersState
   globalFilter?: string
@@ -61,10 +62,11 @@ export function useDataTable<TData extends RowData>({
   globalFilter = '',
   onGlobalFilterChange,
   globalFilterFn,
+  defaultSorting = [],
 }: UseDataTableOptions<TData>) {
   const saved = useMemo(() => loadSettings(storageKey), [storageKey])
 
-  const [sorting, setSorting] = useState<SortingState>(saved.sorting ?? [])
+  const [sorting, setSorting] = useState<SortingState>(saved.sorting ?? defaultSorting)
   const [grouping, setGrouping] = useState<GroupingState>(saved.grouping ?? [])
   const [expanded, setExpanded] = useState<ExpandedState>(true)
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(saved.columnOrder ?? defaultColumnOrder)
@@ -144,13 +146,13 @@ export function useDataTable<TData extends RowData>({
   }, [handleGroupingChange])
 
   const resetSettings = useCallback(() => {
-    setSorting([])
+    setSorting(defaultSorting)
     setGrouping([])
     setColumnOrder(defaultColumnOrder)
     setColumnVisibility({})
     setExpanded(true)
     localStorage.removeItem(storageKey)
-  }, [defaultColumnOrder, storageKey])
+  }, [defaultSorting, defaultColumnOrder, storageKey])
 
   return {
     table,
