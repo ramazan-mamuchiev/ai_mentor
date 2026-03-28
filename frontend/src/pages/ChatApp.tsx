@@ -112,6 +112,7 @@ export function ChatApp() {
           if (pendingProduct.productId) createParams.product_id = pendingProduct.productId
           if (pendingProduct.productName) createParams.product_filter = pendingProduct.productName
           if (pendingProduct.versionFilter) createParams.version_filter = pendingProduct.versionFilter
+          createParams.product_filter_source = 'explicit'
         }
         const session = await createSession(
           Object.keys(createParams).length > 0 ? createParams : undefined,
@@ -251,7 +252,7 @@ export function ChatApp() {
       productFilter={effectiveProductFilter}
       versionFilter={effectiveVersionFilter}
       autoDetected={activeSession?.product_filter_source === 'auto'}
-      productLocked={activeSession?.product_filter_source === 'explicit'}
+      productLocked={activeSession?.product_filter_source === 'explicit' || (!activeSessionId && !!pendingProduct?.productName)}
       onEditProduct={() => setShowProductPicker(true)}
       onClearProduct={handleClearProduct}
       onLockProduct={handleLockProduct}

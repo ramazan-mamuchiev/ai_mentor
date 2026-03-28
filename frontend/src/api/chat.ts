@@ -5,6 +5,7 @@ export async function createSession(params?: {
   title?: string
   product_id?: number
   product_filter?: string
+  product_filter_source?: string
   version_filter?: string
 }): Promise<ChatSession> {
   return apiFetch<ChatSession>('/chat/sessions', {
