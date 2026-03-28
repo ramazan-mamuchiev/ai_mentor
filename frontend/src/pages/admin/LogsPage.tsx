@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RefreshCw, X, Search, Radio, ChevronDown, ChevronRight,
-  Copy, Check, Clock, AlertTriangle, ScrollText,
+  Copy, Check, Clock, AlertTriangle, ScrollText, Download, Loader2,
 } from 'lucide-react'
 import { getLogs, searchTenants, type LogEntry, type TenantSearchResult } from '../../api/admin'
 import { User } from 'lucide-react'
@@ -131,6 +131,55 @@ function LogRow({ entry, search, defaultExpanded, showService }: {
   )
 }
 
+type ExportFormat = 'json' | 'txt' | 'csv'
+
+function parseLogEntry(entry: LogEntry) {
+  const parsed = tryParseJSON(entry.message)
+  if (!parsed) return { timestamp: entry.timestamp, level: entry.level, service: entry.service, event: entry.message }
+  const { level: _l, timestamp: _t, ...rest } = parsed
+  return { timestamp: entry.timestamp, level: entry.level, service: entry.service, ...rest }
+}
+
+function entriesToJSON(entries: LogEntry[]): string {
+  return JSON.stringify(entries.map(parseLogEntry), null, 2)
+}
+
+function entriesToTXT(entries: LogEntry[]): string {
+  return entries.map(e => {
+    const p = parseLogEntry(e)
+    const ts = formatTimestamp(e.timestamp)
+    const lvl = (p.level || 'info').toUpperCase().padEnd(5)
+    const svc = p.service ? `[${p.service}]` : ''
+    const event = String(p.event || p.message || e.message || '')
+    const extra = Object.entries(p)
+      .filter(([k]) => !['timestamp', 'level', 'service', 'event', 'message'].includes(k))
+      .map(([k, v]) => `${k}=${v}`)
+      .join(' ')
+    return `${ts} ${lvl} ${svc} ${event}${extra ? ' | ' + extra : ''}`
+  }).join('\n')
+}
+
+function entriesToCSV(entries: LogEntry[]): string {
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const rows = entries.map(e => {
+    const p = parseLogEntry(e)
+    return [formatTimestamp(e.timestamp), p.level, p.service, String(p.event || p.message || e.message || '')].map(esc).join(',')
+  })
+  return ['timestamp,level,service,event', ...rows].join('\n')
+}
+
+function downloadBlob(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export function LogsPage() {
   const { t } = useTranslation()
   const [entries, setEntries] = useState<LogEntry[]>([])
@@ -146,8 +195,11 @@ export function LogsPage() {
   const [tenantQuery, setTenantQuery] = useState('')
   const [tenantOptions, setTenantOptions] = useState<TenantSearchResult[]>([])
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const tenantDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tenantWrapRef = useRef<HTMLDivElement>(null)
+  const exportRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -181,6 +233,50 @@ export function LogsPage() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [tenantDropdownOpen])
+
+  useEffect(() => {
+    if (!exportOpen) return
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [exportOpen])
+
+  const handleExport = useCallback(async (format: ExportFormat) => {
+    setExportOpen(false)
+    setExporting(true)
+    try {
+      const { start, end } = timeRangeToISO(timeRange)
+      const res = await getLogs({
+        service,
+        level: level || undefined,
+        search: debouncedSearch || undefined,
+        tenant: tenantFilter?.name || undefined,
+        start: start || undefined,
+        end: end || undefined,
+        limit: 5000,
+      })
+      const data = res.entries
+      if (!data.length) return
+
+      const date = new Date().toISOString().slice(0, 10)
+      const svc = service || 'all'
+      const base = `lexiro-logs_${svc}_${timeRange}_${date}`
+
+      const converters: Record<ExportFormat, { fn: (e: LogEntry[]) => string; ext: string; mime: string }> = {
+        json: { fn: entriesToJSON, ext: 'json', mime: 'application/json' },
+        txt: { fn: entriesToTXT, ext: 'txt', mime: 'text/plain' },
+        csv: { fn: entriesToCSV, ext: 'csv', mime: 'text/csv' },
+      }
+      const c = converters[format]
+      downloadBlob(c.fn(data), `${base}.${c.ext}`, c.mime)
+    } catch {
+      /* silently fail */
+    } finally {
+      setExporting(false)
+    }
+  }, [service, level, debouncedSearch, tenantFilter, timeRange])
 
   const load = useCallback(async () => {
     setError('')
@@ -327,10 +423,27 @@ export function LogsPage() {
             )}
           </div>
 
-          {/* Refresh & Live tail */}
+          {/* Refresh, Export & Live tail */}
           <button className="logs-icon-btn" onClick={load} title={t('admin.logs.refresh')}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
           </button>
+          <div className="logs-export-wrap" ref={exportRef}>
+            <button
+              className="logs-icon-btn"
+              onClick={() => setExportOpen(v => !v)}
+              disabled={exporting || entries.length === 0}
+              title={t('admin.logs.export', { defaultValue: 'Экспорт' })}
+            >
+              {exporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+            </button>
+            {exportOpen && (
+              <div className="logs-export-dropdown">
+                <button className="logs-export-dropdown__item" onClick={() => handleExport('json')}>JSON</button>
+                <button className="logs-export-dropdown__item" onClick={() => handleExport('txt')}>TXT</button>
+                <button className="logs-export-dropdown__item" onClick={() => handleExport('csv')}>CSV</button>
+              </div>
+            )}
+          </div>
           <button
             className={`logs-live-btn${autoRefresh ? ' logs-live-btn--active' : ''}`}
             onClick={() => setAutoRefresh(v => !v)}

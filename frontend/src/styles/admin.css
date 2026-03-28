@@ -780,6 +780,42 @@
   50% { opacity: 0.3; }
 }
 
+/* Export dropdown */
+.logs-export-wrap {
+  position: relative;
+}
+
+.logs-export-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 90px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  padding: 4px 0;
+}
+
+.logs-export-dropdown__item {
+  display: block;
+  width: 100%;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.logs-export-dropdown__item:hover {
+  background: var(--surface-hover);
+}
+
 /* Level filter chips */
 .logs-level-chips {
   display: flex;
