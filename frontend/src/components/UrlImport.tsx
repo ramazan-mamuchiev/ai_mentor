@@ -3,7 +3,7 @@ import { Globe, X, AlertCircle, Loader2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ingestUrl, ingestSite } from '../api/documents'
 import type { ProductContext } from './FileUpload'
-import { ProductAutocomplete, type ProductSelection } from './ProductAutocomplete'
+import type { ProductSelection } from './ProductAutocomplete'
 
 interface UrlImportProps {
   onComplete?: () => void
@@ -185,9 +185,10 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
 
               <label>
                 {t('upload.productOrCreate')}
-                <ProductAutocomplete
-                  value={productSel}
-                  onChange={setProductSel}
+                <input
+                  type="text"
+                  value={productName}
+                  onChange={e => setProductSel(prev => ({ ...prev, productName: e.target.value, isExisting: false, productId: undefined }))}
                   placeholder={t('upload.productPlaceholder')}
                 />
               </label>

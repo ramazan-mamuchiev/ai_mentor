@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Upload as UploadIcon, X, Pause, Play, CheckCircle, AlertCircle, FileText, FolderOpen, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import * as tus from 'tus-js-client'
-import { ProductAutocomplete, type ProductSelection } from './ProductAutocomplete'
+import type { ProductSelection } from './ProductAutocomplete'
 
 export interface ProductContext {
   name: string
@@ -374,11 +374,12 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                 <div className="file-upload-fields">
                   <label>
                     {t('upload.productOrCreate')}
-                    <ProductAutocomplete
-                      value={productSel}
-                      onChange={setProductSel}
-                      autoFocus={!hasProductContext}
+                    <input
+                      type="text"
+                      value={productSel.productName}
+                      onChange={e => setProductSel(prev => ({ ...prev, productName: e.target.value, isExisting: false, productId: undefined }))}
                       placeholder={t('upload.productPlaceholder')}
+                      autoFocus={!hasProductContext}
                     />
                   </label>
                   <div className="file-upload-row">
