@@ -45,11 +45,22 @@ const LANG_EXTENSIONS: Record<string, string> = {
   perl: '.pl',
 }
 
-function getFilename(language: string, filename?: string): string {
+function shortHash(text: string): string {
+  let h = 0
+  for (let i = 0; i < text.length; i++) {
+    h = ((h << 5) - h + text.charCodeAt(i)) | 0
+  }
+  return Math.abs(h).toString(16).padStart(6, '0').slice(0, 6)
+}
+
+function getFilename(language: string, code: string, filename?: string): string {
   if (filename) return filename
-  const ext = LANG_EXTENSIONS[language.toLowerCase()]
+  const lang = language.toLowerCase() || 'text'
+  const ext = LANG_EXTENSIONS[lang]
   if (ext && !ext.startsWith('.')) return ext
-  return `snippet${ext || '.txt'}`
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const hash = shortHash(code)
+  return `lexiro_${lang}_${date}_${hash}${ext || '.txt'}`
 }
 
 interface Props {
@@ -73,7 +84,7 @@ export function CodeBlock({ language, filename, children }: Props) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = getFilename(language, filename)
+    a.download = getFilename(language, children, filename)
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
