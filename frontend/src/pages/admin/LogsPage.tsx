@@ -424,7 +424,7 @@ export function LogsPage() {
           </div>
 
           {/* Refresh, Export & Live tail */}
-          <button className="logs-icon-btn" onClick={load} title={t('admin.logs.refresh')}>
+          <button className="logs-icon-btn" onClick={load}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
           </button>
           <div className="logs-export-wrap" ref={exportRef}>
@@ -432,7 +432,6 @@ export function LogsPage() {
               className="logs-icon-btn"
               onClick={() => setExportOpen(v => !v)}
               disabled={exporting || entries.length === 0}
-              title={t('admin.logs.export', { defaultValue: 'Экспорт' })}
             >
               {exporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
             </button>
