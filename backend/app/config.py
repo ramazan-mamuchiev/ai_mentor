@@ -115,6 +115,8 @@ class Settings(BaseSettings):
     # --- Sentry ---
     sentry_dsn: str = ""
 
+    platform_name: str = "Lexiro"
+
     app_env: str = "development"
     app_log_level: str = "INFO"
 

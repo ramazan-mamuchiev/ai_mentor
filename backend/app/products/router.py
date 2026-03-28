@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import case, func, select
 
+from app.config import settings
 from app.database import async_session
 from app.models import ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion, Product, SuggestionTemplate
 from app.products.schemas import (
@@ -61,7 +62,7 @@ async def get_suggestions():
             )
             .where(
                 Document.status == "ready",
-                func.lower(Product.name) != "lexiro",
+                func.lower(Product.name) != settings.platform_name.lower(),
             )
             .group_by(
                 Product.id,
