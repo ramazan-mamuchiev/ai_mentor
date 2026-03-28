@@ -11,14 +11,14 @@ alwaysApply: true
 - **Frontend**: React 19, Vite, TypeScript, nginx (production)
 - **DB**: PostgreSQL 16 (pgvector), Redis 7
 - **Storage**: MinIO (S3-compatible)
-- **LLM**: Ollama (local) or OpenAI-compatible API (Gemini)
-- **Monitoring**: Loki + Promtail + Grafana
+- **LLM**: Gemini 2.5 Pro (chat) + Gemini 2.5 Flash (auxiliary) via OpenAI-compatible API
+- **Monitoring**: Loki + Promtail + Grafana + Prometheus + Node Exporter + cAdvisor
 
 ## Docker
 
 The project is fully Dockerized. Do NOT re-explore Docker setup each time.
 
-- `docker-compose.yml` — production stack (postgres, redis, minio, api, worker, web, ollama, loki, promtail, grafana)
+- `docker-compose.yml` — production stack (postgres, redis, minio, api, worker, beat, web, loki, promtail, grafana, prometheus, node-exporter, cadvisor)
 - `docker-compose.dev.yml` — dev (postgres only)
 - `backend/Dockerfile` — Python 3.11-slim, uvicorn
 - `frontend/Dockerfile` — multi-stage: node:20-alpine build + nginx:alpine serve
@@ -35,8 +35,10 @@ The project is fully Dockerized. Do NOT re-explore Docker setup each time.
 | postgres | 5432 | pgvector/pgvector:pg16 | |
 | redis    | 6379 | redis:7-alpine      | |
 | minio    | 9000/9001 | minio/minio    | |
-| ollama   | 11434 | ollama/ollama      | |
 | grafana  | 3000 | grafana/grafana     | |
+| prometheus | 9090 | prom/prometheus  | |
+| node-exporter | - | prom/node-exporter | host metrics |
+| cadvisor | - | gcr.io/cadvisor/cadvisor | container metrics |
 
 ### Common commands
 

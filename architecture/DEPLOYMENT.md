@@ -284,34 +284,26 @@ API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-ten
 # === Gemini API ===
 GEMINI_API_KEY=AIza...                       # single key for LLM + embeddings
 
-# === Embedding (Gemini only) ===
+# === Embedding ===
 EMBEDDING_DIMS=1024                          # vector dimensionality (Matryoshka for Gemini)
 EMBEDDING_MODEL_GEMINI=gemini-embedding-2-preview
-# gemini-embedding-2-preview — uses GEMINI_API_KEY, MTEB Multilingual leader
 
-# === LLM (RAG Chat) — Tiered Model Strategy ===
-# Default provider for production (Gemini via OpenAI-compatible API):
+# === LLM (RAG Chat) ===
 LLM_PROVIDER=openai                          # openai (Gemini-compatible)
 LLM_MAX_TOKENS=4096
 LLM_TEMPERATURE=0.2
 LLM_TIMEOUT=600                              # seconds
-LLM_REASONING_EFFORT=none                    # none | low | medium | high — Gemini thinking budget (none = disabled for speed)
+LLM_REASONING_EFFORT=none                    # none | low | medium | high — Gemini thinking budget
 
-# Gemini Flash — default for Free & Pro tiers ($0.30/$2.50 per 1M tokens)
+# Gemini Pro — default for RAG chat
 OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-OPENAI_LLM_MODEL=gemini-2.5-flash
+OPENAI_LLM_MODEL=gemini-2.5-pro
 
-# Claude Opus 4.6 — default for Team & Enterprise tiers ($5/$25 per 1M tokens)
-OPUS_BASE_URL=https://api.anthropic.com/v1
-OPUS_API_KEY=...
-OPUS_MODEL=claude-opus-4-6-20260319
-
-# Per-model billing: input+output tokens metered separately per model.
-# Model routing by tier: Free/Pro → OPENAI_LLM_MODEL, Team/Ent → OPUS_MODEL.
-# Pro users get 100 Opus queries/mo included (PRO_OPUS_QUOTA).
-PRO_OPUS_QUOTA=100                           # Opus queries included in Pro tier
-OPUS_OVERAGE_PRO=0.05                        # $/query overage for Pro
-OPUS_OVERAGE_TEAM=0.04                       # $/query overage for Team
+# Gemini Flash — used for classifier, reranker, summarizer, OCR, decompose
+CLASSIFIER_MODEL=gemini-2.5-flash
+RERANK_MODEL=gemini-2.5-flash
+SUMMARY_MODEL=gemini-2.5-flash
+DECOMPOSE_MODEL=gemini-2.5-flash
 
 # === RAG ===
 RAG_TOP_K=10                                 # number of chunks to retrieve for context
@@ -333,15 +325,25 @@ LOG_MAX_SIZE_MB=50                           # log file rotation size
 LOG_RETENTION_DAYS=30
 ```
 
+### Auth & Email (Implemented)
+
+```bash
+# === Auth (JWT + OAuth) ===
+JWT_SECRET_KEY=...                           # openssl rand -hex 32
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+APP_BASE_URL=https://lexiro.io
+
+# === Email (Resend) ===
+RESEND_API_KEY=...
+EMAIL_FROM=onboarding@resend.dev
+```
+
 ### Planned (Not Yet Implemented)
 
 ```bash
-# === Auth (multi-tenancy) ===
-API_KEY_PREFIX_TENANT=ipx_
-API_KEY_PREFIX_VENDOR=ipv_
-JWT_SECRET_KEY=...
-JWT_ALGORITHM=HS256
-
 # === Stripe ===
 STRIPE_API_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
@@ -353,10 +355,6 @@ RATE_LIMIT_PRO_RPM=60
 # === Antivirus (ClamAV) ===
 CLAMAV_HOST=clamav
 CLAMAV_PORT=3310
-
-# === Email ===
-EMAIL_PROVIDER=sendgrid
-SENDGRID_API_KEY=SG....
 ```
 
 ---
@@ -555,7 +553,7 @@ beat_schedule = {
 
 ## Testing Strategy
 
-### Test Inventory (42 test files)
+### Test Inventory (64 test files)
 
 ```
          ╱╲
@@ -563,8 +561,10 @@ beat_schedule = {
        ╱────────╲
       ╱Integration╲      13 files: PostgreSQL + pgvector via Testcontainers
      ╱──────────────╲
-    ╱   Unit Tests    ╲   28 files: mocked dependencies, fast execution
+    ╱   Unit Tests    ╲   39 files: mocked dependencies, fast execution
    ╱────────────────────╲
+  ╱  Frontend Tests (11)  ╲  7 Vitest unit + 4 Playwright e2e
+ ╱──────────────────────────╲
 ```
 
 ### Unit Tests (~28 files)
@@ -614,39 +614,39 @@ pytest tests/integration/ -v        # integration (requires Docker)
 
 ---
 
-## CI/CD Pipeline
+## CI/CD Pipeline (Planned)
+
+> **Note**: GitHub Actions workflows are not yet implemented (`.github/` directory does not exist). Currently, deployment is manual via SSH commands (see [Deploy Commands](#deploy-commands) above).
+
+Planned pipeline:
 
 ```
   Push to branch
        │
        ▼
-  GitHub Actions (or GitLab CI)
+  GitHub Actions
        │
        ├─ Lint: ruff check + ruff format --check
        ├─ Type check: mypy
-       ├─ Unit tests: pytest tests/unit/ (fast, no external deps)
+       ├─ Unit tests: pytest tests/unit/ (fast, no Docker)
        │
        ▼ (parallel)
        ├─ Integration tests: pytest tests/integration/
-       │    (testcontainers: PostgreSQL + Redis)
+       │    (testcontainers: PostgreSQL + pgvector)
        │
        ▼ (on main branch merge)
-       ├─ Build Docker image → push to registry (GHCR / ECR)
-       ├─ E2E tests against staging
+       ├─ Build Docker images on VPS (via SSH)
+       ├─ Restart services
        │
-       ▼ (manual approval for production)
-       └─ Deploy to production (rolling update)
-           ├─ Run Alembic migrations
-           ├─ Deploy API + Worker + Beat
-           ├─ Health check verification
-           └─ Notify Slack / email
+       ▼
+       └─ Health check verification
 ```
 
 ---
 
 ## Logging & Observability
 
-Monitoring is fully implemented using **Grafana + Loki + Promtail** (log-based, not metrics-based).
+Monitoring is fully implemented using **Grafana + Loki + Promtail** (log-based) and **Prometheus + Node Exporter + cAdvisor** (metrics-based).
 
 Full details: [MONITORING.md](MONITORING.md) — dashboards, alert rules, structured logging, Promtail config.
 

@@ -102,11 +102,11 @@
 - Row Level Security (RLS) in PostgreSQL as defense-in-depth — see [DATABASE.md](DATABASE.md#rls-policies)
 - `tenant_id` denormalized into `chunks` table to avoid JOINs during vector search (critical for performance)
 
-### MCP over HTTP/SSE (not stdio)
+### MCP over Streamable HTTP (not stdio)
 - Standard MCP stdio transport = 1 process per user (not scalable)
-- HTTP/SSE transport = 1 server serves 1000+ concurrent users
-- Endpoint: `POST /mcp/message` (JSON-RPC) + `GET /mcp/sse` (Server-Sent Events)
-- Each SSE connection authenticated via API Key in `Authorization` header
+- Streamable HTTP transport = 1 server serves 1000+ concurrent users
+- Endpoint: `Mount("/mcp", ...)` via FastMCP SDK (Streamable HTTP protocol)
+- Each request authenticated via API Key in `Authorization` header
 - Stateless: `tenant_id` resolved from every request
 
 ### Authentication
@@ -195,25 +195,23 @@
 - Schema: [DATABASE.md — search_analytics](DATABASE.md#current-schema-implemented)
 
 ### LLM Provider
-- **Tiered model strategy**: different developer tiers use different LLM models
-- **Gemini 2.5 Flash** (default): primary production model via OpenAI-compatible API, thinking disabled (`reasoning_effort=none`) for speed and cost efficiency
-- **Ollama** (local): development fallback only, zero API cost (removed from production docker-compose.yml)
-- **OpenAI-compatible API**: any endpoint that implements the OpenAI chat completions API
+- **Gemini 2.5 Pro** (default): primary production model for RAG chat via OpenAI-compatible API
+- **Gemini 2.5 Flash**: used for classifier, reranker, summarizer, metadata extraction, decomposition, OCR, web search — lightweight auxiliary tasks
+- **OpenAI-compatible API**: any endpoint that implements the OpenAI chat completions API (`generativelanguage.googleapis.com/v1beta/openai`)
 - Provider selected via `LLM_PROVIDER` env variable (`ollama` | `openai`)
-- Model routing by tier: Free/Pro → Gemini Flash, Team/Enterprise → Opus 4.6
-- Streaming support for both providers (Ollama JSON lines, OpenAI SSE)
+- Streaming via OpenAI SSE protocol
 - **Per-model billing**: input + output charged separately at model-specific rates
 - Configurable: model, temperature, max_tokens, timeout, reasoning_effort
+- Fallback model: `gemini-2.5-flash` (used when primary model fails)
 
-**Production models:**
+**Production models (current):**
 
-| Model | Provider | Input / Output (per 1M tokens) | Cost per query | Tier |
-|-------|----------|:------------------------------:|:--------------:|------|
-| Gemini 2.5 Flash | Google AI Studio | $0.30 / $2.50 | ~$0.004 | Free, Pro (default) |
-| Claude Opus 4.6 | Anthropic | $5.00 / $25.00 | ~$0.045 | Team, Enterprise, Pro (option: 100/mo) |
-| Ollama | Local | $0 (GPU ~$200-400/mo) | ~$0 | Development fallback only |
+| Model | Role | Input / Output (per 1M tokens) |
+|-------|------|:------------------------------:|
+| Gemini 2.5 Pro | RAG chat (main) | $1.25 / $10.00 |
+| Gemini 2.5 Flash | Classifier, reranker, summarizer, OCR, decompose | $0.15 / $0.60 |
 
-Opus 4.6 serves as a premium **anchor product** — its superior quality drives tier upgrades while per-model billing protects margins. See [MONETIZATION.md](MONETIZATION.md#ai-model-tiers) for tier mapping and [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md#26-llm-api-for-rag-chat) for detailed cost analysis.
+**Planned tier-based routing:** Free/Pro → Gemini Flash or Pro, Team/Enterprise → premium model. See [MONETIZATION.md](MONETIZATION.md#ai-model-tiers) for tier mapping and [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md#26-llm-api-for-rag-chat) for detailed cost analysis.
 
 ### TUS Resumable Upload
 - TUS v1.0.0 protocol for large file uploads (up to 5 GB)
@@ -253,17 +251,17 @@ Opus 4.6 serves as a premium **anchor product** — its superior quality drives 
 
 ### Embedding Strategy
 - **Gemini `gemini-embedding-2-preview`** — production default, MTEB Multilingual leader (68.3), 100+ languages, Matryoshka dims (128–3072), $0.20/1M tokens
-- **`intfloat/multilingual-e5-large`** (1024 dims) for local / offline — default for development
-- Provider selected via `EMBEDDING_PROVIDER` env variable (`local` | `gemini`)
-- Configurable dimensions via `EMBEDDING_DIMS` (default 1024); Gemini uses `output_dimensionality`, local uses zero-padding
-- E5 models use instruction-prefixed queries (`query:` / `passage:`); Gemini uses `task_type` (`RETRIEVAL_QUERY` / `RETRIEVAL_DOCUMENT`)
+- Configurable dimensions via `EMBEDDING_DIMS` (default 1024); Gemini uses `output_dimensionality` parameter
+- Gemini uses `task_type` (`RETRIEVAL_QUERY` / `RETRIEVAL_DOCUMENT`) for query vs document distinction
 - **Batch embedding**: up to 100 texts per Gemini API call (`BATCH_SIZE=100`, API limit). Larger documents are split into multiple batches with incremental progress reporting
 - `GEMINI_API_KEY` — single key shared between LLM (chat) and embeddings
+- Local E5 model is no longer used in production (the `EMBEDDING_PROVIDER` env variable in `.env.example` is legacy)
 
 ### Query Classification
-- Gemini 2.0 Flash classifies incoming queries into types: `overview`, `technical`, `code`, `comparison`, `troubleshooting`, `chitchat`
+- Gemini 2.5 Flash classifies incoming queries into types: `overview`, `technical`, `code`, `comparison`, `troubleshooting`, `chitchat`, `decompose`
 - Per-type system prompts loaded from `prompts/*.md` files — each query type gets tailored instructions for the LLM
 - Classification runs as a lightweight LLM call before the main RAG pipeline
+- Types auto-discovered from file names and `<task_type>` XML tags in prompt files
 
 ### Reranker
 - **Gemini LLM reranker** (NOT cross-encoder): uses `settings.rerank_model` (default `gemini-2.5-flash`) to score query-chunk relevance
@@ -359,11 +357,16 @@ lexiro/
 
       chat/                  # ✅ RAG Chat with LLM
         router.py            # REST API: sessions CRUD, send message (SSE streaming)
-        rag.py               # RAG service: LLM query rewrite, structured prompt building, similarity filtering, grounding
+        rag.py               # RAG service: classifier, rewrite, retrieval, rerank, grounding, streaming
         schemas.py           # Pydantic: CreateSessionRequest, SessionResponse, SourceInfo, etc.
+        prompts.py           # Prompt loading and assembly
+        prompt_registry.py   # Auto-discovery of prompt types from prompts/*.md files
+        prompts/             # Prompt template files: base.md, overview.md, technical.md, code.md,
+                             #   comparison.md, troubleshooting.md, chitchat.md, decompose.md
 
       llm/                   # ✅ LLM provider abstraction
-        client.py            # stream_chat_completion (Ollama / OpenAI-compatible), health check
+        client.py            # stream_chat_completion (OpenAI-compatible), health check, fallback model
+        http_client.py       # Shared httpx client for Gemini API (classifier, reranker, etc.)
 
       documents/
         router.py            # Upload file/URL/archive, list, status, download, delete, reindex, requeue-pending
@@ -379,7 +382,11 @@ lexiro/
         quota.py             # Storage quota enforcement (per-file, per-product, global)
 
       search/
-        service.py           # Vector search (pgvector cosine similarity, heading_path match)
+        service.py           # Hybrid search: vector (pgvector) + BM25 (tsvector), RRF fusion
+        reranker.py          # Gemini-based LLM reranker (query-chunk relevance scoring)
+
+      email/                 # ✅ Transactional email via Resend
+        service.py           # send_welcome_email, send_email_verification
 
       mcp/
         server.py            # MCP tools: search_documentation, get_api_endpoint, list_products
@@ -404,6 +411,9 @@ lexiro/
           swagger.py         # Swagger/OpenAPI → Markdown (structured endpoints)
           web.py             # URL → Markdown (Swagger UI detection, Crawl4AI fallback)
           proto.py           # ✅ Protobuf → Markdown (services, methods, messages)
+          postman.py         # ✅ Postman Collection → Markdown (requests → endpoint docs)
+          confluence.py      # ✅ Confluence space → Markdown (page crawling)
+          ocr.py             # ✅ Gemini Vision OCR (two-pass: lang detect + image recognition)
         parsers/
           markdown.py        # Markdown → sections by H1/H2/H3 headers
           swagger.py         # OpenAPI → 1 section per endpoint
@@ -413,10 +423,18 @@ lexiro/
 
       auth/                  # ✅ JWT (cookie-based) + API Key + OAuth (Google, GitHub) + RBAC
         router.py            # Auth endpoints: login, register, token refresh, OAuth callbacks
-        deps.py              # Auth dependencies: get_current_user, require_role, API key resolution
+        dependencies.py      # Auth dependencies: get_current_tenant, require_admin, API key resolution
+        service.py           # Tenant registration, API key creation, OAuth linking
+        schemas.py           # Pydantic: RegisterRequest, LoginRequest, TokenResponse
+        jwt.py               # JWT token creation, verification, refresh
+        password.py          # Argon2 password hashing
+        permissions.py       # RBAC permission checks
 
       admin/                 # ✅ Admin panel
-        router.py            # Admin endpoints: tenants CRUD, documents, chat audit, roles, prompts, logs, stats
+        router.py            # Admin endpoints: tenants CRUD, documents, chat audit, roles, prompts, logs, stats, system
+        service.py           # Admin business logic
+        schemas.py           # Pydantic schemas for admin API
+        seed_prompts.py      # Seed system prompt templates from files
 
       share/                 # ✅ Shared links for sessions
         router.py            # Share management: create/revoke shared links
@@ -434,18 +452,24 @@ lexiro/
       importers/             # Custom vendor importers (Phase 6)
 
     db/
-      schema.sql             # Full DDL (tables, indexes)
+      schema.sql             # Full DDL (tables, indexes, triggers)
+      migrations/
+        001_auth_tables.sql  # tenants, api_keys, OAuth, refresh tokens
+        002_add_tenant_id.sql # tenant_id on products, documents, sessions, analytics
+        003_add_api_key_id.sql # api_key_id on usage_log, search_analytics, sessions
+        004_add_tenant_role.sql # role column on tenants
+        005_roles_and_prompts.sql # roles, tenant_roles, prompt_templates
 
     scripts/
       upload_document.py     # CLI: upload document or archive to API
       check_documents.py     # CLI: check document/chunk counts and DB health
       convert_to_md.py       # CLI: offline document → Markdown conversion
 
-    tests/
+    tests/                   # 64 test files total (53 Python + 7 frontend unit + 4 Playwright e2e)
       conftest.py            # Shared fixtures: Testcontainers PostgreSQL, mock embedder
-      unit/                  # ~25 test files: chunker, embedder, parsers, converters,
-                             #   chat, LLM, TUS, quota, S3, RAG, reindex, archives
-        converters/          # PDF, Swagger, web converter tests
+      unit/                  # ~30 test files: chunker, embedder, parsers, converters,
+                             #   chat, LLM, TUS, quota, S3, RAG, reindex, archives, auth
+        converters/          # PDF, Swagger, web, proto, postman converter tests
       integration/           # ~13 test files: pipeline, search, MCP tools, chat,
                              #   TUS upload, archives (7z, tar, RAR), reindex, dedup
       smoke/                 # Real embedding + pgvector smoke test
@@ -457,14 +481,21 @@ lexiro/
   frontend/
     src/
       pages/                 # ✅ LandingPage, ChatApp, ProductsPage, DocumentsPage, ProductDetailPage,
-                             #   LoginPage, RegisterPage, SharedView, SettingsPage
-        admin/               # ✅ AdminApp, DashboardPage, TenantsPage, DocumentsAdminPage, ChatAuditPage, etc.
-      components/            # ChatWindow, FileUpload, SessionList, Layout, ConfirmDialog,
-                             #   AccountBadge, OnboardingChecklist, ShareModal, DataTable, etc.
-      hooks/                 # useChat (SSE streaming), useTheme
-      api/                   # HTTP client, chat API, documents API, products API
-      locales/               # en.json, ru.json (i18n)
-      styles/                # globals.css, chat.css, landing.css
+                             #   LoginPage, RegisterPage, SharedView, SettingsPage, AnalyticsPage
+        admin/               # ✅ AdminApp, DashboardPage, TenantsPage, TenantDetailPage,
+                             #   DocumentsAdminPage, ChatAuditPage, RolesPage, RoleDetailPage,
+                             #   PromptsPage, PromptEditorPage, LogsPage, StatsPage, SystemPage
+      components/            # ChatWindow, ChatMessage, ChatInput, FileUpload, SessionList, Layout,
+                             #   ConfirmDialog, AccountBadge, OnboardingChecklist, ShareModal,
+                             #   DataTable, SourceCard, CodeBlock, MarkdownRenderer,
+                             #   ProductPicker, ProductAutocomplete, ProductEditDialog,
+                             #   DeviceFilter, UrlImport, DebugPanelWrapper,
+                             #   DocumentDebugPanel, ProductDebugPanel, DocsRightPanel,
+                             #   MarkdownPreviewModal, ThemeToggle, LanguageToggle
+      hooks/                 # useChat (SSE streaming), useTheme, useDataTable, useRotatingSlogan, usePermission
+      api/                   # HTTP client, chat API, documents API, products API, share API, admin API
+      locales/               # en.json, ru.json (i18n, ~1037 keys)
+      styles/                # globals.css, chat.css, landing.css, documents.css, admin.css, auth.css
       App.tsx                # Router (react-router-dom Routes)
       main.tsx               # BrowserRouter + App
     package.json
@@ -496,14 +527,13 @@ lexiro/
 |-------|-----------|:------:|
 | API Gateway | FastAPI + uvicorn | ✅ |
 | MCP Server | FastMCP (Python MCP SDK), Streamable HTTP | ✅ |
-| LLM (cloud) | Gemini 2.5 Flash (default, `reasoning_effort=none`) + Claude Opus 4.6 (Team/Enterprise) | ✅ |
-| LLM (local) | Ollama — development fallback only | ✅ |
+| LLM (chat) | Gemini 2.5 Pro (default) via OpenAI-compatible API | ✅ |
+| LLM (auxiliary) | Gemini 2.5 Flash (classifier, reranker, summarizer, OCR, decompose) | ✅ |
 | Database | PostgreSQL 16 + pgvector (HNSW index) | ✅ |
 | Cache / Queue | Redis 7 (Celery broker, TUS state) | ✅ |
 | Object Storage | MinIO / AWS S3 | ✅ |
 | Background Jobs | Celery + Redis broker + Celery Beat (periodic) | ✅ |
-| Embedding (local) | intfloat/multilingual-e5-small (1024 dims) | ✅ |
-| Embedding (cloud) | Gemini gemini-embedding-2-preview (1024 dims, Matryoshka) | ✅ |
+| Embedding | Gemini gemini-embedding-2-preview (1024 dims, Matryoshka) | ✅ |
 | ORM | SQLAlchemy 2.0 (async) | ✅ |
 | Upload Protocol | TUS v1.0.0 (resumable, chunked to S3 multipart) | ✅ |
 | Archive Support | py7zr, rarfile, zipfile, tarfile | ✅ |
@@ -515,7 +545,7 @@ lexiro/
 | Internationalization | i18next + react-i18next (en, ru) | ✅ |
 | Theme | Light/dark theme (CSS variables + data-theme) | ✅ |
 | File Integrity | hashlib SHA-256 (incremental during TUS upload) | ✅ |
-| Migrations | Alembic | Planned |
+| Migrations | Manual SQL (`backend/db/migrations/001-005`) | ✅ |
 | Auth | JWT (cookie-based) + API Key (SHA-256 hashed) + OAuth (Google, GitHub) + RBAC | ✅ |
 | Billing (audit) | usage_log (partitioned), pricing module, COGS/charge tracking | ✅ |
 | Billing (payments) | Stripe (subscriptions + metered usage records) | Planned |
@@ -597,7 +627,7 @@ lexiro/
 | 19 | Stripe integration: subscriptions, usage records, webhooks | Planned | `billing/stripe.py`, `billing/webhooks.py` |
 | 20 | Spending alerts: email at 80%/100% quota (Celery Beat hourly) | Planned | `billing/alerts.py` |
 | 21 | Monthly overage calculation + Stripe reporting (Celery Beat) | Planned | `billing/tasks.py` |
-| 22 | Database migrations (Alembic) | Planned | `db/migrations/`, `alembic.ini` |
+| 22 | Database migrations (manual SQL 001-005) | ✅ | `db/migrations/*.sql` |
 | 23 | Production Docker config + Celery Beat service | `Dockerfile`, `docker-compose.prod.yml` |
 | 24 | API documentation + README | auto-generated from FastAPI + `README.md` |
 | 25 | Health checks, monitoring, observability | `/health`, `/ready` endpoints |
@@ -635,7 +665,7 @@ Details: [DATABASE.md — Vector Search Scaling](DATABASE.md#vector-search-scali
 - [ ] CDN for static assets and S3 presigned URLs
 - [ ] Backup strategy: pg_dump schedule, S3 versioning
 - [x] ~~AI Chat interface~~ → Implemented: RAG Chat with Gemini 2.5 Flash, SSE streaming, LLM query rewrite, structured grounding prompt, source attribution
-- [x] ~~Self-hosted embedding model selection~~ → `intfloat/multilingual-e5-small` (1024 dims, multilingual)
+- [x] ~~Self-hosted embedding model selection~~ → `gemini-embedding-2-preview` (1024 dims, Matryoshka, production); E5 removed from production
 
 ### Billing & Payments
 - [ ] Stripe integration: Subscriptions for base tiers + Usage Records for overage

@@ -99,6 +99,10 @@ def _make_http_client(image: bool = False) -> httpx.Client:
     )
 
 
+class ConfluenceAuthError(Exception):
+    """Raised when Confluence REST API requires authentication."""
+
+
 def _api_get(url: str, client: httpx.Client | None = None) -> dict:
     """Fetch JSON from Confluence REST API."""
     own_client = client is None
@@ -106,6 +110,28 @@ def _api_get(url: str, client: httpx.Client | None = None) -> dict:
         client = _make_http_client()
     try:
         resp = client.get(url)
+
+        content_type = resp.headers.get("content-type", "")
+        final_url = str(resp.url)
+
+        if "login" in final_url.lower() or "/dologin" in final_url.lower():
+            raise ConfluenceAuthError(
+                f"Confluence redirected to login page ({final_url}). "
+                "Anonymous access is not allowed — provide authentication credentials."
+            )
+
+        if "text/html" in content_type and "application/json" not in content_type:
+            snippet = resp.text[:300].lower()
+            if "login" in snippet or "log in" in snippet or "authenticate" in snippet:
+                raise ConfluenceAuthError(
+                    "Confluence returned an HTML login page instead of JSON. "
+                    "Anonymous access is not allowed — provide authentication credentials."
+                )
+            raise ConfluenceAuthError(
+                f"Confluence returned HTML instead of JSON (Content-Type: {content_type}). "
+                "This usually means anonymous access is denied."
+            )
+
         resp.raise_for_status()
         return resp.json()
     finally:
@@ -393,6 +419,8 @@ async def crawl_confluence(
                 title, html_body = await asyncio.to_thread(
                     _get_page_content, base_url, page_id, client,
                 )
+            except ConfluenceAuthError:
+                raise
             except Exception as exc:
                 error_msg = f"Failed to fetch page {page_id}: {type(exc).__name__}: {exc}"
                 logger.warning(error_msg)
@@ -504,8 +532,23 @@ async def crawl_confluence(
     result.total_pages = pages_done
     result.crawl_ms = round((time.perf_counter() - t0) * 1000, 1)
 
+    non_empty = sum(1 for p in result.pages if p.markdown and p.markdown.strip())
+    if pages_done > 0 and non_empty == 0:
+        logger.warning(
+            "All crawled pages have empty content — possible authentication issue",
+            extra={
+                "url": url, "total_pages": pages_done,
+                "errors": len(result.errors),
+            },
+        )
+        result.errors.append(
+            f"All {pages_done} crawled pages returned empty content. "
+            "This usually means anonymous access is denied and authentication is required."
+        )
+
     logger.info("Confluence crawl completed", extra={
         "url": url, "total_pages": pages_done,
+        "non_empty_pages": non_empty,
         "crawl_ms": result.crawl_ms,
         "errors": len(result.errors),
         "ocr_images_total": result.ocr_images_total,

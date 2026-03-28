@@ -375,8 +375,8 @@ RAG Pipeline (chat/rag.py):
      → scan products table for name match in query text
      → word-boundary regex matching, longer names prioritised
   2. LLM Query Classification (parallel with rewrite):
-     → lightweight call to Gemini 2.0 Flash (~100ms, ~20 output tokens)
-     → classifies into: overview | technical | code | comparison | troubleshooting | chitchat
+     → lightweight call to Gemini 2.5 Flash (~100ms, ~20 output tokens)
+     → classifies into: overview | technical | code | comparison | troubleshooting | chitchat | decompose
      → categories auto-discovered from prompts/*.md files (<classifier_hint> tags)
      → selects per-type system prompt: base.md + {query_type}.md
      → token usage tracked separately (action="query_classify" in usage_log)

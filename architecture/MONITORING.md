@@ -11,8 +11,11 @@
 | Log aggregation | Grafana Loki 3.4 | Stores and queries structured logs |
 | Log collection | Promtail 3.4 | Ships Docker container logs to Loki |
 | Dashboards & alerts | Grafana 11.6 | Visualization, alerting, SLA tracking |
+| Metrics collection | Prometheus v3.2.1 | Scrapes node-exporter and cAdvisor |
+| Host metrics | Node Exporter v1.9.0 | CPU, memory, disk, network metrics |
+| Container metrics | cAdvisor v0.51.0 | Per-container resource usage |
 
-All monitoring is **log-based** (not metrics-based). Loki queries structured JSON logs emitted by the application via `structlog`. No Prometheus or StatsD required.
+Monitoring is **dual-stack**: log-based (Loki + structlog) for application events and metrics-based (Prometheus + node-exporter + cAdvisor) for system/container health.
 
 ---
 
@@ -193,7 +196,7 @@ monitoring/
         │   ├── lexiro-mcp-tools.json       MCP Tools dashboard
         │   └── lexiro-alerts.json          Alerts & SLA dashboard
         └── alerting/
-            └── rules.yml                    8 alert rules (YAML)
+            └── rules.yml                    10 alert rules (YAML)
 ```
 
 ---
@@ -226,7 +229,31 @@ grafana:
   volumes:
     - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     - grafanadata:/var/lib/grafana
-  depends_on: [loki]
+  depends_on: [loki, prometheus]
+
+prometheus:
+  image: prom/prometheus:v3.2.1
+  ports: ["9090:9090"]
+  volumes:
+    - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    - prometheusdata:/prometheus
+
+node-exporter:
+  image: prom/node-exporter:v1.9.0
+  volumes:
+    - /proc:/host/proc:ro
+    - /sys:/host/sys:ro
+    - /:/rootfs:ro
+
+cadvisor:
+  image: gcr.io/cadvisor/cadvisor:v0.51.0
+  volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:ro
+    - /sys:/sys:ro
+    - /var/lib/docker/:/var/lib/docker:ro
 ```
+
+Prometheus scrapes `node-exporter:9100` and `cadvisor:8080` (configured in `monitoring/prometheus.yml`).
 
 Access Grafana at `http://localhost:3000` — anonymous admin access enabled for development.

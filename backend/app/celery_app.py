@@ -953,6 +953,9 @@ def ingest_confluence_task(self, document_id: int):
             finally:
                 loop.close()
     except Exception as exc:
+        from app.ingestion.converters.confluence import ConfluenceAuthError
+        is_auth = isinstance(exc, ConfluenceAuthError)
+
         with Session(engine) as session:
             placeholder = session.get(Document, document_id)
             if placeholder:
@@ -960,6 +963,13 @@ def ingest_confluence_task(self, document_id: int):
                 placeholder.error_message = f"Crawl failed: {type(exc).__name__}: {str(exc)[:1900]}"
                 placeholder.progress_stage = ""
                 session.commit()
+
+        if is_auth:
+            logger.error("Confluence authentication failed — not retrying", extra={
+                "url": url, "document_id": document_id,
+            }, exc_info=True)
+            return {"status": "error", "error": str(exc)[:500]}
+
         logger.error("Confluence crawl failed", extra={
             "url": url, "document_id": document_id,
             "error_type": type(exc).__name__,
@@ -976,8 +986,39 @@ def ingest_confluence_task(self, document_id: int):
             if result.root_title:
                 placeholder.title = f"{result.root_title} ({result.total_pages} pages)"
 
+            crawl_errors_summary = "; ".join(result.errors[:3]) if result.errors else ""
+
             crawled = pages_total - skipped
-            if crawled > 0 and errors >= crawled:
+            if dispatched == 0:
+                placeholder.status = "error"
+                placeholder.progress_stage = "done"
+                if result.total_pages == 0:
+                    placeholder.error_message = (
+                        "Crawl returned 0 pages. The page may not exist or access is denied."
+                    )
+                elif skipped == pages_total and errors == 0:
+                    placeholder.error_message = (
+                        f"All {pages_total} crawled pages had empty content — "
+                        "no documents were created. This usually means authentication "
+                        "is required or the pages have no body content."
+                    )
+                    if crawl_errors_summary:
+                        placeholder.error_message += f" Details: {crawl_errors_summary}"
+                else:
+                    placeholder.error_message = (
+                        f"No documents were created from {pages_total} crawled pages "
+                        f"({skipped} empty, {errors} errors)."
+                    )
+                    if crawl_errors_summary:
+                        placeholder.error_message += f" Details: {crawl_errors_summary}"
+
+                logger.warning("Confluence crawl produced 0 dispatched documents", extra={
+                    "url": url, "document_id": document_id,
+                    "total_pages": result.total_pages,
+                    "skipped": skipped, "errors": errors,
+                    "crawl_errors": result.errors[:5],
+                })
+            elif crawled > 0 and errors >= crawled:
                 placeholder.status = "error"
                 placeholder.progress_stage = "done"
                 placeholder.error_message = (

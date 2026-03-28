@@ -58,6 +58,7 @@ prompts/
 ├── comparison.md        ← type: comparing products/versions
 ├── troubleshooting.md   ← type: errors and debugging
 ├── chitchat.md          ← type: greetings, meta-questions
+├── decompose.md         ← type: complex queries requiring sub-query decomposition
 └── README.md            ← documentation (ignored by loader)
 ```
 
@@ -107,6 +108,7 @@ Categories:
 - comparison: comparing products, versions, or features (...)
 - troubleshooting: error, problem, or debugging question (...)
 - chitchat: greeting, off-topic, or meta-question (...)
+- decompose: complex query requiring decomposition into sub-queries (...)
 
 Question: {query}
 Category:
@@ -166,8 +168,8 @@ When `CLASSIFIER_ENABLED=false`, all queries use `"overview"` type (backward com
 
 ## Future Improvements
 
-1. **Prompt overrides in DB** — table `prompt_templates` for editing without deploy
-2. **Admin UI** — edit prompts with live preview and test
+1. ~~**Prompt overrides in DB**~~ — ✅ Implemented: `prompt_templates` table with role-based overrides, `is_system`/`is_customized` flags, `max_response_tokens`/`rag_top_k` per type
+2. ~~**Admin UI**~~ — ✅ Implemented: `PromptsPage` + `PromptEditorPage` in admin panel (`/app/admin/prompts`), roles management (`/app/admin/roles`), system prompt seeding via `seed_prompts.py`
 3. **A/B testing** — multiple active versions per type, track quality metrics
 4. **DSPy optimization** — automatic prompt tuning from example Q&A pairs
 5. **Semantic Router** — embedding-based classification without LLM call (~10ms)

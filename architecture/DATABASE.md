@@ -6,20 +6,113 @@
 
 ## Current Schema (Implemented)
 
-The tables below are currently implemented in `backend/db/schema.sql` and `backend/app/models.py`. This is the MVP schema without multi-tenancy.
+The tables below are currently implemented in `backend/db/schema.sql`, `backend/db/migrations/001-005`, and `backend/app/models.py`. The schema includes multi-tenancy (tenants, API keys, OAuth, RBAC).
+
+> **Migrations**: manual SQL files in `backend/db/migrations/` (001–005). Alembic is not used. Some schema changes are applied at startup in `main.py` (e.g. `_migrate_embedding_dims()`).
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Tenants (organizations / accounts)
+CREATE TABLE tenants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT,                       -- NULL for OAuth-only accounts
+    name TEXT,
+    slug TEXT NOT NULL UNIQUE,
+    tier TEXT NOT NULL DEFAULT 'free',        -- free | pro | team | enterprise
+    role TEXT NOT NULL DEFAULT 'user',        -- user | admin
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- API Keys (multiple per tenant, hashed storage)
+CREATE TABLE api_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    key_hash TEXT NOT NULL UNIQUE,            -- SHA-256 of the actual key
+    key_prefix TEXT NOT NULL,                 -- "ipx_a1b2" for identification
+    name TEXT NOT NULL DEFAULT '',
+    scopes TEXT NOT NULL DEFAULT 'search,list',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- OAuth links (Google, GitHub)
+CREATE TABLE tenant_oauth_links (
+    id SERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,                   -- google | github
+    oauth_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(provider, oauth_id)
+);
+
+-- Refresh tokens (JWT rotation)
+CREATE TABLE refresh_tokens (
+    id SERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RBAC: Roles
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    is_system BOOLEAN NOT NULL DEFAULT FALSE,
+    priority INT NOT NULL DEFAULT 0,
+    permissions JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RBAC: Tenant ↔ Role assignments
+CREATE TABLE tenant_roles (
+    id SERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    role_id INT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    assigned_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id, role_id)
+);
+
+-- Prompt templates (role-based overrides for RAG prompts)
+CREATE TABLE prompt_templates (
+    id SERIAL PRIMARY KEY,
+    query_type TEXT NOT NULL,                 -- overview | technical | code | ...
+    body TEXT NOT NULL,
+    classifier_hint TEXT NOT NULL DEFAULT '',
+    role_id INT REFERENCES roles(id),         -- NULL = system default
+    parent_id INT REFERENCES prompt_templates(id),
+    is_system BOOLEAN NOT NULL DEFAULT FALSE,
+    is_customized BOOLEAN NOT NULL DEFAULT FALSE,
+    max_response_tokens INT,
+    rag_top_k INT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(query_type, role_id)
+);
+
 -- Products (integration product catalog — hardware devices + software platforms)
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,
+    tenant_id UUID REFERENCES tenants(id),    -- NULL for legacy/shared products
     name TEXT NOT NULL,
     manufacturer TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
-    category TEXT NOT NULL DEFAULT '',       -- camera | vms | access_control | intercom | nvr | sdk
+    category TEXT NOT NULL DEFAULT '',         -- camera | vms | access_control | intercom | nvr | sdk
+    slug TEXT NOT NULL DEFAULT '',
+    manufacturer_slug TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(manufacturer, model)
+    UNIQUE(manufacturer, model),
+    UNIQUE(manufacturer_slug, slug)
 );
 
 -- Firmware / API versions per product
@@ -34,9 +127,10 @@ CREATE TABLE firmware_versions (
 -- Documents (uploaded files metadata)
 CREATE TABLE documents (
     id SERIAL PRIMARY KEY,
+    tenant_id UUID REFERENCES tenants(id),    -- NULL for legacy documents
     product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     firmware_version_id INT NOT NULL REFERENCES firmware_versions(id),
-    format TEXT NOT NULL DEFAULT 'markdown',  -- markdown | swagger | pdf | web | proto
+    format TEXT NOT NULL DEFAULT 'markdown',   -- markdown | swagger | pdf | web | proto | postman | confluence
     source_path TEXT NOT NULL DEFAULT '',
     s3_key TEXT NOT NULL DEFAULT '',
     original_filename TEXT NOT NULL DEFAULT '',
@@ -44,18 +138,49 @@ CREATE TABLE documents (
     source_hash TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL DEFAULT '',
     total_chunks INT NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'pending',   -- pending | processing | ready | error
+    total_tokens INT NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',    -- pending | processing | ready | error
     error_message TEXT,
-    progress_percent INT NOT NULL DEFAULT 0,  -- 0-100, real-time ingestion progress
-    progress_stage TEXT NOT NULL DEFAULT '',   -- converting | ocr | chunking | embedding | storing | ''
-    -- OCR metrics (PDF only, NULL for other formats)
-    ocr_ms FLOAT,                             -- OCR processing time
-    ocr_images_total INT,                     -- total images found in MD
-    ocr_images_success INT,                   -- successfully recognized
-    ocr_images_empty INT,                     -- recognition returned empty text
-    ocr_images_failed INT,                    -- recognition error
-    detected_language TEXT,                    -- auto-detected language (e.g. "en,ru")
-    ingested_at TIMESTAMPTZ DEFAULT NOW()
+    celery_task_id TEXT,
+    progress_percent INT NOT NULL DEFAULT 0,
+    progress_stage TEXT NOT NULL DEFAULT '',   -- converting | ocr | chunking | embedding | storing | crawling | ''
+    -- Timing metrics
+    ingest_duration_ms FLOAT,
+    read_ms FLOAT,
+    convert_ms FLOAT,
+    parse_ms FLOAT,
+    embed_ms FLOAT,
+    db_ms FLOAT,
+    extract_ms FLOAT,
+    -- Embedding metadata
+    embedding_model TEXT,
+    embedding_dims INT,
+    embedding_tokens INT,
+    -- OCR metrics (PDF only)
+    ocr_ms FLOAT,
+    ocr_images_total INT,
+    ocr_images_success INT,
+    ocr_images_empty INT,
+    ocr_images_failed INT,
+    ocr_prompt_tokens INT,
+    ocr_completion_tokens INT,
+    ocr_model TEXT,
+    detected_language TEXT,
+    -- RAG usage stats
+    rag_hit_count INT NOT NULL DEFAULT 0,
+    rag_last_used_at TIMESTAMPTZ,
+    rag_avg_similarity FLOAT,
+    avg_chunk_tokens FLOAT,
+    min_chunk_tokens INT,
+    max_chunk_tokens INT,
+    -- Metadata extraction
+    extract_prompt_tokens INT,
+    extract_completion_tokens INT,
+    -- Source
+    source_container TEXT,                     -- archive filename or Confluence space
+    converted_s3_key TEXT,
+    uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+    indexed_at TIMESTAMPTZ
 );
 
 -- Chunks (semantic search units with vector embeddings)
@@ -63,23 +188,37 @@ CREATE TABLE chunks (
     id BIGSERIAL PRIMARY KEY,
     document_id INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     chunk_index INT NOT NULL,
-    heading_path TEXT NOT NULL,               -- "Chapter 4 > Access Control > Door Control"
+    heading_path TEXT NOT NULL,
     heading_level INT NOT NULL DEFAULT 1,
-    content TEXT NOT NULL,                    -- chunk text (used for display)
-    parent_content TEXT,                      -- full section text before splitting (small-to-big retrieval)
+    content TEXT NOT NULL,
+    content_clean TEXT,                        -- Markdown-stripped text for BM25
+    parent_content TEXT,                       -- full section for small-to-big retrieval
     token_count INT NOT NULL DEFAULT 0,
-    embedding vector(1024),                   -- E5 local: 1024 dims, enriched with heading_path context
+    embedding vector(1024),                    -- Gemini embedding-2-preview (1024 dims)
+    doc_type TEXT NOT NULL DEFAULT '',
+    entities JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 );
+-- BM25 full-text search: tsvector column + trigger + GIN index
+-- ALTER TABLE chunks ADD COLUMN tsv tsvector;
+-- CREATE TRIGGER chunks_tsv_trigger ... tsvector_update_trigger(tsv, 'pg_catalog.english', content_clean, content);
+-- CREATE INDEX idx_chunks_tsv ON chunks USING gin(tsv);
 
 -- Chat sessions
 CREATE TABLE chat_sessions (
     id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL UNIQUE,
+    tenant_id UUID REFERENCES tenants(id),
+    api_key_id UUID,
     title TEXT,
-    product_filter TEXT,                      -- optional: scope chat to a product
-    version_filter TEXT,                      -- optional: scope to firmware version
-    doc_context TEXT,                         -- optional: additional context for RAG
+    product_filter TEXT,
+    product_filter_source TEXT,               -- user | auto
+    version_filter TEXT,
+    doc_context TEXT,
+    history_summary TEXT,                      -- LLM-generated summary of older messages
+    product_id INT REFERENCES products(id),
+    summary_up_to_message_id INT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -88,16 +227,132 @@ CREATE TABLE chat_sessions (
 CREATE TABLE chat_messages (
     id SERIAL PRIMARY KEY,
     session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    role TEXT NOT NULL,                       -- user | assistant
+    role TEXT NOT NULL,                        -- user | assistant
     content TEXT NOT NULL,
-    sources JSONB,                            -- RAG source chunks (assistant messages only)
-    duration_ms FLOAT,                        -- LLM response time (assistant messages only)
+    sources JSONB,
+    duration_ms FLOAT,
+    feedback TEXT,                             -- thumbs_up | thumbs_down | NULL
+    feedback_comment TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Chat message analytics (per-response debug/metrics)
+CREATE TABLE chat_message_analytics (
+    id SERIAL PRIMARY KEY,
+    message_id INT NOT NULL UNIQUE REFERENCES chat_messages(id) ON DELETE CASCADE,
+    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    user_message_id INT REFERENCES chat_messages(id),
+    -- LLM parameters
+    llm_provider TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    embedding_model TEXT NOT NULL DEFAULT '',
+    query_type TEXT,                           -- overview | technical | code | ...
+    prompt_hash TEXT,
+    finish_reason TEXT,
+    temperature FLOAT NOT NULL DEFAULT 0,
+    max_tokens INT NOT NULL DEFAULT 0,
+    token_count INT NOT NULL DEFAULT 0,
+    tokens_per_sec FLOAT NOT NULL DEFAULT 0,
+    response_length INT NOT NULL DEFAULT 0,
+    continuations INT NOT NULL DEFAULT 0,
+    -- Timing
+    total_ms FLOAT NOT NULL DEFAULT 0,
+    rag_ms FLOAT NOT NULL DEFAULT 0,
+    rag_build_ms FLOAT NOT NULL DEFAULT 0,
+    llm_ms FLOAT NOT NULL DEFAULT 0,
+    search_ms FLOAT NOT NULL DEFAULT 0,
+    first_token_ms FLOAT NOT NULL DEFAULT 0,
+    -- RAG quality
+    chunks_found INT NOT NULL DEFAULT 0,
+    top_similarity FLOAT NOT NULL DEFAULT 0,
+    min_similarity FLOAT NOT NULL DEFAULT 0,
+    context_tokens INT NOT NULL DEFAULT 0,
+    history_messages INT NOT NULL DEFAULT 0,
+    prompt_messages INT NOT NULL DEFAULT 0,
+    -- Billing tokens
+    user_input_tokens INT NOT NULL DEFAULT 0,
+    user_output_tokens INT NOT NULL DEFAULT 0,
+    llm_prompt_tokens INT NOT NULL DEFAULT 0,
+    llm_completion_tokens INT NOT NULL DEFAULT 0,
+    llm_total_tokens INT NOT NULL DEFAULT 0,
+    -- Context (debugging)
+    doc_context TEXT,
+    auto_product TEXT,
+    detected_doc_context TEXT,
+    search_query TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Document usage log (per-chunk RAG usage tracking)
+CREATE TABLE document_usage_log (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID,
+    api_key_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    request_id TEXT NOT NULL,
+    heading_path TEXT NOT NULL DEFAULT '',
+    query_text TEXT NOT NULL DEFAULT '',
+    query_type TEXT NOT NULL DEFAULT '',
+    sub_query TEXT NOT NULL DEFAULT '',
+    session_id INT REFERENCES chat_sessions(id),
+    message_id INT REFERENCES chat_messages(id),
+    document_id INT REFERENCES documents(id),
+    product_id INT REFERENCES products(id),
+    chunk_id BIGINT,
+    similarity FLOAT NOT NULL DEFAULT 0,
+    context_tokens INT NOT NULL DEFAULT 0,
+    charge_usd NUMERIC(12,8) NOT NULL DEFAULT 0
+);
+
+-- Search analytics (per-query metrics for MCP tools and API search)
+CREATE TABLE search_analytics (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID,                           -- added in migration 002
+    api_key_id UUID,                          -- added in migration 003
+    source TEXT NOT NULL,                     -- "mcp" | "api" | "chat_rag"
+    tool_name TEXT NOT NULL,
+    query TEXT NOT NULL DEFAULT '',
+    product_filter TEXT,
+    version_filter TEXT,
+    result_count INT NOT NULL DEFAULT 0,
+    top_similarity FLOAT NOT NULL DEFAULT 0,
+    duration_ms FLOAT NOT NULL DEFAULT 0,
+    embedding_model TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Shared links (public access to chat sessions/messages)
+CREATE TABLE shared_links (
+    id SERIAL PRIMARY KEY,
+    tenant_id UUID REFERENCES tenants(id),
+    token TEXT NOT NULL UNIQUE,
+    session_id INT REFERENCES chat_sessions(id),
+    message_id INT REFERENCES chat_messages(id),
+    share_type TEXT NOT NULL,                 -- session | message
+    title TEXT NOT NULL DEFAULT '',
+    snapshot_json JSONB,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    view_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ
+);
+
+-- Suggestion templates (configurable chat suggestions per role/lang)
+CREATE TABLE suggestion_templates (
+    id SERIAL PRIMARY KEY,
+    role TEXT NOT NULL,
+    lang TEXT NOT NULL,
+    template TEXT NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(role, lang, template)
 );
 
 -- Reindex jobs (background reindexing operations)
 CREATE TABLE reindex_jobs (
     id SERIAL PRIMARY KEY,
+    tenant_id UUID REFERENCES tenants(id),
     mode TEXT NOT NULL,                       -- reingest | reembed
     status TEXT NOT NULL DEFAULT 'pending',   -- pending | running | completed | failed | cancelled | stale
     product_filter TEXT,
@@ -118,132 +373,84 @@ CREATE TABLE reindex_jobs (
 
 -- Upload sessions (TUS resumable upload protocol)
 CREATE TABLE upload_sessions (
-    id TEXT PRIMARY KEY,                      -- UUID string
+    id TEXT PRIMARY KEY,
+    tenant_id UUID REFERENCES tenants(id),
     filename TEXT NOT NULL,
     file_size BIGINT NOT NULL,
-    "offset" BIGINT NOT NULL DEFAULT 0,       -- bytes uploaded so far
+    "offset" BIGINT NOT NULL DEFAULT 0,
     content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
     product_name TEXT NOT NULL,
     firmware_version TEXT NOT NULL DEFAULT '1.0',
     manufacturer TEXT NOT NULL DEFAULT '',
     is_archive BOOLEAN NOT NULL DEFAULT FALSE,
     force BOOLEAN NOT NULL DEFAULT FALSE,
-    s3_upload_id TEXT NOT NULL DEFAULT '',     -- S3 multipart upload ID
+    s3_upload_id TEXT NOT NULL DEFAULT '',
     s3_key TEXT NOT NULL DEFAULT '',
-    parts_json TEXT NOT NULL DEFAULT '[]',     -- completed S3 parts
-    sha256_state TEXT NOT NULL DEFAULT '',     -- serialized incremental SHA-256
-    status TEXT NOT NULL DEFAULT 'uploading',  -- uploading | completed | expired | cancelled
+    parts_json TEXT NOT NULL DEFAULT '[]',
+    sha256_state TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'uploading',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ NOT NULL
 );
-```
-
--- Chat message analytics (per-response debug/metrics for RAG answers)
--- 1:1 with chat_messages (assistant messages only)
-CREATE TABLE chat_message_analytics (
-    id SERIAL PRIMARY KEY,
-    message_id INT NOT NULL UNIQUE REFERENCES chat_messages(id) ON DELETE CASCADE,
-    session_id INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    -- LLM parameters
-    llm_provider TEXT NOT NULL,          -- "ollama" | "openai"
-    model TEXT NOT NULL,
-    temperature FLOAT NOT NULL DEFAULT 0,
-    max_tokens INT NOT NULL DEFAULT 0,
-    token_count INT NOT NULL DEFAULT 0,
-    tokens_per_sec FLOAT NOT NULL DEFAULT 0,
-    response_length INT NOT NULL DEFAULT 0,
-    -- Timing
-    total_ms FLOAT NOT NULL DEFAULT 0,
-    rag_ms FLOAT NOT NULL DEFAULT 0,
-    llm_ms FLOAT NOT NULL DEFAULT 0,
-    search_ms FLOAT NOT NULL DEFAULT 0,
-    first_token_ms FLOAT NOT NULL DEFAULT 0,
-    -- RAG quality metrics
-    chunks_found INT NOT NULL DEFAULT 0,
-    top_similarity FLOAT NOT NULL DEFAULT 0,
-    min_similarity FLOAT NOT NULL DEFAULT 0,
-    context_tokens INT NOT NULL DEFAULT 0,
-    history_messages INT NOT NULL DEFAULT 0,
-    prompt_messages INT NOT NULL DEFAULT 0,
-    embedding_model TEXT NOT NULL DEFAULT '',
-    -- Context (for debugging)
-    doc_context TEXT,
-    auto_product TEXT,
-    detected_doc_context TEXT,
-    search_query TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Search analytics (per-query metrics for MCP tools and API search)
--- Standalone table, not linked to chat messages
-CREATE TABLE search_analytics (
-    id BIGSERIAL PRIMARY KEY,
-    source TEXT NOT NULL,                -- "mcp" | "api" | "chat_rag"
-    tool_name TEXT NOT NULL,             -- "search_documentation" | "get_api_endpoint" | "list_products"
-    query TEXT NOT NULL DEFAULT '',
-    product_filter TEXT,
-    version_filter TEXT,
-    result_count INT NOT NULL DEFAULT 0,
-    top_similarity FLOAT NOT NULL DEFAULT 0,
-    duration_ms FLOAT NOT NULL DEFAULT 0,
-    embedding_model TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
 
 -- Usage log (append-only billing audit trail, partitioned by month)
--- Every billable event (chat completion, MCP search) writes exactly one row.
--- Immutable: no UPDATE or DELETE in application code.
 CREATE TABLE usage_log (
     id BIGSERIAL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    channel TEXT NOT NULL,                          -- 'chat' | 'mcp'
-    action TEXT NOT NULL,                           -- 'chat_completion' | 'search_documentation' | 'get_api_endpoint' | 'list_products'
-    request_id TEXT NOT NULL,                       -- UUID v4 for deduplication and audit
+    channel TEXT NOT NULL,
+    action TEXT NOT NULL,
+    request_id TEXT NOT NULL,
 
-    -- LLM metrics (from API response)
-    llm_provider TEXT,                              -- 'openai' (OpenAI-compatible: Gemini, GPT, etc.)
-    llm_model TEXT,                                 -- 'gemini-2.5-flash', 'gemini-2.5-pro', etc.
-    prompt_tokens INT NOT NULL DEFAULT 0,           -- from LLM API: usage.prompt_tokens
-    completion_tokens INT NOT NULL DEFAULT 0,       -- from LLM API: usage.completion_tokens
-    total_tokens INT NOT NULL DEFAULT 0,            -- prompt_tokens + completion_tokens
+    llm_provider TEXT,
+    llm_model TEXT,
+    prompt_tokens INT NOT NULL DEFAULT 0,
+    completion_tokens INT NOT NULL DEFAULT 0,
+    total_tokens INT NOT NULL DEFAULT 0,
 
-    -- Prompt decomposition (for billing audit — sum ≈ prompt_tokens)
-    context_chunks INT NOT NULL DEFAULT 0,          -- RAG chunks used in prompt
-    context_tokens INT NOT NULL DEFAULT 0,          -- sum of chunk token_count from RAG
-    history_messages INT NOT NULL DEFAULT 0,        -- chat history messages in prompt
-    query_tokens INT NOT NULL DEFAULT 0,            -- approximate tokens of user query text only
-    history_tokens INT NOT NULL DEFAULT 0,          -- approximate tokens of chat history in prompt
-    system_prompt_tokens INT NOT NULL DEFAULT 0,    -- approximate tokens of system prompt (incl. RAG header)
+    context_chunks INT NOT NULL DEFAULT 0,
+    context_tokens INT NOT NULL DEFAULT 0,
+    history_messages INT NOT NULL DEFAULT 0,
+    query_tokens INT NOT NULL DEFAULT 0,
+    history_tokens INT NOT NULL DEFAULT 0,
+    system_prompt_tokens INT NOT NULL DEFAULT 0,
 
-    -- Request/response details
-    query_text TEXT,                                -- user query / search query (for audit)
-    result_count INT NOT NULL DEFAULT 0,            -- search results returned
-    response_tokens INT NOT NULL DEFAULT 0,         -- approximate token count of response text
-    response_length INT NOT NULL DEFAULT 0,         -- len() of response text in characters
+    query_text TEXT,
+    result_count INT NOT NULL DEFAULT 0,
+    response_tokens INT NOT NULL DEFAULT 0,
+    response_length INT NOT NULL DEFAULT 0,
     top_similarity FLOAT NOT NULL DEFAULT 0,
 
     product_filter TEXT,
     version_filter TEXT,
 
-    -- Timing
     duration_ms FLOAT NOT NULL DEFAULT 0,
     embedding_ms FLOAT NOT NULL DEFAULT 0,
     search_ms FLOAT NOT NULL DEFAULT 0,
     llm_ms FLOAT NOT NULL DEFAULT 0,
 
-    -- Cost tracking (dual: our cost vs client charge)
-    cogs_usd NUMERIC(12,8) NOT NULL DEFAULT 0,     -- our cost: actual LLM API / infra cost
-    charge_usd NUMERIC(12,8) NOT NULL DEFAULT 0,   -- client charge: user-facing price (for billing)
+    cogs_usd NUMERIC(12,8) NOT NULL DEFAULT 0,
+    charge_usd NUMERIC(12,8) NOT NULL DEFAULT 0,
 
-    tenant_id UUID,                                 -- reserved for multi-tenant (nullable for now)
+    tenant_id UUID,
+    api_key_id UUID,                          -- added in migration 003
 
     PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
-
 -- Partitions auto-created by Celery Beat task (ensure_usage_partitions)
--- Initial: usage_log_2026_03, usage_log_2026_04, usage_log_2026_05
 ```
+
+### Migrations
+
+Manual SQL files in `backend/db/migrations/`:
+
+| File | Description |
+|------|-------------|
+| `001_auth_tables.sql` | tenants, api_keys, tenant_oauth_links, refresh_tokens |
+| `002_add_tenant_id.sql` | Add tenant_id to products, documents, chat_sessions, search_analytics, etc. |
+| `003_add_api_key_id.sql` | Add api_key_id to usage_log, search_analytics, chat_sessions |
+| `004_add_tenant_role.sql` | Add role column to tenants |
+| `005_roles_and_prompts.sql` | roles, tenant_roles, prompt_templates tables |
 
 ### Current Indexes
 

@@ -714,9 +714,9 @@ Lexiro — публичный коммерческий SaaS-продукт. Side
 |---|---|---|---|
 | `MessageSquare` | Chat | `'chat'` | ✅ |
 | `FileText` | Documents | `'documents'` | ✅ |
-| `Box` | Products | `'products'` | ✅ Заглушка |
-| `BarChart3` | Analytics | `'analytics'` | ✅ Заглушка |
-| `Settings` | Settings | `'settings'` | ✅ Заглушка |
+| `Box` | Products | `'products'` | ✅ |
+| `BarChart3` | Analytics | `'analytics'` | ✅ |
+| `Settings` | Settings | `'settings'` | ✅ |
 
 ### Стиль навигационных пунктов
 
@@ -816,9 +816,11 @@ color: var(--text-muted);
 ```
 frontend/src/styles/
   globals.css      — CSS-переменные, reset, scrollbar, base styles
+  auth.css         — ✅ Страницы авторизации: login, register, OAuth
   chat.css         — Sidebar, layout, messages, input, sources, debug, file upload, code blocks
   landing.css      — ✅ Лендинг: header, hero, секции, карточки, steps, footer, responsive
   documents.css    — ✅ Таблицы (sticky columns, min-widths, scroll shadows), статус-бейджи, segmented bar, actions dropdown, карточки (mobile), responsive
+  admin.css        — ✅ Админ-панель: dashboard, tenants, roles, prompts, logs, stats, system
 ```
 
 ### Правила
@@ -891,9 +893,23 @@ frontend/src/styles/
 | `/` | `LandingPage` | Публичный лендинг (маркетинговая страница) | ✅ |
 | `/app` | `ChatApp` | Основное приложение (Chat) | ✅ |
 | `/app/documents` | `DocumentsPage` | Управление документами | ✅ |
-| `/app/products` | `ProductsPage` | Продукты (заглушка) | ✅ |
-| `/app/analytics` | `AnalyticsPage` | Аналитика (заглушка) | ✅ |
-| `/app/settings` | `SettingsPage` | Настройки (заглушка) | ✅ |
+| `/app/products` | `ProductsPage` | Список продуктов | ✅ |
+| `/app/products/:manufacturer/:product` | `ProductDetailPage` | Детали продукта | ✅ |
+| `/app/analytics` | `AnalyticsPage` | Аналитика | ✅ |
+| `/app/settings` | `SettingsPage` | Настройки аккаунта | ✅ |
+| `/s/:token` | `SharedView` | Публичная ссылка | ✅ |
+| `/app/admin` | `AdminApp > DashboardPage` | Главная админ-панели | ✅ |
+| `/app/admin/tenants` | `TenantsPage` | Управление тенантами | ✅ |
+| `/app/admin/tenants/:id` | `TenantDetailPage` | Детали тенанта | ✅ |
+| `/app/admin/documents` | `DocumentsAdminPage` | Документы (админ) | ✅ |
+| `/app/admin/chats` | `ChatAuditPage` | Аудит чатов | ✅ |
+| `/app/admin/roles` | `RolesPage` | Управление ролями | ✅ |
+| `/app/admin/roles/:id` | `RoleDetailPage` | Детали роли | ✅ |
+| `/app/admin/prompts` | `PromptsPage` | Управление промптами | ✅ |
+| `/app/admin/prompts/:id` | `PromptEditorPage` | Редактор промптов | ✅ |
+| `/app/admin/logs` | `LogsPage` | Логи | ✅ |
+| `/app/admin/stats` | `StatsPage` | Статистика | ✅ |
+| `/app/admin/system` | `SystemPage` | Системная информация | ✅ |
 | `*` | Redirect → `/` | Fallback | ✅ |
 
 ### Файловая структура
