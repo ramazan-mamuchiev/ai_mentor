@@ -2014,6 +2014,196 @@
   flex-shrink: 0;
 }
 
+/* ── File Upload: multi-file / folder ── */
+
+.file-upload-browse-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 8px 0 12px;
+}
+
+.file-upload-browse-row .file-upload-browse {
+  margin: 0;
+}
+
+.file-upload-browse-folder {
+  background: var(--bg-secondary);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.file-upload-browse-folder:hover {
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+}
+
+.file-upload-filelist {
+  margin-bottom: 16px;
+}
+
+.file-upload-filelist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+
+.file-upload-total-size {
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.file-upload-filelist-items {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.file-upload-filelist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-upload-filelist-item:last-child {
+  border-bottom: none;
+}
+
+.file-upload-filelist-item svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.file-upload-filelist-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-upload-filelist-size {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.file-upload-filelist-progress {
+  max-height: 300px;
+}
+
+.file-upload-overall {
+  margin-bottom: 12px;
+}
+
+.file-upload-progress-item {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-upload-progress-item:last-child {
+  border-bottom: none;
+}
+
+.file-upload-progress-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.file-upload-progress-item-header svg {
+  flex-shrink: 0;
+}
+
+.file-upload-progress-item--completed .file-upload-progress-item-header svg {
+  color: #38a169;
+}
+
+.file-upload-progress-item--error .file-upload-progress-item-header svg {
+  color: #e53e3e;
+}
+
+.file-upload-progress-item--uploading .file-upload-progress-item-header svg,
+.file-upload-progress-item--paused .file-upload-progress-item-header svg {
+  color: var(--accent);
+}
+
+.file-upload-progress-item--pending {
+  opacity: 0.5;
+}
+
+.file-upload-bar-small {
+  height: 4px;
+  margin: 6px 0 4px;
+}
+
+.file-upload-item-speed {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.file-upload-item-error {
+  font-size: 11px;
+  color: #e53e3e;
+  display: block;
+  margin-top: 2px;
+}
+
+.file-upload-mini-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.file-upload-mini-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.file-upload-done {
+  padding: 20px;
+}
+
+.file-upload-done-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.file-upload-done-summary svg {
+  color: #38a169;
+  flex-shrink: 0;
+}
+
+.file-upload-done-summary div {
+  flex: 1;
+}
+
+.file-upload-done-summary strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.file-upload-done-summary p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 /* ── Markdown tables (GFM) ── */
 
 .message-content table {
