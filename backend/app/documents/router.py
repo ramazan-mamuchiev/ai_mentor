@@ -845,6 +845,19 @@ async def reingest_single_document(document_id: int):
             and "confluence" in (doc.source_path or "").lower()
         )
 
+        if is_url and doc.source_path:
+            from app.ingestion.converters.confluence import parse_confluence_url
+            try:
+                parse_confluence_url(doc.source_path)
+                is_confluence = True
+                is_url = False
+                doc.format = "confluence"
+                logger.info("Reingest: reclassified URL as Confluence", extra={
+                    "document_id": document_id, "url": doc.source_path,
+                })
+            except ValueError:
+                pass
+
         if not doc.s3_key and not is_confluence and not is_url and not is_confluence_child:
             raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
 
