@@ -579,7 +579,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   return (
     <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
       <div className="docs-page-main" style={{ display: 'flex', gap: 16 }}>
-      {(categoryFacets.some(f => f.count > 0) || tagFacets.some(f => f.count > 0)) && (
+      {(categoryFacets.filter(f => f.count > 0).length >= 2 || tagFacets.filter(f => f.count > 0).length >= 2) && (
         <FilterSidebar
           categories={categoryFacets.filter(f => f.count > 0)}
           tags={tagFacets.filter(f => f.count > 0)}
@@ -593,7 +593,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         />
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
-      <ActiveFilters filters={activeFilterChips} onRemove={handleRemoveFilter} onClearAll={handleClearAllFilters} />
       <div className="docs-header">
         <h1 className="docs-page-title">
           <Box size={20} />
@@ -630,6 +629,8 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           )}
         </div>
       </div>
+
+      <ActiveFilters filters={activeFilterChips} onRemove={handleRemoveFilter} onClearAll={handleClearAllFilters} />
 
       {(formatCounts.length > 1 || statusCounts.length > 1) && (
         <div className="docs-filter-bar">
