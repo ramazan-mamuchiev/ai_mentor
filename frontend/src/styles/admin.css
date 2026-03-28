@@ -938,6 +938,19 @@
 .log-row__level--error { color: var(--log-error); }
 .log-row__level--debug { color: var(--log-debug); }
 
+.log-row__service {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
 .log-row__summary {
   color: var(--text);
   flex: 1;

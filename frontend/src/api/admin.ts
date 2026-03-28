@@ -495,7 +495,7 @@ export async function getLogs(params: {
   limit?: number
 } = {}): Promise<{ entries: LogEntry[]; total: number }> {
   const sp = new URLSearchParams()
-  if (params.service) sp.set('service', params.service)
+  if (params.service !== undefined) sp.set('service', params.service)
   if (params.level) sp.set('level', params.level)
   if (params.search) sp.set('search', params.search)
   if (params.tenant) sp.set('tenant', params.tenant)

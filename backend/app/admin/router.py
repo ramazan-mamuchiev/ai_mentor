@@ -1,5 +1,6 @@
 """Admin REST endpoints — platform management, moderation, audit, stats, logs."""
 
+import re
 import uuid
 import logging
 
@@ -321,9 +322,15 @@ _SERVICE_TO_CONTAINER = {
     "nginx": "/lexiro-web-1",
 }
 
+_CONTAINER_TO_SERVICE = {v: k for k, v in _SERVICE_TO_CONTAINER.items()}
+
+_APP_CONTAINERS = [
+    _SERVICE_TO_CONTAINER[s] for s in ("api", "worker", "beat")
+]
+
 @router.get("/logs", response_model=LogsResponse)
 async def get_logs(
-    service_name: str = Query("api", alias="service"),
+    service_name: str = Query("", alias="service"),
     level: str | None = None,
     search: str | None = None,
     tenant_name: str | None = Query(None, alias="tenant"),
@@ -331,8 +338,13 @@ async def get_logs(
     end: str | None = None,
     limit: int = Query(200, ge=1, le=5000),
 ):
-    container = _SERVICE_TO_CONTAINER.get(service_name, f"/lexiro-{service_name}-1")
-    label_parts = [f'container="{container}"']
+    label_parts: list[str] = []
+    if service_name:
+        container = _SERVICE_TO_CONTAINER.get(service_name, f"/lexiro-{service_name}-1")
+        label_parts.append(f'container="{container}"')
+    else:
+        regex = "|".join(re.escape(c) for c in _APP_CONTAINERS)
+        label_parts.append(f'container=~"{regex}"')
     if level:
         label_parts.append(f'level="{level}"')
     label_selector = "{" + ",".join(label_parts) + "}"
@@ -367,12 +379,15 @@ async def get_logs(
     entries = []
     for stream in data.get("data", {}).get("result", []):
         stream_labels = stream.get("stream", {})
+        svc = service_name
+        if not svc:
+            svc = _CONTAINER_TO_SERVICE.get(stream_labels.get("container", ""), "")
         for ts, line in stream.get("values", []):
             entries.append({
                 "timestamp": ts,
                 "level": stream_labels.get("level", ""),
                 "message": line,
-                "service": service_name,
+                "service": svc,
                 "extra": {k: v for k, v in stream_labels.items() if k not in ("container", "level", "service_name", "stream")},
             })
 

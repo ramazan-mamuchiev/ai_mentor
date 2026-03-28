@@ -7,7 +7,7 @@ import {
 import { getLogs, searchTenants, type LogEntry, type TenantSearchResult } from '../../api/admin'
 import { User } from 'lucide-react'
 
-const SERVICES = ['api', 'worker', 'beat', 'web', 'postgres', 'redis'] as const
+const SERVICES = ['', 'api', 'worker', 'beat', 'web', 'postgres', 'redis'] as const
 
 const LEVELS = [
   { value: '', label: 'All', color: '' },
@@ -72,8 +72,8 @@ function highlightSearch(text: string, query: string): React.ReactNode {
   )
 }
 
-function LogRow({ entry, search, defaultExpanded }: {
-  entry: LogEntry; search: string; defaultExpanded: boolean
+function LogRow({ entry, search, defaultExpanded, showService }: {
+  entry: LogEntry; search: string; defaultExpanded: boolean; showService?: boolean
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(defaultExpanded)
@@ -111,6 +111,7 @@ function LogRow({ entry, search, defaultExpanded }: {
         </span>
         <span className="log-row__ts">{formatTimestamp(entry.timestamp)}</span>
         <span className={`log-row__level log-row__level--${lvl}`}>{lvl === 'warning' ? 'WARN' : lvl.toUpperCase()}</span>
+        {showService && entry.service && <span className="log-row__service">{entry.service}</span>}
         <span className="log-row__summary">{highlightSearch(String(summary), search)}</span>
         <button className="log-row__copy" onClick={handleCopy} title={t('admin.logs.copyRaw')}>
           {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -133,7 +134,7 @@ function LogRow({ entry, search, defaultExpanded }: {
 export function LogsPage() {
   const { t } = useTranslation()
   const [entries, setEntries] = useState<LogEntry[]>([])
-  const [service, setService] = useState('api')
+  const [service, setService] = useState('')
   const [level, setLevel] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -236,7 +237,7 @@ export function LogsPage() {
         <div className="logs-toolbar__row">
           {/* Service select */}
           <select className="logs-select" value={service} onChange={e => setService(e.target.value)}>
-            {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+            {SERVICES.map(s => <option key={s || '_all'} value={s}>{s || t('admin.logs.allServices', { defaultValue: 'Все' })}</option>)}
           </select>
 
           {/* Time range chips */}
@@ -373,7 +374,7 @@ export function LogsPage() {
       ) : (
         <div className="log-viewer" ref={containerRef}>
           {entries.map((entry, i) => (
-            <LogRow key={i} entry={entry} search={debouncedSearch} defaultExpanded={false} />
+            <LogRow key={i} entry={entry} search={debouncedSearch} defaultExpanded={false} showService={!service} />
           ))}
         </div>
       )}
