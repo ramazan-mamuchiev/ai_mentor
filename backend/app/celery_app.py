@@ -213,6 +213,17 @@ def _get_sync_engine():
     return _sync_engine
 
 
+def _set_tenant_log_context(tenant_id, session):
+    """Populate structlog/logging context vars with tenant info for Celery tasks."""
+    from app.logging_config import tenant_id_ctx, tenant_name_ctx
+    if not tenant_id:
+        return
+    from app.models import Tenant
+    tenant_id_ctx.set(str(tenant_id))
+    tenant = session.get(Tenant, tenant_id)
+    tenant_name_ctx.set(tenant.name if tenant and tenant.name else "-")
+
+
 @celery.task(name="ingest_document", bind=True, max_retries=2, default_retry_delay=30)
 def ingest_document_task(self, document_id: int):
     """Background task: download file from S3, run ingestion pipeline, update DB."""
@@ -238,6 +249,8 @@ def ingest_document_task(self, document_id: int):
         if doc.status == "cancelled":
             logger.info("Document was cancelled before task started", extra={"document_id": document_id})
             return {"status": "cancelled", "message": "Cancelled before processing"}
+
+        _set_tenant_log_context(doc.tenant_id, session)
 
         doc.status = "processing"
         doc.celery_task_id = self.request.id
@@ -333,6 +346,7 @@ def ingest_archive_task(
             return {"status": "error", "error": "Archive document not found"}
 
         archive_tenant_id = archive_doc.tenant_id
+        _set_tenant_log_context(archive_tenant_id, session)
 
         archive_doc.status = "processing"
         session.commit()
@@ -513,6 +527,7 @@ def ingest_archive_from_s3_task(
             return {"status": "error", "error": "No supported files in archive"}
 
         _tenant_id = _uuid.UUID(tenant_id_str) if tenant_id_str else None
+        _set_tenant_log_context(_tenant_id, session)
 
         from sqlalchemy import select as sa_select
         product_row = session.execute(
@@ -635,6 +650,7 @@ def ingest_single_url_task(self, document_id: int):
             return {"status": "error", "error": "Placeholder not found"}
 
         url = doc.source_path
+        _set_tenant_log_context(doc.tenant_id, session)
         doc.status = "processing"
         doc.progress_stage = "fetching"
         doc.progress_percent = 0
@@ -826,6 +842,7 @@ def ingest_confluence_task(self, document_id: int):
         product_id = placeholder.product_id
         firmware_version_id = placeholder.firmware_version_id
         confluence_tenant_id = placeholder.tenant_id
+        _set_tenant_log_context(confluence_tenant_id, session)
 
         placeholder.status = "processing"
         placeholder.progress_stage = "crawling"
@@ -1082,6 +1099,8 @@ def reingest_confluence_page_task(self, document_id: int):
             return {"status": "error", "error": "Document not found"}
 
         url = doc.source_path
+        _set_tenant_log_context(doc.tenant_id, session)
+
         if not url:
             doc.status = "error"
             doc.error_message = "No source_path stored — cannot reingest page"
