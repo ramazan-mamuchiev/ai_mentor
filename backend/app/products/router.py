@@ -59,7 +59,10 @@ async def get_suggestions():
                 (Document.product_id == Product.id)
                 & (Document.firmware_version_id == FirmwareVersion.id),
             )
-            .where(Document.status == "ready")
+            .where(
+                Document.status == "ready",
+                func.lower(Product.name) != "lexiro",
+            )
             .group_by(
                 Product.id,
                 Product.name,
