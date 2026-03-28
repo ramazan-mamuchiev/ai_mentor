@@ -133,7 +133,7 @@ function LogRow({ entry, search, defaultExpanded, showService }: {
 
 type ExportFormat = 'json' | 'txt' | 'csv'
 
-function parseLogEntry(entry: LogEntry) {
+function parseLogEntry(entry: LogEntry): Record<string, unknown> {
   const parsed = tryParseJSON(entry.message)
   if (!parsed) return { timestamp: entry.timestamp, level: entry.level, service: entry.service, event: entry.message }
   const { level: _l, timestamp: _t, ...rest } = parsed
