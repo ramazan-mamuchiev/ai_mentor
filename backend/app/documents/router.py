@@ -1088,6 +1088,7 @@ async def _find_by_hash(
 
 
 async def _get_or_create_product(session, name: str, manufacturer: str, *, tenant_id=None):
+    from sqlalchemy.exc import IntegrityError
     from app.slugify import slugify
 
     result = await session.execute(
@@ -1100,6 +1101,7 @@ async def _get_or_create_product(session, name: str, manufacturer: str, *, tenan
             product.manufacturer_slug = slugify(manufacturer) if manufacturer else "default"
             await session.flush()
         return product
+
     slug = slugify(name)
     mfr_slug = slugify(manufacturer) if manufacturer else "default"
     product = Product(
@@ -1111,11 +1113,22 @@ async def _get_or_create_product(session, name: str, manufacturer: str, *, tenan
         tenant_id=tenant_id,
     )
     session.add(product)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        await session.rollback()
+        result = await session.execute(
+            select(Product).where(Product.name == name, Product.manufacturer == manufacturer)
+        )
+        product = result.scalar_one_or_none()
+        if product is None:
+            raise
     return product
 
 
 async def _get_or_create_firmware(session, product_id: int, version: str):
+    from sqlalchemy.exc import IntegrityError
+
     result = await session.execute(
         select(FirmwareVersion).where(
             FirmwareVersion.product_id == product_id,
@@ -1125,7 +1138,20 @@ async def _get_or_create_firmware(session, product_id: int, version: str):
     fw = result.scalar_one_or_none()
     if fw:
         return fw
+
     fw = FirmwareVersion(product_id=product_id, version=version)
     session.add(fw)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        await session.rollback()
+        result = await session.execute(
+            select(FirmwareVersion).where(
+                FirmwareVersion.product_id == product_id,
+                FirmwareVersion.version == version,
+            )
+        )
+        fw = result.scalar_one_or_none()
+        if fw is None:
+            raise
     return fw
