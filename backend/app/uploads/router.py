@@ -202,17 +202,6 @@ async def tus_create(request: Request, tenant: Tenant = Depends(get_current_tena
 @router.head("/{upload_id}")
 async def tus_head(upload_id: str):
     """Get current upload offset (for resume after disconnect)."""
-    r = _get_redis()
-    cached_offset = r.get(_redis_offset_key(upload_id))
-
-    if cached_offset is not None:
-        headers = {
-            **_tus_headers(),
-            "Upload-Offset": cached_offset,
-            "Cache-Control": "no-store",
-        }
-        return Response(status_code=200, headers=headers)
-
     async with async_session() as session:
         us = await session.get(UploadSession, upload_id)
         if us is None:
@@ -220,9 +209,13 @@ async def tus_head(upload_id: str):
         if us.status != "uploading":
             raise HTTPException(status_code=410, detail=f"Upload session is {us.status}")
 
+        r = _get_redis()
+        cached_offset = r.get(_redis_offset_key(upload_id))
+        offset = cached_offset if cached_offset is not None else str(us.offset)
+
         headers = {
             **_tus_headers(),
-            "Upload-Offset": str(us.offset),
+            "Upload-Offset": offset,
             "Upload-Length": str(us.file_size),
             "Cache-Control": "no-store",
         }
