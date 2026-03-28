@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Languages, Play } from 'lucide-react'
+import { Plus, Trash2, Globe, Play } from 'lucide-react'
 import {
   adminListLanguages, adminCreateLanguage, adminDeleteLanguage,
   adminTriggerTranslate, adminGetTranslateProgress,
@@ -86,22 +86,48 @@ export function LanguagesPage() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="logs-page">
       <div className="admin-page-header">
-        <h1><Languages size={20} /> {t('admin.nav.languages')}</h1>
+        <h1><Globe size={20} /> {t('admin.nav.languages')}</h1>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <input placeholder="Code (e.g. de)" value={newCode} onChange={e => setNewCode(e.target.value)} className="admin-input" style={{ width: 100 }} />
-        <input placeholder="Native name (e.g. Deutsch)" value={newName} onChange={e => setNewName(e.target.value)} className="admin-input" style={{ width: 200 }} />
-        <button onClick={handleCreate} className="admin-btn admin-btn-primary" disabled={!newCode.trim() || !newName.trim()}>
-          <Plus size={14} /> {t('admin.common.create')}
-        </button>
+      {/* Toolbar — logs-style */}
+      <div className="logs-toolbar">
+        <div className="logs-toolbar__row">
+          <input
+            placeholder="Code (e.g. de)"
+            value={newCode}
+            onChange={e => setNewCode(e.target.value)}
+            className="logs-search"
+            style={{ width: 100, minWidth: 80 }}
+          />
+          <input
+            placeholder="Native name (e.g. Deutsch)"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            className="logs-search"
+            style={{ width: 200, minWidth: 140 }}
+          />
+          <button
+            onClick={handleCreate}
+            className="logs-live-btn logs-live-btn--active"
+            disabled={!newCode.trim() || !newName.trim()}
+          >
+            <Plus size={13} />
+            {t('admin.common.create')}
+          </button>
+
+          <span className="logs-count">{languages.length} {t('admin.nav.languages').toLowerCase()}</span>
+        </div>
       </div>
 
-      {loading && <p>{t('admin.common.loading')}</p>}
+      {loading && <div className="admin-loading">{t('admin.common.loading')}</div>}
 
-      {!loading && (
+      {!loading && languages.length === 0 && (
+        <div className="admin-empty">{t('admin.common.loading')}</div>
+      )}
+
+      {!loading && languages.length > 0 && (
         <table className="admin-table">
           <thead>
             <tr>
@@ -142,7 +168,7 @@ export function LanguagesPage() {
                         <span style={{ fontSize: 12 }}>{progress.done}/{progress.total}</span>
                       </div>
                     ) : (
-                      <button onClick={() => handleTranslate(lang.id)} className="admin-btn-icon" title="Auto-translate missing keys">
+                      <button onClick={() => handleTranslate(lang.id)} className="logs-icon-btn" title="Auto-translate missing keys">
                         <Play size={14} />
                       </button>
                     )}
@@ -151,7 +177,7 @@ export function LanguagesPage() {
                   </td>
                   <td>
                     <button
-                      className="admin-btn-icon"
+                      className="logs-icon-btn"
                       onClick={() => handleDelete(lang.id, lang.is_system)}
                       disabled={lang.is_system}
                       title={lang.is_system ? 'System language' : t('admin.common.delete')}

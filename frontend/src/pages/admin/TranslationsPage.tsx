@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Save, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Save, ChevronLeft, ChevronRight, Languages, X } from 'lucide-react'
 import {
   adminListLanguages, adminListTranslations, adminUpsertTranslation,
   type AdminLanguage, type TranslationItem,
@@ -16,9 +16,11 @@ export default function TranslationsPage() {
   const [page, setPage] = useState(1)
   const [pageSize] = useState(50)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     adminListLanguages().then(langs => {
@@ -27,11 +29,17 @@ export default function TranslationsPage() {
     })
   }, [])
 
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [search])
+
   const loadTranslations = useCallback(async () => {
     if (!selectedLangId) return
     setLoading(true)
     try {
-      const res = await adminListTranslations(selectedLangId, namespace, page, pageSize, search || undefined)
+      const res = await adminListTranslations(selectedLangId, namespace, page, pageSize, debouncedSearch || undefined)
       setItems(res.items)
       setTotal(res.total)
     } catch (e) {
@@ -39,7 +47,7 @@ export default function TranslationsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedLangId, namespace, page, pageSize, search])
+  }, [selectedLangId, namespace, page, pageSize, debouncedSearch])
 
   useEffect(() => { loadTranslations() }, [loadTranslations])
 
@@ -57,51 +65,73 @@ export default function TranslationsPage() {
   const totalPages = Math.ceil(total / pageSize)
 
   return (
-    <div className="admin-page">
+    <div className="logs-page">
       <div className="admin-page-header">
-        <h1>{t('admin.nav.translations')}</h1>
+        <h1><Languages size={20} /> {t('admin.nav.translations')}</h1>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select
-          value={selectedLangId ?? ''}
-          onChange={e => { setSelectedLangId(Number(e.target.value)); setPage(1) }}
-          className="admin-select"
-        >
-          {languages.map(l => (
-            <option key={l.id} value={l.id}>{l.code} — {l.name_native}</option>
-          ))}
-        </select>
+      {/* Toolbar — logs-style */}
+      <div className="logs-toolbar">
+        <div className="logs-toolbar__row">
+          {/* Language select */}
+          <select
+            className="logs-select"
+            value={selectedLangId ?? ''}
+            onChange={e => { setSelectedLangId(Number(e.target.value)); setPage(1) }}
+          >
+            {languages.map(l => (
+              <option key={l.id} value={l.id}>{l.code} — {l.name_native}</option>
+            ))}
+          </select>
 
-        <select value={namespace} onChange={e => { setNamespace(e.target.value); setPage(1) }} className="admin-select">
-          <option value="ui">UI</option>
-          <option value="taxonomy">Taxonomy</option>
-        </select>
+          {/* Namespace chips */}
+          <div className="logs-chips" role="group" aria-label="Namespace">
+            {(['ui', 'taxonomy'] as const).map(ns => (
+              <button
+                key={ns}
+                className={`logs-chip${namespace === ns ? ' logs-chip--active' : ''}`}
+                onClick={() => { setNamespace(ns); setPage(1) }}
+              >
+                {ns.toUpperCase()}
+              </button>
+            ))}
+          </div>
 
-        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-          <input
-            placeholder="Search keys or values..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="admin-input"
-            style={{ paddingLeft: 28, width: '100%' }}
-          />
+          {/* Search */}
+          <div className="logs-search-wrap">
+            <Search size={14} className="logs-search-wrap__icon" />
+            <input
+              className="logs-search"
+              placeholder={t('admin.logs.searchPlaceholder', { defaultValue: 'Search keys or values...' })}
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+            />
+            {search && (
+              <button className="logs-search-wrap__clear" onClick={() => setSearch('')}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Count */}
+          <span className="logs-count">{total} {t('admin.translations.keys', { defaultValue: 'keys' })}</span>
         </div>
-
-        <span style={{ fontSize: 13, opacity: 0.7 }}>{total} keys</span>
       </div>
 
-      {loading && <p>{t('admin.common.loading')}</p>}
+      {loading && <div className="admin-loading">{t('admin.common.loading')}</div>}
 
-      {!loading && (
+      {!loading && items.length === 0 && (
+        <div className="admin-empty">{t('admin.translations.empty', { defaultValue: 'No translations found' })}</div>
+      )}
+
+      {!loading && items.length > 0 && (
         <>
           <table className="admin-table">
             <thead>
               <tr>
                 <th style={{ width: '35%' }}>Key</th>
                 <th>Value</th>
-                <th style={{ width: 60 }}>{t('admin.common.actions')}</th>
+                <th style={{ width: 60 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -118,7 +148,7 @@ export default function TranslationsPage() {
                           if (e.key === 'Escape') setEditingId(null)
                         }}
                         onBlur={() => handleSave(item)}
-                        className="admin-input"
+                        className="logs-search"
                         style={{ width: '100%' }}
                         autoFocus
                       />
@@ -126,15 +156,15 @@ export default function TranslationsPage() {
                       <span
                         onClick={() => { setEditingId(item.id); setEditValue(item.value) }}
                         style={{ cursor: 'pointer' }}
-                        title="Click to edit"
+                        title={t('admin.translations.clickToEdit', { defaultValue: 'Click to edit' })}
                       >
-                        {item.value || <em style={{ opacity: 0.4 }}>empty</em>}
+                        {item.value || <em style={{ opacity: 0.4 }}>—</em>}
                       </span>
                     )}
                   </td>
                   <td>
                     {editingId === item.id && (
-                      <button onClick={() => handleSave(item)} className="admin-btn-icon" title={t('admin.common.save')}>
+                      <button onClick={() => handleSave(item)} className="logs-icon-btn" title={t('admin.common.save')}>
                         <Save size={14} />
                       </button>
                     )}
@@ -144,13 +174,14 @@ export default function TranslationsPage() {
             </tbody>
           </table>
 
+          {/* Pagination — logs style */}
           {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16, alignItems: 'center' }}>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="admin-btn-icon">
+            <div className="logs-toolbar__row" style={{ justifyContent: 'center', marginTop: 12, gap: 8 }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="logs-icon-btn">
                 <ChevronLeft size={16} />
               </button>
-              <span style={{ fontSize: 13 }}>{t('admin.common.page', { page, total: totalPages })}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="admin-btn-icon">
+              <span className="logs-count">{page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="logs-icon-btn">
                 <ChevronRight size={16} />
               </button>
             </div>

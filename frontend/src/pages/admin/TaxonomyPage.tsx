@@ -162,29 +162,32 @@ export function TaxonomyPage() {
   const labelOrDash = (v: string | undefined) => (v?.trim() ? v : t('admin.taxonomy.noLabel'))
 
   return (
-    <div className="admin-page">
+    <div className="logs-page">
       <div className="admin-page-header">
         <h1>
           <Tags size={20} /> {t('admin.nav.taxonomy')}
         </h1>
       </div>
 
-      <div className="stats-toolbar" style={{ marginBottom: 16 }}>
-        <div className="stats-tabs">
-          <button
-            type="button"
-            className={`stats-tab${tab === 'categories' ? ' stats-tab--active' : ''}`}
-            onClick={() => setTab('categories')}
-          >
-            {t('admin.taxonomy.tabCategories', { count: categories.length })}
-          </button>
-          <button
-            type="button"
-            className={`stats-tab${tab === 'tags' ? ' stats-tab--active' : ''}`}
-            onClick={() => setTab('tags')}
-          >
-            {t('admin.taxonomy.tabTags', { count: tags.length })}
-          </button>
+      {/* Tabs — logs toolbar style */}
+      <div className="logs-toolbar">
+        <div className="logs-toolbar__row">
+          <div className="logs-chips" role="group">
+            <button
+              type="button"
+              className={`logs-chip${tab === 'categories' ? ' logs-chip--active' : ''}`}
+              onClick={() => setTab('categories')}
+            >
+              {t('admin.taxonomy.tabCategories', { count: categories.length })}
+            </button>
+            <button
+              type="button"
+              className={`logs-chip${tab === 'tags' ? ' logs-chip--active' : ''}`}
+              onClick={() => setTab('tags')}
+            >
+              {t('admin.taxonomy.tabTags', { count: tags.length })}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -192,47 +195,43 @@ export function TaxonomyPage() {
 
       {tab === 'categories' && (
         <>
-          <div className="admin-card" style={{ marginBottom: 16 }}>
-            <div className="admin-form-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: '1 1 140px', minWidth: 120 }}>
-                <label>{t('admin.taxonomy.slug')}</label>
-                <input
-                  value={newCatSlug}
-                  onChange={e => setNewCatSlug(e.target.value)}
-                  placeholder={t('admin.taxonomy.placeholderSlug')}
-                />
-              </div>
-              <div style={{ flex: '1 1 100px', minWidth: 80 }}>
-                <label>{t('admin.taxonomy.icon')}</label>
-                <input
-                  value={newCatIcon}
-                  onChange={e => setNewCatIcon(e.target.value)}
-                  placeholder={t('admin.taxonomy.placeholderIcon')}
-                />
-              </div>
-              <div style={{ flex: '1 1 140px', minWidth: 120 }}>
-                <label>{t('admin.taxonomy.labelEn')}</label>
-                <input
-                  value={newCatLabelEn}
-                  onChange={e => setNewCatLabelEn(e.target.value)}
-                  placeholder={t('admin.taxonomy.placeholderLabelEn')}
-                />
-              </div>
-              <div style={{ flex: '1 1 140px', minWidth: 120 }}>
-                <label>{t('admin.taxonomy.labelRu')}</label>
-                <input
-                  value={newCatLabelRu}
-                  onChange={e => setNewCatLabelRu(e.target.value)}
-                  placeholder={t('admin.taxonomy.placeholderLabelRu')}
-                />
-              </div>
+          <div className="logs-toolbar" style={{ marginTop: 8 }}>
+            <div className="logs-toolbar__row">
+              <input
+                value={newCatSlug}
+                onChange={e => setNewCatSlug(e.target.value)}
+                placeholder={t('admin.taxonomy.placeholderSlug')}
+                className="logs-search"
+                style={{ width: 140, minWidth: 100 }}
+              />
+              <input
+                value={newCatIcon}
+                onChange={e => setNewCatIcon(e.target.value)}
+                placeholder={t('admin.taxonomy.placeholderIcon')}
+                className="logs-search"
+                style={{ width: 100, minWidth: 70 }}
+              />
+              <input
+                value={newCatLabelEn}
+                onChange={e => setNewCatLabelEn(e.target.value)}
+                placeholder={t('admin.taxonomy.placeholderLabelEn')}
+                className="logs-search"
+                style={{ width: 140, minWidth: 100 }}
+              />
+              <input
+                value={newCatLabelRu}
+                onChange={e => setNewCatLabelRu(e.target.value)}
+                placeholder={t('admin.taxonomy.placeholderLabelRu')}
+                className="logs-search"
+                style={{ width: 140, minWidth: 100 }}
+              />
               <button
                 type="button"
-                className="admin-btn admin-btn--primary"
+                className="logs-live-btn logs-live-btn--active"
                 disabled={!newCatSlug.trim()}
                 onClick={() => void handleCreateCategory()}
               >
-                <Plus size={14} /> {t('admin.common.create')}
+                <Plus size={13} /> {t('admin.common.create')}
               </button>
             </div>
           </div>
@@ -295,13 +294,13 @@ export function TaxonomyPage() {
                             <div className="admin-actions">
                               <button
                                 type="button"
-                                className="admin-btn admin-btn--sm admin-btn--primary"
+                                className="logs-live-btn logs-live-btn--active"
                                 disabled={savingEdit}
                                 onClick={() => void handleSaveCategory(cat.id)}
                               >
                                 {t('admin.common.save')}
                               </button>
-                              <button type="button" className="admin-btn admin-btn--sm" onClick={cancelEditCategory}>
+                              <button type="button" className="logs-icon-btn" onClick={cancelEditCategory}>
                                 {t('admin.common.cancel')}
                               </button>
                             </div>
@@ -321,7 +320,7 @@ export function TaxonomyPage() {
                             <div className="admin-actions">
                               <button
                                 type="button"
-                                className="admin-btn admin-btn--sm"
+                                className="logs-icon-btn"
                                 disabled={cat.is_system}
                                 title={cat.is_system ? t('admin.taxonomy.systemCategory') : t('admin.taxonomy.edit')}
                                 onClick={() => !cat.is_system && startEditCategory(cat)}
@@ -330,7 +329,7 @@ export function TaxonomyPage() {
                               </button>
                               <button
                                 type="button"
-                                className="admin-btn admin-btn--sm admin-btn--danger"
+                                className="logs-icon-btn"
                                 disabled={cat.is_system}
                                 title={cat.is_system ? t('admin.taxonomy.systemCategory') : t('admin.common.delete')}
                                 onClick={() => void handleDeleteCategory(cat.id, cat.is_system)}
@@ -352,39 +351,36 @@ export function TaxonomyPage() {
 
       {tab === 'tags' && (
         <>
-          <div className="admin-card" style={{ marginBottom: 16 }}>
-            <div className="admin-form-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: '1 1 140px', minWidth: 120 }}>
-                <label>{t('admin.taxonomy.slug')}</label>
-                <input
-                  value={newTagSlug}
-                  onChange={e => setNewTagSlug(e.target.value)}
-                  placeholder={t('admin.taxonomy.placeholderSlug')}
-                />
-              </div>
-              <div style={{ flex: '1 1 140px', minWidth: 120 }}>
-                <label>{t('admin.taxonomy.labelEn')}</label>
-                <input
-                  value={newTagLabelEn}
-                  onChange={e => setNewTagLabelEn(e.target.value)}
-                  placeholder={t('admin.taxonomy.placeholderLabelEn')}
-                />
-              </div>
-              <div style={{ flex: '1 1 140px', minWidth: 120 }}>
-                <label>{t('admin.taxonomy.labelRu')}</label>
-                <input
-                  value={newTagLabelRu}
-                  onChange={e => setNewTagLabelRu(e.target.value)}
-                  placeholder={t('admin.taxonomy.placeholderLabelRu')}
-                />
-              </div>
+          <div className="logs-toolbar" style={{ marginTop: 8 }}>
+            <div className="logs-toolbar__row">
+              <input
+                value={newTagSlug}
+                onChange={e => setNewTagSlug(e.target.value)}
+                placeholder={t('admin.taxonomy.placeholderSlug')}
+                className="logs-search"
+                style={{ width: 140, minWidth: 100 }}
+              />
+              <input
+                value={newTagLabelEn}
+                onChange={e => setNewTagLabelEn(e.target.value)}
+                placeholder={t('admin.taxonomy.placeholderLabelEn')}
+                className="logs-search"
+                style={{ width: 140, minWidth: 100 }}
+              />
+              <input
+                value={newTagLabelRu}
+                onChange={e => setNewTagLabelRu(e.target.value)}
+                placeholder={t('admin.taxonomy.placeholderLabelRu')}
+                className="logs-search"
+                style={{ width: 140, minWidth: 100 }}
+              />
               <button
                 type="button"
-                className="admin-btn admin-btn--primary"
+                className="logs-live-btn logs-live-btn--active"
                 disabled={!newTagSlug.trim()}
                 onClick={() => void handleCreateTag()}
               >
-                <Plus size={14} /> {t('admin.common.create')}
+                <Plus size={13} /> {t('admin.common.create')}
               </button>
             </div>
           </div>
@@ -416,7 +412,7 @@ export function TaxonomyPage() {
                         <td>
                           <button
                             type="button"
-                            className="admin-btn admin-btn--sm admin-btn--danger"
+                            className="logs-icon-btn"
                             disabled={tag.is_system}
                             title={tag.is_system ? t('admin.taxonomy.systemTag') : t('admin.common.delete')}
                             onClick={() => void handleDeleteTag(tag.id, tag.is_system)}
