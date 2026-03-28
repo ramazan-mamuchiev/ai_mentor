@@ -175,7 +175,6 @@ async def list_product_categories():
             select(
                 ProductCategory.id,
                 ProductCategory.slug,
-                ProductCategory.icon,
                 ProductCategory.sort_order,
                 func.count(Product.id).label("count"),
             )
@@ -184,7 +183,7 @@ async def list_product_categories():
             .order_by(ProductCategory.sort_order)
         )
         return [
-            {"id": r.id, "slug": r.slug, "icon": r.icon, "count": r.count}
+            {"id": r.id, "slug": r.slug, "count": r.count}
             for r in result
         ]
 

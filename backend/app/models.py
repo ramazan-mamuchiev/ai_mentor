@@ -195,7 +195,6 @@ class ProductCategory(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    icon: Mapped[str] = mapped_column(String(50), default="")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(

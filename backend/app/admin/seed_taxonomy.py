@@ -15,13 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 CATEGORIES: list[dict] = [
-    {"slug": "video_surveillance", "icon": "video", "sort_order": 0},
-    {"slug": "access_control", "icon": "shield-check", "sort_order": 1},
-    {"slug": "intercom", "icon": "phone", "sort_order": 2},
-    {"slug": "alarm_intrusion", "icon": "bell-ring", "sort_order": 3},
-    {"slug": "building_automation", "icon": "building-2", "sort_order": 4},
-    {"slug": "software", "icon": "monitor", "sort_order": 5},
-    {"slug": "protocols", "icon": "network", "sort_order": 6},
+    {"slug": "video_surveillance", "sort_order": 0},
+    {"slug": "access_control", "sort_order": 1},
+    {"slug": "intercom", "sort_order": 2},
+    {"slug": "alarm_intrusion", "sort_order": 3},
+    {"slug": "building_automation", "sort_order": 4},
+    {"slug": "software", "sort_order": 5},
+    {"slug": "protocols", "sort_order": 6},
 ]
 
 CATEGORY_LABELS: dict[str, dict[str, str]] = {
@@ -158,10 +158,10 @@ async def _seed_categories(session: AsyncSession) -> None:
     for cat in CATEGORIES:
         await session.execute(
             text(
-                "INSERT INTO product_categories (slug, icon, sort_order, is_system) "
-                "VALUES (:slug, :icon, :sort_order, TRUE) "
+                "INSERT INTO product_categories (slug, sort_order, is_system) "
+                "VALUES (:slug, :sort_order, TRUE) "
                 "ON CONFLICT (slug) DO UPDATE SET "
-                "icon = EXCLUDED.icon, sort_order = EXCLUDED.sort_order"
+                "sort_order = EXCLUDED.sort_order"
             ),
             cat,
         )

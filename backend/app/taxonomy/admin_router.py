@@ -25,12 +25,10 @@ router = APIRouter(prefix="/admin/taxonomy", tags=["admin-taxonomy"])
 
 class CategoryCreate(BaseModel):
     slug: str
-    icon: str = ""
     sort_order: int = 0
     labels: dict[str, str] = {}
 
 class CategoryPatch(BaseModel):
-    icon: str | None = None
     sort_order: int | None = None
     labels: dict[str, str] | None = None
 
@@ -97,7 +95,6 @@ async def list_categories(
         output.append({
             "id": cat.id,
             "slug": cat.slug,
-            "icon": cat.icon,
             "sort_order": cat.sort_order,
             "is_system": cat.is_system,
             "product_count": count,
@@ -123,7 +120,6 @@ async def create_category(
 
     cat = ProductCategory(
         slug=body.slug,
-        icon=body.icon,
         sort_order=body.sort_order,
         is_system=False,
         modified_by=current_user.id,
@@ -150,8 +146,6 @@ async def patch_category(
     if not cat:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Category not found")
 
-    if body.icon is not None:
-        cat.icon = body.icon
     if body.sort_order is not None:
         cat.sort_order = body.sort_order
 

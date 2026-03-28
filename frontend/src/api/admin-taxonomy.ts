@@ -3,7 +3,6 @@ import { apiFetch } from './client'
 export interface CategoryItem {
   id: number
   slug: string
-  icon: string
   sort_order: number
   is_system: boolean
   product_count: number
@@ -38,11 +37,11 @@ export async function adminListCategories(modifiedBy?: string): Promise<Category
   return apiFetch<CategoryItem[]>(`/admin/taxonomy/categories${qs ? '?' + qs : ''}`)
 }
 
-export async function adminCreateCategory(data: { slug: string; icon?: string; sort_order?: number; labels?: Record<string, string> }): Promise<{ id: number; slug: string }> {
+export async function adminCreateCategory(data: { slug: string; sort_order?: number; labels?: Record<string, string> }): Promise<{ id: number; slug: string }> {
   return apiFetch('/admin/taxonomy/categories', { method: 'POST', body: JSON.stringify(data) })
 }
 
-export async function adminPatchCategory(id: number, data: { icon?: string; sort_order?: number; labels?: Record<string, string> }): Promise<void> {
+export async function adminPatchCategory(id: number, data: { sort_order?: number; labels?: Record<string, string> }): Promise<void> {
   return apiFetch(`/admin/taxonomy/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 }
 

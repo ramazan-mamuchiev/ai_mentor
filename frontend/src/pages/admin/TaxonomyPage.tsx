@@ -20,7 +20,7 @@ import type { TenantSearchResult } from '../../api/admin'
 
 const CAT_STORAGE_KEY = 'lexiro-admin-taxonomy-categories'
 const TAG_STORAGE_KEY = 'lexiro-admin-taxonomy-tags'
-const CAT_DEFAULT_ORDER = ['slug', 'icon', 'sortOrder', 'labelEn', 'labelRu', 'products', 'modifiedBy', 'modifiedAt', 'actions']
+const CAT_DEFAULT_ORDER = ['slug', 'sortOrder', 'labelEn', 'labelRu', 'products', 'modifiedBy', 'modifiedAt', 'actions']
 const TAG_DEFAULT_ORDER = ['slug', 'labelEn', 'labelRu', 'products', 'modifiedBy', 'modifiedAt', 'actions']
 
 export function TaxonomyPage() {
@@ -45,7 +45,6 @@ export function TaxonomyPage() {
   const [error, setError] = useState('')
 
   const [newCatSlug, setNewCatSlug] = useState('')
-  const [newCatIcon, setNewCatIcon] = useState('')
   const [newCatLabelEn, setNewCatLabelEn] = useState('')
   const [newCatLabelRu, setNewCatLabelRu] = useState('')
 
@@ -56,7 +55,6 @@ export function TaxonomyPage() {
   const [tenantFilter, setTenantFilter] = useState<TenantSearchResult | null>(null)
 
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
-  const [editIcon, setEditIcon] = useState('')
   const [editSortOrder, setEditSortOrder] = useState(0)
   const [editLabelEn, setEditLabelEn] = useState('')
   const [editLabelRu, setEditLabelRu] = useState('')
@@ -84,7 +82,6 @@ export function TaxonomyPage() {
 
   const startEditCategory = (cat: CategoryItem) => {
     setEditingCategoryId(cat.id)
-    setEditIcon(cat.icon ?? '')
     setEditSortOrder(cat.sort_order)
     setEditLabelEn(cat.labels?.en ?? '')
     setEditLabelRu(cat.labels?.ru ?? '')
@@ -98,7 +95,6 @@ export function TaxonomyPage() {
     setSavingEdit(true)
     try {
       await adminPatchCategory(id, {
-        icon: editIcon.trim(),
         sort_order: editSortOrder,
         labels: { en: editLabelEn.trim(), ru: editLabelRu.trim() },
       })
@@ -118,14 +114,12 @@ export function TaxonomyPage() {
     try {
       await adminCreateCategory({
         slug: newCatSlug.trim(),
-        icon: newCatIcon.trim(),
         labels: {
           en: newCatLabelEn.trim() || newCatSlug.trim(),
           ru: newCatLabelRu.trim() || newCatSlug.trim(),
         },
       })
       setNewCatSlug('')
-      setNewCatIcon('')
       setNewCatLabelEn('')
       setNewCatLabelRu('')
       await loadData()
@@ -195,25 +189,6 @@ export function TaxonomyPage() {
       cell: ({ row }) => {
         const cat = row.original
         return <code>{cat.slug}</code>
-      },
-      enableGrouping: false,
-    },
-    {
-      id: 'icon',
-      accessorKey: 'icon',
-      header: () => t('admin.taxonomy.icon'),
-      cell: ({ row }) => {
-        const cat = row.original
-        if (editingCategoryId === cat.id) {
-          return (
-            <input
-              style={{ width: '100%', maxWidth: 120, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-              value={editIcon}
-              onChange={e => setEditIcon(e.target.value)}
-            />
-          )
-        }
-        return cat.icon?.trim() ? cat.icon : t('admin.taxonomy.noLabel')
       },
       enableGrouping: false,
     },
@@ -340,7 +315,7 @@ export function TaxonomyPage() {
         )
       },
     },
-  ], [t, editingCategoryId, editIcon, editSortOrder, editLabelEn, editLabelRu, savingEdit, relativeTime])
+  ], [t, editingCategoryId, editSortOrder, editLabelEn, editLabelRu, savingEdit, relativeTime])
 
   /* ---- Tag columns ---- */
   const tagColumns = useMemo<ColumnDef<TagItem, unknown>[]>(() => [
@@ -470,13 +445,6 @@ export function TaxonomyPage() {
                 placeholder={t('admin.taxonomy.placeholderSlug')}
                 className="logs-search"
                 style={{ width: 140, minWidth: 100 }}
-              />
-              <input
-                value={newCatIcon}
-                onChange={e => setNewCatIcon(e.target.value)}
-                placeholder={t('admin.taxonomy.placeholderIcon')}
-                className="logs-search"
-                style={{ width: 100, minWidth: 70 }}
               />
               <input
                 value={newCatLabelEn}

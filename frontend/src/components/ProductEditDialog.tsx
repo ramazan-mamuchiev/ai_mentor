@@ -1,20 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Search, X,
-  Video, ShieldCheck, Phone, BellRing, Building2, Monitor, Network,
-  type LucideIcon,
-} from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  video: Video,
-  'shield-check': ShieldCheck,
-  phone: Phone,
-  'bell-ring': BellRing,
-  'building-2': Building2,
-  monitor: Monitor,
-  network: Network,
-}
 import {
   listProductCategories,
   listProductTags,
@@ -181,10 +167,6 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
                   onClick={() => setCategoryId(c.id)}
                   disabled={taxonomyLoading}
                 >
-                  {c.icon && CATEGORY_ICONS[c.icon] && (() => {
-                    const Icon = CATEGORY_ICONS[c.icon]
-                    return <Icon size={14} className="product-edit-cat-icon" />
-                  })()}
                   {t(`category.${c.slug}`, { ns: 'taxonomy', defaultValue: c.slug })}
                 </button>
               ))}

@@ -57,7 +57,6 @@ export interface ProductSuggestion {
 export interface ProductCategoryPublic {
   id: number
   slug: string
-  icon: string
   count: number
 }
 
