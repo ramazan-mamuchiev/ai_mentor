@@ -1,6 +1,7 @@
 """URL -> Markdown converter.
 
 Auto-detects content type:
+- Postman Documenter published page -> fetches collection JSON via API
 - Direct Swagger/OpenAPI spec (JSON/YAML) -> structured Markdown
 - Swagger UI / ReDoc page -> extracts spec URL, then parses
 - Generic web page -> headless browser via httpx + optional Crawl4AI
@@ -19,6 +20,7 @@ from urllib.parse import urlparse
 
 import yaml
 
+from app.ingestion.converters.postman import _postman_to_markdown
 from app.ingestion.converters.swagger import _openapi_to_markdown, _parse_openapi_text
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,10 @@ _COMMON_SPEC_PATHS = [
     "/swagger/v1/swagger.json", "/swagger.yaml",
 ]
 
+_POSTMAN_DOCUMENTER_RE = re.compile(
+    r"^https?://documenter\.getpostman\.com/view/(\d+)/(\w+)"
+)
+
 
 def _make_ssl_context() -> ssl.SSLContext:
     ctx = ssl.create_default_context()
@@ -65,6 +71,24 @@ def _fetch_url(url: str, accept: str = "*/*") -> tuple[bytes, str, str]:
         final_url = resp.url
         body = resp.read(_MAX_RESPONSE_BYTES)
     return body, ct, final_url
+
+
+def _detect_postman_documenter(url: str) -> tuple[str, str] | None:
+    """Return (user_id, published_id) if *url* is a Postman Documenter link."""
+    m = _POSTMAN_DOCUMENTER_RE.match(url)
+    if m:
+        return m.group(1), m.group(2)
+    return None
+
+
+def _fetch_postman_collection(user_id: str, published_id: str) -> dict:
+    """Fetch full Postman Collection JSON from the documenter API."""
+    api_url = (
+        f"https://documenter.getpostman.com/api/collections/"
+        f"{user_id}/{published_id}"
+    )
+    body, _, _ = _fetch_url(api_url, accept="application/json")
+    return json.loads(body.decode("utf-8"))
 
 
 def _try_parse_as_openapi(raw: bytes, content_type: str) -> dict | None:
@@ -159,6 +183,57 @@ async def convert_url(url: str) -> tuple[str, dict]:
 
     logger.info("URL conversion started", extra={"url": url})
 
+    # --- Postman Documenter shortcut (SPA that cannot be fetched normally) ---
+    postman_match = _detect_postman_documenter(url)
+    if postman_match:
+        user_id, published_id = postman_match
+        logger.info("Detected Postman Documenter URL", extra={
+            "url": url, "user_id": user_id, "published_id": published_id,
+        })
+        collection = await asyncio.to_thread(
+            _fetch_postman_collection, user_id, published_id,
+        )
+        md_text = _postman_to_markdown(collection)
+        total_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        if not md_text or not md_text.strip():
+            raise ValueError(f"Conversion of {url} produced empty content")
+
+        info = collection.get("info", {})
+
+        def _count(items: list, key: str) -> int:
+            n = 0
+            for item in items:
+                if isinstance(item, dict):
+                    sub = item.get("item")
+                    if isinstance(sub, list):
+                        n += (1 if key == "folders" else 0) + _count(sub, key)
+                    elif key == "requests" and "request" in item:
+                        n += 1
+            return n
+
+        items = collection.get("item", [])
+        metadata: dict = {
+            "url": url,
+            "detection_method": "postman_documenter",
+            "page_title": info.get("name", ""),
+            "total_ms": total_ms,
+            "fetch_ms": total_ms,
+            "md_length": len(md_text),
+            "collection_name": info.get("name", ""),
+            "postman_id": info.get("_postman_id", ""),
+            "requests": _count(items, "requests"),
+            "folders": _count(items, "folders"),
+        }
+
+        logger.info("URL conversion completed (Postman Documenter)", extra={
+            "url": url, "detection": "postman_documenter",
+            "total_ms": total_ms, "md_length": len(md_text),
+            "requests": metadata["requests"], "folders": metadata["folders"],
+        })
+        return md_text, metadata
+
+    # --- Standard URL processing ---
     detection_method = "unknown"
     spec: dict | None = None
     md_text: str = ""
