@@ -366,8 +366,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       accessorFn: row => row.category_slug || row.category || '',
       header: () => t('products.table.category'),
       cell: ({ row }) => {
-        const label = row.original.category_label || row.original.category_slug || row.original.category
-        return label ? <span className="docs-format-badge">{label}</span> : <span className="docs-date">—</span>
+        const slug = row.original.category_slug || row.original.category
+        if (!slug) return <span className="docs-date">—</span>
+        const label = t(`category.${slug}`, { ns: 'taxonomy', defaultValue: slug })
+        return <span className="docs-format-badge">{label}</span>
       },
       enableGrouping: true,
     },
@@ -489,10 +491,18 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   })
 
   const categoryFacets: FacetValue[] = useMemo(() =>
-    categories.map(c => ({ value: c.slug, label: c.slug, count: c.count })), [categories])
+    categories.map(c => ({
+      value: c.slug,
+      label: t(`category.${c.slug}`, { ns: 'taxonomy', defaultValue: c.slug }),
+      count: c.count,
+    })), [categories, t])
 
   const tagFacets: FacetValue[] = useMemo(() =>
-    allTags.map(t => ({ value: t.slug, label: t.slug, count: t.count })), [allTags])
+    allTags.map(tg => ({
+      value: tg.slug,
+      label: t(`tag.${tg.slug}`, { ns: 'taxonomy', defaultValue: tg.slug }),
+      count: tg.count,
+    })), [allTags, t])
 
   const manufacturerFacets: FacetValue[] = useMemo(() => {
     const map = new Map<string, number>()
@@ -504,10 +514,14 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
 
   const activeFilterChips = useMemo(() => {
     const chips: Array<{ facet: string; value: string; label: string }> = []
-    for (const v of selectedCategories) chips.push({ facet: 'category', value: v, label: v })
-    for (const v of selectedTags) chips.push({ facet: 'tag', value: v, label: v })
+    for (const v of selectedCategories) {
+      chips.push({ facet: 'category', value: v, label: t(`category.${v}`, { ns: 'taxonomy', defaultValue: v }) })
+    }
+    for (const v of selectedTags) {
+      chips.push({ facet: 'tag', value: v, label: t(`tag.${v}`, { ns: 'taxonomy', defaultValue: v }) })
+    }
     return chips
-  }, [selectedCategories, selectedTags])
+  }, [selectedCategories, selectedTags, t])
 
   const handleRemoveFilter = useCallback((facet: string, value: string) => {
     if (facet === 'category') setSelectedCategories(prev => prev.filter(v => v !== value))

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   listProductCategories,
@@ -23,20 +23,22 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   const [model, setModel] = useState(product.model)
   const [categoryId, setCategoryId] = useState<number | null>(product.category_id ?? null)
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>(
-    () => product.tags?.map(t => t.id) ?? [],
+    () => product.tags?.map(tg => tg.id) ?? [],
   )
   const [categories, setCategories] = useState<ProductCategoryPublic[]>([])
   const [tags, setTags] = useState<ProductTagPublic[]>([])
   const [taxonomyLoading, setTaxonomyLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [tagSearch, setTagSearch] = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
+  const tagSearchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setName(product.name)
     setManufacturer(product.manufacturer)
     setModel(product.model)
     setCategoryId(product.category_id ?? null)
-    setSelectedTagIds(product.tags?.map(t => t.id) ?? [])
+    setSelectedTagIds(product.tags?.map(tg => tg.id) ?? [])
   }, [product.id])
 
   useEffect(() => {
@@ -78,6 +80,17 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
     )
   }
 
+  const filteredTags = useMemo(() => {
+    if (!tagSearch.trim()) return tags
+    const q = tagSearch.toLowerCase()
+    return tags.filter(tg => {
+      const label = t(`tag.${tg.slug}`, { ns: 'taxonomy', defaultValue: tg.slug })
+      return label.toLowerCase().includes(q) || tg.slug.toLowerCase().includes(q)
+    })
+  }, [tags, tagSearch, t])
+
+  const selectedCount = selectedTagIds.length
+
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -96,7 +109,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   return (
     <div className="confirm-overlay" onClick={onCancel}>
       <div className="confirm-dialog product-edit-dialog" onClick={e => e.stopPropagation()}>
-        <button className="confirm-close" onClick={onCancel} aria-label="Close">
+        <button className="confirm-close" onClick={onCancel} aria-label={t('products.edit.close')}>
           <X size={16} />
         </button>
 
@@ -113,60 +126,110 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
               className="product-edit-input"
             />
           </label>
-          <label className="product-edit-label">
-            <span>{t('products.edit.manufacturer')}</span>
-            <input
-              type="text"
-              value={manufacturer}
-              onChange={e => setManufacturer(e.target.value)}
-              className="product-edit-input"
-            />
-          </label>
-          <label className="product-edit-label">
-            <span>{t('products.edit.model')}</span>
-            <input
-              type="text"
-              value={model}
-              onChange={e => setModel(e.target.value)}
-              className="product-edit-input"
-            />
-          </label>
+
+          <div className="product-edit-row">
+            <label className="product-edit-label">
+              <span>{t('products.edit.manufacturer')}</span>
+              <input
+                type="text"
+                value={manufacturer}
+                onChange={e => setManufacturer(e.target.value)}
+                className="product-edit-input"
+              />
+            </label>
+            <label className="product-edit-label">
+              <span>{t('products.edit.model')}</span>
+              <input
+                type="text"
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                className="product-edit-input"
+              />
+            </label>
+          </div>
+
           <label className="product-edit-label">
             <span>{t('products.edit.category')}</span>
-            <select
-              value={categoryId === null ? '' : String(categoryId)}
-              onChange={e => {
-                const v = e.target.value
-                setCategoryId(v === '' ? null : Number(v))
-              }}
-              className="product-edit-input"
-              disabled={taxonomyLoading}
-            >
-              <option value="">—</option>
+            <div className="product-edit-categories">
+              <button
+                type="button"
+                className={`product-edit-cat-chip${categoryId === null ? ' product-edit-cat-chip--active' : ''}`}
+                onClick={() => setCategoryId(null)}
+                disabled={taxonomyLoading}
+              >
+                {t('products.edit.categoryNone')}
+              </button>
               {categories.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.slug}
-                </option>
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`product-edit-cat-chip${categoryId === c.id ? ' product-edit-cat-chip--active' : ''}`}
+                  onClick={() => setCategoryId(c.id)}
+                  disabled={taxonomyLoading}
+                >
+                  {c.icon && <span className="product-edit-cat-icon">{c.icon}</span>}
+                  {t(`category.${c.slug}`, { ns: 'taxonomy', defaultValue: c.slug })}
+                </button>
               ))}
-            </select>
+            </div>
           </label>
+
           <div className="product-edit-label product-edit-tags-block">
-            <span>{t('products.edit.tags')}</span>
+            <span>
+              {t('products.edit.tags')}
+              {selectedCount > 0 && (
+                <span className="product-edit-tags-count">{selectedCount}</span>
+              )}
+            </span>
             {taxonomyLoading ? (
-              <span className="product-edit-tags-hint">…</span>
-            ) : (
-              <div className="product-edit-tags">
-                {tags.map(tag => (
-                  <label key={tag.id} className="product-edit-tag">
-                    <input
-                      type="checkbox"
-                      checked={selectedTagIds.includes(tag.id)}
-                      onChange={() => toggleTag(tag.id)}
-                    />
-                    <span>{tag.slug}</span>
-                  </label>
-                ))}
+              <div className="product-edit-tags-skeleton">
+                {[...Array(6)].map((_, i) => <div key={i} className="product-edit-tag-skeleton" />)}
               </div>
+            ) : (
+              <>
+                <div className="product-edit-tag-search">
+                  <Search size={14} />
+                  <input
+                    ref={tagSearchRef}
+                    type="text"
+                    value={tagSearch}
+                    onChange={e => setTagSearch(e.target.value)}
+                    placeholder={t('products.edit.tagsSearch')}
+                    className="product-edit-tag-search-input"
+                  />
+                  {tagSearch && (
+                    <button
+                      className="product-edit-tag-search-clear"
+                      onClick={() => { setTagSearch(''); tagSearchRef.current?.focus() }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                <div className="product-edit-tags">
+                  {filteredTags.length === 0 ? (
+                    <span className="product-edit-tags-hint">{t('products.edit.tagsEmpty')}</span>
+                  ) : (
+                    filteredTags.map(tg => (
+                      <label key={tg.id} className="product-edit-tag">
+                        <input
+                          type="checkbox"
+                          checked={selectedTagIds.includes(tg.id)}
+                          onChange={() => toggleTag(tg.id)}
+                        />
+                        <span className="product-edit-tag-check">
+                          {selectedTagIds.includes(tg.id) && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                              <path d="M1 3.5L3.5 6L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </span>
+                        <span>{t(`tag.${tg.slug}`, { ns: 'taxonomy', defaultValue: tg.slug })}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -180,7 +243,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
             onClick={handleSave}
             disabled={saving || !name.trim()}
           >
-            {saving ? '...' : t('products.edit.save')}
+            {saving ? t('products.edit.saving') : t('products.edit.save')}
           </button>
         </div>
       </div>
