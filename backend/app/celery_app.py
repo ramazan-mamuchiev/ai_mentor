@@ -1223,7 +1223,7 @@ def reingest_confluence_page_task(self, document_id: int):
     from datetime import datetime, timezone
     from app.models import Document, Chunk
     from app.ingestion.converters.confluence import (
-        parse_confluence_url, _get_page_content, _html_to_markdown,
+        parse_confluence_url, get_page_with_children_toc,
     )
     from app.s3 import upload_file
 
@@ -1268,7 +1268,7 @@ def reingest_confluence_page_task(self, document_id: int):
         return {"status": "error", "error": str(exc)}
 
     try:
-        title, html_body = _get_page_content(base_url, page_id)
+        title, markdown = get_page_with_children_toc(base_url, _space_key, page_id)
     except SoftTimeLimitExceeded:
         with Session(engine) as session:
             doc = session.get(Document, document_id)
@@ -1292,8 +1292,6 @@ def reingest_confluence_page_task(self, document_id: int):
                      extra={"url": url, "document_id": document_id},
                      exc_info=True)
         raise self.retry(exc=exc)
-
-    markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
     md_bytes = markdown.encode("utf-8")
     source_hash = hashlib.sha256(md_bytes).hexdigest()
 

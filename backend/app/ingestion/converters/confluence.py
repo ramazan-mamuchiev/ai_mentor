@@ -318,6 +318,63 @@ def _html_to_markdown(html: str, page_title: str, base_url: str = "", page_id: s
     return result
 
 
+_MD_CONTENT_MIN_CHARS = 80
+
+
+def _build_children_toc_markdown(
+    title: str,
+    children: list[dict],
+    base_url: str,
+    space_key: str,
+) -> str:
+    """Build a Table-of-Contents Markdown page from a list of child pages.
+
+    Used when the page body is essentially empty (macro-only TOC pages).
+    The generated markdown lists child page titles as links so the page
+    still produces at least one chunk for search.
+    """
+    if not children:
+        return ""
+    lines = [f"# {title}", ""]
+    for child in children:
+        child_title = child.get("title", "")
+        child_id = child.get("id", "")
+        if child_title and child_id:
+            child_url = f"{base_url}/spaces/{space_key}/pages/{child_id}/{quote(child_title, safe='')}"
+            lines.append(f"- [{child_title}]({child_url})")
+    if len(lines) <= 2:
+        return ""
+    return "\n".join(lines) + "\n"
+
+
+def get_page_with_children_toc(
+    base_url: str,
+    space_key: str,
+    page_id: str,
+    client: httpx.Client | None = None,
+) -> tuple[str, str]:
+    """Fetch page content; fall back to a children-based TOC if body is empty.
+
+    Returns (title, markdown). Useful for standalone reingest of pages that
+    are TOC-only (children macro, no real text content).
+    """
+    title, html_body = _get_page_content(base_url, page_id, client)
+    markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
+
+    if len(markdown) < _MD_CONTENT_MIN_CHARS:
+        children = _get_child_pages(base_url, page_id, client)
+        if children:
+            toc_md = _build_children_toc_markdown(title, children, base_url, space_key)
+            if toc_md:
+                logger.info("Using children TOC for empty page", extra={
+                    "page_id": page_id, "title": title,
+                    "children_count": len(children),
+                })
+                markdown = toc_md
+
+    return title, markdown
+
+
 def _fetch_image_bytes(url: str) -> bytes | None:
     """Download image bytes from a URL. Returns None on failure."""
     try:
@@ -547,6 +604,17 @@ async def crawl_confluence(
                 error_msg = f"Failed to fetch children of page {page_id}: {type(exc).__name__}: {exc}"
                 logger.warning(error_msg)
                 result.errors.append(error_msg)
+
+            if len(markdown) < _MD_CONTENT_MIN_CHARS and children:
+                toc_md = _build_children_toc_markdown(
+                    title, children, base_url, space_key,
+                )
+                if toc_md:
+                    logger.info("Using children TOC for empty page", extra={
+                        "page_id": page_id, "title": title,
+                        "children_count": len(children),
+                    })
+                    markdown = toc_md
 
             linked_ids = _extract_linked_page_ids(html_body, space_key)
 
