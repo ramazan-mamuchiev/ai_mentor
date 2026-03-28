@@ -21,6 +21,11 @@ export function ChatApp() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
+  const [pendingProduct, setPendingProduct] = useState<{
+    productId: number | null
+    productName: string | null
+    versionFilter: string | null
+  } | null>(null)
 
   const handleProductDetected = useCallback((sessionId: string, update: {
     product_filter?: string | null
@@ -63,6 +68,7 @@ export function ChatApp() {
 
   const handleNewSession = useCallback(async () => {
     reset()
+    setPendingProduct(null)
     try {
       const session = await createSession()
       setSessions(prev => [session, ...prev])
@@ -74,6 +80,7 @@ export function ChatApp() {
 
   const handleSelectSession = useCallback(async (id: string) => {
     reset()
+    setPendingProduct(null)
     setActiveSessionId(id)
     try {
       const detail = await getSession(id)
@@ -100,9 +107,18 @@ export function ChatApp() {
     let sessionId = activeSessionId
     if (!sessionId) {
       try {
-        const session = await createSession()
+        const createParams: Parameters<typeof createSession>[0] = {}
+        if (pendingProduct) {
+          if (pendingProduct.productId) createParams.product_id = pendingProduct.productId
+          if (pendingProduct.productName) createParams.product_filter = pendingProduct.productName
+          if (pendingProduct.versionFilter) createParams.version_filter = pendingProduct.versionFilter
+        }
+        const session = await createSession(
+          Object.keys(createParams).length > 0 ? createParams : undefined,
+        )
         setSessions(prev => [session, ...prev])
         setActiveSessionId(session.id)
+        setPendingProduct(null)
         sessionId = session.id
       } catch {
         setMessages([
@@ -114,7 +130,7 @@ export function ChatApp() {
     }
     await sendMessage(sessionId, content)
     refreshSessions()
-  }, [activeSessionId, sendMessage, setMessages, refreshSessions])
+  }, [activeSessionId, pendingProduct, sendMessage, setMessages, refreshSessions])
 
   const handleProductChange = useCallback(async (selection: {
     productId: number | null
@@ -122,7 +138,14 @@ export function ChatApp() {
     manufacturer: string | null
     versionFilter: string | null
   }) => {
-    if (!activeSessionId) return
+    if (!activeSessionId) {
+      setPendingProduct({
+        productId: selection.productId,
+        productName: selection.productName,
+        versionFilter: selection.versionFilter,
+      })
+      return
+    }
 
     try {
       const updated = await updateSession(activeSessionId, {
@@ -145,7 +168,10 @@ export function ChatApp() {
   }, [activeSessionId])
 
   const handleClearProduct = useCallback(async () => {
-    if (!activeSessionId) return
+    if (!activeSessionId) {
+      setPendingProduct(null)
+      return
+    }
     try {
       const updated = await updateSession(activeSessionId, {
         product_id: null,
@@ -200,6 +226,9 @@ export function ChatApp() {
     }
   }, [activeSessionId])
 
+  const effectiveProductFilter = activeSession?.product_filter ?? pendingProduct?.productName ?? null
+  const effectiveVersionFilter = activeSession?.version_filter ?? pendingProduct?.versionFilter ?? null
+
   const chatContent = (
     <ChatWindow
       messages={messages}
@@ -219,8 +248,8 @@ export function ChatApp() {
           : undefined
       }
       editValue={lastUserPrompt}
-      productFilter={activeSession?.product_filter}
-      versionFilter={activeSession?.version_filter}
+      productFilter={effectiveProductFilter}
+      versionFilter={effectiveVersionFilter}
       autoDetected={activeSession?.product_filter_source === 'auto'}
       productLocked={activeSession?.product_filter_source === 'explicit'}
       onEditProduct={() => setShowProductPicker(true)}
@@ -240,7 +269,7 @@ export function ChatApp() {
       onNewSession={handleNewSession}
       onDeleteSession={handleDeleteSession}
       onToggleTheme={toggleTheme}
-      onLogoClick={() => { reset(); setActiveSessionId(null) }}
+      onLogoClick={() => { reset(); setActiveSessionId(null); setPendingProduct(null) }}
     >
       <Routes>
         <Route index element={chatContent} />
@@ -277,10 +306,10 @@ export function ChatApp() {
       {showProductPicker && (
         <ProductPicker
           value={{
-            productId: activeSession?.product_id ?? null,
-            productName: activeSession?.product_filter ?? null,
+            productId: activeSession?.product_id ?? pendingProduct?.productId ?? null,
+            productName: effectiveProductFilter,
             manufacturer: null,
-            versionFilter: activeSession?.version_filter ?? null,
+            versionFilter: effectiveVersionFilter,
           }}
           onChange={handleProductChange}
           onClose={() => setShowProductPicker(false)}
