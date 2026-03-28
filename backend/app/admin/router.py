@@ -1,6 +1,5 @@
 """Admin REST endpoints — platform management, moderation, audit, stats, logs."""
 
-import re
 import uuid
 import logging
 
@@ -343,7 +342,7 @@ async def get_logs(
         container = _SERVICE_TO_CONTAINER.get(service_name, f"/lexiro-{service_name}-1")
         label_parts.append(f'container="{container}"')
     else:
-        regex = "|".join(re.escape(c) for c in _APP_CONTAINERS)
+        regex = "|".join(_APP_CONTAINERS)
         label_parts.append(f'container=~"{regex}"')
     if level:
         label_parts.append(f'level="{level}"')
