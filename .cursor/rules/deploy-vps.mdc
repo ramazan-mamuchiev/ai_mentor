@@ -14,21 +14,31 @@ When the user asks to publish/deploy changes to VPS (lexiro.io):
    git push origin main
    ```
 
-2. **Pull on VPS**:
+2. **Enable maintenance mode** (shows a branded 503 page to all visitors):
+   ```powershell
+   ssh root@lexiro.io "touch /opt/lexiro/maintenance-flag/on"
+   ```
+
+3. **Pull on VPS**:
    ```powershell
    ssh root@lexiro.io "cd /opt/lexiro && git pull origin main"
    ```
 
-3. **Build changed images on VPS** (Docker layer cache makes this fast):
+4. **Build changed images on VPS** (Docker layer cache makes this fast):
    ```powershell
    ssh root@lexiro.io "cd /opt/lexiro && docker compose build api web"
    ```
    - `api` builds the shared `lexiro-backend` image used by `api`, `worker`, and `beat`.
    - Only `api` and `web` need `build` — worker/beat reuse the `lexiro-backend` image.
 
-4. **Restart changed services**:
+5. **Restart changed services**:
    ```powershell
    ssh root@lexiro.io "cd /opt/lexiro && docker compose up -d api worker beat web"
+   ```
+
+6. **Wait for API health check** then **disable maintenance mode**:
+   ```powershell
+   ssh root@lexiro.io "until curl -sf http://localhost:8000/health; do sleep 2; done && rm -f /opt/lexiro/maintenance-flag/on"
    ```
 
 ## Rules

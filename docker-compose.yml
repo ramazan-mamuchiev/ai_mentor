@@ -196,6 +196,7 @@ services:
       - "443:443"
     volumes:
       - ./ssl:/etc/nginx/ssl:ro
+      - ./maintenance-flag:/tmp/maintenance-flag:ro
     depends_on:
       api:
         condition: service_healthy
