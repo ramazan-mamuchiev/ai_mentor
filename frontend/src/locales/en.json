@@ -546,7 +546,6 @@
   "products.edit.title": "Edit product",
   "products.edit.name": "Name",
   "products.edit.manufacturer": "Manufacturer",
-  "products.edit.model": "Model",
   "products.edit.version": "Version",
   "products.edit.category": "Category",
   "products.edit.categoryNone": "No category",

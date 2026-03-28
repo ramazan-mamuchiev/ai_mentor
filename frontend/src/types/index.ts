@@ -290,7 +290,6 @@ export interface ProductListItem {
   id: number
   name: string
   manufacturer: string
-  model: string
   category: string
   created_at: string
   firmware_version_id: number | null
@@ -315,7 +314,6 @@ export interface ProductDetail {
   id: number
   name: string
   manufacturer: string
-  model: string
   category: string
   created_at: string
   firmware_versions: string[]

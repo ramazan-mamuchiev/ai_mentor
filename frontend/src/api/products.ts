@@ -11,7 +11,7 @@ export async function getProduct(productId: number): Promise<ProductDetail> {
 
 export async function updateProduct(
   productId: number,
-  data: { name?: string; manufacturer?: string; model?: string; category?: string; version?: string; firmware_version_id?: number | null },
+  data: { name?: string; manufacturer?: string; category?: string; version?: string; firmware_version_id?: number | null },
 ): Promise<ProductDetail> {
   return apiFetch<ProductDetail>(`/products/${productId}`, {
     method: 'PATCH',

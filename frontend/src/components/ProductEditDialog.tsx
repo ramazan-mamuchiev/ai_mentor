@@ -25,7 +25,6 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   const { t } = useTranslation()
   const [name, setName] = useState(product.name)
   const [manufacturer, setManufacturer] = useState(product.manufacturer)
-  const [model, setModel] = useState(product.model)
   const [version, setVersion] = useState(product.version ?? '')
   const [category, setCategory] = useState<string>(product.category ?? '')
   const [saving, setSaving] = useState(false)
@@ -38,7 +37,6 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   useEffect(() => {
     setName(product.name)
     setManufacturer(product.manufacturer)
-    setModel(product.model)
     setVersion(product.version ?? '')
     setCategory(product.category ?? '')
   }, [product.id])
@@ -79,7 +77,6 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
       await updateProduct(product.id, {
         name,
         manufacturer,
-        model,
         category: category || undefined,
         version: version || undefined,
         firmware_version_id: product.firmware_version_id,
@@ -110,22 +107,13 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
             />
           </label>
 
-          <div className="product-edit-row product-edit-row--three">
+          <div className="product-edit-row">
             <label className="product-edit-label">
               <span>{t('products.edit.manufacturer')}</span>
               <input
                 type="text"
                 value={manufacturer}
                 onChange={e => setManufacturer(e.target.value)}
-                className="product-edit-input"
-              />
-            </label>
-            <label className="product-edit-label">
-              <span>{t('products.edit.model')}</span>
-              <input
-                type="text"
-                value={model}
-                onChange={e => setModel(e.target.value)}
                 className="product-edit-input"
               />
             </label>

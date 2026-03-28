@@ -19,7 +19,6 @@ class ProductListItem(BaseModel):
     id: int
     name: str
     manufacturer: str = ""
-    model: str = ""
     category: str = ""
     created_at: datetime
 
@@ -79,7 +78,6 @@ class ProductDetail(BaseModel):
     id: int
     name: str
     manufacturer: str = ""
-    model: str = ""
     category: str = ""
     created_at: datetime
     firmware_versions: list[str] = []
@@ -90,7 +88,6 @@ class ProductDetail(BaseModel):
 class ProductUpdate(BaseModel):
     name: str | None = None
     manufacturer: str | None = None
-    model: str | None = None
     category: str | None = None
     version: str | None = None
     firmware_version_id: int | None = None

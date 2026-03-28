@@ -184,7 +184,6 @@ async def list_products():
                 Product.id,
                 Product.name,
                 Product.manufacturer,
-                Product.model,
                 Product.category,
                 Product.created_at,
                 FirmwareVersion.id.label("firmware_version_id"),
@@ -258,7 +257,6 @@ async def list_products():
                 id=p.id,
                 name=p.name,
                 manufacturer=p.manufacturer,
-                model=p.model,
                 category=p.category,
                 created_at=p.created_at,
                 firmware_version_id=p.firmware_version_id,
@@ -299,7 +297,6 @@ async def get_product(product_id: int):
             id=product.id,
             name=product.name,
             manufacturer=product.manufacturer,
-            model=product.model,
             category=product.category,
             created_at=product.created_at,
             firmware_versions=versions,
@@ -316,8 +313,6 @@ async def update_product(product_id: int, body: ProductUpdate):
             product.name = body.name
         if body.manufacturer is not None:
             product.manufacturer = body.manufacturer
-        if body.model is not None:
-            product.model = body.model
         if body.category is not None:
             product.category = body.category
 
@@ -340,7 +335,6 @@ async def update_product(product_id: int, body: ProductUpdate):
             id=product.id,
             name=product.name,
             manufacturer=product.manufacturer,
-            model=product.model,
             category=product.category,
             created_at=product.created_at,
             firmware_versions=versions,
