@@ -198,15 +198,39 @@ def parse_confluence_url(url: str) -> tuple[str, str, str]:
     )
 
 
+_STORAGE_MIN_CHARS = 200
+
+
 def _get_page_content(
     base_url: str, page_id: str, client: httpx.Client | None = None,
 ) -> tuple[str, str]:
-    """Fetch page title and HTML body via REST API. Returns (title, html_body)."""
-    url = f"{base_url}/rest/api/content/{page_id}?expand=body.storage,title"
+    """Fetch page title and HTML body via REST API. Returns (title, html_body).
+
+    Requests both ``body.storage`` and ``body.export_view`` in a single call.
+    Uses ``storage`` by default (faster, cleaner for markdownify).  Falls back
+    to ``export_view`` when ``storage`` is too short — this happens for pages
+    whose content consists mostly of Confluence macros (children, toc, etc.)
+    that ``markdownify`` cannot parse from raw storage XML.
+    """
+    url = (
+        f"{base_url}/rest/api/content/{page_id}"
+        f"?expand=body.storage,body.export_view,title"
+    )
     data = _api_get(url, client)
     title = data.get("title", "")
-    html_body = data.get("body", {}).get("storage", {}).get("value", "")
-    return title, html_body
+    body = data.get("body", {})
+    storage_html = body.get("storage", {}).get("value", "")
+    export_html = body.get("export_view", {}).get("value", "")
+
+    if len(storage_html) >= _STORAGE_MIN_CHARS:
+        return title, storage_html
+
+    if export_html:
+        logger.debug("Using export_view (storage too short: %d chars)", len(storage_html),
+                      extra={"page_id": page_id, "title": title})
+        return title, export_html
+
+    return title, storage_html
 
 
 def _get_child_pages(
