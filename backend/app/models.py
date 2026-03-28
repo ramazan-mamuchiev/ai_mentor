@@ -229,6 +229,8 @@ class Document(Base):
     ocr_model: Mapped[str | None] = mapped_column(Text, nullable=True)
     detected_language: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     source_container: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     converted_s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -379,6 +381,64 @@ class ChatMessageAnalytics(Base):
     finish_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     continuations: Mapped[int] = mapped_column(Integer, default=0)
 
+    query_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    history_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    system_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    effective_top_k: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    classify_input: Mapped[str | None] = mapped_column(Text, nullable=True)
+    classify_product: Mapped[str | None] = mapped_column(Text, nullable=True)
+    classify_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    classify_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    classify_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    classify_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    classify_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    rerank_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rerank_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rerank_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rerank_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    decompose_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    decompose_sub_queries: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    decompose_sub_products: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    decompose_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    decompose_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    decompose_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    decompose_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decompose_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    web_search_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    web_search_queries: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    web_search_sources_count: Mapped[int] = mapped_column(Integer, default=0)
+    web_search_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    web_search_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    web_search_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    web_search_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    web_search_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    web_search_context_length: Mapped[int] = mapped_column(Integer, default=0)
+
+    rewrite_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rewrite_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rewrite_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rewrite_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    retry_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    rephrase_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rephrase_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rephrase_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rephrase_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rephrase_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rephrase_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    embedding_api_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    summary_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    summary_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    summary_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    summary_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -424,9 +484,14 @@ class ChatMessageAnalytics(Base):
             "top_similarity": self.top_similarity,
             "min_similarity": self.min_similarity,
             "context_tokens": self.context_tokens,
+            "query_tokens": self.query_tokens,
+            "history_tokens": self.history_tokens,
+            "system_prompt_tokens": self.system_prompt_tokens,
+            "effective_top_k": self.effective_top_k,
             "history_messages": self.history_messages,
             "prompt_messages": self.prompt_messages,
             "embedding_model": self.embedding_model,
+            "embedding_api_tokens": self.embedding_api_tokens,
             "product_filter": product_filter,
             "version_filter": version_filter,
             "doc_context": self.doc_context,
@@ -442,6 +507,50 @@ class ChatMessageAnalytics(Base):
             "llm_total_tokens": self.llm_total_tokens,
             "finish_reason": self.finish_reason,
             "continuations": self.continuations,
+            "classify_input": self.classify_input,
+            "classify_product": self.classify_product,
+            "classify_prompt_tokens": self.classify_prompt_tokens,
+            "classify_completion_tokens": self.classify_completion_tokens,
+            "classify_total_tokens": self.classify_total_tokens,
+            "classify_model": self.classify_model,
+            "classify_ms": self.classify_ms,
+            "rerank_prompt_tokens": self.rerank_prompt_tokens,
+            "rerank_completion_tokens": self.rerank_completion_tokens,
+            "rerank_total_tokens": self.rerank_total_tokens,
+            "rerank_model": self.rerank_model,
+            "decompose_used": self.decompose_used,
+            "decompose_sub_queries": self.decompose_sub_queries,
+            "decompose_sub_products": self.decompose_sub_products,
+            "decompose_prompt_tokens": self.decompose_prompt_tokens,
+            "decompose_completion_tokens": self.decompose_completion_tokens,
+            "decompose_total_tokens": self.decompose_total_tokens,
+            "decompose_model": self.decompose_model,
+            "decompose_ms": self.decompose_ms,
+            "web_search_used": self.web_search_used,
+            "web_search_queries": self.web_search_queries,
+            "web_search_sources_count": self.web_search_sources_count,
+            "web_search_prompt_tokens": self.web_search_prompt_tokens,
+            "web_search_completion_tokens": self.web_search_completion_tokens,
+            "web_search_total_tokens": self.web_search_total_tokens,
+            "web_search_model": self.web_search_model,
+            "web_search_ms": self.web_search_ms,
+            "web_search_context_length": self.web_search_context_length,
+            "rewrite_prompt_tokens": self.rewrite_prompt_tokens,
+            "rewrite_completion_tokens": self.rewrite_completion_tokens,
+            "rewrite_total_tokens": self.rewrite_total_tokens,
+            "rewrite_model": self.rewrite_model,
+            "retry_used": self.retry_used,
+            "rephrase_ms": self.rephrase_ms,
+            "rephrase_query": self.rephrase_query,
+            "rephrase_prompt_tokens": self.rephrase_prompt_tokens,
+            "rephrase_completion_tokens": self.rephrase_completion_tokens,
+            "rephrase_total_tokens": self.rephrase_total_tokens,
+            "rephrase_model": self.rephrase_model,
+            "summary_prompt_tokens": self.summary_prompt_tokens,
+            "summary_completion_tokens": self.summary_completion_tokens,
+            "summary_total_tokens": self.summary_total_tokens,
+            "summary_model": self.summary_model,
+            "summary_ms": self.summary_ms,
         }
 
 

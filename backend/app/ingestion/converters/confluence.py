@@ -44,6 +44,10 @@ _CONFLUENCE_URL_PATTERN = re.compile(
     r"(?P<base>https?://[^/]+(?:/[^/]+)*?)/spaces/(?P<space>[^/]+)/pages/(?P<page_id>\d+)"
 )
 
+_CONFLUENCE_SPACE_URL_PATTERN = re.compile(
+    r"(?P<base>https?://[^/]+(?:/[^/]+)*?)/spaces/(?P<space>[^/]+?)(?:/overview)?/?$"
+)
+
 _BODY_LINK_RE = re.compile(
     r'/spaces/(?P<space>[^/]+)/pages/(?P<page_id>\d+)'
 )
@@ -139,18 +143,59 @@ def _api_get(url: str, client: httpx.Client | None = None) -> dict:
             client.close()
 
 
-def parse_confluence_url(url: str) -> tuple[str, str, str]:
-    """Extract (base_url, space_key, page_id) from a Confluence page URL.
+def _resolve_space_homepage(base_url: str, space_key: str) -> str:
+    """Resolve the homepage page ID of a Confluence space via REST API.
 
-    Raises ValueError if the URL doesn't match the expected pattern.
+    Raises ValueError if the space does not exist or has no homepage.
+    """
+    api_url = f"{base_url}/rest/api/space/{space_key}?expand=homepage"
+    try:
+        data = _api_get(api_url)
+    except ConfluenceAuthError:
+        raise
+    except Exception as exc:
+        raise ValueError(
+            f"Cannot resolve Confluence space '{space_key}': "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+    homepage = data.get("homepage")
+    if not homepage or not homepage.get("id"):
+        raise ValueError(
+            f"Confluence space '{space_key}' has no homepage. "
+            "Provide a direct page URL instead."
+        )
+    return str(homepage["id"])
+
+
+def parse_confluence_url(url: str) -> tuple[str, str, str]:
+    """Extract (base_url, space_key, page_id) from a Confluence URL.
+
+    Supports two URL formats:
+      - Page URL:  .../spaces/SPACE/pages/12345/Title
+      - Space URL: .../spaces/SPACE/overview  or  .../spaces/SPACE
+
+    For space URLs the homepage is resolved via REST API.
+    Raises ValueError if the URL doesn't match or the space has no homepage.
     """
     m = _CONFLUENCE_URL_PATTERN.search(url)
-    if not m:
-        raise ValueError(
-            f"Not a valid Confluence page URL: {url}. "
-            f"Expected format: https://host/confluence/spaces/SPACE/pages/12345/Title"
-        )
-    return m.group("base"), m.group("space"), m.group("page_id")
+    if m:
+        return m.group("base"), m.group("space"), m.group("page_id")
+
+    m = _CONFLUENCE_SPACE_URL_PATTERN.search(url)
+    if m:
+        base_url = m.group("base")
+        space_key = m.group("space")
+        page_id = _resolve_space_homepage(base_url, space_key)
+        logger.info("Resolved space homepage", extra={
+            "space_key": space_key, "homepage_page_id": page_id,
+        })
+        return base_url, space_key, page_id
+
+    raise ValueError(
+        f"Not a valid Confluence URL: {url}. "
+        f"Expected: .../spaces/SPACE/pages/12345/Title or .../spaces/SPACE/overview"
+    )
 
 
 def _get_page_content(

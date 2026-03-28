@@ -7,6 +7,7 @@ import tempfile
 import time
 
 from celery import Celery
+from celery.exceptions import SoftTimeLimitExceeded
 from celery.signals import (
     after_setup_logger,
     before_task_publish,
@@ -224,7 +225,8 @@ def _set_tenant_log_context(tenant_id, session):
     tenant_name_ctx.set(tenant.name if tenant and tenant.name else "-")
 
 
-@celery.task(name="ingest_document", bind=True, max_retries=2, default_retry_delay=30)
+@celery.task(name="ingest_document", bind=True, max_retries=2, default_retry_delay=30,
+             soft_time_limit=2700, time_limit=3000)
 def ingest_document_task(self, document_id: int):
     """Background task: download file from S3, run ingestion pipeline, update DB."""
     from app.models import Base, Chunk, Product, Document, FirmwareVersion
@@ -252,7 +254,9 @@ def ingest_document_task(self, document_id: int):
 
         _set_tenant_log_context(doc.tenant_id, session)
 
+        from datetime import datetime, timezone as _tz
         doc.status = "processing"
+        doc.processing_started_at = datetime.now(_tz.utc)
         doc.celery_task_id = self.request.id
         session.commit()
 
@@ -269,6 +273,8 @@ def ingest_document_task(self, document_id: int):
 
             try:
                 download_file_to_path(doc.s3_key, tmp_path, progress_callback=_download_progress)
+            except SoftTimeLimitExceeded:
+                raise
             except Exception as exc:
                 doc.status = "error"
                 doc.error_message = f"S3 download failed: {exc}"
@@ -302,6 +308,14 @@ def ingest_document_task(self, document_id: int):
             logger.info("Ingestion cancelled mid-flight", extra={"document_id": document_id, "task_id": self.request.id})
             return {"status": "cancelled", "document_id": document_id}
 
+        except SoftTimeLimitExceeded:
+            doc.status = "error"
+            doc.error_message = "Task exceeded soft time limit (45 min)"
+            session.commit()
+            logger.error("ingest_document_task soft time limit exceeded",
+                         extra={"document_id": document_id})
+            return {"status": "error", "error": "soft_time_limit", "document_id": document_id}
+
         except Exception as exc:
             doc.status = "error"
             doc.error_message = str(exc)[:2000]
@@ -318,7 +332,8 @@ def ingest_document_task(self, document_id: int):
                 os.unlink(tmp_path)
 
 
-@celery.task(name="ingest_archive", bind=True, max_retries=1, default_retry_delay=30)
+@celery.task(name="ingest_archive", bind=True, max_retries=1, default_retry_delay=30,
+             soft_time_limit=3600, time_limit=3900)
 def ingest_archive_task(
     self,
     archive_document_id: int,
@@ -348,11 +363,15 @@ def ingest_archive_task(
         archive_tenant_id = archive_doc.tenant_id
         _set_tenant_log_context(archive_tenant_id, session)
 
+        from datetime import datetime, timezone as _tz
         archive_doc.status = "processing"
+        archive_doc.processing_started_at = datetime.now(_tz.utc)
         session.commit()
 
         try:
             file_data = download_file(archive_doc.s3_key)
+        except SoftTimeLimitExceeded:
+            raise
         except Exception as exc:
             archive_doc.status = "error"
             archive_doc.error_message = f"S3 download failed: {exc}"
@@ -364,6 +383,8 @@ def ingest_archive_task(
 
         try:
             entries = extract_archive(file_data, archive_doc.original_filename)
+        except SoftTimeLimitExceeded:
+            raise
         except Exception as exc:
             archive_doc.status = "error"
             archive_doc.error_message = f"Archive extraction failed: {exc}"
@@ -620,7 +641,8 @@ def ingest_archive_from_s3_task(
         }
 
 
-@celery.task(name="ingest_single_url", bind=True, max_retries=2, default_retry_delay=30)
+@celery.task(name="ingest_single_url", bind=True, max_retries=2, default_retry_delay=30,
+             soft_time_limit=2700, time_limit=3000)
 def ingest_single_url_task(self, document_id: int):
     """Background task: fetch a single web page, convert to Markdown, and ingest.
 
@@ -652,6 +674,7 @@ def ingest_single_url_task(self, document_id: int):
         url = doc.source_path
         _set_tenant_log_context(doc.tenant_id, session)
         doc.status = "processing"
+        doc.processing_started_at = datetime.now(timezone.utc)
         doc.progress_stage = "fetching"
         doc.progress_percent = 0
         session.commit()
@@ -670,6 +693,17 @@ def ingest_single_url_task(self, document_id: int):
                 text, convert_metadata = loop.run_until_complete(convert_url(url))
             finally:
                 loop.close()
+    except SoftTimeLimitExceeded:
+        with Session(engine) as session:
+            doc = session.get(Document, document_id)
+            if doc:
+                doc.status = "error"
+                doc.error_message = "Task exceeded soft time limit (45 min) during URL fetch"
+                doc.progress_stage = ""
+                session.commit()
+        logger.error("ingest_single_url_task soft time limit exceeded during fetch",
+                     extra={"url": url, "document_id": document_id})
+        return {"status": "error", "error": "soft_time_limit", "url": url}
     except Exception as exc:
         with Session(engine) as session:
             doc = session.get(Document, document_id)
@@ -799,6 +833,15 @@ def ingest_single_url_task(self, document_id: int):
                 "duration_ms": round(duration * 1000, 1),
             }
 
+        except SoftTimeLimitExceeded:
+            doc.status = "error"
+            doc.error_message = "Task exceeded soft time limit (45 min)"
+            doc.progress_stage = ""
+            session.commit()
+            logger.error("ingest_single_url_task soft time limit exceeded",
+                         extra={"url": url, "document_id": doc.id})
+            return {"status": "error", "error": "soft_time_limit", "url": url}
+
         except Exception as exc:
             doc.status = "error"
             doc.error_message = str(exc)[:2000]
@@ -811,7 +854,8 @@ def ingest_single_url_task(self, document_id: int):
             return {"status": "error", "error": str(exc), "url": url}
 
 
-@celery.task(name="ingest_confluence", bind=True, max_retries=1, default_retry_delay=60)
+@celery.task(name="ingest_confluence", bind=True, max_retries=1, default_retry_delay=60,
+             soft_time_limit=3600, time_limit=3900)
 def ingest_confluence_task(self, document_id: int):
     """Background task: crawl Confluence page tree and ingest each page.
 
@@ -825,6 +869,7 @@ def ingest_confluence_task(self, document_id: int):
     it is discovered — without waiting for the entire crawl to finish.
     """
     import asyncio
+    from datetime import datetime, timezone
     from app.models import Document
     from app.ingestion.converters.confluence import crawl_confluence
     from app.s3 import upload_file
@@ -845,6 +890,7 @@ def ingest_confluence_task(self, document_id: int):
         _set_tenant_log_context(confluence_tenant_id, session)
 
         placeholder.status = "processing"
+        placeholder.processing_started_at = datetime.now(timezone.utc)
         placeholder.progress_stage = "crawling"
         placeholder.progress_percent = 0
         session.commit()
@@ -969,6 +1015,25 @@ def ingest_confluence_task(self, document_id: int):
                 )
             finally:
                 loop.close()
+    except SoftTimeLimitExceeded:
+        with Session(engine) as session:
+            placeholder = session.get(Document, document_id)
+            if placeholder:
+                placeholder.status = "error"
+                placeholder.error_message = (
+                    f"Crawl exceeded soft time limit (60 min). "
+                    f"Processed {dispatched} pages before timeout."
+                )
+                placeholder.progress_stage = ""
+                session.commit()
+        logger.error("ingest_confluence_task soft time limit exceeded", extra={
+            "url": url, "document_id": document_id, "dispatched": dispatched,
+        })
+        return {
+            "status": "error", "error": "soft_time_limit",
+            "url": url, "document_id": document_id, "dispatched": dispatched,
+        }
+
     except Exception as exc:
         from app.ingestion.converters.confluence import ConfluenceAuthError
         is_auth = isinstance(exc, ConfluenceAuthError)
@@ -1074,7 +1139,8 @@ def ingest_confluence_task(self, document_id: int):
     }
 
 
-@celery.task(name="reingest_confluence_page", bind=True, max_retries=2, default_retry_delay=30)
+@celery.task(name="reingest_confluence_page", bind=True, max_retries=2, default_retry_delay=30,
+             soft_time_limit=2700, time_limit=3000)
 def reingest_confluence_page_task(self, document_id: int):
     """Re-fetch a single Confluence page by its source_path and re-ingest.
 
@@ -1082,6 +1148,7 @@ def reingest_confluence_page_task(self, document_id: int):
     crawl needs to be individually re-fetched from the source, e.g. after
     an embedding failure (429) or when content has changed.
     """
+    from datetime import datetime, timezone
     from app.models import Document, Chunk
     from app.ingestion.converters.confluence import (
         parse_confluence_url, _get_page_content, _html_to_markdown,
@@ -1108,6 +1175,7 @@ def reingest_confluence_page_task(self, document_id: int):
             return {"status": "error", "error": "No source_path"}
 
         doc.status = "processing"
+        doc.processing_started_at = datetime.now(timezone.utc)
         doc.progress_stage = "fetching"
         doc.progress_percent = 0
         session.commit()
@@ -1129,6 +1197,17 @@ def reingest_confluence_page_task(self, document_id: int):
 
     try:
         title, html_body = _get_page_content(base_url, page_id)
+    except SoftTimeLimitExceeded:
+        with Session(engine) as session:
+            doc = session.get(Document, document_id)
+            if doc:
+                doc.status = "error"
+                doc.error_message = "Task exceeded soft time limit (45 min)"
+                doc.progress_stage = ""
+                session.commit()
+        logger.error("reingest_confluence_page_task soft time limit exceeded",
+                     extra={"url": url, "document_id": document_id})
+        return {"status": "error", "error": "soft_time_limit", "document_id": document_id}
     except Exception as exc:
         with Session(engine) as session:
             doc = session.get(Document, document_id)
@@ -1312,7 +1391,7 @@ def check_stale_reindex_jobs_task(self):
 def check_stale_documents_task(self):
     """Periodic task: reset documents stuck in 'processing' for too long."""
     from datetime import datetime, timezone, timedelta
-    from sqlalchemy import select
+    from sqlalchemy import select, func as sa_func
     from app.models import Document
 
     engine = _get_sync_engine()
@@ -1321,17 +1400,21 @@ def check_stale_documents_task(self):
     )
 
     with Session(engine) as session:
+        effective_started = sa_func.coalesce(
+            Document.processing_started_at, Document.uploaded_at,
+        )
         stale_docs = session.execute(
             select(Document).where(
                 Document.status == "processing",
-                Document.uploaded_at < threshold,
+                effective_started < threshold,
             )
         ).scalars().all()
 
         for doc in stale_docs:
+            started = doc.processing_started_at or doc.uploaded_at
             doc.status = "error"
             doc.error_message = (
-                f"Auto-reset: document stuck in 'processing' since {doc.uploaded_at}. "
+                f"Auto-reset: document stuck in 'processing' since {started}. "
                 f"Exceeded stale timeout of {settings.document_stale_timeout_sec}s."
             )
             doc.progress_percent = 0
@@ -1342,7 +1425,7 @@ def check_stale_documents_task(self):
                     "event": "document_stale_reset",
                     "document_id": doc.id,
                     "title": doc.title,
-                    "uploaded_at": str(doc.uploaded_at),
+                    "processing_started_at": str(started),
                 },
             )
 

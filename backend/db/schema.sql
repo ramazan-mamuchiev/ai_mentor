@@ -92,6 +92,9 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS detected_language TEXT;
 -- Source container (archive filename or URL the document was extracted from)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_container TEXT;
 
+-- Timestamp when document entered 'processing' state (for accurate stale detection)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMPTZ;
+
 -- Fix FK: documents.firmware_version_id should CASCADE on delete
 DO $$
 BEGIN
@@ -428,6 +431,73 @@ ALTER TABLE shared_links ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 -- Completion tracking (finish_reason + continuations for truncation diagnostics)
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS finish_reason TEXT;
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS continuations INT NOT NULL DEFAULT 0;
+
+-- Extended RAG debug fields (persisted for session replay)
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS query_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS history_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS system_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS effective_top_k INT;
+
+-- Classify step
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_input TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_product TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_model TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_ms FLOAT;
+
+-- Rerank step
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rerank_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rerank_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rerank_total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rerank_model TEXT;
+
+-- Decompose step
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS decompose_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS decompose_sub_queries JSONB;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS decompose_sub_products JSONB;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS decompose_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS decompose_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS decompose_total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS decompose_model TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS decompose_ms FLOAT;
+
+-- Web search step
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_queries JSONB;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_sources_count INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_model TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_ms FLOAT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS web_search_context_length INT NOT NULL DEFAULT 0;
+
+-- Rewrite step
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rewrite_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rewrite_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rewrite_total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rewrite_model TEXT;
+
+-- Rephrase / retry step
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS retry_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rephrase_ms FLOAT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rephrase_query TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rephrase_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rephrase_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rephrase_total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rephrase_model TEXT;
+
+-- Embedding API
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS embedding_api_tokens INT NOT NULL DEFAULT 0;
+
+-- Summary step
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS summary_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS summary_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS summary_total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS summary_model TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS summary_ms FLOAT;
 
 -- Document usage log (per-document attribution for author remuneration)
 CREATE TABLE IF NOT EXISTS document_usage_log (
