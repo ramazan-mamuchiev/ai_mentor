@@ -869,13 +869,19 @@ def ingest_confluence_task(self, document_id: int):
     it is discovered — without waiting for the entire crawl to finish.
     """
     import asyncio
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     from app.models import Document
     from app.ingestion.converters.confluence import crawl_confluence
     from app.s3 import upload_file
 
+    _CHECKPOINT_VERSION = 1
+    _CHECKPOINT_TTL = timedelta(hours=24)
+
     t0 = time.perf_counter()
     engine = _get_sync_engine()
+
+    restored_queue = None
+    restored_visited = None
 
     with Session(engine) as session:
         placeholder = session.get(Document, document_id)
@@ -902,7 +908,51 @@ def ingest_confluence_task(self, document_id: int):
     dispatched = 0
     skipped = 0
     errors = 0
-    pages_total = 0
+    pages_seen = 0
+
+    with Session(engine) as session:
+        placeholder = session.get(Document, document_id)
+        ckpt = placeholder.crawl_checkpoint if placeholder else None
+        if ckpt and isinstance(ckpt, dict):
+            try:
+                if ckpt.get("version") != _CHECKPOINT_VERSION:
+                    raise ValueError(f"unknown checkpoint version: {ckpt.get('version')}")
+                saved_at = datetime.fromisoformat(ckpt["saved_at"])
+                age = datetime.now(timezone.utc) - saved_at
+                if age > _CHECKPOINT_TTL:
+                    raise ValueError(f"checkpoint too old: {age}")
+
+                restored_queue = [tuple(pair) for pair in ckpt["queue"]]
+                restored_visited = set(ckpt["visited"])
+                dispatched = ckpt.get("dispatched", 0)
+                skipped = ckpt.get("skipped", 0)
+                errors = ckpt.get("errors", 0)
+                pages_seen = ckpt.get("pages_seen", 0)
+
+                logger.info("Resuming crawl from checkpoint", extra={
+                    "document_id": document_id,
+                    "queue_size": len(restored_queue),
+                    "visited_size": len(restored_visited),
+                    "checkpoint_age_sec": round(age.total_seconds()),
+                    "dispatched": dispatched,
+                    "skipped": skipped,
+                })
+            except Exception as ckpt_err:
+                logger.warning("Discarding invalid/stale checkpoint — starting fresh", extra={
+                    "document_id": document_id,
+                    "reason": str(ckpt_err)[:300],
+                })
+                restored_queue = None
+                restored_visited = None
+
+    _latest_queue_snapshot: list[tuple[str, int]] = []
+    _latest_visited_snapshot: set[str] = set()
+
+    def _on_checkpoint(queue_snapshot, visited_snapshot):
+        """Called by crawl_confluence after each page to expose BFS state."""
+        nonlocal _latest_queue_snapshot, _latest_visited_snapshot
+        _latest_queue_snapshot = queue_snapshot
+        _latest_visited_snapshot = visited_snapshot
 
     def _on_page(page):
         """Called by crawl_confluence for each page as it is discovered.
@@ -910,8 +960,8 @@ def ingest_confluence_task(self, document_id: int):
         Fully fault-tolerant: any error for a single page is logged and
         the crawl continues with the next page.
         """
-        nonlocal dispatched, skipped, errors, pages_total
-        pages_total += 1
+        nonlocal dispatched, skipped, errors, pages_seen
+        pages_seen += 1
 
         try:
             if not page.markdown or not page.markdown.strip():
@@ -993,25 +1043,44 @@ def ingest_confluence_task(self, document_id: int):
             with Session(engine) as s:
                 ph = s.get(Document, document_id)
                 if ph:
-                    stage = f"crawling ({pages_total} found, {dispatched} queued)"
+                    stage = f"crawling ({pages_seen} found, {dispatched} queued)"
                     if errors:
                         stage += f", {errors} storage errors!"
                     ph.progress_stage = stage
-                    ph.title = f"{page.title}" if pages_total == 1 else ph.title
+                    ph.title = f"{page.title}" if pages_seen == 1 else ph.title
+                    ph.crawl_checkpoint = {
+                        "version": _CHECKPOINT_VERSION,
+                        "saved_at": datetime.now(timezone.utc).isoformat(),
+                        "queue": list(_latest_queue_snapshot),
+                        "visited": list(_latest_visited_snapshot),
+                        "dispatched": dispatched,
+                        "skipped": skipped,
+                        "errors": errors,
+                        "pages_seen": pages_seen,
+                    }
                     s.commit()
         except Exception:
             pass
 
+    _crawl_kwargs = dict(
+        max_pages=500,
+        page_callback=_on_page,
+        checkpoint_callback=_on_checkpoint,
+    )
+    if restored_queue is not None:
+        _crawl_kwargs["initial_queue"] = restored_queue
+        _crawl_kwargs["initial_visited"] = restored_visited
+
     try:
         try:
             result = asyncio.get_event_loop().run_until_complete(
-                crawl_confluence(url, max_pages=500, page_callback=_on_page)
+                crawl_confluence(url, **_crawl_kwargs)
             )
         except RuntimeError:
             loop = asyncio.new_event_loop()
             try:
                 result = loop.run_until_complete(
-                    crawl_confluence(url, max_pages=500, page_callback=_on_page)
+                    crawl_confluence(url, **_crawl_kwargs)
                 )
             finally:
                 loop.close()
@@ -1044,6 +1113,8 @@ def ingest_confluence_task(self, document_id: int):
                 placeholder.status = "error"
                 placeholder.error_message = f"Crawl failed: {type(exc).__name__}: {str(exc)[:1900]}"
                 placeholder.progress_stage = ""
+                if is_auth:
+                    placeholder.crawl_checkpoint = None
                 session.commit()
 
         if is_auth:
@@ -1065,12 +1136,13 @@ def ingest_confluence_task(self, document_id: int):
             placeholder.progress_percent = 100
             placeholder.ingest_duration_ms = duration_ms
             placeholder.total_chunks = dispatched
+            placeholder.crawl_checkpoint = None
             if result.root_title:
                 placeholder.title = f"{result.root_title} ({result.total_pages} pages)"
 
             crawl_errors_summary = "; ".join(result.errors[:3]) if result.errors else ""
 
-            crawled = pages_total - skipped
+            crawled = pages_seen - skipped
             if dispatched == 0:
                 placeholder.status = "error"
                 placeholder.progress_stage = "done"
@@ -1078,9 +1150,9 @@ def ingest_confluence_task(self, document_id: int):
                     placeholder.error_message = (
                         "Crawl returned 0 pages. The page may not exist or access is denied."
                     )
-                elif skipped == pages_total and errors == 0:
+                elif skipped == pages_seen and errors == 0:
                     placeholder.error_message = (
-                        f"All {pages_total} crawled pages had empty content — "
+                        f"All {pages_seen} crawled pages had empty content — "
                         "no documents were created. This usually means authentication "
                         "is required or the pages have no body content."
                     )
@@ -1088,7 +1160,7 @@ def ingest_confluence_task(self, document_id: int):
                         placeholder.error_message += f" Details: {crawl_errors_summary}"
                 else:
                     placeholder.error_message = (
-                        f"No documents were created from {pages_total} crawled pages "
+                        f"No documents were created from {pages_seen} crawled pages "
                         f"({skipped} empty, {errors} errors)."
                     )
                     if crawl_errors_summary:

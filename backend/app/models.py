@@ -239,6 +239,8 @@ class Document(Base):
     extract_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     extract_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
 
+    crawl_checkpoint: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 

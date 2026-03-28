@@ -22,6 +22,7 @@ import asyncio
 import logging
 import re
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from urllib.parse import quote
 
@@ -417,6 +418,9 @@ async def crawl_confluence(
     progress_callback: callable | None = None,
     max_seconds: int = _MAX_CRAWL_SECONDS,
     page_callback: callable | None = None,
+    initial_queue: list[tuple[str, int]] | None = None,
+    initial_visited: set[str] | None = None,
+    checkpoint_callback: callable | None = None,
 ) -> CrawlResult:
     """Crawl a Confluence page tree starting from the given URL.
 
@@ -434,6 +438,13 @@ async def crawl_confluence(
             each page immediately after it is crawled, before the next page
             starts.  This allows the caller to persist / enqueue the page
             without waiting for the full crawl to finish.
+        initial_queue: Restored BFS queue from a checkpoint (list of
+            (page_id, depth) pairs). When provided the crawl resumes from
+            this state instead of starting from the root page.
+        initial_visited: Set of already-visited page IDs from a checkpoint.
+        checkpoint_callback: Optional callback(queue_snapshot, visited_snapshot)
+            invoked after each page is processed (after page_callback).
+            Allows the caller to persist BFS state for resumability.
 
     Returns:
         CrawlResult with all crawled pages.
@@ -457,8 +468,13 @@ async def crawl_confluence(
 
     result = CrawlResult(base_url=base_url, space_key=space_key)
 
-    queue: list[tuple[str, int]] = [(root_page_id, 0)]
-    visited: set[str] = set()
+    if initial_queue is not None:
+        queue: deque[tuple[str, int]] = deque(
+            (pid, d) for pid, d in initial_queue
+        )
+    else:
+        queue: deque[tuple[str, int]] = deque([(root_page_id, 0)])
+    visited: set[str] = set(initial_visited) if initial_visited else set()
     pages_done = 0
     ocr_languages: list[str] | None = None
 
@@ -475,7 +491,7 @@ async def crawl_confluence(
                 )
                 break
 
-            page_id, depth = queue.pop(0)
+            page_id, depth = queue.popleft()
 
             if page_id in visited:
                 continue
@@ -578,6 +594,14 @@ async def crawl_confluence(
                 except Exception as cb_exc:
                     logger.warning("page_callback failed", extra={
                         "page_id": page_id, "error": str(cb_exc)[:200],
+                    })
+
+            if checkpoint_callback:
+                try:
+                    checkpoint_callback(list(queue), set(visited))
+                except Exception as ckpt_exc:
+                    logger.warning("checkpoint_callback failed", extra={
+                        "page_id": page_id, "error": str(ckpt_exc)[:200],
                     })
 
             if progress_callback:

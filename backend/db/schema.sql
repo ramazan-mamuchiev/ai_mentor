@@ -117,6 +117,9 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_ms FLOAT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_prompt_tokens INT NOT NULL DEFAULT 0;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_completion_tokens INT NOT NULL DEFAULT 0;
 
+-- Confluence crawl checkpoint (resumable BFS state for long-running crawls)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS crawl_checkpoint JSONB;
+
 -- Chunks (semantic search units with vector embeddings)
 CREATE TABLE IF NOT EXISTS chunks (
     id BIGSERIAL PRIMARY KEY,
