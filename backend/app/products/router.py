@@ -11,7 +11,7 @@ from app.config import settings
 from app.database import async_session
 from app.models import (
     ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion,
-    Product, ProductCategory, ProductTagLink, SearchKeyword, SuggestionTemplate, Tag,
+    Product, SuggestionTemplate,
 )
 from app.products.schemas import (
     FacetValue,
@@ -28,7 +28,6 @@ from app.products.schemas import (
     ProductUpdate,
     ProductUsageStats,
     SuggestionChip,
-    TagInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,14 +35,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/products", tags=["products"])
 
 
-async def _get_product_by_slugs(session, manufacturer_slug: str, product_slug: str) -> Product:
-    result = await session.execute(
-        select(Product).where(
-            Product.manufacturer_slug == manufacturer_slug,
-            Product.slug == product_slug,
-        )
-    )
-    product = result.scalar_one_or_none()
+async def _get_product(session, product_id: int) -> Product:
+    product = await session.get(Product, product_id)
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
@@ -51,17 +44,12 @@ async def _get_product_by_slugs(session, manufacturer_slug: str, product_slug: s
 
 @router.get("/suggestions", response_model=list[SuggestionChip])
 async def get_suggestions():
-    """Return up to 4 suggestion chips based on top products by RAG usage.
-
-    Templates are read from the `suggestion_templates` table and selected
-    randomly so each page load shows different questions.
-    """
+    """Return up to 4 suggestion chips based on top products by RAG usage."""
     async with async_session() as session:
         products_stmt = (
             select(
+                Product.id,
                 Product.name,
-                Product.manufacturer_slug,
-                Product.slug,
                 FirmwareVersion.version,
                 func.sum(Document.rag_hit_count).label("hits"),
             )
@@ -78,8 +66,6 @@ async def get_suggestions():
             .group_by(
                 Product.id,
                 Product.name,
-                Product.manufacturer_slug,
-                Product.slug,
                 FirmwareVersion.version,
             )
             .order_by(func.sum(Document.rag_hit_count).desc())
@@ -117,7 +103,7 @@ async def get_suggestions():
         chips.append(SuggestionChip(
             text_en=tpl_en.format(product=display),
             text_ru=tpl_ru.format(product=display),
-            product_filter=f"{row.manufacturer_slug}/{row.slug}",
+            product_filter=str(row.id),
         ))
 
     return chips
@@ -149,63 +135,13 @@ async def suggest_products(
             )
             fws = [FirmwareVersionInfo(id=r.id, version=r.version) for r in fw_result]
 
-            cat_slug = None
-            if p.category_id:
-                cat = await session.get(ProductCategory, p.category_id)
-                if cat:
-                    cat_slug = cat.slug
-
             items.append(ProductSuggestion(
                 id=p.id,
                 name=p.name,
                 manufacturer=p.manufacturer,
-                slug=p.slug,
-                manufacturer_slug=p.manufacturer_slug,
-                category_slug=cat_slug,
                 firmware_versions=fws,
             ))
         return items
-
-
-@router.get("/categories")
-async def list_product_categories():
-    """Public endpoint: categories with product counts."""
-    async with async_session() as session:
-        result = await session.execute(
-            select(
-                ProductCategory.id,
-                ProductCategory.slug,
-                ProductCategory.sort_order,
-                func.count(Product.id).label("count"),
-            )
-            .outerjoin(Product, Product.category_id == ProductCategory.id)
-            .group_by(ProductCategory.id)
-            .order_by(ProductCategory.sort_order)
-        )
-        return [
-            {"id": r.id, "slug": r.slug, "count": r.count}
-            for r in result
-        ]
-
-
-@router.get("/tags")
-async def list_product_tags():
-    """Public endpoint: tags with product counts."""
-    async with async_session() as session:
-        result = await session.execute(
-            select(
-                Tag.id,
-                Tag.slug,
-                func.count(ProductTagLink.product_id).label("count"),
-            )
-            .outerjoin(ProductTagLink, ProductTagLink.tag_id == Tag.id)
-            .group_by(Tag.id)
-            .order_by(Tag.slug)
-        )
-        return [
-            {"id": r.id, "slug": r.slug, "count": r.count}
-            for r in result
-        ]
 
 
 @router.get("", response_model=list[ProductListItem])
@@ -250,8 +186,6 @@ async def list_products():
                 Product.manufacturer,
                 Product.model,
                 Product.category,
-                Product.slug,
-                Product.manufacturer_slug,
                 Product.created_at,
                 FirmwareVersion.id.label("firmware_version_id"),
                 FirmwareVersion.version.label("version"),
@@ -326,8 +260,6 @@ async def list_products():
                 manufacturer=p.manufacturer,
                 model=p.model,
                 category=p.category,
-                slug=p.slug,
-                manufacturer_slug=p.manufacturer_slug,
                 created_at=p.created_at,
                 firmware_version_id=p.firmware_version_id,
                 version=version_str,
@@ -350,11 +282,11 @@ async def list_products():
         return items
 
 
-@router.get("/{manufacturer_slug}/{product_slug}", response_model=ProductDetail)
-async def get_product(manufacturer_slug: str, product_slug: str):
+@router.get("/{product_id}", response_model=ProductDetail)
+async def get_product(product_id: int):
     """Get product details including firmware versions."""
     async with async_session() as session:
-        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
+        product = await _get_product(session, product_id)
 
         fw_result = await session.execute(
             select(FirmwareVersion.version)
@@ -369,41 +301,25 @@ async def get_product(manufacturer_slug: str, product_slug: str):
             manufacturer=product.manufacturer,
             model=product.model,
             category=product.category,
-            slug=product.slug,
-            manufacturer_slug=product.manufacturer_slug,
             created_at=product.created_at,
             firmware_versions=versions,
         )
 
 
-@router.patch("/{manufacturer_slug}/{product_slug}", response_model=ProductDetail)
-async def update_product(manufacturer_slug: str, product_slug: str, body: ProductUpdate):
-    """Update product properties (slug is regenerated if name/manufacturer changes)."""
-    from app.slugify import slugify
-
+@router.patch("/{product_id}", response_model=ProductDetail)
+async def update_product(product_id: int, body: ProductUpdate):
+    """Update product properties."""
     async with async_session() as session:
-        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
+        product = await _get_product(session, product_id)
 
         if body.name is not None:
             product.name = body.name
-            product.slug = slugify(body.name)
         if body.manufacturer is not None:
             product.manufacturer = body.manufacturer
-            product.manufacturer_slug = slugify(body.manufacturer) if body.manufacturer else "default"
         if body.model is not None:
             product.model = body.model
         if body.category is not None:
             product.category = body.category
-        if body.category_id is not None:
-            product.category_id = body.category_id
-
-        if body.tag_ids is not None:
-            from sqlalchemy import delete as sa_delete
-            await session.execute(
-                sa_delete(ProductTagLink).where(ProductTagLink.product_id == product.id)
-            )
-            for tag_id in body.tag_ids:
-                session.add(ProductTagLink(product_id=product.id, tag_id=tag_id))
 
         await session.commit()
         await session.refresh(product)
@@ -415,44 +331,24 @@ async def update_product(manufacturer_slug: str, product_slug: str, body: Produc
         )
         versions = [row[0] for row in fw_result.all()]
 
-        cat_slug = None
-        cat_label = None
-        if product.category_id:
-            cat = await session.get(ProductCategory, product.category_id)
-            if cat:
-                cat_slug = cat.slug
-
-        tag_result = await session.execute(
-            select(Tag.id, Tag.slug)
-            .join(ProductTagLink, ProductTagLink.tag_id == Tag.id)
-            .where(ProductTagLink.product_id == product.id)
-        )
-        tags = [TagInfo(id=r.id, slug=r.slug) for r in tag_result]
-
         return ProductDetail(
             id=product.id,
             name=product.name,
             manufacturer=product.manufacturer,
             model=product.model,
             category=product.category,
-            category_id=product.category_id,
-            category_slug=cat_slug,
-            tags=tags,
-            slug=product.slug,
-            manufacturer_slug=product.manufacturer_slug,
             created_at=product.created_at,
             firmware_versions=versions,
         )
 
 
-@router.delete("/{manufacturer_slug}/{product_slug}")
-async def delete_product(manufacturer_slug: str, product_slug: str):
+@router.delete("/{product_id}")
+async def delete_product(product_id: int):
     """Delete a product and all its documents (cascade)."""
     from app.s3 import delete_file
 
     async with async_session() as session:
-        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
-        product_id = product.id
+        product = await _get_product(session, product_id)
 
         docs_result = await session.execute(
             select(Document).where(Document.product_id == product_id)
@@ -476,14 +372,13 @@ async def delete_product(manufacturer_slug: str, product_slug: str):
         }
 
 
-@router.post("/{manufacturer_slug}/{product_slug}/reingest", status_code=202)
-async def reingest_product(manufacturer_slug: str, product_slug: str):
+@router.post("/{product_id}/reingest", status_code=202)
+async def reingest_product(product_id: int):
     """Re-run full ingestion for all documents of a product."""
     from app.celery_app import ingest_document_task
 
     async with async_session() as session:
-        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
-        product_id = product.id
+        product = await _get_product(session, product_id)
 
         docs_result = await session.execute(
             select(Document).where(Document.product_id == product_id)
@@ -524,12 +419,11 @@ async def reingest_product(manufacturer_slug: str, product_slug: str):
     }
 
 
-@router.post("/{manufacturer_slug}/{product_slug}/cancel-ingestion", status_code=200)
-async def cancel_product_ingestion(manufacturer_slug: str, product_slug: str):
+@router.post("/{product_id}/cancel-ingestion", status_code=200)
+async def cancel_product_ingestion(product_id: int):
     """Cancel ingestion for all pending/processing documents of a product."""
     async with async_session() as session:
-        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
-        product_id = product.id
+        product = await _get_product(session, product_id)
 
         docs_result = await session.execute(
             select(Document).where(
@@ -578,12 +472,11 @@ async def cancel_product_ingestion(manufacturer_slug: str, product_slug: str):
     }
 
 
-@router.get("/{manufacturer_slug}/{product_slug}/debug", response_model=ProductDebugInfo)
-async def get_product_debug(manufacturer_slug: str, product_slug: str):
+@router.get("/{product_id}/debug", response_model=ProductDebugInfo)
+async def get_product_debug(product_id: int):
     """Get aggregated debug/analytics info for all documents of a product."""
     async with async_session() as session:
-        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
-        product_id = product.id
+        product = await _get_product(session, product_id)
 
         agg_result = await session.execute(
             select(
@@ -673,12 +566,11 @@ async def get_product_debug(manufacturer_slug: str, product_slug: str):
         )
 
 
-@router.get("/{manufacturer_slug}/{product_slug}/usage-stats", response_model=ProductUsageStats)
-async def get_product_usage_stats(manufacturer_slug: str, product_slug: str):
+@router.get("/{product_id}/usage-stats", response_model=ProductUsageStats)
+async def get_product_usage_stats(product_id: int):
     """Get aggregated usage analytics for all documents of a product."""
     async with async_session() as session:
-        product = await _get_product_by_slugs(session, manufacturer_slug, product_slug)
-        product_id = product.id
+        product = await _get_product(session, product_id)
 
         agg_result = await session.execute(
             select(

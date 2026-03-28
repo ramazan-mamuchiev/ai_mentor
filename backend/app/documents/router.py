@@ -1180,27 +1180,18 @@ async def _find_by_hash(
 
 async def _get_or_create_product(session, name: str, manufacturer: str, *, tenant_id=None):
     from sqlalchemy.exc import IntegrityError
-    from app.slugify import slugify
 
     result = await session.execute(
         select(Product).where(Product.name == name, Product.manufacturer == manufacturer)
     )
     product = result.scalar_one_or_none()
     if product:
-        if not product.slug:
-            product.slug = slugify(name)
-            product.manufacturer_slug = slugify(manufacturer) if manufacturer else "default"
-            await session.flush()
         return product
 
-    slug = slugify(name)
-    mfr_slug = slugify(manufacturer) if manufacturer else "default"
     product = Product(
         name=name,
         manufacturer=manufacturer,
         model=name,
-        slug=slug,
-        manufacturer_slug=mfr_slug,
         tenant_id=tenant_id,
     )
     session.add(product)

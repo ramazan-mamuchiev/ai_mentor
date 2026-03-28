@@ -272,23 +272,23 @@ async def share_debug_document(document_id: int, request: Request):
 
 
 @router.post(
-    "/share/debug/product/{manufacturer_slug}/{product_slug}",
+    "/share/debug/product/{product_id}",
     response_model=SharedLinkResponse,
     status_code=201,
 )
-async def share_debug_product(manufacturer_slug: str, product_slug: str, request: Request):
+async def share_debug_product(product_id: int, request: Request):
     """Create a public snapshot of product debug info."""
     from app.products.router import get_product_debug, get_product_usage_stats
 
     try:
-        debug_info = await get_product_debug(manufacturer_slug, product_slug)
+        debug_info = await get_product_debug(product_id)
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(status_code=404, detail="Product not found")
 
     try:
-        usage_stats = await get_product_usage_stats(manufacturer_slug, product_slug)
+        usage_stats = await get_product_usage_stats(product_id)
         usage_dict = usage_stats.model_dump(mode="json")
     except Exception:
         usage_dict = None
@@ -318,11 +318,7 @@ async def share_debug_product(manufacturer_slug: str, product_slug: str, request
         await db.commit()
         await db.refresh(link)
 
-    logger.info("Shared debug_product", extra={
-        "manufacturer_slug": manufacturer_slug,
-        "product_slug": product_slug,
-        "token": token,
-    })
+    logger.info("Shared debug_product", extra={"product_id": product_id, "token": token})
     return _link_response(link, request)
 
 

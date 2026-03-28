@@ -6,8 +6,6 @@ import {
   deleteProduct,
   getProductDebug,
   suggestProducts,
-  listProductCategories,
-  listProductTags,
 } from '../../api/products'
 
 beforeEach(() => {
@@ -47,10 +45,10 @@ describe('getProduct', () => {
       json: () => Promise.resolve(product),
     }))
 
-    const result = await getProduct('acme', 'camera-one')
+    const result = await getProduct(1)
     expect(result).toEqual(product)
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/products/acme/camera-one',
+      '/api/v1/products/1',
       expect.anything(),
     )
   })
@@ -62,7 +60,7 @@ describe('getProduct', () => {
       text: () => Promise.resolve('Not found'),
     }))
 
-    await expect(getProduct('x', 'y')).rejects.toThrow('API error 404')
+    await expect(getProduct(999)).rejects.toThrow('API error 404')
   })
 })
 
@@ -74,9 +72,9 @@ describe('updateProduct', () => {
       json: () => Promise.resolve({ id: 1, name: 'Updated' }),
     }))
 
-    await updateProduct('acme', 'camera-one', { name: 'Updated' })
+    await updateProduct(1, { name: 'Updated' })
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/products/acme/camera-one',
+      '/api/v1/products/1',
       expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify({ name: 'Updated' }),
@@ -89,13 +87,12 @@ describe('deleteProduct', () => {
   it('sends DELETE request', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      status: 200,
-      json: () => Promise.resolve({}),
+      status: 204,
     }))
 
-    await deleteProduct('acme', 'camera-one')
+    await deleteProduct(1)
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/products/acme/camera-one',
+      '/api/v1/products/1',
       expect.objectContaining({ method: 'DELETE' }),
     )
   })
@@ -116,10 +113,10 @@ describe('getProductDebug', () => {
       json: () => Promise.resolve(debugData),
     }))
 
-    const result = await getProductDebug('acme', 'camera-one')
+    const result = await getProductDebug(1)
     expect(result).toEqual(debugData)
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/products/acme/camera-one/debug',
+      '/api/v1/products/1/debug',
       expect.anything(),
     )
   })
@@ -127,7 +124,7 @@ describe('getProductDebug', () => {
 
 describe('suggestProducts', () => {
   it('calls suggest endpoint with query and limit', async () => {
-    const suggestions = [{ id: 1, name: 'Cam', manufacturer: 'Acme', slug: 'cam', manufacturer_slug: 'acme', category_slug: null, firmware_versions: [] }]
+    const suggestions = [{ id: 1, name: 'Cam', manufacturer: 'Acme', firmware_versions: [] }]
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -138,46 +135,6 @@ describe('suggestProducts', () => {
     expect(result).toEqual(suggestions)
     expect(fetch).toHaveBeenCalledWith(
       '/api/v1/products/suggest?q=cam&limit=10',
-      expect.objectContaining({
-        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
-      }),
-    )
-  })
-})
-
-describe('listProductCategories', () => {
-  it('calls categories endpoint', async () => {
-    const categories = [{ id: 1, slug: 'cams', icon: 'box', count: 2 }]
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve(categories),
-    }))
-
-    const result = await listProductCategories()
-    expect(result).toEqual(categories)
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/products/categories',
-      expect.objectContaining({
-        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
-      }),
-    )
-  })
-})
-
-describe('listProductTags', () => {
-  it('calls tags endpoint', async () => {
-    const tags = [{ id: 1, slug: 'ip', count: 5 }]
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve(tags),
-    }))
-
-    const result = await listProductTags()
-    expect(result).toEqual(tags)
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/products/tags',
       expect.objectContaining({
         headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
       }),

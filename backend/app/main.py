@@ -104,7 +104,6 @@ async def _apply_schema():
     await _migrate_upload_sessions()
     await _migrate_chunks_parent_content()
     await _migrate_ingested_at_to_uploaded_at()
-    await _migrate_product_slugs()
     await _apply_auth_schema()
 
 
@@ -410,31 +409,6 @@ async def _migrate_ingested_at_to_uploaded_at():
             logger.info("Added indexed_at column and backfilled from uploaded_at for ready documents")
 
 
-async def _migrate_product_slugs():
-    """Populate slug and manufacturer_slug for products that don't have them yet."""
-    from app.database import engine
-    from app.slugify import slugify
-
-    async with engine.begin() as conn:
-        raw = await conn.get_raw_connection()
-        drv = raw.driver_connection
-
-        rows = await drv.fetch(
-            "SELECT id, name, manufacturer FROM products WHERE slug = '' OR manufacturer_slug = ''"
-        )
-        if not rows:
-            return
-
-        for row in rows:
-            s = slugify(row["name"])
-            ms = slugify(row["manufacturer"]) if row["manufacturer"] else "default"
-            await drv.execute(
-                "UPDATE products SET slug = $1, manufacturer_slug = $2 WHERE id = $3",
-                s, ms, row["id"],
-            )
-        logger.info("Backfilled product slugs", extra={"count": len(rows)})
-
-
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global _start_time
@@ -462,16 +436,6 @@ async def lifespan(app: FastAPI):
             await seed_prompts(session)
     except Exception:
         logger.warning("Prompt templates seed failed", exc_info=True)
-
-    try:
-        from app.admin.seed_i18n import seed_i18n
-        from app.admin.seed_taxonomy import seed_taxonomy
-        from app.database import async_session as _session_factory
-        async with _session_factory() as session:
-            await seed_i18n(session)
-            await seed_taxonomy(session)
-    except Exception:
-        logger.warning("i18n/taxonomy seed failed", exc_info=True)
 
     monitor_task = asyncio.create_task(_system_monitor())
     async with mcp.session_manager.run():
@@ -510,17 +474,9 @@ app.include_router(share_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(uploads_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(share_public_router, prefix="/api/v1")
 
-from app.i18n.router import router as i18n_router
-app.include_router(i18n_router, prefix="/api/v1")
-
 from app.admin.router import router as admin_router
 app.include_router(admin_router, prefix="/api/v1", dependencies=_admin_auth)
 
-from app.i18n.admin_router import router as i18n_admin_router
-app.include_router(i18n_admin_router, prefix="/api/v1", dependencies=_admin_auth)
-
-from app.taxonomy.admin_router import router as taxonomy_admin_router
-app.include_router(taxonomy_admin_router, prefix="/api/v1", dependencies=_admin_auth)
 from app.mcp.auth_middleware import McpApiKeyAuthMiddleware
 app.router.routes.append(Mount("/mcp", app=McpApiKeyAuthMiddleware(mcp.streamable_http_app())))
 

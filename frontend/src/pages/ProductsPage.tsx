@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -17,7 +17,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
-import { listProducts, deleteProduct, reingestProduct, cancelProductIngestion, listProductCategories, listProductTags, type ProductCategoryPublic, type ProductTagPublic } from '../api/products'
+import { listProducts, deleteProduct, reingestProduct, cancelProductIngestion } from '../api/products'
 import { FilterSidebar, ActiveFilters, type FacetValue } from '../components/FilterSidebar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DocsRightPanel } from '../components/DocsRightPanel'
@@ -231,9 +231,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [categories, setCategories] = useState<ProductCategoryPublic[]>([])
-  const [allTags, setAllTags] = useState<ProductTagPublic[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -246,11 +243,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   }, [])
 
   useEffect(() => { fetchProducts() }, [fetchProducts])
-
-  useEffect(() => {
-    listProductCategories().then(setCategories).catch(() => {})
-    listProductTags().then(setAllTags).catch(() => {})
-  }, [])
 
   useEffect(() => {
     if (refreshKey) fetchProducts()
@@ -267,10 +259,8 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return
     try {
-      await deleteProduct(deleteTarget.manufacturer_slug, deleteTarget.slug)
-      setProducts(prev => prev.filter(p =>
-        !(p.manufacturer_slug === deleteTarget.manufacturer_slug && p.slug === deleteTarget.slug)
-      ))
+      await deleteProduct(deleteTarget.id)
+      setProducts(prev => prev.filter(p => p.id !== deleteTarget.id))
     } catch { /* ignore */ }
     finally { setDeleteTarget(null) }
   }, [deleteTarget])
@@ -278,7 +268,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const handleReingestConfirm = useCallback(async () => {
     if (!reingestTarget) return
     try {
-      await reingestProduct(reingestTarget.manufacturer_slug, reingestTarget.slug)
+      await reingestProduct(reingestTarget.id)
       fetchProducts()
     } catch { /* ignore */ }
     finally { setReingestTarget(null) }
@@ -287,7 +277,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const handleCancelConfirm = useCallback(async () => {
     if (!cancelTarget) return
     try {
-      await cancelProductIngestion(cancelTarget.manufacturer_slug, cancelTarget.slug)
+      await cancelProductIngestion(cancelTarget.id)
       fetchProducts()
     } catch { /* ignore */ }
     finally { setCancelTarget(null) }
@@ -351,7 +341,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         <div
           className="docs-name-cell"
           style={{ cursor: 'pointer' }}
-          onClick={() => navigate(`/app/products/${row.original.manufacturer_slug}/${row.original.slug}`)}
+          onClick={() => navigate(`/app/products/${row.original.id}`)}
         >
           <span className="docs-name">{row.original.display_name || row.original.name}</span>
           {row.original.manufacturer && (
@@ -363,13 +353,12 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     },
     {
       id: 'category',
-      accessorFn: row => row.category_slug || row.category || '',
+      accessorFn: row => row.category || '',
       header: () => t('products.table.category'),
       cell: ({ row }) => {
-        const slug = row.original.category_slug || row.original.category
-        if (!slug) return <span className="docs-date">—</span>
-        const label = t(`category.${slug}`, { ns: 'taxonomy', defaultValue: slug })
-        return <span className="docs-format-badge">{label}</span>
+        const cat = row.original.category
+        if (!cat) return <span className="docs-date">—</span>
+        return <span className="docs-format-badge">{cat}</span>
       },
       enableGrouping: true,
     },
@@ -458,17 +447,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const filteredProducts = useMemo(() => {
     let list = products
     if (selectedCategories.length > 0) {
-      list = list.filter(p =>
-        selectedCategories.includes(p.category_slug || '') || selectedCategories.includes(p.category || '')
-      )
-    }
-    if (selectedTags.length > 0) {
-      list = list.filter(p =>
-        p.tags?.some(t => selectedTags.includes(t.slug))
-      )
+      list = list.filter(p => selectedCategories.includes(p.category || ''))
     }
     return list
-  }, [products, selectedCategories, selectedTags])
+  }, [products, selectedCategories])
 
   const {
     table,
@@ -490,19 +472,15 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     onGlobalFilterChange: setGlobalFilter,
   })
 
-  const categoryFacets: FacetValue[] = useMemo(() =>
-    categories.map(c => ({
-      value: c.slug,
-      label: t(`category.${c.slug}`, { ns: 'taxonomy', defaultValue: c.slug }),
-      count: c.count,
-    })), [categories, t])
-
-  const tagFacets: FacetValue[] = useMemo(() =>
-    allTags.map(tg => ({
-      value: tg.slug,
-      label: t(`tag.${tg.slug}`, { ns: 'taxonomy', defaultValue: tg.slug }),
-      count: tg.count,
-    })), [allTags, t])
+  const categoryFacets: FacetValue[] = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const p of products) {
+      if (p.category) map.set(p.category, (map.get(p.category) ?? 0) + 1)
+    }
+    return [...map.entries()]
+      .map(([v, c]) => ({ value: v, label: v, count: c }))
+      .sort((a, b) => b.count - a.count)
+  }, [products])
 
   const manufacturerFacets: FacetValue[] = useMemo(() => {
     const map = new Map<string, number>()
@@ -515,22 +493,17 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const activeFilterChips = useMemo(() => {
     const chips: Array<{ facet: string; value: string; label: string }> = []
     for (const v of selectedCategories) {
-      chips.push({ facet: 'category', value: v, label: t(`category.${v}`, { ns: 'taxonomy', defaultValue: v }) })
-    }
-    for (const v of selectedTags) {
-      chips.push({ facet: 'tag', value: v, label: t(`tag.${v}`, { ns: 'taxonomy', defaultValue: v }) })
+      chips.push({ facet: 'category', value: v, label: v })
     }
     return chips
-  }, [selectedCategories, selectedTags, t])
+  }, [selectedCategories])
 
   const handleRemoveFilter = useCallback((facet: string, value: string) => {
     if (facet === 'category') setSelectedCategories(prev => prev.filter(v => v !== value))
-    if (facet === 'tag') setSelectedTags(prev => prev.filter(v => v !== value))
   }, [])
 
   const handleClearAllFilters = useCallback(() => {
     setSelectedCategories([])
-    setSelectedTags([])
   }, [])
 
   const handleResetAll = useCallback(() => {
@@ -579,16 +552,16 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   return (
     <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
       <div className="docs-page-main" style={{ display: 'flex', gap: 16 }}>
-      {(categoryFacets.filter(f => f.count > 0).length >= 2 || tagFacets.filter(f => f.count > 0).length >= 2) && (
+      {(categoryFacets.filter(f => f.count > 0).length >= 2 || manufacturerFacets.length > 1) && (
         <FilterSidebar
           categories={categoryFacets.filter(f => f.count > 0)}
-          tags={tagFacets.filter(f => f.count > 0)}
+          tags={[]}
           manufacturers={manufacturerFacets.length > 1 ? manufacturerFacets : []}
           selectedCategories={selectedCategories}
-          selectedTags={selectedTags}
+          selectedTags={[]}
           selectedManufacturers={[]}
           onCategoriesChange={setSelectedCategories}
-          onTagsChange={setSelectedTags}
+          onTagsChange={() => {}}
           onManufacturersChange={() => {}}
         />
       )}
@@ -706,7 +679,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
             <div
               className="docs-card"
               key={p.firmware_version_id ? `${p.id}-${p.firmware_version_id}` : p.id}
-              onClick={() => navigate(`/app/products/${p.manufacturer_slug}/${p.slug}`)}
+              onClick={() => navigate(`/app/products/${p.id}`)}
               style={{ cursor: 'pointer' }}
             >
               <div className="docs-card-header">
@@ -755,8 +728,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       {debugPanel && (
         <DocsRightPanel
           mode="product"
-          manufacturerSlug={debugPanel.manufacturer_slug}
-          productSlug={debugPanel.slug}
+          productId={debugPanel.id}
           productName={debugPanel.name}
           onClose={closeDebug}
         />

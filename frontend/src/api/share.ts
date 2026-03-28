@@ -29,8 +29,8 @@ export async function shareDebugDocument(documentId: number): Promise<SharedLink
   })
 }
 
-export async function shareDebugProduct(manufacturerSlug: string, productSlug: string): Promise<SharedLinkResponse> {
-  return apiFetch<SharedLinkResponse>(`/share/debug/product/${manufacturerSlug}/${productSlug}`, {
+export async function shareDebugProduct(productId: number): Promise<SharedLinkResponse> {
+  return apiFetch<SharedLinkResponse>(`/share/debug/product/${productId}`, {
     method: 'POST',
     body: '{}',
   })

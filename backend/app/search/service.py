@@ -84,29 +84,11 @@ async def _bm25_search(
     where_sql: str,
     params: dict,
     fetch_limit: int,
-    product_id: int | None = None,
 ) -> list[dict]:
-    """Full-text search using PostgreSQL tsvector/tsquery.
-
-    When product_id is set, search_keywords for that product are appended
-    to the tsquery as OR terms to boost relevance.
-    """
+    """Full-text search using PostgreSQL tsvector/tsquery."""
     bm25_params = {**params, "tsquery": query}
 
     tsquery_expr = "plainto_tsquery('simple', :tsquery)"
-
-    if product_id is not None:
-        kw_result = await session.execute(
-            text("SELECT keyword FROM search_keywords WHERE product_id = :pid"),
-            {"pid": product_id},
-        )
-        keywords = [row[0] for row in kw_result]
-        if keywords:
-            kw_parts = " | ".join(
-                f"to_tsquery('simple', '{kw.replace(chr(39), chr(39)+chr(39))}'')"
-                for kw in keywords[:20]
-            )
-            tsquery_expr = f"({tsquery_expr} || {kw_parts})"
 
     sql = text(f"""
         SELECT
@@ -265,7 +247,7 @@ async def search_documents(
     if settings.hybrid_search_enabled:
         t_bm25 = time.perf_counter()
         try:
-            bm25_results = await _bm25_search(session, query, where_sql, params, fetch_limit, product_id=product_id)
+            bm25_results = await _bm25_search(session, query, where_sql, params, fetch_limit)
         except Exception:
             logger.warning("BM25 search failed, falling back to vector-only", exc_info=True)
         bm25_ms = round((time.perf_counter() - t_bm25) * 1000, 1)

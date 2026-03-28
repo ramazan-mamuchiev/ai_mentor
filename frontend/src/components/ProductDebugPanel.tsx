@@ -58,13 +58,12 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
 }
 
 interface ContentProps {
-  manufacturerSlug?: string
-  productSlug?: string
+  productId?: number
   initialDebug?: ProductDebugInfo
   initialUsage?: ProductUsageStats | null
 }
 
-export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebug, initialUsage }: ContentProps) {
+export function ProductDebugContent({ productId, initialDebug, initialUsage }: ContentProps) {
   const { t } = useTranslation()
   const [debug, setDebug] = useState<ProductDebugInfo | null>(initialDebug ?? null)
   const [usage, setUsage] = useState<ProductUsageStats | null>(initialUsage ?? null)
@@ -72,19 +71,19 @@ export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebu
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (initialDebug || !manufacturerSlug || !productSlug) return
+    if (initialDebug || productId == null) return
     let cancelled = false
     setLoading(true)
     setError(null)
     Promise.all([
-      getProductDebug(manufacturerSlug, productSlug),
-      getProductUsageStats(manufacturerSlug, productSlug).catch(() => null),
+      getProductDebug(productId),
+      getProductUsageStats(productId).catch(() => null),
     ])
       .then(([d, u]) => { if (!cancelled) { setDebug(d); setUsage(u) } })
       .catch(e => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [manufacturerSlug, productSlug, initialDebug])
+  }, [productId, initialDebug])
 
   const docsSummary = useMemo(() => {
     if (!debug?.documents.length) return null
@@ -244,15 +243,14 @@ export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebu
 }
 
 interface Props {
-  manufacturerSlug: string
-  productSlug: string
+  productId: number
   onCollapse?: () => void
 }
 
-export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }: Props) {
+export function ProductDebugPanel({ productId, onCollapse }: Props) {
   return (
     <DebugPanelWrapper onCollapse={onCollapse}>
-      <ProductDebugContent manufacturerSlug={manufacturerSlug} productSlug={productSlug} />
+      <ProductDebugContent productId={productId} />
     </DebugPanelWrapper>
   )
 }

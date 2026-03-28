@@ -29,10 +29,8 @@ async function createShareLink(type: ShareType, id: number | string): Promise<Sh
       return shareDebugMessage(id as number)
     case 'debug_document':
       return shareDebugDocument(id as number)
-    case 'debug_product': {
-      const [mfr, slug] = (id as string).split('/')
-      return shareDebugProduct(mfr, slug)
-    }
+    case 'debug_product':
+      return shareDebugProduct(id as number)
   }
 }
 

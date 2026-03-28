@@ -10,12 +10,6 @@ class FormatCount(BaseModel):
     count: int
 
 
-class TagInfo(BaseModel):
-    id: int
-    slug: str
-    label: str = ""
-
-
 class FirmwareVersionInfo(BaseModel):
     id: int
     version: str
@@ -27,12 +21,6 @@ class ProductListItem(BaseModel):
     manufacturer: str = ""
     model: str = ""
     category: str = ""
-    category_id: int | None = None
-    category_slug: str | None = None
-    category_label: str | None = None
-    tags: list[TagInfo] = []
-    slug: str = ""
-    manufacturer_slug: str = ""
     created_at: datetime
 
     firmware_versions: list[FirmwareVersionInfo] = []
@@ -78,16 +66,12 @@ class FacetValue(BaseModel):
 class Facets(BaseModel):
     categories: list[FacetValue] = []
     manufacturers: list[FacetValue] = []
-    tags: list[FacetValue] = []
 
 
 class ProductSuggestion(BaseModel):
     id: int
     name: str
     manufacturer: str = ""
-    slug: str = ""
-    manufacturer_slug: str = ""
-    category_slug: str | None = None
     firmware_versions: list[FirmwareVersionInfo] = []
 
 
@@ -97,12 +81,6 @@ class ProductDetail(BaseModel):
     manufacturer: str = ""
     model: str = ""
     category: str = ""
-    category_id: int | None = None
-    category_slug: str | None = None
-    category_label: str | None = None
-    tags: list[TagInfo] = []
-    slug: str = ""
-    manufacturer_slug: str = ""
     created_at: datetime
     firmware_versions: list[str] = []
 
@@ -114,8 +92,6 @@ class ProductUpdate(BaseModel):
     manufacturer: str | None = None
     model: str | None = None
     category: str | None = None
-    category_id: int | None = None
-    tag_ids: list[int] | None = None
 
 
 class DocumentUpdate(BaseModel):

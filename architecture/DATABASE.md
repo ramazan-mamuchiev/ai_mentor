@@ -108,11 +108,8 @@ CREATE TABLE products (
     manufacturer TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL DEFAULT '',         -- camera | vms | access_control | intercom | nvr | sdk
-    slug TEXT NOT NULL DEFAULT '',
-    manufacturer_slug TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(manufacturer, model),
-    UNIQUE(manufacturer_slug, slug)
+    UNIQUE(manufacturer, model)
 );
 
 -- Firmware / API versions per product

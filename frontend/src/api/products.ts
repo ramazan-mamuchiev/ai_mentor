@@ -5,39 +5,38 @@ export async function listProducts(): Promise<ProductListItem[]> {
   return apiFetch<ProductListItem[]>('/products')
 }
 
-export async function getProduct(manufacturerSlug: string, productSlug: string): Promise<ProductDetail> {
-  return apiFetch<ProductDetail>(`/products/${manufacturerSlug}/${productSlug}`)
+export async function getProduct(productId: number): Promise<ProductDetail> {
+  return apiFetch<ProductDetail>(`/products/${productId}`)
 }
 
 export async function updateProduct(
-  manufacturerSlug: string,
-  productSlug: string,
-  data: { name?: string; manufacturer?: string; model?: string; category?: string; category_id?: number | null; tag_ids?: number[] },
+  productId: number,
+  data: { name?: string; manufacturer?: string; model?: string; category?: string },
 ): Promise<ProductDetail> {
-  return apiFetch<ProductDetail>(`/products/${manufacturerSlug}/${productSlug}`, {
+  return apiFetch<ProductDetail>(`/products/${productId}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   })
 }
 
-export async function deleteProduct(manufacturerSlug: string, productSlug: string): Promise<void> {
-  return apiFetch<void>(`/products/${manufacturerSlug}/${productSlug}`, { method: 'DELETE' })
+export async function deleteProduct(productId: number): Promise<void> {
+  return apiFetch<void>(`/products/${productId}`, { method: 'DELETE' })
 }
 
-export async function reingestProduct(manufacturerSlug: string, productSlug: string): Promise<{ product_id: number; status: string; documents_queued: number }> {
-  return apiFetch(`/products/${manufacturerSlug}/${productSlug}/reingest`, { method: 'POST' })
+export async function reingestProduct(productId: number): Promise<{ product_id: number; status: string; documents_queued: number }> {
+  return apiFetch(`/products/${productId}/reingest`, { method: 'POST' })
 }
 
-export async function cancelProductIngestion(manufacturerSlug: string, productSlug: string): Promise<void> {
-  return apiFetch<void>(`/products/${manufacturerSlug}/${productSlug}/cancel-ingestion`, { method: 'POST' })
+export async function cancelProductIngestion(productId: number): Promise<void> {
+  return apiFetch<void>(`/products/${productId}/cancel-ingestion`, { method: 'POST' })
 }
 
-export async function getProductDebug(manufacturerSlug: string, productSlug: string): Promise<ProductDebugInfo> {
-  return apiFetch<ProductDebugInfo>(`/products/${manufacturerSlug}/${productSlug}/debug`)
+export async function getProductDebug(productId: number): Promise<ProductDebugInfo> {
+  return apiFetch<ProductDebugInfo>(`/products/${productId}/debug`)
 }
 
-export async function getProductUsageStats(manufacturerSlug: string, productSlug: string): Promise<ProductUsageStats> {
-  return apiFetch<ProductUsageStats>(`/products/${manufacturerSlug}/${productSlug}/usage-stats`)
+export async function getProductUsageStats(productId: number): Promise<ProductUsageStats> {
+  return apiFetch<ProductUsageStats>(`/products/${productId}/usage-stats`)
 }
 
 export async function getSuggestions(): Promise<SuggestionChip[]> {
@@ -48,22 +47,7 @@ export interface ProductSuggestion {
   id: number
   name: string
   manufacturer: string
-  slug: string
-  manufacturer_slug: string
-  category_slug: string | null
   firmware_versions: Array<{ id: number; version: string }>
-}
-
-export interface ProductCategoryPublic {
-  id: number
-  slug: string
-  count: number
-}
-
-export interface ProductTagPublic {
-  id: number
-  slug: string
-  count: number
 }
 
 export async function suggestProducts(q: string = '', limit: number = 20): Promise<ProductSuggestion[]> {
@@ -71,12 +55,4 @@ export async function suggestProducts(q: string = '', limit: number = 20): Promi
   if (q) params.set('q', q)
   params.set('limit', String(limit))
   return apiFetch<ProductSuggestion[]>(`/products/suggest?${params}`)
-}
-
-export async function listProductCategories(): Promise<ProductCategoryPublic[]> {
-  return apiFetch<ProductCategoryPublic[]>('/products/categories')
-}
-
-export async function listProductTags(): Promise<ProductTagPublic[]> {
-  return apiFetch<ProductTagPublic[]>('/products/tags')
 }

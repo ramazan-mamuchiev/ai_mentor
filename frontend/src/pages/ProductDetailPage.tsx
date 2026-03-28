@@ -14,19 +14,19 @@ interface ProductDetailPageProps {
 
 export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDetailPageProps) {
   const { t } = useTranslation()
-  const { manufacturer, product: productSlug } = useParams<{ manufacturer: string; product: string }>()
+  const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!manufacturer || !productSlug) return
+    if (!productId) return
     setLoading(true)
-    getProduct(manufacturer, productSlug)
+    getProduct(Number(productId))
       .then(setProduct)
       .catch(() => navigate('/app/products'))
       .finally(() => setLoading(false))
-  }, [manufacturer, productSlug, navigate])
+  }, [productId, navigate])
 
   const productCtx = useMemo<ProductContext | undefined>(() =>
     product ? {

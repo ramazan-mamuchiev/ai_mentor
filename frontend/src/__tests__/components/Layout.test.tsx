@@ -79,11 +79,9 @@ describe('Layout', () => {
 })
 
 describe('Layout admin sub-nav', () => {
-  it('shows taxonomy, languages, and translations entries on admin route', () => {
+  it('shows dashboard entry on admin route', () => {
     renderLayout({}, undefined, '/app/admin')
-    expect(screen.getByRole('button', { name: 'Taxonomy' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Languages' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Translations' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument()
   })
 })
 

@@ -292,8 +292,6 @@ export interface ProductListItem {
   manufacturer: string
   model: string
   category: string
-  slug: string
-  manufacturer_slug: string
   created_at: string
   firmware_version_id: number | null
   version: string
@@ -311,10 +309,6 @@ export interface ProductListItem {
   indexed_at: string | null
   progress_percent: number
   progress_detail: string
-  category_id?: number | null
-  category_slug?: string | null
-  category_label?: string | null
-  tags?: TagInfo[]
 }
 
 export interface ProductDetail {
@@ -323,14 +317,8 @@ export interface ProductDetail {
   manufacturer: string
   model: string
   category: string
-  slug: string
-  manufacturer_slug: string
   created_at: string
   firmware_versions: string[]
-  category_id?: number | null
-  category_slug?: string | null
-  category_label?: string | null
-  tags?: TagInfo[]
 }
 
 export interface ProductDocumentSummary {
@@ -466,10 +454,4 @@ export interface ReindexJobList {
 export interface FirmwareVersionInfo {
   id: number
   version: string
-}
-
-export interface TagInfo {
-  id: number
-  slug: string
-  label?: string
 }

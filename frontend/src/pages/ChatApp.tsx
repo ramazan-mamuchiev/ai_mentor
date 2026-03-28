@@ -276,7 +276,7 @@ export function ChatApp() {
         <Route index element={chatContent} />
         <Route path="documents" element={<DocumentsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
         <Route path="products" element={<ProductsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
-        <Route path="products/:manufacturer/:product" element={
+        <Route path="products/:productId" element={
           <ProductDetailPage
             onUploadClick={(ctx) => { productContextRef.current = ctx; setShowUpload(true) }}
             onUrlImportClick={(ctx) => { productContextRef.current = ctx; setShowUrlImport(true) }}

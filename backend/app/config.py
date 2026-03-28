@@ -120,11 +120,6 @@ class Settings(BaseSettings):
     # --- Sentry ---
     sentry_dsn: str = ""
 
-    # --- Auto-translation ---
-    auto_translate_enabled: bool = True
-    auto_translate_model: str = "gemini-2.5-flash"
-    auto_translate_batch_size: int = 50
-
     platform_name: str = "Lexiro"
 
     app_env: str = "development"
