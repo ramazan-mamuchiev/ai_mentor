@@ -9,20 +9,20 @@ import {
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
 import type { TenantSearchResult } from '../../api/admin'
 
-function relativeTime(iso: string | null): string {
-  if (!iso) return '—'
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
 export function LanguagesPage() {
   const { t } = useTranslation()
+
+  const relativeTime = (iso: string | null): string => {
+    if (!iso) return ''
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return t('admin.common.justNow')
+    if (mins < 60) return t('admin.common.minutesAgo', { count: mins })
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return t('admin.common.hoursAgo', { count: hours })
+    const days = Math.floor(hours / 24)
+    return t('admin.common.daysAgo', { count: days })
+  }
   const [languages, setLanguages] = useState<AdminLanguage[]>([])
   const [loading, setLoading] = useState(true)
   const [newCode, setNewCode] = useState('')
@@ -198,8 +198,8 @@ export function LanguagesPage() {
                     {progress && progress.status === 'complete' && <span style={{ fontSize: 12, color: 'var(--success)' }}> {t('admin.languages.translateDone')}</span>}
                     {progress && progress.status === 'partial' && <span style={{ fontSize: 12, color: 'var(--warning)' }}> {t('admin.languages.translatePartial', { errors: progress.errors })}</span>}
                   </td>
-                  <td style={{ fontSize: 12 }}>{lang.modified_by_name || lang.modified_by_email || '—'}</td>
-                  <td style={{ fontSize: 12 }}>{relativeTime(lang.modified_at)}</td>
+                  <td className="audit-cell">{lang.modified_by_name || lang.modified_by_email || ''}</td>
+                  <td className="audit-cell">{relativeTime(lang.modified_at)}</td>
                   <td>
                     {!lang.is_system && (
                       <button

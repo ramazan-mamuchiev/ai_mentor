@@ -8,20 +8,20 @@ import {
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
 import type { TenantSearchResult } from '../../api/admin'
 
-function relativeTime(iso: string | null): string {
-  if (!iso) return '—'
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
 export default function TranslationsPage() {
   const { t } = useTranslation()
+
+  const relativeTime = (iso: string | null): string => {
+    if (!iso) return ''
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return t('admin.common.justNow')
+    if (mins < 60) return t('admin.common.minutesAgo', { count: mins })
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return t('admin.common.hoursAgo', { count: hours })
+    const days = Math.floor(hours / 24)
+    return t('admin.common.daysAgo', { count: days })
+  }
   const [languages, setLanguages] = useState<AdminLanguage[]>([])
   const [selectedLangId, setSelectedLangId] = useState<number | null>(null)
   const [namespace, setNamespace] = useState('ui')
@@ -117,7 +117,7 @@ export default function TranslationsPage() {
             <Search size={14} className="logs-search-wrap__icon" />
             <input
               className="logs-search"
-              placeholder={t('admin.logs.searchPlaceholder', { defaultValue: 'Search keys or values...' })}
+              placeholder={t('admin.translations.searchPlaceholder')}
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
             />
@@ -148,9 +148,9 @@ export default function TranslationsPage() {
               <tr>
                 <th style={{ width: '30%' }}>{t('admin.translations.colKey')}</th>
                 <th>{t('admin.translations.colValue')}</th>
-                <th>{t('admin.common.modifiedBy')}</th>
-                <th>{t('admin.common.modifiedAt')}</th>
-                <th style={{ width: 60 }}></th>
+                <th style={{ width: 130 }}>{t('admin.common.modifiedBy')}</th>
+                <th style={{ width: 100 }}>{t('admin.common.modifiedAt')}</th>
+                <th style={{ width: 40 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -173,15 +173,15 @@ export default function TranslationsPage() {
                       />
                     ) : (
                       <span
+                        className="translation-value-cell"
                         onClick={() => { setEditingId(item.id); setEditValue(item.value) }}
-                        style={{ cursor: 'pointer' }}
                       >
-                        {item.value || <em style={{ opacity: 0.4 }}>—</em>}
+                        {item.value || <em className="translation-value-cell__empty">empty</em>}
                       </span>
                     )}
                   </td>
-                  <td style={{ fontSize: 12 }}>{item.modified_by_name || item.modified_by_email || '—'}</td>
-                  <td style={{ fontSize: 12 }}>{relativeTime(item.modified_at)}</td>
+                  <td className="audit-cell">{item.modified_by_name || item.modified_by_email || ''}</td>
+                  <td className="audit-cell">{relativeTime(item.modified_at)}</td>
                   <td>
                     {editingId === item.id && (
                       <button onClick={() => handleSave(item)} className="logs-icon-btn">

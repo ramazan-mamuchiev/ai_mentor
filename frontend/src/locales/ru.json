@@ -772,6 +772,10 @@
   "admin.common.actions": "Действия",
   "admin.common.modifiedBy": "Изменил",
   "admin.common.modifiedAt": "Изменено",
+  "admin.common.justNow": "только что",
+  "admin.common.minutesAgo": "{{count}} мин назад",
+  "admin.common.hoursAgo": "{{count}} ч назад",
+  "admin.common.daysAgo": "{{count}} дн назад",
 
   "admin.dashboard.title": "Дашборд",
   "admin.dashboard.subtitle": "Обзор платформы",
@@ -1124,6 +1128,7 @@
   "admin.languages.translateDone": "Готово",
   "admin.languages.translatePartial": "Частично ({{errors}} ошибок)",
 
+  "admin.translations.searchPlaceholder": "Поиск ключей и значений...",
   "admin.translations.colKey": "Ключ",
   "admin.translations.colValue": "Значение",
   "admin.translations.keys": "ключей",

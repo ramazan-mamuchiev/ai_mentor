@@ -742,6 +742,10 @@
   "admin.common.actions": "Actions",
   "admin.common.modifiedBy": "Modified by",
   "admin.common.modifiedAt": "Modified",
+  "admin.common.justNow": "just now",
+  "admin.common.minutesAgo": "{{count}}m ago",
+  "admin.common.hoursAgo": "{{count}}h ago",
+  "admin.common.daysAgo": "{{count}}d ago",
 
   "admin.dashboard.title": "Dashboard",
   "admin.dashboard.subtitle": "Platform overview",
@@ -1092,6 +1096,7 @@
   "admin.languages.translateDone": "Done",
   "admin.languages.translatePartial": "Partial ({{errors}} errors)",
 
+  "admin.translations.searchPlaceholder": "Search keys or values...",
   "admin.translations.colKey": "Key",
   "admin.translations.colValue": "Value",
   "admin.translations.keys": "keys",

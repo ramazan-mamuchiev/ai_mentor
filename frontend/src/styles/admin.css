@@ -2336,3 +2336,33 @@
 .spin {
   animation: spin 1s linear infinite;
 }
+
+/* --- Audit cells --- */
+
+.audit-cell {
+  font-size: 12px;
+  color: var(--text-muted, #999);
+  white-space: nowrap;
+}
+
+/* --- Editable translation value --- */
+
+.translation-value-cell {
+  cursor: pointer;
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: var(--radius, 6px);
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+  min-width: 60px;
+}
+
+.translation-value-cell:hover {
+  border-color: var(--border, #e0e0e0);
+  background: var(--surface-hover, rgba(128, 128, 128, 0.04));
+}
+
+.translation-value-cell__empty {
+  opacity: 0.3;
+  font-style: italic;
+}
