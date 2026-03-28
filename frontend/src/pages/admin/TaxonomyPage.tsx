@@ -227,11 +227,11 @@ export function TaxonomyPage() {
               />
               <button
                 type="button"
-                className="logs-live-btn logs-live-btn--active"
+                className="admin-btn admin-btn--primary"
                 disabled={!newCatSlug.trim()}
                 onClick={() => void handleCreateCategory()}
               >
-                <Plus size={13} /> {t('admin.common.create')}
+                <Plus size={14} /> {t('admin.common.create')}
               </button>
             </div>
           </div>
@@ -294,7 +294,7 @@ export function TaxonomyPage() {
                             <div className="admin-actions">
                               <button
                                 type="button"
-                                className="logs-live-btn logs-live-btn--active"
+                                className="admin-btn admin-btn--primary admin-btn--sm"
                                 disabled={savingEdit}
                                 onClick={() => void handleSaveCategory(cat.id)}
                               >
@@ -376,11 +376,11 @@ export function TaxonomyPage() {
               />
               <button
                 type="button"
-                className="logs-live-btn logs-live-btn--active"
+                className="admin-btn admin-btn--primary"
                 disabled={!newTagSlug.trim()}
                 onClick={() => void handleCreateTag()}
               >
-                <Plus size={13} /> {t('admin.common.create')}
+                <Plus size={14} /> {t('admin.common.create')}
               </button>
             </div>
           </div>

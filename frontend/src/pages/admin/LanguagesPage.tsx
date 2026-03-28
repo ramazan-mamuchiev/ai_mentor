@@ -48,7 +48,7 @@ export function LanguagesPage() {
 
   const handleDelete = async (id: number, isSystem: boolean) => {
     if (isSystem) return
-    if (!confirm('Delete this language and all its translations?')) return
+    if (!confirm(t('admin.languages.confirmDelete'))) return
     try {
       await adminDeleteLanguage(id)
       await loadLanguages()
@@ -85,59 +85,60 @@ export function LanguagesPage() {
     }, 3000)
   }
 
+  const defaultLangId = languages.find(l => l.is_default)?.id
+
   return (
     <div className="logs-page">
       <div className="admin-page-header">
         <h1><Globe size={20} /> {t('admin.nav.languages')}</h1>
       </div>
 
-      {/* Toolbar — logs-style */}
       <div className="logs-toolbar">
         <div className="logs-toolbar__row">
           <input
-            placeholder="Code (e.g. de)"
+            placeholder={t('admin.languages.codePlaceholder')}
             value={newCode}
             onChange={e => setNewCode(e.target.value)}
             className="logs-search"
-            style={{ width: 100, minWidth: 80 }}
+            style={{ width: 130, minWidth: 100 }}
           />
           <input
-            placeholder="Native name (e.g. Deutsch)"
+            placeholder={t('admin.languages.namePlaceholder')}
             value={newName}
             onChange={e => setNewName(e.target.value)}
             className="logs-search"
-            style={{ width: 200, minWidth: 140 }}
+            style={{ width: 220, minWidth: 160 }}
           />
           <button
             onClick={handleCreate}
-            className="logs-live-btn logs-live-btn--active"
+            className="admin-btn admin-btn--primary"
             disabled={!newCode.trim() || !newName.trim()}
           >
-            <Plus size={13} />
+            <Plus size={14} />
             {t('admin.common.create')}
           </button>
 
-          <span className="logs-count">{languages.length} {t('admin.nav.languages').toLowerCase()}</span>
+          <span className="logs-count">{languages.length} {t('admin.languages.count')}</span>
         </div>
       </div>
 
       {loading && <div className="admin-loading">{t('admin.common.loading')}</div>}
 
       {!loading && languages.length === 0 && (
-        <div className="admin-empty">{t('admin.common.loading')}</div>
+        <div className="admin-empty">{t('admin.languages.empty')}</div>
       )}
 
       {!loading && languages.length > 0 && (
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Default</th>
-              <th>Active</th>
-              <th>System</th>
-              <th>Keys</th>
-              <th>Auto-translate</th>
+              <th>{t('admin.languages.colCode')}</th>
+              <th>{t('admin.languages.colName')}</th>
+              <th>{t('admin.languages.colDefault')}</th>
+              <th>{t('admin.languages.colActive')}</th>
+              <th>{t('admin.languages.colSystem')}</th>
+              <th>{t('admin.languages.colKeys')}</th>
+              <th>{t('admin.languages.colAutoTranslate')}</th>
               <th>{t('admin.common.actions')}</th>
             </tr>
           </thead>
@@ -145,6 +146,7 @@ export function LanguagesPage() {
             {languages.map(lang => {
               const progress = translating[lang.id]
               const isTranslating = progress && progress.status === 'running'
+              const isSourceLang = lang.id === defaultLangId
               return (
                 <tr key={lang.id}>
                   <td><code>{lang.code}</code></td>
@@ -167,23 +169,26 @@ export function LanguagesPage() {
                         </div>
                         <span style={{ fontSize: 12 }}>{progress.done}/{progress.total}</span>
                       </div>
+                    ) : isSourceLang ? (
+                      <span style={{ fontSize: 12, opacity: 0.4 }}>—</span>
                     ) : (
-                      <button onClick={() => handleTranslate(lang.id)} className="logs-icon-btn" title="Auto-translate missing keys">
+                      <button onClick={() => handleTranslate(lang.id)} className="logs-icon-btn" title={t('admin.languages.translateTitle')}>
                         <Play size={14} />
                       </button>
                     )}
-                    {progress && progress.status === 'complete' && <span style={{ fontSize: 12, color: 'var(--success)' }}> Done</span>}
-                    {progress && progress.status === 'partial' && <span style={{ fontSize: 12, color: 'var(--warning)' }}> Partial ({progress.errors} errors)</span>}
+                    {progress && progress.status === 'complete' && <span style={{ fontSize: 12, color: 'var(--success)' }}> {t('admin.languages.translateDone')}</span>}
+                    {progress && progress.status === 'partial' && <span style={{ fontSize: 12, color: 'var(--warning)' }}> {t('admin.languages.translatePartial', { errors: progress.errors })}</span>}
                   </td>
                   <td>
-                    <button
-                      className="logs-icon-btn"
-                      onClick={() => handleDelete(lang.id, lang.is_system)}
-                      disabled={lang.is_system}
-                      title={lang.is_system ? 'System language' : t('admin.common.delete')}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {!lang.is_system && (
+                      <button
+                        className="logs-icon-btn"
+                        onClick={() => handleDelete(lang.id, lang.is_system)}
+                        title={t('admin.common.delete')}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               )

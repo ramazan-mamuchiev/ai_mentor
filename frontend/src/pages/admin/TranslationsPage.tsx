@@ -129,8 +129,8 @@ export default function TranslationsPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th style={{ width: '35%' }}>Key</th>
-                <th>Value</th>
+                <th style={{ width: '35%' }}>{t('admin.translations.colKey')}</th>
+                <th>{t('admin.translations.colValue')}</th>
                 <th style={{ width: 60 }}></th>
               </tr>
             </thead>
