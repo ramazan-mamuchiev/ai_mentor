@@ -5,6 +5,7 @@ import type { SourceInfo, StreamStatus, DebugInfo, SuggestionChip } from '../typ
 import type { ChatMessage as ChatMessageType } from '../types'
 import { getSuggestions } from '../api/products'
 import { useRotatingSlogan } from '../hooks/useRotatingSlogan'
+import { useRotatingLexiroChip } from '../hooks/useRotatingLexiroChip'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
@@ -154,6 +155,7 @@ export function ChatWindow({
 
   const { t, i18n } = useTranslation()
   const { line1, line2, accent, visible: sloganVisible } = useRotatingSlogan()
+  const lexiroChip = useRotatingLexiroChip()
   const isEmpty = messages.length === 0 && !streamingContent
 
   const [dynamicChips, setDynamicChips] = useState<SuggestionChip[] | null>(null)
@@ -207,6 +209,12 @@ export function ChatWindow({
                 <em>{accent}</em>
               </p>
               <div className="empty-suggestions">
+                <button
+                  className={`empty-suggestion-chip lexiro-chip${lexiroChip.visible ? '' : ' fading'}`}
+                  onClick={() => onSend(lexiroChip.text)}
+                >
+                  {lexiroChip.text}
+                </button>
                 {dynamicChips
                   ? dynamicChips.map((chip, idx) => {
                       const text = i18n.language === 'ru' ? chip.text_ru : chip.text_en

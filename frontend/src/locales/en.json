@@ -36,6 +36,12 @@
   "slogans.9.line1": "Stop reading! Start shipping!",
   "slogans.9.line2": "Lexiro knows the API for you.",
   "slogans.9.accent": "Just ask.",
+  "lexiroChip.count": "4",
+  "lexiroChip.0": "What is Lexiro and what can you do?",
+  "lexiroChip.1": "What products are available in Lexiro?",
+  "lexiroChip.2": "How do I get started with Lexiro?",
+  "lexiroChip.3": "Show me Lexiro capabilities",
+
   "empty.suggestion1": "How to authenticate via API?",
   "empty.suggestion2": "Show me the list of endpoints",
   "empty.suggestion3": "Give me a code example for event subscription",

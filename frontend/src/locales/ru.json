@@ -36,6 +36,12 @@
   "slogans.9.line1": "Хватит читать! Выпускай!",
   "slogans.9.line2": "Lexiro знает API за тебя.",
   "slogans.9.accent": "Просто спроси.",
+  "lexiroChip.count": "4",
+  "lexiroChip.0": "Что такое Lexiro и что ты умеешь?",
+  "lexiroChip.1": "Какие продукты доступны в Lexiro?",
+  "lexiroChip.2": "Как начать работу с Lexiro?",
+  "lexiroChip.3": "Покажи возможности Lexiro",
+
   "empty.suggestion1": "Как авторизоваться через API?",
   "empty.suggestion2": "Покажи список эндпоинтов",
   "empty.suggestion3": "Дай пример кода для подписки на события",

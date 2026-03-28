@@ -410,7 +410,7 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  max-width: 600px;
+  max-width: 640px;
 }
 
 .empty-suggestion-chip {
@@ -441,6 +441,33 @@
 [data-theme='dark'] .empty-suggestion-chip:hover {
   background: rgba(119, 184, 253, 0.08);
   border-color: rgba(119, 184, 253, 0.25);
+}
+
+.lexiro-chip {
+  border-color: rgba(37, 99, 235, 0.25);
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.04);
+  transition: opacity 0.4s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.lexiro-chip:hover {
+  background: rgba(37, 99, 235, 0.10);
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+.lexiro-chip.fading {
+  opacity: 0;
+}
+
+[data-theme='dark'] .lexiro-chip {
+  border-color: rgba(119, 184, 253, 0.25);
+  color: var(--accent);
+  background: rgba(119, 184, 253, 0.06);
+}
+
+[data-theme='dark'] .lexiro-chip:hover {
+  background: rgba(119, 184, 253, 0.12);
+  border-color: rgba(119, 184, 253, 0.4);
 }
 
 .message {
@@ -2401,6 +2428,17 @@
 
   .empty-title {
     font-size: 2rem;
+  }
+
+  .empty-suggestions {
+    max-width: 100%;
+    gap: 6px;
+    padding: 0 4px;
+  }
+
+  .empty-suggestion-chip {
+    padding: 6px 12px;
+    font-size: 0.76rem;
   }
 
   .message-content {
