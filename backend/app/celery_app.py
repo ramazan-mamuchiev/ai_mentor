@@ -1210,7 +1210,7 @@ def ingest_confluence_task(self, document_id: int):
 
 @celery.task(name="ingest_site", bind=True, max_retries=1, default_retry_delay=60,
              soft_time_limit=7200, time_limit=7500)
-def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_pages: int | None = None):
+def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_pages: int | None = None, download_resources: bool = True):
     """Background task: crawl a website and ingest each page + downloaded files.
 
     Receives the placeholder Document id (format='site').
@@ -1481,6 +1481,7 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
     try:
         try:
             loop = asyncio.get_event_loop()
+            _file_cb = _on_file if download_resources else None
             crawl_result = loop.run_until_complete(
                 crawl_site(
                     url,
@@ -1488,7 +1489,7 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
                     max_pages=_max_pages,
                     max_seconds=_max_seconds,
                     page_callback=_on_page,
-                    file_callback=_on_file,
+                    file_callback=_file_cb,
                     on_state_change=_on_state_change,
                     resume_state=restored_state,
                 )
@@ -1503,7 +1504,7 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
                         max_pages=_max_pages,
                         max_seconds=_max_seconds,
                         page_callback=_on_page,
-                        file_callback=_on_file,
+                        file_callback=_file_cb,
                         on_state_change=_on_state_change,
                         resume_state=restored_state,
                     )

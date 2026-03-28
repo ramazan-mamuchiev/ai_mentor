@@ -490,6 +490,7 @@
   "urlImport.siteCrawlToggle": "Crawl entire website",
   "urlImport.maxDepth": "Crawl depth",
   "urlImport.maxPages": "Max pages",
+  "urlImport.downloadResources": "Download resources (PDF, files)",
   "urlImport.crawlingSite": "Crawling website pages...",
 
   "docs.format.confluence": "Confluence",

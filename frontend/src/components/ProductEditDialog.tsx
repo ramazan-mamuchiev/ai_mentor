@@ -30,7 +30,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   const [category, setCategory] = useState<string>(product.category ?? '')
   const [saving, setSaving] = useState(false)
   const [catOpen, setCatOpen] = useState(false)
-  const [catPos, setCatPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 })
+  const [catPos, setCatPos] = useState<{ top: number; left: number; width: number; maxHeight: number }>({ top: 0, left: 0, width: 0, maxHeight: 240 })
   const nameRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
@@ -131,18 +131,19 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
             </label>
           </div>
 
-          <label className="product-edit-label">
-            <span>{t('products.edit.version')}</span>
-            <input
-              type="text"
-              value={version}
-              onChange={e => setVersion(e.target.value)}
-              className="product-edit-input"
-            />
-          </label>
+          <div className="product-edit-row">
+            <label className="product-edit-label">
+              <span>{t('products.edit.version')}</span>
+              <input
+                type="text"
+                value={version}
+                onChange={e => setVersion(e.target.value)}
+                className="product-edit-input"
+              />
+            </label>
 
-          <div className="product-edit-label">
-            <span>{t('products.edit.category')}</span>
+            <div className="product-edit-label">
+              <span>{t('products.edit.category')}</span>
             <div className="product-edit-cat-select">
               <button
                 ref={triggerRef}
@@ -151,7 +152,16 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
                 onClick={() => {
                   if (!catOpen && triggerRef.current) {
                     const rect = triggerRef.current.getBoundingClientRect()
-                    setCatPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+                    const dropdownHeight = 240
+                    const gap = 4
+                    const spaceBelow = window.innerHeight - rect.bottom - gap
+                    const spaceAbove = rect.top - gap
+                    const openBelow = spaceBelow >= dropdownHeight || spaceBelow >= spaceAbove
+                    const maxH = openBelow
+                      ? Math.min(dropdownHeight, spaceBelow)
+                      : Math.min(dropdownHeight, spaceAbove)
+                    const top = openBelow ? rect.bottom + gap : rect.top - gap - maxH
+                    setCatPos({ top, left: rect.left, width: rect.width, maxHeight: maxH })
                   }
                   setCatOpen(v => !v)
                 }}
@@ -165,7 +175,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
                 <div
                   ref={dropRef}
                   className="product-edit-cat-dropdown"
-                  style={{ position: 'fixed', top: catPos.top, left: catPos.left, width: catPos.width }}
+                  style={{ position: 'fixed', top: catPos.top, left: catPos.left, width: catPos.width, maxHeight: catPos.maxHeight }}
                 >
                   <button
                     type="button"
@@ -192,6 +202,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
                 document.body
               )}
             </div>
+          </div>
           </div>
         </div>
 

@@ -99,6 +99,7 @@ class SiteIngestRequest(BaseModel):
     manufacturer: str = ""
     max_depth: int = Field(default=5, ge=1, le=10)
     max_pages: int = Field(default=500, ge=1, le=5000)
+    download_resources: bool = True
 
     @field_validator("url")
     @classmethod

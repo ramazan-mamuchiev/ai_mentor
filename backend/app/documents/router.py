@@ -304,6 +304,7 @@ async def ingest_site(request: Request, body: SiteIngestRequest, tenant: Tenant 
                 document_id=placeholder.id,
                 max_depth=body.max_depth,
                 max_pages=body.max_pages,
+                download_resources=body.download_resources,
             )
 
             placeholder.celery_task_id = task.id

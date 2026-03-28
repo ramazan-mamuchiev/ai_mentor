@@ -511,6 +511,7 @@
   "urlImport.siteCrawlToggle": "Обойти все страницы сайта",
   "urlImport.maxDepth": "Глубина обхода",
   "urlImport.maxPages": "Макс. страниц",
+  "urlImport.downloadResources": "Скачивать ресурсы (PDF, файлы)",
   "urlImport.crawlingSite": "Обход страниц сайта...",
 
   "docs.format.confluence": "Confluence",

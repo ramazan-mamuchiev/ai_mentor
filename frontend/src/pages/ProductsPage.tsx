@@ -356,7 +356,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       cell: ({ row }) => {
         const cat = row.original.category
         if (!cat) return <span className="docs-date">—</span>
-        return <span className="docs-format-badge">{cat}</span>
+        return <span className="docs-format-badge">{t(`category.${cat}`)}</span>
       },
       enableGrouping: true,
     },

@@ -89,6 +89,7 @@ export interface SiteIngestRequest {
   manufacturer?: string
   max_depth?: number
   max_pages?: number
+  download_resources?: boolean
 }
 
 export async function ingestSite(data: SiteIngestRequest): Promise<UrlIngestResponse> {

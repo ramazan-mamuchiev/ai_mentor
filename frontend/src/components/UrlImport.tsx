@@ -30,6 +30,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
   const [crawlSite, setCrawlSite] = useState(false)
   const [maxDepth, setMaxDepth] = useState(5)
   const [maxPages, setMaxPages] = useState(500)
+  const [downloadResources, setDownloadResources] = useState(true)
 
   const isConfluence = /\/confluence\/spaces\/[^/]+\/pages\/\d+/.test(url)
   const isHttpUrl = /^https?:\/\/.+/.test(url.trim())
@@ -51,6 +52,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
           manufacturer: manufacturer,
           max_depth: maxDepth,
           max_pages: maxPages,
+          download_resources: downloadResources,
         })
       } else {
         await ingestUrl({
@@ -66,7 +68,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
       setStatus('error')
       setError(err instanceof Error ? err.message : String(err))
     }
-  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, maxDepth, maxPages, onComplete, onClose])
+  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, maxDepth, maxPages, downloadResources, onComplete, onClose])
 
   const handleReset = useCallback(() => {
     setUrl('')
@@ -81,6 +83,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setCrawlSite(false)
     setMaxDepth(5)
     setMaxPages(500)
+    setDownloadResources(true)
   }, [])
 
   useEffect(() => {
@@ -146,28 +149,38 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
               )}
 
               {crawlSite && showSiteCrawlOption && (
-                <div className="file-upload-row">
-                  <label>
-                    {t('urlImport.maxDepth')}
+                <>
+                  <div className="file-upload-row">
+                    <label>
+                      {t('urlImport.maxDepth')}
+                      <input
+                        type="number"
+                        value={maxDepth}
+                        onChange={e => setMaxDepth(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                        min={1}
+                        max={10}
+                      />
+                    </label>
+                    <label>
+                      {t('urlImport.maxPages')}
+                      <input
+                        type="number"
+                        value={maxPages}
+                        onChange={e => setMaxPages(Math.max(1, Math.min(5000, Number(e.target.value) || 1)))}
+                        min={1}
+                        max={5000}
+                      />
+                    </label>
+                  </div>
+                  <label className="url-import-toggle">
                     <input
-                      type="number"
-                      value={maxDepth}
-                      onChange={e => setMaxDepth(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-                      min={1}
-                      max={10}
+                      type="checkbox"
+                      checked={downloadResources}
+                      onChange={e => setDownloadResources(e.target.checked)}
                     />
+                    <span>{t('urlImport.downloadResources')}</span>
                   </label>
-                  <label>
-                    {t('urlImport.maxPages')}
-                    <input
-                      type="number"
-                      value={maxPages}
-                      onChange={e => setMaxPages(Math.max(1, Math.min(5000, Number(e.target.value) || 1)))}
-                      min={1}
-                      max={5000}
-                    />
-                  </label>
-                </div>
+                </>
               )}
 
               <label>
