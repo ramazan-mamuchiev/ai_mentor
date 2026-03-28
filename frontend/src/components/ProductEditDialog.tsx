@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Check, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { updateProduct } from '../api/products'
@@ -29,8 +30,10 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   const [category, setCategory] = useState<string>(product.category ?? '')
   const [saving, setSaving] = useState(false)
   const [catOpen, setCatOpen] = useState(false)
+  const [catPos, setCatPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 })
   const nameRef = useRef<HTMLInputElement>(null)
-  const catRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setName(product.name)
@@ -55,7 +58,11 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   useEffect(() => {
     if (!catOpen) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+      const target = e.target as Node
+      if (dropRef.current && !dropRef.current.contains(target) &&
+          triggerRef.current && !triggerRef.current.contains(target)) {
+        setCatOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -136,19 +143,30 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
 
           <div className="product-edit-label">
             <span>{t('products.edit.category')}</span>
-            <div className="product-edit-cat-select" ref={catRef}>
+            <div className="product-edit-cat-select">
               <button
+                ref={triggerRef}
                 type="button"
                 className={`product-edit-cat-trigger${catOpen ? ' product-edit-cat-trigger--open' : ''}`}
-                onClick={() => setCatOpen(v => !v)}
+                onClick={() => {
+                  if (!catOpen && triggerRef.current) {
+                    const rect = triggerRef.current.getBoundingClientRect()
+                    setCatPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+                  }
+                  setCatOpen(v => !v)
+                }}
               >
                 <span className={!category ? 'product-edit-cat-trigger-placeholder' : ''}>
                   {selectedCatLabel}
                 </span>
                 <ChevronDown size={15} className="product-edit-cat-chevron" />
               </button>
-              {catOpen && (
-                <div className="product-edit-cat-dropdown">
+              {catOpen && createPortal(
+                <div
+                  ref={dropRef}
+                  className="product-edit-cat-dropdown"
+                  style={{ position: 'fixed', top: catPos.top, left: catPos.left, width: catPos.width }}
+                >
                   <button
                     type="button"
                     className={`product-edit-cat-option${!category ? ' product-edit-cat-option--active' : ''}`}
@@ -170,7 +188,8 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
                       {category === slug && <Check size={14} className="product-edit-cat-check" />}
                     </button>
                   ))}
-                </div>
+                </div>,
+                document.body
               )}
             </div>
           </div>
