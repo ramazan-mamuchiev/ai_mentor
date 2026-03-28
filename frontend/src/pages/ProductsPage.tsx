@@ -579,10 +579,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   return (
     <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
       <div className="docs-page-main" style={{ display: 'flex', gap: 16 }}>
-      {(categories.length > 0 || allTags.length > 0) && (
+      {(categoryFacets.some(f => f.count > 0) || tagFacets.some(f => f.count > 0) || manufacturerFacets.length > 1) && (
         <FilterSidebar
-          categories={categoryFacets}
-          tags={tagFacets}
+          categories={categoryFacets.filter(f => f.count > 0)}
+          tags={tagFacets.filter(f => f.count > 0)}
           manufacturers={manufacturerFacets}
           selectedCategories={selectedCategories}
           selectedTags={selectedTags}

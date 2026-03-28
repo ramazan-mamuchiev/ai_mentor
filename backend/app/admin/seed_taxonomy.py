@@ -15,13 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 CATEGORIES: list[dict] = [
-    {"slug": "video_surveillance", "icon": "Camera", "sort_order": 0},
-    {"slug": "access_control", "icon": "Shield", "sort_order": 1},
-    {"slug": "intercom", "icon": "Phone", "sort_order": 2},
-    {"slug": "alarm_intrusion", "icon": "Bell", "sort_order": 3},
-    {"slug": "building_automation", "icon": "Building", "sort_order": 4},
-    {"slug": "software", "icon": "Monitor", "sort_order": 5},
-    {"slug": "protocols", "icon": "Network", "sort_order": 6},
+    {"slug": "video_surveillance", "icon": "📹", "sort_order": 0},
+    {"slug": "access_control", "icon": "🛡️", "sort_order": 1},
+    {"slug": "intercom", "icon": "📞", "sort_order": 2},
+    {"slug": "alarm_intrusion", "icon": "🔔", "sort_order": 3},
+    {"slug": "building_automation", "icon": "🏢", "sort_order": 4},
+    {"slug": "software", "icon": "🖥️", "sort_order": 5},
+    {"slug": "protocols", "icon": "🌐", "sort_order": 6},
 ]
 
 CATEGORY_LABELS: dict[str, dict[str, str]] = {
