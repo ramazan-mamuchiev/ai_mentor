@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
+from datetime import datetime, timezone
 
 import redis as redis_lib
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,9 +13,10 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import require_admin
 from app.config import settings
 from app.database import get_session
-from app.models import Language, Translation
+from app.models import Language, Tenant, Translation
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/i18n", tags=["admin-i18n"])
@@ -53,11 +56,23 @@ class BulkTranslationUpsert(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/languages")
-async def list_languages(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(
-        select(Language).order_by(Language.sort_order)
-    )
+async def list_languages(
+    modified_by: uuid.UUID | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    q = select(Language).order_by(Language.sort_order)
+    if modified_by is not None:
+        q = q.where(Language.modified_by == modified_by)
+    result = await session.execute(q)
     langs = result.scalars().all()
+
+    modifier_ids = {lang.modified_by for lang in langs if lang.modified_by}
+    modifiers: dict[uuid.UUID, Tenant] = {}
+    if modifier_ids:
+        mod_result = await session.execute(
+            select(Tenant).where(Tenant.id.in_(modifier_ids))
+        )
+        modifiers = {t.id: t for t in mod_result.scalars()}
 
     output = []
     for lang in langs:
@@ -68,6 +83,7 @@ async def list_languages(session: AsyncSession = Depends(get_session)):
             )
         )
         total_keys = count_result.scalar() or 0
+        mod = modifiers.get(lang.modified_by)
         output.append({
             "id": lang.id,
             "code": lang.code,
@@ -78,12 +94,19 @@ async def list_languages(session: AsyncSession = Depends(get_session)):
             "sort_order": lang.sort_order,
             "total_keys": total_keys,
             "created_at": lang.created_at.isoformat() if lang.created_at else None,
+            "modified_by_email": mod.email if mod else None,
+            "modified_by_name": mod.name if mod else None,
+            "modified_at": lang.modified_at.isoformat() if lang.modified_at else None,
         })
     return output
 
 
 @router.post("/languages", status_code=201)
-async def create_language(body: LanguageCreate, session: AsyncSession = Depends(get_session)):
+async def create_language(
+    body: LanguageCreate,
+    current_user: Tenant = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
     existing = await session.execute(
         select(Language).where(Language.code == body.code)
     )
@@ -96,6 +119,8 @@ async def create_language(body: LanguageCreate, session: AsyncSession = Depends(
         is_default=body.is_default,
         sort_order=body.sort_order,
         is_system=False,
+        modified_by=current_user.id,
+        modified_at=datetime.now(timezone.utc),
     )
     session.add(lang)
     await session.commit()
@@ -107,6 +132,7 @@ async def create_language(body: LanguageCreate, session: AsyncSession = Depends(
 async def patch_language(
     language_id: int,
     body: LanguagePatch,
+    current_user: Tenant = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     lang = await session.get(Language, language_id)
@@ -121,6 +147,9 @@ async def patch_language(
         lang.is_active = body.is_active
     if body.sort_order is not None:
         lang.sort_order = body.sort_order
+
+    lang.modified_by = current_user.id
+    lang.modified_at = datetime.now(timezone.utc)
 
     await session.commit()
     return {"id": lang.id, "code": lang.code, "status": "updated"}
@@ -155,6 +184,7 @@ async def list_translations(
     page_size: int = Query(100, ge=1, le=500),
     search: str | None = None,
     missing_only: bool = False,
+    modified_by: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
     lang = await session.get(Language, language_id)
@@ -175,22 +205,40 @@ async def list_translations(
         q = q.where(Translation.key.ilike(like) | Translation.value.ilike(like))
         count_q = count_q.where(Translation.key.ilike(like) | Translation.value.ilike(like))
 
+    if modified_by is not None:
+        q = q.where(Translation.modified_by == modified_by)
+        count_q = count_q.where(Translation.modified_by == modified_by)
+
     total_result = await session.execute(count_q)
     total = total_result.scalar() or 0
 
     offset = (page - 1) * page_size
     q = q.order_by(Translation.key).offset(offset).limit(page_size)
     result = await session.execute(q)
-    items = [
-        {
+    raw_items = result.scalars().all()
+
+    modifier_ids = {t.modified_by for t in raw_items if t.modified_by}
+    modifiers: dict[uuid.UUID, Tenant] = {}
+    if modifier_ids:
+        mod_result = await session.execute(
+            select(Tenant).where(Tenant.id.in_(modifier_ids))
+        )
+        modifiers = {t.id: t for t in mod_result.scalars()}
+
+    items = []
+    for t in raw_items:
+        mod = modifiers.get(t.modified_by)
+        items.append({
             "id": t.id,
             "key": t.key,
             "value": t.value,
             "is_system": t.is_system,
             "updated_at": t.updated_at.isoformat() if t.updated_at else None,
-        }
-        for t in result.scalars()
-    ]
+            "is_modified": t.is_modified,
+            "modified_by_email": mod.email if mod else None,
+            "modified_by_name": mod.name if mod else None,
+            "modified_at": t.modified_at.isoformat() if t.modified_at else None,
+        })
 
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
@@ -199,11 +247,14 @@ async def list_translations(
 async def upsert_translation(
     language_id: int,
     body: TranslationUpsert,
+    current_user: Tenant = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     lang = await session.get(Language, language_id)
     if not lang:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Language not found")
+
+    now = datetime.now(timezone.utc)
 
     existing = await session.execute(
         select(Translation).where(
@@ -215,12 +266,18 @@ async def upsert_translation(
     t = existing.scalar_one_or_none()
     if t:
         t.value = body.value
+        t.is_modified = True
+        t.modified_by = current_user.id
+        t.modified_at = now
     else:
         t = Translation(
             language_id=language_id,
             namespace=body.namespace,
             key=body.key,
             value=body.value,
+            is_modified=True,
+            modified_by=current_user.id,
+            modified_at=now,
         )
         session.add(t)
 
@@ -237,11 +294,14 @@ async def upsert_translation(
 async def bulk_upsert_translations(
     language_id: int,
     body: BulkTranslationUpsert,
+    current_user: Tenant = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     lang = await session.get(Language, language_id)
     if not lang:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Language not found")
+
+    now = datetime.now(timezone.utc)
 
     for item in body.items:
         existing = await session.execute(
@@ -254,12 +314,18 @@ async def bulk_upsert_translations(
         t = existing.scalar_one_or_none()
         if t:
             t.value = item.value
+            t.is_modified = True
+            t.modified_by = current_user.id
+            t.modified_at = now
         else:
             session.add(Translation(
                 language_id=language_id,
                 namespace=item.namespace,
                 key=item.key,
                 value=item.value,
+                is_modified=True,
+                modified_by=current_user.id,
+                modified_at=now,
             ))
 
     await session.commit()

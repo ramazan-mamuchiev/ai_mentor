@@ -75,3 +75,17 @@ CREATE INDEX IF NOT EXISTS idx_product_tag_links_tag ON product_tag_links(tag_id
 -- pg_trgm indexes for ILIKE text search (suggest + products?q=)
 CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON products USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_products_manufacturer_trgm ON products USING gin (manufacturer gin_trgm_ops);
+
+-- Audit & hybrid seed columns
+ALTER TABLE translations ADD COLUMN IF NOT EXISTS is_modified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE translations ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES tenants(id) ON DELETE SET NULL;
+ALTER TABLE translations ADD COLUMN IF NOT EXISTS modified_at TIMESTAMPTZ;
+
+ALTER TABLE languages ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES tenants(id) ON DELETE SET NULL;
+ALTER TABLE languages ADD COLUMN IF NOT EXISTS modified_at TIMESTAMPTZ;
+
+ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES tenants(id) ON DELETE SET NULL;
+ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS modified_at TIMESTAMPTZ;
+
+ALTER TABLE tags ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES tenants(id) ON DELETE SET NULL;
+ALTER TABLE tags ADD COLUMN IF NOT EXISTS modified_at TIMESTAMPTZ;

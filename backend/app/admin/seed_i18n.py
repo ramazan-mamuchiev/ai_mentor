@@ -1,7 +1,8 @@
 """Seed languages and UI translations from en.json / ru.json.
 
 Called at application startup (lifespan). Uses MD5 hash of JSON content
-to skip re-seeding when nothing changed.
+to skip re-seeding when nothing changed. Hybrid strategy: only updates
+keys where is_modified = false (preserves manual edits in admin UI).
 """
 
 from __future__ import annotations
@@ -16,12 +17,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-_LOCALES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "src" / "locales"
+_LOCALES_DIR_DOCKER = Path("/app/locales")
+_LOCALES_DIR_DEV = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "src" / "locales"
 
 _SYSTEM_LANGUAGES = [
     {"code": "en", "name_native": "English", "is_default": True, "sort_order": 0},
     {"code": "ru", "name_native": "Русский", "is_default": False, "sort_order": 1},
 ]
+
+
+def _get_locales_dir() -> Path | None:
+    for d in (_LOCALES_DIR_DOCKER, _LOCALES_DIR_DEV):
+        if d.exists():
+            return d
+    return None
 
 
 async def seed_i18n(session: AsyncSession) -> None:
@@ -48,12 +57,16 @@ async def _seed_languages(session: AsyncSession) -> None:
 
 
 async def _seed_ui_translations(session: AsyncSession) -> None:
-    """Load en.json and ru.json, compute combined MD5, skip if unchanged."""
-    en_path = _LOCALES_DIR / "en.json"
-    ru_path = _LOCALES_DIR / "ru.json"
+    locales_dir = _get_locales_dir()
+    if locales_dir is None:
+        logger.warning("Locale files not found in Docker or dev path, skipping UI translation seed")
+        return
+
+    en_path = locales_dir / "en.json"
+    ru_path = locales_dir / "ru.json"
 
     if not en_path.exists() or not ru_path.exists():
-        logger.warning("Locale files not found, skipping UI translation seed")
+        logger.warning("en.json or ru.json not found in %s, skipping", locales_dir)
         return
 
     en_data: dict = json.loads(en_path.read_text(encoding="utf-8"))
@@ -89,7 +102,6 @@ async def _seed_ui_translations(session: AsyncSession) -> None:
                 "namespace": "ui",
                 "key": key,
                 "value": en_data[key],
-                "is_system": True,
             })
         if key in ru_data:
             rows.append({
@@ -97,19 +109,9 @@ async def _seed_ui_translations(session: AsyncSession) -> None:
                 "namespace": "ui",
                 "key": key,
                 "value": ru_data[key],
-                "is_system": True,
             })
 
     if rows:
-        values_clause = ", ".join(
-            f"({r['language_id']}, 'ui', :k{i}, :v{i}, TRUE)"
-            for i, r in enumerate(rows)
-        )
-        params = {}
-        for i, r in enumerate(rows):
-            params[f"k{i}"] = r["key"]
-            params[f"v{i}"] = r["value"]
-
         batch_size = 500
         for start in range(0, len(rows), batch_size):
             batch = rows[start:start + batch_size]
@@ -117,10 +119,10 @@ async def _seed_ui_translations(session: AsyncSession) -> None:
                 await session.execute(
                     text(
                         "INSERT INTO translations (language_id, namespace, key, value, is_system) "
-                        "VALUES (:language_id, :namespace, :key, :value, :is_system) "
+                        "VALUES (:language_id, :namespace, :key, :value, TRUE) "
                         "ON CONFLICT (language_id, namespace, key) DO UPDATE SET "
-                        "value = EXCLUDED.value, is_system = EXCLUDED.is_system, "
-                        "updated_at = NOW()"
+                        "value = EXCLUDED.value, is_system = TRUE, updated_at = NOW() "
+                        "WHERE translations.is_modified = false"
                     ),
                     r,
                 )

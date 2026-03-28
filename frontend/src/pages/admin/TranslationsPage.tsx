@@ -5,6 +5,20 @@ import {
   adminListLanguages, adminListTranslations, adminUpsertTranslation,
   type AdminLanguage, type TranslationItem,
 } from '../../api/admin-i18n'
+import { TenantFilterCombo } from '../../components/TenantFilterCombo'
+import type { TenantSearchResult } from '../../api/admin'
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return '—'
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
 
 export default function TranslationsPage() {
   const { t } = useTranslation()
@@ -20,6 +34,7 @@ export default function TranslationsPage() {
   const [loading, setLoading] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [tenantFilter, setTenantFilter] = useState<TenantSearchResult | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -39,7 +54,7 @@ export default function TranslationsPage() {
     if (!selectedLangId) return
     setLoading(true)
     try {
-      const res = await adminListTranslations(selectedLangId, namespace, page, pageSize, debouncedSearch || undefined)
+      const res = await adminListTranslations(selectedLangId, namespace, page, pageSize, debouncedSearch || undefined, tenantFilter?.id)
       setItems(res.items)
       setTotal(res.total)
     } catch (e) {
@@ -47,7 +62,7 @@ export default function TranslationsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedLangId, namespace, page, pageSize, debouncedSearch])
+  }, [selectedLangId, namespace, page, pageSize, debouncedSearch, tenantFilter])
 
   useEffect(() => { loadTranslations() }, [loadTranslations])
 
@@ -113,6 +128,8 @@ export default function TranslationsPage() {
             )}
           </div>
 
+          <TenantFilterCombo value={tenantFilter} onChange={setTenantFilter} />
+
           {/* Count */}
           <span className="logs-count">{total} {t('admin.translations.keys', { defaultValue: 'keys' })}</span>
         </div>
@@ -129,8 +146,10 @@ export default function TranslationsPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th style={{ width: '35%' }}>{t('admin.translations.colKey')}</th>
+                <th style={{ width: '30%' }}>{t('admin.translations.colKey')}</th>
                 <th>{t('admin.translations.colValue')}</th>
+                <th>{t('admin.common.modifiedBy')}</th>
+                <th>{t('admin.common.modifiedAt')}</th>
                 <th style={{ width: 60 }}></th>
               </tr>
             </thead>
@@ -161,6 +180,8 @@ export default function TranslationsPage() {
                       </span>
                     )}
                   </td>
+                  <td style={{ fontSize: 12 }}>{item.modified_by_name || item.modified_by_email || '—'}</td>
+                  <td style={{ fontSize: 12 }}>{relativeTime(item.modified_at)}</td>
                   <td>
                     {editingId === item.id && (
                       <button onClick={() => handleSave(item)} className="logs-icon-btn">

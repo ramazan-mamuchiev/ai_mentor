@@ -12,6 +12,20 @@ import {
   type CategoryItem,
   type TagItem,
 } from '../../api/admin-taxonomy'
+import { TenantFilterCombo } from '../../components/TenantFilterCombo'
+import type { TenantSearchResult } from '../../api/admin'
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return '—'
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
 
 export function TaxonomyPage() {
   const { t } = useTranslation()
@@ -30,6 +44,8 @@ export function TaxonomyPage() {
   const [newTagLabelEn, setNewTagLabelEn] = useState('')
   const [newTagLabelRu, setNewTagLabelRu] = useState('')
 
+  const [tenantFilter, setTenantFilter] = useState<TenantSearchResult | null>(null)
+
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
   const [editIcon, setEditIcon] = useState('')
   const [editSortOrder, setEditSortOrder] = useState(0)
@@ -41,7 +57,7 @@ export function TaxonomyPage() {
     setLoading(true)
     setError('')
     try {
-      const [cats, tgs] = await Promise.all([adminListCategories(), adminListTags()])
+      const [cats, tgs] = await Promise.all([adminListCategories(tenantFilter?.id), adminListTags(tenantFilter?.id)])
       setCategories(cats)
       setTags(tgs)
     } catch (e: unknown) {
@@ -51,7 +67,7 @@ export function TaxonomyPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [tenantFilter])
 
   useEffect(() => {
     void loadData()
@@ -188,6 +204,8 @@ export function TaxonomyPage() {
               {t('admin.taxonomy.tabTags', { count: tags.length })}
             </button>
           </div>
+
+          <TenantFilterCombo value={tenantFilter} onChange={setTenantFilter} />
         </div>
       </div>
 
@@ -250,6 +268,8 @@ export function TaxonomyPage() {
                       <th>{t('admin.taxonomy.labelEn')}</th>
                       <th>{t('admin.taxonomy.labelRu')}</th>
                       <th>{t('admin.taxonomy.products')}</th>
+                      <th>{t('admin.common.modifiedBy')}</th>
+                      <th>{t('admin.common.modifiedAt')}</th>
                       <th>{t('admin.common.actions')}</th>
                     </tr>
                   </thead>
@@ -290,6 +310,8 @@ export function TaxonomyPage() {
                             />
                           </td>
                           <td>{cat.product_count}</td>
+                          <td style={{ fontSize: 12 }}>{cat.modified_by_name || cat.modified_by_email || '—'}</td>
+                          <td style={{ fontSize: 12 }}>{relativeTime(cat.modified_at)}</td>
                           <td>
                             <div className="admin-actions">
                               <button
@@ -316,6 +338,8 @@ export function TaxonomyPage() {
                           <td>{labelOrDash(cat.labels?.en)}</td>
                           <td>{labelOrDash(cat.labels?.ru)}</td>
                           <td>{cat.product_count}</td>
+                          <td style={{ fontSize: 12 }}>{cat.modified_by_name || cat.modified_by_email || '—'}</td>
+                          <td style={{ fontSize: 12 }}>{relativeTime(cat.modified_at)}</td>
                           <td>
                             <div className="admin-actions">
                               <button
@@ -395,6 +419,8 @@ export function TaxonomyPage() {
                       <th>{t('admin.taxonomy.labelEn')}</th>
                       <th>{t('admin.taxonomy.labelRu')}</th>
                       <th>{t('admin.taxonomy.products')}</th>
+                      <th>{t('admin.common.modifiedBy')}</th>
+                      <th>{t('admin.common.modifiedAt')}</th>
                       <th>{t('admin.common.actions')}</th>
                     </tr>
                   </thead>
@@ -407,6 +433,8 @@ export function TaxonomyPage() {
                         <td>{labelOrDash(tag.labels?.en)}</td>
                         <td>{labelOrDash(tag.labels?.ru)}</td>
                         <td>{tag.product_count}</td>
+                        <td style={{ fontSize: 12 }}>{tag.modified_by_name || tag.modified_by_email || '—'}</td>
+                        <td style={{ fontSize: 12 }}>{relativeTime(tag.modified_at)}</td>
                         <td>
                           <button
                             type="button"

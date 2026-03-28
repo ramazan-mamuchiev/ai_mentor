@@ -10,10 +10,16 @@ export interface AdminLanguage {
   sort_order: number
   total_keys: number
   created_at: string | null
+  modified_by_email: string | null
+  modified_by_name: string | null
+  modified_at: string | null
 }
 
-export async function adminListLanguages(): Promise<AdminLanguage[]> {
-  return apiFetch<AdminLanguage[]>('/admin/i18n/languages')
+export async function adminListLanguages(modifiedBy?: string): Promise<AdminLanguage[]> {
+  const params = new URLSearchParams()
+  if (modifiedBy) params.set('modified_by', modifiedBy)
+  const qs = params.toString()
+  return apiFetch<AdminLanguage[]>(`/admin/i18n/languages${qs ? '?' + qs : ''}`)
 }
 
 export async function adminCreateLanguage(data: { code: string; name_native: string; sort_order?: number }): Promise<{ id: number; code: string }> {
@@ -34,6 +40,10 @@ export interface TranslationItem {
   value: string
   is_system: boolean
   updated_at: string | null
+  is_modified: boolean
+  modified_by_email: string | null
+  modified_by_name: string | null
+  modified_at: string | null
 }
 
 export interface TranslationListResponse {
@@ -43,9 +53,10 @@ export interface TranslationListResponse {
   page_size: number
 }
 
-export async function adminListTranslations(languageId: number, ns: string = 'ui', page: number = 1, pageSize: number = 100, search?: string): Promise<TranslationListResponse> {
+export async function adminListTranslations(languageId: number, ns: string = 'ui', page: number = 1, pageSize: number = 100, search?: string, modifiedBy?: string): Promise<TranslationListResponse> {
   const params = new URLSearchParams({ ns, page: String(page), page_size: String(pageSize) })
   if (search) params.set('search', search)
+  if (modifiedBy) params.set('modified_by', modifiedBy)
   return apiFetch(`/admin/i18n/translations/${languageId}?${params}`)
 }
 

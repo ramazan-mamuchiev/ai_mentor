@@ -198,7 +198,8 @@ async def _seed_taxonomy_translations(session: AsyncSession) -> None:
                     "INSERT INTO translations (language_id, namespace, key, value, is_system) "
                     "VALUES (:lid, 'taxonomy', :key, :value, TRUE) "
                     "ON CONFLICT (language_id, namespace, key) DO UPDATE SET "
-                    "value = EXCLUDED.value, updated_at = NOW()"
+                    "value = EXCLUDED.value, updated_at = NOW() "
+                    "WHERE translations.is_modified = false"
                 ),
                 {"lid": lang_map[lang_code], "key": f"category.{slug}", "value": value},
             )
@@ -211,7 +212,8 @@ async def _seed_taxonomy_translations(session: AsyncSession) -> None:
                     "INSERT INTO translations (language_id, namespace, key, value, is_system) "
                     "VALUES (:lid, 'taxonomy', :key, :value, TRUE) "
                     "ON CONFLICT (language_id, namespace, key) DO UPDATE SET "
-                    "value = EXCLUDED.value, updated_at = NOW()"
+                    "value = EXCLUDED.value, updated_at = NOW() "
+                    "WHERE translations.is_modified = false"
                 ),
                 {"lid": lang_map[lang_code], "key": f"tag.{slug}", "value": value},
             )

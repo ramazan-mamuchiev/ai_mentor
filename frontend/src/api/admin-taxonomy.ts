@@ -8,6 +8,9 @@ export interface CategoryItem {
   is_system: boolean
   product_count: number
   labels: Record<string, string>
+  modified_by_email: string | null
+  modified_by_name: string | null
+  modified_at: string | null
 }
 
 export interface TagItem {
@@ -16,6 +19,9 @@ export interface TagItem {
   is_system: boolean
   product_count: number
   labels: Record<string, string>
+  modified_by_email: string | null
+  modified_by_name: string | null
+  modified_at: string | null
 }
 
 export interface KeywordItem {
@@ -25,8 +31,11 @@ export interface KeywordItem {
   is_system: boolean
 }
 
-export async function adminListCategories(): Promise<CategoryItem[]> {
-  return apiFetch<CategoryItem[]>('/admin/taxonomy/categories')
+export async function adminListCategories(modifiedBy?: string): Promise<CategoryItem[]> {
+  const params = new URLSearchParams()
+  if (modifiedBy) params.set('modified_by', modifiedBy)
+  const qs = params.toString()
+  return apiFetch<CategoryItem[]>(`/admin/taxonomy/categories${qs ? '?' + qs : ''}`)
 }
 
 export async function adminCreateCategory(data: { slug: string; icon?: string; sort_order?: number; labels?: Record<string, string> }): Promise<{ id: number; slug: string }> {
@@ -45,8 +54,11 @@ export async function adminReorderCategories(items: Array<{ id: number; sort_ord
   return apiFetch('/admin/taxonomy/categories/reorder', { method: 'POST', body: JSON.stringify({ items }) })
 }
 
-export async function adminListTags(): Promise<TagItem[]> {
-  return apiFetch<TagItem[]>('/admin/taxonomy/tags')
+export async function adminListTags(modifiedBy?: string): Promise<TagItem[]> {
+  const params = new URLSearchParams()
+  if (modifiedBy) params.set('modified_by', modifiedBy)
+  const qs = params.toString()
+  return apiFetch<TagItem[]>(`/admin/taxonomy/tags${qs ? '?' + qs : ''}`)
 }
 
 export async function adminCreateTag(data: { slug: string; labels?: Record<string, string> }): Promise<{ id: number; slug: string }> {

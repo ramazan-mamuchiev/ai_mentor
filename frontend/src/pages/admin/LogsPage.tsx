@@ -4,8 +4,8 @@ import {
   RefreshCw, X, Search, Radio, ChevronDown, ChevronRight,
   Copy, Check, Clock, AlertTriangle, ScrollText, Download, Loader2,
 } from 'lucide-react'
-import { getLogs, searchTenants, type LogEntry, type TenantSearchResult } from '../../api/admin'
-import { User } from 'lucide-react'
+import { getLogs, type LogEntry, type TenantSearchResult } from '../../api/admin'
+import { TenantFilterCombo } from '../../components/TenantFilterCombo'
 
 const SERVICES = ['', 'api', 'worker', 'beat', 'web', 'postgres', 'redis'] as const
 
@@ -192,13 +192,8 @@ export function LogsPage() {
   const [error, setError] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [tenantFilter, setTenantFilter] = useState<TenantSearchResult | null>(null)
-  const [tenantQuery, setTenantQuery] = useState('')
-  const [tenantOptions, setTenantOptions] = useState<TenantSearchResult[]>([])
-  const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const tenantDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const tenantWrapRef = useRef<HTMLDivElement>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -209,30 +204,6 @@ export function LogsPage() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(search), 400)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [search])
-
-  useEffect(() => {
-    if (tenantDebounceRef.current) clearTimeout(tenantDebounceRef.current)
-    if (!tenantQuery || tenantQuery.length < 1) { setTenantOptions([]); return }
-    tenantDebounceRef.current = setTimeout(async () => {
-      try {
-        const results = await searchTenants(tenantQuery)
-        setTenantOptions(results)
-        setTenantDropdownOpen(true)
-      } catch { setTenantOptions([]) }
-    }, 300)
-    return () => { if (tenantDebounceRef.current) clearTimeout(tenantDebounceRef.current) }
-  }, [tenantQuery])
-
-  useEffect(() => {
-    if (!tenantDropdownOpen) return
-    const handler = (e: MouseEvent) => {
-      if (tenantWrapRef.current && !tenantWrapRef.current.contains(e.target as Node)) {
-        setTenantDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [tenantDropdownOpen])
 
   useEffect(() => {
     if (!exportOpen) return
@@ -351,60 +322,10 @@ export function LogsPage() {
           </div>
 
           {/* Tenant filter */}
-          <div className="logs-tenant-combo" ref={tenantWrapRef}>
-            {tenantFilter ? (
-              <div className="logs-tenant-chip">
-                <User size={12} />
-                <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
-                <button
-                  className="logs-tenant-chip__clear"
-                  onClick={() => { setTenantFilter(null); setTenantQuery('') }}
-                  aria-label={t('admin.logs.clear')}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ) : (
-              <>
-                <User size={13} className="logs-tenant-combo__icon" />
-                <input
-                  className="logs-tenant-input"
-                  placeholder={t('admin.logs.tenantPlaceholder')}
-                  value={tenantQuery}
-                  onChange={e => setTenantQuery(e.target.value)}
-                  onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
-                />
-                {tenantQuery && (
-                  <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}>
-                    <X size={12} />
-                  </button>
-                )}
-              </>
-            )}
-            {tenantDropdownOpen && tenantOptions.length > 0 && (
-              <div className="logs-tenant-dropdown">
-                {tenantOptions.map(opt => (
-                  <button
-                    key={opt.id}
-                    className="logs-tenant-dropdown__item"
-                    onClick={() => {
-                      setTenantFilter(opt)
-                      setTenantQuery('')
-                      setTenantDropdownOpen(false)
-                    }}
-                  >
-                    <span className="logs-tenant-dropdown__name">{opt.name}</span>
-                    <span className="logs-tenant-dropdown__email">{opt.email}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {tenantDropdownOpen && tenantQuery && tenantOptions.length === 0 && (
-              <div className="logs-tenant-dropdown">
-                <div className="logs-tenant-dropdown__empty">{t('admin.logs.noTenantsFound')}</div>
-              </div>
-            )}
-          </div>
+          <TenantFilterCombo
+            value={tenantFilter}
+            onChange={setTenantFilter}
+          />
 
           {/* Search */}
           <div className="logs-search-wrap">

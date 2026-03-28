@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Globe, Play } from 'lucide-react'
 import {
@@ -6,6 +6,20 @@ import {
   adminTriggerTranslate, adminGetTranslateProgress,
   type AdminLanguage,
 } from '../../api/admin-i18n'
+import { TenantFilterCombo } from '../../components/TenantFilterCombo'
+import type { TenantSearchResult } from '../../api/admin'
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return '—'
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
 
 export function LanguagesPage() {
   const { t } = useTranslation()
@@ -13,26 +27,27 @@ export function LanguagesPage() {
   const [loading, setLoading] = useState(true)
   const [newCode, setNewCode] = useState('')
   const [newName, setNewName] = useState('')
+  const [tenantFilter, setTenantFilter] = useState<TenantSearchResult | null>(null)
   const [translating, setTranslating] = useState<Record<number, { total: number; done: number; status: string; errors: number }>>({})
   const pollTimers = useRef<Record<number, ReturnType<typeof setInterval>>>({})
 
-  const loadLanguages = async () => {
+  const loadLanguages = useCallback(async () => {
     setLoading(true)
     try {
-      setLanguages(await adminListLanguages())
+      setLanguages(await adminListLanguages(tenantFilter?.id))
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
     }
-  }
+  }, [tenantFilter])
 
   useEffect(() => {
     loadLanguages()
     return () => {
       Object.values(pollTimers.current).forEach(clearInterval)
     }
-  }, [])
+  }, [loadLanguages])
 
   const handleCreate = async () => {
     if (!newCode.trim() || !newName.trim()) return
@@ -118,6 +133,8 @@ export function LanguagesPage() {
             {t('admin.common.create')}
           </button>
 
+          <TenantFilterCombo value={tenantFilter} onChange={setTenantFilter} />
+
           <span className="logs-count">{languages.length} {t('admin.languages.count')}</span>
         </div>
       </div>
@@ -139,6 +156,8 @@ export function LanguagesPage() {
               <th>{t('admin.languages.colSystem')}</th>
               <th>{t('admin.languages.colKeys')}</th>
               <th>{t('admin.languages.colAutoTranslate')}</th>
+              <th>{t('admin.common.modifiedBy')}</th>
+              <th>{t('admin.common.modifiedAt')}</th>
               <th>{t('admin.common.actions')}</th>
             </tr>
           </thead>
@@ -179,6 +198,8 @@ export function LanguagesPage() {
                     {progress && progress.status === 'complete' && <span style={{ fontSize: 12, color: 'var(--success)' }}> {t('admin.languages.translateDone')}</span>}
                     {progress && progress.status === 'partial' && <span style={{ fontSize: 12, color: 'var(--warning)' }}> {t('admin.languages.translatePartial', { errors: progress.errors })}</span>}
                   </td>
+                  <td style={{ fontSize: 12 }}>{lang.modified_by_name || lang.modified_by_email || '—'}</td>
+                  <td style={{ fontSize: 12 }}>{relativeTime(lang.modified_at)}</td>
                   <td>
                     {!lang.is_system && (
                       <button

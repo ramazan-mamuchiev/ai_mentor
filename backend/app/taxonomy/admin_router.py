@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import logging
+import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import require_admin
 from app.database import get_session
-from app.models import Product, ProductCategory, ProductTagLink, SearchKeyword, Tag, Translation
+from app.models import Product, ProductCategory, ProductTagLink, SearchKeyword, Tag, Tenant, Translation
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/taxonomy", tags=["admin-taxonomy"])
@@ -55,11 +58,23 @@ class BulkReorder(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/categories")
-async def list_categories(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(
-        select(ProductCategory).order_by(ProductCategory.sort_order)
-    )
+async def list_categories(
+    modified_by: uuid.UUID | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    q = select(ProductCategory).order_by(ProductCategory.sort_order)
+    if modified_by is not None:
+        q = q.where(ProductCategory.modified_by == modified_by)
+    result = await session.execute(q)
     categories = result.scalars().all()
+
+    modifier_ids = {cat.modified_by for cat in categories if cat.modified_by}
+    modifiers: dict[uuid.UUID, Tenant] = {}
+    if modifier_ids:
+        mod_result = await session.execute(
+            select(Tenant).where(Tenant.id.in_(modifier_ids))
+        )
+        modifiers = {t.id: t for t in mod_result.scalars()}
 
     output = []
     for cat in categories:
@@ -68,15 +83,6 @@ async def list_categories(session: AsyncSession = Depends(get_session)):
         )
         count = product_count.scalar() or 0
 
-        labels_result = await session.execute(
-            select(Translation.key, Translation.value).join(
-                Translation, True
-            ).where(
-                Translation.namespace == "taxonomy",
-                Translation.key == f"category.{cat.slug}",
-            )
-        )
-        from app.models import Language
         labels_q = await session.execute(
             text(
                 "SELECT l.code, t.value FROM translations t "
@@ -87,6 +93,7 @@ async def list_categories(session: AsyncSession = Depends(get_session)):
         )
         labels = {row.code: row.value for row in labels_q}
 
+        mod = modifiers.get(cat.modified_by)
         output.append({
             "id": cat.id,
             "slug": cat.slug,
@@ -95,12 +102,19 @@ async def list_categories(session: AsyncSession = Depends(get_session)):
             "is_system": cat.is_system,
             "product_count": count,
             "labels": labels,
+            "modified_by_email": mod.email if mod else None,
+            "modified_by_name": mod.name if mod else None,
+            "modified_at": cat.modified_at.isoformat() if cat.modified_at else None,
         })
     return output
 
 
 @router.post("/categories", status_code=201)
-async def create_category(body: CategoryCreate, session: AsyncSession = Depends(get_session)):
+async def create_category(
+    body: CategoryCreate,
+    current_user: Tenant = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
     existing = await session.execute(
         select(ProductCategory).where(ProductCategory.slug == body.slug)
     )
@@ -112,13 +126,15 @@ async def create_category(body: CategoryCreate, session: AsyncSession = Depends(
         icon=body.icon,
         sort_order=body.sort_order,
         is_system=False,
+        modified_by=current_user.id,
+        modified_at=datetime.now(timezone.utc),
     )
     session.add(cat)
     await session.commit()
     await session.refresh(cat)
 
     if body.labels:
-        await _save_labels(session, "category", body.slug, body.labels)
+        await _save_labels(session, "category", body.slug, body.labels, modified_by=current_user.id)
 
     return {"id": cat.id, "slug": cat.slug}
 
@@ -127,6 +143,7 @@ async def create_category(body: CategoryCreate, session: AsyncSession = Depends(
 async def patch_category(
     category_id: int,
     body: CategoryPatch,
+    current_user: Tenant = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     cat = await session.get(ProductCategory, category_id)
@@ -138,10 +155,13 @@ async def patch_category(
     if body.sort_order is not None:
         cat.sort_order = body.sort_order
 
+    cat.modified_by = current_user.id
+    cat.modified_at = datetime.now(timezone.utc)
+
     await session.commit()
 
     if body.labels is not None:
-        await _save_labels(session, "category", cat.slug, body.labels)
+        await _save_labels(session, "category", cat.slug, body.labels, modified_by=current_user.id)
 
     return {"id": cat.id, "slug": cat.slug, "status": "updated"}
 
@@ -179,9 +199,23 @@ async def reorder_categories(body: BulkReorder, session: AsyncSession = Depends(
 # ---------------------------------------------------------------------------
 
 @router.get("/tags")
-async def list_tags(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(Tag).order_by(Tag.slug))
+async def list_tags(
+    modified_by: uuid.UUID | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    q = select(Tag).order_by(Tag.slug)
+    if modified_by is not None:
+        q = q.where(Tag.modified_by == modified_by)
+    result = await session.execute(q)
     tags = result.scalars().all()
+
+    modifier_ids = {tag.modified_by for tag in tags if tag.modified_by}
+    modifiers: dict[uuid.UUID, Tenant] = {}
+    if modifier_ids:
+        mod_result = await session.execute(
+            select(Tenant).where(Tenant.id.in_(modifier_ids))
+        )
+        modifiers = {t.id: t for t in mod_result.scalars()}
 
     output = []
     for tag in tags:
@@ -200,29 +234,42 @@ async def list_tags(session: AsyncSession = Depends(get_session)):
         )
         labels = {row.code: row.value for row in labels_q}
 
+        mod = modifiers.get(tag.modified_by)
         output.append({
             "id": tag.id,
             "slug": tag.slug,
             "is_system": tag.is_system,
             "product_count": count,
             "labels": labels,
+            "modified_by_email": mod.email if mod else None,
+            "modified_by_name": mod.name if mod else None,
+            "modified_at": tag.modified_at.isoformat() if tag.modified_at else None,
         })
     return output
 
 
 @router.post("/tags", status_code=201)
-async def create_tag(body: TagCreate, session: AsyncSession = Depends(get_session)):
+async def create_tag(
+    body: TagCreate,
+    current_user: Tenant = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
     existing = await session.execute(select(Tag).where(Tag.slug == body.slug))
     if existing.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, f"Tag '{body.slug}' already exists")
 
-    tag = Tag(slug=body.slug, is_system=False)
+    tag = Tag(
+        slug=body.slug,
+        is_system=False,
+        modified_by=current_user.id,
+        modified_at=datetime.now(timezone.utc),
+    )
     session.add(tag)
     await session.commit()
     await session.refresh(tag)
 
     if body.labels:
-        await _save_labels(session, "tag", body.slug, body.labels)
+        await _save_labels(session, "tag", body.slug, body.labels, modified_by=current_user.id)
 
     return {"id": tag.id, "slug": tag.slug}
 
@@ -231,14 +278,19 @@ async def create_tag(body: TagCreate, session: AsyncSession = Depends(get_sessio
 async def patch_tag(
     tag_id: int,
     body: TagPatch,
+    current_user: Tenant = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     tag = await session.get(Tag, tag_id)
     if not tag:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tag not found")
 
+    tag.modified_by = current_user.id
+    tag.modified_at = datetime.now(timezone.utc)
+    await session.commit()
+
     if body.labels is not None:
-        await _save_labels(session, "tag", tag.slug, body.labels)
+        await _save_labels(session, "tag", tag.slug, body.labels, modified_by=current_user.id)
 
     return {"id": tag.id, "slug": tag.slug, "status": "updated"}
 
@@ -318,10 +370,16 @@ async def delete_keyword(keyword_id: int, session: AsyncSession = Depends(get_se
 # ---------------------------------------------------------------------------
 
 async def _save_labels(
-    session: AsyncSession, prefix: str, slug: str, labels: dict[str, str]
+    session: AsyncSession,
+    prefix: str,
+    slug: str,
+    labels: dict[str, str],
+    modified_by: uuid.UUID | None = None,
 ):
     """Save taxonomy translation labels for a category/tag."""
     from app.models import Language
+
+    now = datetime.now(timezone.utc)
 
     for lang_code, value in labels.items():
         lang_row = await session.execute(
@@ -342,11 +400,17 @@ async def _save_labels(
         t = existing.scalar_one_or_none()
         if t:
             t.value = value
+            t.is_modified = True
+            t.modified_by = modified_by
+            t.modified_at = now
         else:
             session.add(Translation(
                 language_id=lang.id,
                 namespace="taxonomy",
                 key=key,
                 value=value,
+                is_modified=True,
+                modified_by=modified_by,
+                modified_at=now,
             ))
     await session.commit()
