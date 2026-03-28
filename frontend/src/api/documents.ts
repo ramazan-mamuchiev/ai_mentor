@@ -82,6 +82,22 @@ export async function ingestUrl(data: UrlIngestRequest): Promise<UrlIngestRespon
   })
 }
 
+export interface SiteIngestRequest {
+  url: string
+  product_name: string
+  firmware_version?: string
+  manufacturer?: string
+  max_depth?: number
+  max_pages?: number
+}
+
+export async function ingestSite(data: SiteIngestRequest): Promise<UrlIngestResponse> {
+  return apiFetch<UrlIngestResponse>('/documents/ingest-site', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 export async function listReindexJobs(): Promise<ReindexJobList> {
   return apiFetch<ReindexJobList>('/reindex/jobs')
 }

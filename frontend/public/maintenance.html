@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    body { opacity: 0; }
+    body.ready { opacity: 1; transition: opacity .15s; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -223,6 +225,11 @@
         t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
       document.documentElement.setAttribute('data-theme', t);
+
+      document.fonts.ready.then(function() {
+        document.body.classList.add('ready');
+      });
+      setTimeout(function() { document.body.classList.add('ready'); }, 800);
 
       setInterval(function() {
         fetch('/', { method: 'HEAD', cache: 'no-store' })

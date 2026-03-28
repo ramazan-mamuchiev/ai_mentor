@@ -30,5 +30,4 @@ resend>=2.0.0
 sentry-sdk[fastapi]>=2.0.0
 psutil>=6.0.0
 google-genai>=1.0.0
-# Optional: headless browser for web page crawling
-# crawl4ai>=0.4.0
+crawl4ai>=0.8.0

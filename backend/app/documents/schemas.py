@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class IngestResponse(BaseModel):
@@ -88,6 +88,25 @@ class UrlIngestRequest(BaseModel):
     product_name: str
     firmware_version: str = "1.0"
     manufacturer: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class SiteIngestRequest(BaseModel):
+    url: str
+    product_name: str
+    firmware_version: str = "1.0"
+    manufacturer: str = ""
+    max_depth: int = Field(default=5, ge=1, le=10)
+    max_pages: int = Field(default=500, ge=1, le=5000)
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        v = v.strip()
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        return v
 
     model_config = {"from_attributes": True}
 

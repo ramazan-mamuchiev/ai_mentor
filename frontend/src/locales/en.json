@@ -486,6 +486,11 @@
   "urlImport.complete": "Import started!",
   "urlImport.another": "Import another",
   "urlImport.failed": "Import failed",
+  "urlImport.siteDetected": "Website — all pages within this domain will be crawled",
+  "urlImport.siteCrawlToggle": "Crawl entire website",
+  "urlImport.maxDepth": "Crawl depth",
+  "urlImport.maxPages": "Max pages",
+  "urlImport.crawlingSite": "Crawling website pages...",
 
   "docs.format.confluence": "Confluence",
   "docs.format.url": "Web",

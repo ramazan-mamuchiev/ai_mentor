@@ -2,7 +2,7 @@
 
 Provides image-to-text recognition for PDF and Confluence converters.
 Supports both local file paths and in-memory image bytes.
-Uses Gemini Vision API instead of local EasyOCR to avoid OOM issues.
+Uses Gemini Vision API for image-to-text recognition.
 """
 
 from __future__ import annotations

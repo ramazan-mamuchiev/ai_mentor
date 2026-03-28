@@ -507,6 +507,11 @@
   "urlImport.complete": "Импорт запущен!",
   "urlImport.another": "Импортировать ещё",
   "urlImport.failed": "Ошибка импорта",
+  "urlImport.siteDetected": "Веб-сайт — все страницы в рамках домена будут обойдены",
+  "urlImport.siteCrawlToggle": "Обойти все страницы сайта",
+  "urlImport.maxDepth": "Глубина обхода",
+  "urlImport.maxPages": "Макс. страниц",
+  "urlImport.crawlingSite": "Обход страниц сайта...",
 
   "docs.format.confluence": "Confluence",
   "docs.format.url": "Веб",

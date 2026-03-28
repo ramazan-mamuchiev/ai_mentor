@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Globe, X, AlertCircle, Loader2 } from 'lucide-react'
+import { Globe, X, AlertCircle, Loader2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ingestUrl } from '../api/documents'
+import { ingestUrl, ingestSite } from '../api/documents'
 import type { ProductContext } from './FileUpload'
 import { ProductAutocomplete, type ProductSelection } from './ProductAutocomplete'
 
@@ -28,8 +28,13 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
   const manufacturer = productSel.manufacturer
   const [status, setStatus] = useState<ImportStatus>('idle')
   const [error, setError] = useState('')
+  const [crawlSite, setCrawlSite] = useState(false)
+  const [maxDepth, setMaxDepth] = useState(5)
+  const [maxPages, setMaxPages] = useState(500)
 
   const isConfluence = /\/confluence\/spaces\/[^/]+\/pages\/\d+/.test(url)
+  const isHttpUrl = /^https?:\/\/.+/.test(url.trim())
+  const showSiteCrawlOption = isHttpUrl && !isConfluence
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -39,19 +44,30 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setError('')
 
     try {
-      await ingestUrl({
-        url: url.trim(),
-        product_name: productName.trim(),
-        firmware_version: firmwareVersion || '1.0',
-        manufacturer: manufacturer,
-      })
+      if (crawlSite && showSiteCrawlOption) {
+        await ingestSite({
+          url: url.trim(),
+          product_name: productName.trim(),
+          firmware_version: firmwareVersion || '1.0',
+          manufacturer: manufacturer,
+          max_depth: maxDepth,
+          max_pages: maxPages,
+        })
+      } else {
+        await ingestUrl({
+          url: url.trim(),
+          product_name: productName.trim(),
+          firmware_version: firmwareVersion || '1.0',
+          manufacturer: manufacturer,
+        })
+      }
       onComplete?.()
       onClose?.()
     } catch (err) {
       setStatus('error')
       setError(err instanceof Error ? err.message : String(err))
     }
-  }, [url, productName, firmwareVersion, manufacturer, onComplete, onClose])
+  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, maxDepth, maxPages, onComplete, onClose])
 
   const handleReset = useCallback(() => {
     setUrl('')
@@ -63,6 +79,9 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     })
     setStatus('idle')
     setError('')
+    setCrawlSite(false)
+    setMaxDepth(5)
+    setMaxPages(500)
   }, [])
 
   useEffect(() => {
@@ -107,9 +126,48 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                   <span>
                     {isConfluence
                       ? t('urlImport.confluenceDetected')
-                      : t('urlImport.webPageDetected')
+                      : crawlSite
+                        ? t('urlImport.siteDetected')
+                        : t('urlImport.webPageDetected')
                     }
                   </span>
+                </div>
+              )}
+
+              {showSiteCrawlOption && (
+                <label className="url-import-toggle">
+                  <input
+                    type="checkbox"
+                    checked={crawlSite}
+                    onChange={e => setCrawlSite(e.target.checked)}
+                  />
+                  <Search size={14} />
+                  <span>{t('urlImport.siteCrawlToggle')}</span>
+                </label>
+              )}
+
+              {crawlSite && showSiteCrawlOption && (
+                <div className="file-upload-row">
+                  <label>
+                    {t('urlImport.maxDepth')}
+                    <input
+                      type="number"
+                      value={maxDepth}
+                      onChange={e => setMaxDepth(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                      min={1}
+                      max={10}
+                    />
+                  </label>
+                  <label>
+                    {t('urlImport.maxPages')}
+                    <input
+                      type="number"
+                      value={maxPages}
+                      onChange={e => setMaxPages(Math.max(1, Math.min(5000, Number(e.target.value) || 1)))}
+                      min={1}
+                      max={5000}
+                    />
+                  </label>
                 </div>
               )}
 
@@ -164,7 +222,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
               className="file-upload-start"
               disabled={!isValid}
             >
-              <Globe size={16} />
+              {crawlSite ? <Search size={16} /> : <Globe size={16} />}
               {t('urlImport.startImport')}
             </button>
           </form>
@@ -173,9 +231,16 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
         {status === 'submitting' && (
           <div className="file-upload-progress">
             <div className="file-upload-file-info">
-              <Globe size={20} />
+              {crawlSite ? <Search size={20} /> : <Globe size={20} />}
               <div>
-                <strong>{isConfluence ? t('urlImport.crawling') : t('urlImport.fetching')}</strong>
+                <strong>
+                  {isConfluence
+                    ? t('urlImport.crawling')
+                    : crawlSite
+                      ? t('urlImport.crawlingSite')
+                      : t('urlImport.fetching')
+                  }
+                </strong>
                 <span className="docs-cell-overflow" style={{ maxWidth: 300 }}>{url}</span>
               </div>
             </div>

@@ -129,7 +129,7 @@ def convert_pdf(
 
     Two-pass pipeline:
       Pass 1: pymupdf4llm text extraction (parallel for large PDFs)
-      Pass 2: OCR all images with auto-detected language via Gemini + EasyOCR
+      Pass 2: OCR all images with auto-detected language via Gemini Vision
 
     Language is detected automatically via Gemini after Pass 1.
     Falls back to English if detection fails.

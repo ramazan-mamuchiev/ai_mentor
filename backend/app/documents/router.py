@@ -22,6 +22,7 @@ from app.documents.schemas import (
     DocumentUsageEntry,
     DocumentUsageStats,
     IngestResponse,
+    SiteIngestRequest,
     UrlIngestRequest,
     UrlIngestResponse,
 )
@@ -249,6 +250,83 @@ async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = 
         except Exception as exc:
             await session.rollback()
             logger.error("Failed to queue URL ingest task", extra={
+                "url": url, "error_type": type(exc).__name__, "error": str(exc),
+            }, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
+
+
+@router.post("/ingest-site", response_model=UrlIngestResponse)
+async def ingest_site(request: Request, body: SiteIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
+    """Crawl an entire website and ingest all pages + downloadable files.
+
+    Creates a placeholder Document (format='site') and dispatches a Celery task
+    that BFS-crawls the site within the same domain.
+    """
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+
+    logger.info("Site ingest request received", extra={
+        "url": url,
+        "product_name": body.product_name,
+        "max_depth": body.max_depth,
+        "max_pages": body.max_pages,
+        "client_ip": client_ip,
+    })
+
+    async with async_session() as session:
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, tenant_id=tenant.id)
+        fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
+
+        from urllib.parse import urlparse as _urlparse
+        domain = _urlparse(url).netloc
+
+        placeholder = Document(
+            product_id=product.id,
+            firmware_version_id=fw.id,
+            format="site",
+            original_filename=url[:200],
+            title=f"Site: {domain}",
+            status="pending",
+            source_path=url,
+            source_container=url,
+            progress_stage="queued",
+            tenant_id=tenant.id,
+        )
+        session.add(placeholder)
+        await session.flush()
+
+        try:
+            from app.celery_app import ingest_site_task
+            task = ingest_site_task.delay(
+                document_id=placeholder.id,
+                max_depth=body.max_depth,
+                max_pages=body.max_pages,
+            )
+
+            placeholder.celery_task_id = task.id
+            await session.commit()
+
+            logger.info("Site ingest task queued", extra={
+                "url": url, "task_id": task.id, "document_id": placeholder.id,
+                "product_id": product.id, "max_depth": body.max_depth,
+                "max_pages": body.max_pages, "client_ip": client_ip,
+            })
+
+            return UrlIngestResponse(
+                status="pending",
+                message=f"Site crawl queued for {domain}",
+                url=url,
+                product_name=body.product_name,
+                task_id=task.id,
+                product_id=product.id,
+                document_id=placeholder.id,
+            )
+        except Exception as exc:
+            await session.rollback()
+            logger.error("Failed to queue site ingest task", extra={
                 "url": url, "error_type": type(exc).__name__, "error": str(exc),
             }, exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")

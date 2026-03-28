@@ -95,6 +95,11 @@ class Settings(BaseSettings):
 
     document_stale_timeout_sec: int = 3600
 
+    # --- Site crawler ---
+    site_crawl_max_depth: int = 5
+    site_crawl_max_pages: int = 1000
+    site_crawl_max_seconds: int = 3600
+
     # --- Auth ---
     jwt_secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
     jwt_algorithm: str = "HS256"

@@ -1213,6 +1213,414 @@ def ingest_confluence_task(self, document_id: int):
     }
 
 
+@celery.task(name="ingest_site", bind=True, max_retries=1, default_retry_delay=60,
+             soft_time_limit=7200, time_limit=7500)
+def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_pages: int | None = None):
+    """Background task: crawl a website and ingest each page + downloaded files.
+
+    Receives the placeholder Document id (format='site').
+    For every crawled page the task immediately:
+      1. Creates a child Document in the DB (status='pending')
+      2. Uploads content to S3
+      3. Dispatches ``ingest_document_task`` for that child
+
+    File links (PDF, WSDL, etc.) are downloaded and processed the same way.
+    Supports crash recovery via crawl_checkpoint.
+    """
+    import asyncio
+    from datetime import datetime, timezone, timedelta
+    from app.models import Document
+    from app.ingestion.converters.site import crawl_site, CrawledPage, CrawledFile
+    from app.s3 import upload_file
+    from app.ingestion.pipeline import detect_format
+
+    _CHECKPOINT_VERSION = 1
+    _CHECKPOINT_TTL = timedelta(hours=24)
+
+    _max_depth = max_depth or settings.site_crawl_max_depth
+    _max_pages = max_pages or settings.site_crawl_max_pages
+    _max_seconds = settings.site_crawl_max_seconds
+
+    t0 = time.perf_counter()
+    engine = _get_sync_engine()
+
+    restored_state = None
+
+    with Session(engine) as session:
+        placeholder = session.get(Document, document_id)
+        if placeholder is None:
+            logger.error("Placeholder document not found", extra={"document_id": document_id})
+            return {"status": "error", "error": "Placeholder not found"}
+
+        url = placeholder.source_path
+        product_id = placeholder.product_id
+        firmware_version_id = placeholder.firmware_version_id
+        site_tenant_id = placeholder.tenant_id
+        _set_tenant_log_context(site_tenant_id, session)
+
+        placeholder.status = "processing"
+        placeholder.processing_started_at = datetime.now(timezone.utc)
+        placeholder.progress_stage = "crawling"
+        placeholder.progress_percent = 0
+        session.commit()
+
+    logger.info("Celery ingest_site_task started", extra={
+        "url": url, "document_id": document_id, "task_id": self.request.id,
+        "max_depth": _max_depth, "max_pages": _max_pages,
+    })
+
+    dispatched = 0
+    files_dispatched = 0
+    skipped = 0
+    errors = 0
+    pages_seen = 0
+
+    with Session(engine) as session:
+        placeholder = session.get(Document, document_id)
+        ckpt = placeholder.crawl_checkpoint if placeholder else None
+        if ckpt and isinstance(ckpt, dict):
+            try:
+                if ckpt.get("version") != _CHECKPOINT_VERSION:
+                    raise ValueError(f"unknown checkpoint version: {ckpt.get('version')}")
+                saved_at = datetime.fromisoformat(ckpt["saved_at"])
+                age = datetime.now(timezone.utc) - saved_at
+                if age > _CHECKPOINT_TTL:
+                    raise ValueError(f"checkpoint too old: {age}")
+
+                restored_state = ckpt.get("crawl4ai_state")
+                dispatched = ckpt.get("dispatched", 0)
+                files_dispatched = ckpt.get("files_dispatched", 0)
+                skipped = ckpt.get("skipped", 0)
+                errors = ckpt.get("errors", 0)
+                pages_seen = ckpt.get("pages_seen", 0)
+
+                logger.info("Resuming site crawl from checkpoint", extra={
+                    "document_id": document_id,
+                    "checkpoint_age_sec": round(age.total_seconds()),
+                    "dispatched": dispatched,
+                })
+            except Exception as ckpt_err:
+                logger.warning("Discarding invalid/stale checkpoint — starting fresh", extra={
+                    "document_id": document_id,
+                    "reason": str(ckpt_err)[:300],
+                })
+                restored_state = None
+
+    _latest_crawl4ai_state: dict | None = None
+
+    async def _on_state_change(state: dict) -> None:
+        nonlocal _latest_crawl4ai_state
+        _latest_crawl4ai_state = state
+
+    downloaded_file_urls: set[str] = set()
+
+    def _on_page(page: CrawledPage) -> None:
+        nonlocal dispatched, skipped, errors, pages_seen
+        pages_seen += 1
+
+        try:
+            if not page.markdown or not page.markdown.strip():
+                skipped += 1
+                return
+
+            md_bytes = page.markdown.encode("utf-8")
+            source_hash = hashlib.sha256(md_bytes).hexdigest()
+
+            with Session(engine) as s:
+                existing = s.execute(
+                    sa_select(Document).where(
+                        Document.source_hash == source_hash,
+                        Document.product_id == product_id,
+                        Document.firmware_version_id == firmware_version_id,
+                    ).limit(1)
+                ).scalar_one_or_none()
+                if existing is not None:
+                    skipped += 1
+                    return
+
+                doc = Document(
+                    product_id=product_id,
+                    firmware_version_id=firmware_version_id,
+                    format="markdown",
+                    original_filename=f"{page.title[:150]}.md",
+                    file_size_bytes=len(md_bytes),
+                    title=page.title[:200],
+                    status="pending",
+                    source_hash=source_hash,
+                    source_container=url,
+                    source_path=page.url,
+                    tenant_id=site_tenant_id,
+                )
+                s.add(doc)
+                s.flush()
+
+                s3_key = f"documents/{doc.id}/source.md"
+                upload_file(s3_key, md_bytes, content_type="text/markdown")
+                doc.s3_key = s3_key
+                s.commit()
+
+                try:
+                    task = ingest_document_task.delay(doc.id)
+                    doc.celery_task_id = task.id
+                    s.commit()
+                except Exception as task_exc:
+                    logger.warning("Failed to dispatch ingest task for page", extra={
+                        "child_document_id": doc.id, "error": str(task_exc)[:200],
+                    })
+
+                dispatched += 1
+
+        except Exception as exc:
+            errors += 1
+            logger.warning("Failed to persist crawled page — skipping", extra={
+                "url": page.url, "title": page.title[:100],
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:300],
+            })
+            return
+
+        _save_progress()
+
+    def _on_file(crawled_file: CrawledFile) -> None:
+        nonlocal files_dispatched, errors
+        try:
+            if crawled_file.url in downloaded_file_urls:
+                return
+            downloaded_file_urls.add(crawled_file.url)
+
+            if not crawled_file.local_path or not os.path.isfile(crawled_file.local_path):
+                return
+
+            with open(crawled_file.local_path, "rb") as f:
+                file_bytes = f.read()
+
+            source_hash = hashlib.sha256(file_bytes).hexdigest()
+            filename = crawled_file.url.rsplit("/", 1)[-1][:200]
+            fmt = crawled_file.format
+
+            with Session(engine) as s:
+                existing = s.execute(
+                    sa_select(Document).where(
+                        Document.source_hash == source_hash,
+                        Document.product_id == product_id,
+                        Document.firmware_version_id == firmware_version_id,
+                    ).limit(1)
+                ).scalar_one_or_none()
+                if existing is not None:
+                    return
+
+                doc = Document(
+                    product_id=product_id,
+                    firmware_version_id=firmware_version_id,
+                    format=fmt,
+                    original_filename=filename,
+                    file_size_bytes=len(file_bytes),
+                    title=filename,
+                    status="pending",
+                    source_hash=source_hash,
+                    source_container=url,
+                    source_path=crawled_file.url,
+                    tenant_id=site_tenant_id,
+                )
+                s.add(doc)
+                s.flush()
+
+                ext = crawled_file.extension or ".bin"
+                s3_key = f"documents/{doc.id}/source{ext}"
+                content_type = "application/pdf" if ext == ".pdf" else "application/octet-stream"
+                upload_file(s3_key, file_bytes, content_type=content_type)
+                doc.s3_key = s3_key
+                s.commit()
+
+                try:
+                    task = ingest_document_task.delay(doc.id)
+                    doc.celery_task_id = task.id
+                    s.commit()
+                except Exception as task_exc:
+                    logger.warning("Failed to dispatch ingest task for file", extra={
+                        "child_document_id": doc.id, "error": str(task_exc)[:200],
+                    })
+
+                files_dispatched += 1
+
+        except Exception as exc:
+            errors += 1
+            logger.warning("Failed to persist downloaded file — skipping", extra={
+                "url": crawled_file.url,
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:300],
+            })
+        finally:
+            if crawled_file.local_path and os.path.isfile(crawled_file.local_path):
+                try:
+                    os.unlink(crawled_file.local_path)
+                except OSError:
+                    pass
+
+    def _save_progress() -> None:
+        try:
+            with Session(engine) as s:
+                ph = s.get(Document, document_id)
+                if ph:
+                    total = dispatched + files_dispatched
+                    stage = f"crawling ({pages_seen} pages, {total} queued)"
+                    if errors:
+                        stage += f", {errors} errors"
+                    ph.progress_stage = stage
+                    if pages_seen == 1:
+                        ph.title = f"Site: {url}"
+                    ph.crawl_checkpoint = {
+                        "version": _CHECKPOINT_VERSION,
+                        "saved_at": datetime.now(timezone.utc).isoformat(),
+                        "crawl4ai_state": _latest_crawl4ai_state,
+                        "dispatched": dispatched,
+                        "files_dispatched": files_dispatched,
+                        "skipped": skipped,
+                        "errors": errors,
+                        "pages_seen": pages_seen,
+                    }
+                    s.commit()
+        except Exception:
+            pass
+
+    try:
+        try:
+            loop = asyncio.get_event_loop()
+            crawl_result = loop.run_until_complete(
+                crawl_site(
+                    url,
+                    max_depth=_max_depth,
+                    max_pages=_max_pages,
+                    max_seconds=_max_seconds,
+                    page_callback=_on_page,
+                    file_callback=_on_file,
+                    on_state_change=_on_state_change,
+                    resume_state=restored_state,
+                )
+            )
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                crawl_result = loop.run_until_complete(
+                    crawl_site(
+                        url,
+                        max_depth=_max_depth,
+                        max_pages=_max_pages,
+                        max_seconds=_max_seconds,
+                        page_callback=_on_page,
+                        file_callback=_on_file,
+                        on_state_change=_on_state_change,
+                        resume_state=restored_state,
+                    )
+                )
+            finally:
+                loop.close()
+
+    except SoftTimeLimitExceeded:
+        with Session(engine) as session:
+            placeholder = session.get(Document, document_id)
+            if placeholder:
+                total = dispatched + files_dispatched
+                placeholder.status = "error"
+                placeholder.error_message = (
+                    f"Crawl exceeded soft time limit (2 hours). "
+                    f"Processed {total} items before timeout."
+                )
+                placeholder.progress_stage = ""
+                session.commit()
+        logger.error("ingest_site_task soft time limit exceeded", extra={
+            "url": url, "document_id": document_id,
+            "dispatched": dispatched, "files_dispatched": files_dispatched,
+        })
+        return {
+            "status": "error", "error": "soft_time_limit",
+            "url": url, "document_id": document_id,
+        }
+
+    except Exception as exc:
+        with Session(engine) as session:
+            placeholder = session.get(Document, document_id)
+            if placeholder:
+                placeholder.status = "error"
+                placeholder.error_message = f"Crawl failed: {type(exc).__name__}: {str(exc)[:1900]}"
+                placeholder.progress_stage = ""
+                session.commit()
+
+        logger.error("Site crawl failed", extra={
+            "url": url, "document_id": document_id,
+            "error_type": type(exc).__name__,
+        }, exc_info=True)
+        raise self.retry(exc=exc)
+
+    with Session(engine) as session:
+        placeholder = session.get(Document, document_id)
+        if placeholder:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            total = dispatched + files_dispatched
+            placeholder.progress_percent = 100
+            placeholder.ingest_duration_ms = duration_ms
+            placeholder.total_chunks = total
+            placeholder.crawl_checkpoint = None
+
+            from urllib.parse import urlparse as _urlparse
+            domain = _urlparse(url).netloc
+            placeholder.title = f"{domain} ({crawl_result.pages_crawled} pages, {crawl_result.files_found} files)"
+
+            if total == 0:
+                placeholder.status = "error"
+                placeholder.progress_stage = "done"
+                if crawl_result.pages_crawled == 0:
+                    placeholder.error_message = (
+                        "Crawl returned 0 pages. The site may require authentication "
+                        "or the URL may be invalid."
+                    )
+                else:
+                    placeholder.error_message = (
+                        f"No documents created from {pages_seen} crawled pages "
+                        f"({skipped} empty, {errors} errors)."
+                    )
+            elif errors > total:
+                placeholder.status = "error"
+                placeholder.progress_stage = "done"
+                placeholder.error_message = (
+                    f"Too many storage failures: {errors} errors vs {total} documents."
+                )
+            elif errors > 0:
+                placeholder.status = "ready"
+                placeholder.progress_stage = "done"
+                placeholder.error_message = (
+                    f"Partial failures: {errors} items could not be saved."
+                )
+            else:
+                placeholder.status = "ready"
+                placeholder.progress_stage = "done"
+                placeholder.error_message = None
+            session.commit()
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    total = dispatched + files_dispatched
+    logger.info("Celery ingest_site_task completed", extra={
+        "url": url, "document_id": document_id,
+        "pages_crawled": crawl_result.pages_crawled,
+        "files_found": crawl_result.files_found,
+        "dispatched": dispatched, "files_dispatched": files_dispatched,
+        "skipped": skipped, "errors": errors,
+        "duration_ms": duration_ms,
+    })
+    return {
+        "status": "ok",
+        "url": url,
+        "document_id": document_id,
+        "pages_crawled": crawl_result.pages_crawled,
+        "files_found": crawl_result.files_found,
+        "dispatched": dispatched,
+        "files_dispatched": files_dispatched,
+        "skipped": skipped,
+        "errors": errors,
+        "duration_ms": duration_ms,
+    }
+
+
 @celery.task(name="reingest_confluence_page", bind=True, max_retries=2, default_retry_delay=30,
              soft_time_limit=2700, time_limit=3000)
 def reingest_confluence_page_task(self, document_id: int):
