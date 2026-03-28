@@ -1,18 +1,24 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Globe, Play } from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   adminListLanguages, adminCreateLanguage, adminDeleteLanguage,
   adminTriggerTranslate, adminGetTranslateProgress,
   type AdminLanguage,
 } from '../../api/admin-i18n'
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
+import { DataTable } from '../../components/DataTable'
+import { useDataTable } from '../../hooks/useDataTable'
 import type { TenantSearchResult } from '../../api/admin'
+
+const STORAGE_KEY = 'lexiro-admin-languages'
+const DEFAULT_COLUMN_ORDER = ['code', 'name', 'default', 'active', 'system', 'keys', 'autoTranslate', 'modifiedBy', 'modifiedAt', 'actions']
 
 export function LanguagesPage() {
   const { t } = useTranslation()
 
-  const relativeTime = (iso: string | null): string => {
+  const relativeTime = useCallback((iso: string | null): string => {
     if (!iso) return ''
     const diff = Date.now() - new Date(iso).getTime()
     const mins = Math.floor(diff / 60000)
@@ -22,7 +28,8 @@ export function LanguagesPage() {
     if (hours < 24) return t('admin.common.hoursAgo', { count: hours })
     const days = Math.floor(hours / 24)
     return t('admin.common.daysAgo', { count: days })
-  }
+  }, [t])
+
   const [languages, setLanguages] = useState<AdminLanguage[]>([])
   const [loading, setLoading] = useState(true)
   const [newCode, setNewCode] = useState('')
@@ -102,6 +109,140 @@ export function LanguagesPage() {
 
   const defaultLangId = languages.find(l => l.is_default)?.id
 
+  const columns = useMemo<ColumnDef<AdminLanguage, unknown>[]>(() => [
+    {
+      id: 'code',
+      accessorKey: 'code',
+      header: () => t('admin.languages.colCode'),
+      cell: ({ getValue }) => <code>{String(getValue())}</code>,
+      enableGrouping: false,
+    },
+    {
+      id: 'name',
+      accessorKey: 'name_native',
+      header: () => t('admin.languages.colName'),
+      enableGrouping: false,
+    },
+    {
+      id: 'default',
+      accessorKey: 'is_default',
+      header: () => t('admin.languages.colDefault'),
+      cell: ({ getValue }) => getValue() ? '✓' : '',
+      enableGrouping: false,
+    },
+    {
+      id: 'active',
+      accessorKey: 'is_active',
+      header: () => t('admin.languages.colActive'),
+      cell: ({ getValue }) => getValue() ? '✓' : '—',
+      enableGrouping: false,
+    },
+    {
+      id: 'system',
+      accessorKey: 'is_system',
+      header: () => t('admin.languages.colSystem'),
+      cell: ({ getValue }) => getValue() ? '✓' : '',
+      enableGrouping: true,
+    },
+    {
+      id: 'keys',
+      accessorKey: 'total_keys',
+      header: () => t('admin.languages.colKeys'),
+      cell: ({ getValue }) => <span className="docs-chunks">{Number(getValue())}</span>,
+      enableGrouping: false,
+    },
+    {
+      id: 'autoTranslate',
+      header: () => t('admin.languages.colAutoTranslate'),
+      enableSorting: false,
+      enableGrouping: false,
+      cell: ({ row }) => {
+        const lang = row.original
+        const progress = translating[lang.id]
+        const isTranslating = progress && progress.status === 'running'
+        const isSourceLang = lang.id === defaultLangId
+        return (
+          <>
+            {isTranslating ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%`,
+                    height: '100%',
+                    background: 'var(--accent)',
+                    borderRadius: 3,
+                    transition: 'width 0.3s',
+                  }} />
+                </div>
+                <span style={{ fontSize: 12 }}>{progress.done}/{progress.total}</span>
+              </div>
+            ) : isSourceLang ? (
+              <span style={{ fontSize: 12, opacity: 0.4 }}>—</span>
+            ) : (
+              <button onClick={() => handleTranslate(lang.id)} className="docs-action-btn">
+                <Play size={14} />
+              </button>
+            )}
+            {progress && progress.status === 'complete' && <span style={{ fontSize: 12, color: 'var(--success)' }}> {t('admin.languages.translateDone')}</span>}
+            {progress && progress.status === 'partial' && <span style={{ fontSize: 12, color: 'var(--warning)' }}> {t('admin.languages.translatePartial', { errors: progress.errors })}</span>}
+          </>
+        )
+      },
+    },
+    {
+      id: 'modifiedBy',
+      accessorFn: row => row.modified_by_name || row.modified_by_email || '',
+      header: () => t('admin.common.modifiedBy'),
+      cell: ({ getValue }) => <span className="audit-cell">{String(getValue())}</span>,
+      enableGrouping: false,
+    },
+    {
+      id: 'modifiedAt',
+      accessorKey: 'modified_at',
+      header: () => t('admin.common.modifiedAt'),
+      cell: ({ getValue }) => <span className="audit-cell">{relativeTime(getValue() as string | null)}</span>,
+      enableGrouping: false,
+      sortingFn: 'datetime',
+    },
+    {
+      id: 'actions',
+      header: () => t('admin.common.actions'),
+      enableSorting: false,
+      enableGrouping: false,
+      cell: ({ row }) => {
+        const lang = row.original
+        if (lang.is_system) return null
+        return (
+          <div className="docs-actions">
+            <button
+              className="docs-action-btn"
+              onClick={() => handleDelete(lang.id, lang.is_system)}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, translating, defaultLangId, relativeTime])
+
+  const {
+    table,
+    columnOrder,
+    grouping,
+    handleColumnOrderChange,
+    removeGrouping,
+    toggleGrouping,
+    resetSettings,
+  } = useDataTable({
+    data: languages,
+    columns,
+    storageKey: STORAGE_KEY,
+    defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+    defaultSorting: [{ id: 'code', desc: false }],
+    getRowId: row => String(row.id),
+  })
+
   return (
     <div className="logs-page">
       <div className="admin-page-header">
@@ -146,75 +287,15 @@ export function LanguagesPage() {
       )}
 
       {!loading && languages.length > 0 && (
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>{t('admin.languages.colCode')}</th>
-              <th>{t('admin.languages.colName')}</th>
-              <th>{t('admin.languages.colDefault')}</th>
-              <th>{t('admin.languages.colActive')}</th>
-              <th>{t('admin.languages.colSystem')}</th>
-              <th>{t('admin.languages.colKeys')}</th>
-              <th>{t('admin.languages.colAutoTranslate')}</th>
-              <th>{t('admin.common.modifiedBy')}</th>
-              <th>{t('admin.common.modifiedAt')}</th>
-              <th>{t('admin.common.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {languages.map(lang => {
-              const progress = translating[lang.id]
-              const isTranslating = progress && progress.status === 'running'
-              const isSourceLang = lang.id === defaultLangId
-              return (
-                <tr key={lang.id}>
-                  <td><code>{lang.code}</code></td>
-                  <td>{lang.name_native}</td>
-                  <td>{lang.is_default ? '✓' : ''}</td>
-                  <td>{lang.is_active ? '✓' : '—'}</td>
-                  <td>{lang.is_system ? '✓' : ''}</td>
-                  <td>{lang.total_keys}</td>
-                  <td>
-                    {isTranslating ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{
-                            width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%`,
-                            height: '100%',
-                            background: 'var(--accent)',
-                            borderRadius: 3,
-                            transition: 'width 0.3s',
-                          }} />
-                        </div>
-                        <span style={{ fontSize: 12 }}>{progress.done}/{progress.total}</span>
-                      </div>
-                    ) : isSourceLang ? (
-                      <span style={{ fontSize: 12, opacity: 0.4 }}>—</span>
-                    ) : (
-                      <button onClick={() => handleTranslate(lang.id)} className="logs-icon-btn">
-                        <Play size={14} />
-                      </button>
-                    )}
-                    {progress && progress.status === 'complete' && <span style={{ fontSize: 12, color: 'var(--success)' }}> {t('admin.languages.translateDone')}</span>}
-                    {progress && progress.status === 'partial' && <span style={{ fontSize: 12, color: 'var(--warning)' }}> {t('admin.languages.translatePartial', { errors: progress.errors })}</span>}
-                  </td>
-                  <td className="audit-cell">{lang.modified_by_name || lang.modified_by_email || ''}</td>
-                  <td className="audit-cell">{relativeTime(lang.modified_at)}</td>
-                  <td>
-                    {!lang.is_system && (
-                      <button
-                        className="logs-icon-btn"
-                        onClick={() => handleDelete(lang.id, lang.is_system)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <DataTable
+          table={table}
+          columnOrder={columnOrder}
+          grouping={grouping}
+          onColumnOrderChange={handleColumnOrderChange}
+          removeGrouping={removeGrouping}
+          toggleGrouping={toggleGrouping}
+          resetSettings={resetSettings}
+        />
       )}
     </div>
   )
