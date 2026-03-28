@@ -7,6 +7,12 @@ alwaysApply: true
 
 When the user asks to publish/deploy changes to VPS (lexiro.io):
 
+## MANDATORY: Maintenance mode
+
+**EVERY deploy MUST be wrapped in maintenance mode.** Never skip steps 2 and 7. Users see a branded "Техническое обслуживание" page while the deploy is in progress.
+
+## Steps
+
 1. **Commit & push** locally (if there are uncommitted changes):
    ```powershell
    git add <files>
@@ -14,7 +20,7 @@ When the user asks to publish/deploy changes to VPS (lexiro.io):
    git push origin main
    ```
 
-2. **Enable maintenance mode** (shows a branded 503 page to all visitors):
+2. **Enable maintenance mode** — ALWAYS do this BEFORE any VPS changes:
    ```powershell
    ssh root@lexiro.io "touch /opt/lexiro/maintenance-flag/on"
    ```
@@ -36,16 +42,23 @@ When the user asks to publish/deploy changes to VPS (lexiro.io):
    ssh root@lexiro.io "cd /opt/lexiro && docker compose up -d api worker beat web"
    ```
 
-6. **Wait for API health check** then **disable maintenance mode**:
+6. **Wait for API health check** (poll every 2s until `/health` returns 200):
    ```powershell
-   ssh root@lexiro.io "until curl -sf http://localhost:8000/health; do sleep 2; done && rm -f /opt/lexiro/maintenance-flag/on"
+   ssh root@lexiro.io "for i in $(seq 1 30); do curl -sf http://localhost:8000/health && break; sleep 2; done"
+   ```
+
+7. **Disable maintenance mode** — ALWAYS do this as the final step:
+   ```powershell
+   ssh root@lexiro.io "rm -f /opt/lexiro/maintenance-flag/on"
    ```
 
 ## Rules
 
+- **NEVER** skip maintenance mode. Steps 2 and 7 are mandatory for every deploy.
 - **NEVER** copy full Docker images via `docker save` / `scp` / `docker load`. Always build on VPS.
 - **NEVER** use `--no-cache` unless `requirements.txt`, `package.json`, or `Dockerfile` changed.
 - If only frontend changed, build `web` and restart only `web`.
 - If only backend changed, build `api` and restart `api` + `worker` + `beat`.
 - If both changed, build `api web` and restart `api worker beat web`.
 - `worker` and `beat` have NO `build:` directive — they use `image: lexiro-backend` built by `api`.
+- If deploy fails at any step, **still remove maintenance flag** (step 7) so the site is not stuck in maintenance mode.
