@@ -212,6 +212,7 @@ Detailed architecture documentation is in the [`architecture/`](architecture/) d
 | [PARTNERSHIP_MARKETING.md](architecture/PARTNERSHIP_MARKETING.md) | Vendor partnership program |
 | [BRAND.md](architecture/BRAND.md) | Brand platform, naming, visual identity, risk analysis |
 | [BRAND_SLOGANS.md](architecture/BRAND_SLOGANS.md) | Taglines, slogans, messaging |
+| [CONTENT_PLAN.md](architecture/CONTENT_PLAN.md) | Documentation sources, vendor priorities, ingestion roadmap |
 | [BACKLOG.md](architecture/BACKLOG.md) | Feature backlog, priorities, roadmap |
 
 ## License

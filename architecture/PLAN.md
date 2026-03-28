@@ -22,6 +22,7 @@
 | [MONITORING.md](MONITORING.md) | Monitoring stack (Grafana + Loki + Promtail), dashboards, alert rules, structured logging | ~200 |
 | [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 Lexiro slogan candidates (EN/RU), next steps for partner review | ~130 |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Design system: colors, typography, icons, components, logo, animations, UI/UX competitor analysis | ~310 |
+| [CONTENT_PLAN.md](CONTENT_PLAN.md) | Documentation sources, vendor priorities, ingestion roadmap, protocols & standards | ~500 |
 | [BACKLOG.md](BACKLOG.md) | Future tasks backlog: email verification, planned features, technical debt | ~50 |
 
 ---
