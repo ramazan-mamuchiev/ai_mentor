@@ -12,7 +12,7 @@ export async function getProduct(manufacturerSlug: string, productSlug: string):
 export async function updateProduct(
   manufacturerSlug: string,
   productSlug: string,
-  data: { name?: string; manufacturer?: string; model?: string; category?: string },
+  data: { name?: string; manufacturer?: string; model?: string; category?: string; category_id?: number | null; tag_ids?: number[] },
 ): Promise<ProductDetail> {
   return apiFetch<ProductDetail>(`/products/${manufacturerSlug}/${productSlug}`, {
     method: 'PATCH',
@@ -42,4 +42,42 @@ export async function getProductUsageStats(manufacturerSlug: string, productSlug
 
 export async function getSuggestions(): Promise<SuggestionChip[]> {
   return apiFetch<SuggestionChip[]>('/products/suggestions')
+}
+
+export interface ProductSuggestion {
+  id: number
+  name: string
+  manufacturer: string
+  slug: string
+  manufacturer_slug: string
+  category_slug: string | null
+  firmware_versions: Array<{ id: number; version: string }>
+}
+
+export interface ProductCategoryPublic {
+  id: number
+  slug: string
+  icon: string
+  count: number
+}
+
+export interface ProductTagPublic {
+  id: number
+  slug: string
+  count: number
+}
+
+export async function suggestProducts(q: string = '', limit: number = 20): Promise<ProductSuggestion[]> {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  params.set('limit', String(limit))
+  return apiFetch<ProductSuggestion[]>(`/products/suggest?${params}`)
+}
+
+export async function listProductCategories(): Promise<ProductCategoryPublic[]> {
+  return apiFetch<ProductCategoryPublic[]>('/products/categories')
+}
+
+export async function listProductTags(): Promise<ProductTagPublic[]> {
+  return apiFetch<ProductTagPublic[]>('/products/tags')
 }

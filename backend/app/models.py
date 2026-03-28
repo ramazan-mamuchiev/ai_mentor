@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pgvector.sqlalchemy import Vector
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -127,8 +127,110 @@ class RefreshToken(Base):
 
 
 # ---------------------------------------------------------------------------
+# i18n models
+# ---------------------------------------------------------------------------
+
+class Language(Base):
+    __tablename__ = "languages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
+    name_native: Mapped[str] = mapped_column(Text, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    translations: Mapped[list["Translation"]] = relationship(
+        back_populates="language", cascade="all, delete-orphan",
+    )
+
+
+class Translation(Base):
+    __tablename__ = "translations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language_id: Mapped[int] = mapped_column(
+        ForeignKey("languages.id", ondelete="CASCADE"), nullable=False,
+    )
+    namespace: Mapped[str] = mapped_column(String(50), default="ui")
+    key: Mapped[str] = mapped_column(Text, nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    language: Mapped["Language"] = relationship(back_populates="translations")
+
+    __table_args__ = (
+        UniqueConstraint("language_id", "namespace", "key"),
+        Index("idx_translations_lookup", "language_id", "namespace"),
+        Index("idx_translations_key", "namespace", "key"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Product catalog models
 # ---------------------------------------------------------------------------
+
+class ProductCategory(Base):
+    __tablename__ = "product_categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    icon: Mapped[str] = mapped_column(String(50), default="")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    products: Mapped[list["Product"]] = relationship(back_populates="category_ref")
+
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class ProductTagLink(Base):
+    __tablename__ = "product_tag_links"
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), primary_key=True,
+    )
+    tag_id: Mapped[int] = mapped_column(
+        ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True,
+    )
+
+
+class SearchKeyword(Base):
+    __tablename__ = "search_keywords"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), nullable=False,
+    )
+    keyword: Mapped[str] = mapped_column(Text, nullable=False)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    product: Mapped["Product"] = relationship(back_populates="search_keywords")
+
+    __table_args__ = (
+        UniqueConstraint("product_id", "keyword"),
+        Index("idx_search_keywords_product", "product_id"),
+    )
+
 
 class Product(Base):
     __tablename__ = "products"
@@ -139,13 +241,22 @@ class Product(Base):
     manufacturer: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(Text, default="")
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("product_categories.id", ondelete="SET NULL"), nullable=True,
+    )
     slug: Mapped[str] = mapped_column(Text, nullable=False, default="")
     manufacturer_slug: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    category_ref: Mapped["ProductCategory | None"] = relationship(back_populates="products")
     firmware_versions: Mapped[list["FirmwareVersion"]] = relationship(
+        back_populates="product", cascade="all, delete-orphan"
+    )
+    tag_links: Mapped[list["ProductTagLink"]] = relationship(cascade="all, delete-orphan")
+    tags: Mapped[list["Tag"]] = relationship(secondary="product_tag_links", viewonly=True)
+    search_keywords: Mapped[list["SearchKeyword"]] = relationship(
         back_populates="product", cascade="all, delete-orphan"
     )
 
@@ -154,6 +265,7 @@ class Product(Base):
         UniqueConstraint("manufacturer_slug", "slug"),
         Index("idx_products_slug", "manufacturer_slug", "slug"),
         Index("idx_products_tenant", "tenant_id"),
+        Index("idx_products_category_id", "category_id"),
     )
 
 

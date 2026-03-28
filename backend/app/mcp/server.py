@@ -249,6 +249,7 @@ async def tool_get_api_endpoint(
 
 async def tool_list_products(
     category: str | None = None,
+    tag: str | None = None,
     query: str | None = None,
 ) -> str:
     """List products with indexed documentation available in Lexiro.
@@ -259,22 +260,31 @@ async def tool_list_products(
     and software platforms (VMS like Axxon One, PSIM, IoT platforms, SDKs).
 
     Args:
-        category: Filter by product category.
-            Examples: "camera", "vms", "access_control", "intercom", "nvr", "sdk"
+        category: Filter by category slug.
+            Examples: "video_surveillance", "access_control", "intercom", "protocols", "software"
+        tag: Filter by tag slug.
+            Examples: "onvif", "rtsp", "ptz", "h265", "sdk"
         query: Search products by name or manufacturer.
             Examples: "Hikvision", "Axxon", "DS-2CD"
     """
     request_id = str(uuid4())
-    logger.debug("MCP list_products called", extra={"category": category, "query": query, "request_id": request_id})
+    logger.debug("MCP list_products called", extra={"category": category, "tag": tag, "query": query, "request_id": request_id})
 
     t0 = time.perf_counter()
     async with async_session() as session:
         where_clauses: list[str] = []
         params: dict = {}
+        extra_joins: list[str] = []
 
         if category:
-            where_clauses.append("p.category ILIKE :category")
-            params["category"] = f"%{category}%"
+            extra_joins.append("LEFT JOIN product_categories pc ON pc.id = p.category_id")
+            where_clauses.append("(pc.slug = :category OR p.category ILIKE '%' || :category || '%')")
+            params["category"] = category
+        if tag:
+            extra_joins.append("JOIN product_tag_links ptl ON ptl.product_id = p.id")
+            extra_joins.append("JOIN tags t ON t.id = ptl.tag_id")
+            where_clauses.append("t.slug = :tag")
+            params["tag"] = tag
         if query:
             where_clauses.append(
                 "(p.name ILIKE :query OR p.manufacturer ILIKE :query)"
@@ -282,21 +292,24 @@ async def tool_list_products(
             params["query"] = f"%{query}%"
 
         where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        joins_sql = "\n".join(extra_joins)
 
         sql = text(f"""
             SELECT
                 p.name,
                 p.manufacturer,
-                p.category,
+                COALESCE(pc2.slug, p.category) AS category,
                 COALESCE(STRING_AGG(DISTINCT fw.version, ', ' ORDER BY fw.version), '') AS versions,
                 COUNT(DISTINCT d.id) FILTER (WHERE d.status = 'ready') AS doc_count,
                 COUNT(c.id) FILTER (WHERE d.status = 'ready') AS chunk_count
             FROM products p
+            LEFT JOIN product_categories pc2 ON pc2.id = p.category_id
             LEFT JOIN firmware_versions fw ON fw.product_id = p.id
             LEFT JOIN documents d ON d.product_id = p.id
             LEFT JOIN chunks c ON c.document_id = d.id
+            {joins_sql}
             {where_sql}
-            GROUP BY p.id, p.name, p.manufacturer, p.category
+            GROUP BY p.id, p.name, p.manufacturer, pc2.slug, p.category
             ORDER BY p.name
         """)
 

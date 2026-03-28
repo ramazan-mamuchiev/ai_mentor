@@ -1329,6 +1329,37 @@
   border-color: var(--accent);
 }
 
+.product-edit-tags-block {
+  align-items: stretch;
+}
+
+.product-edit-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.product-edit-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.product-edit-tag input {
+  flex-shrink: 0;
+}
+
+.product-edit-tags-hint {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
 /* ── Product detail header ── */
 .product-detail-header {
   padding: 16px 24px 8px;

@@ -1,10 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { Layout } from '../../components/Layout'
+
+vi.mock('../../auth/AuthContext', () => ({
+  useAuth: () => ({
+    user: {
+      id: '1',
+      email: 'layout@test.dev',
+      name: 'Layout User',
+      slug: 'layout-user',
+      tier: 'free',
+      role: 'user',
+      roles: [],
+      permissions: { features: { admin: true } },
+      email_verified: true,
+      created_at: '2020-01-01T00:00:00Z',
+    },
+    logout: vi.fn(),
+    login: vi.fn(),
+    register: vi.fn(),
+    refreshUser: vi.fn(),
+    loading: false,
+    firstApiKey: null,
+  }),
+}))
 
 const defaultProps: {
   sessions: any[]
-  activeSessionId: number | null
+  activeSessionId: string | null
   theme: 'light' | 'dark'
   onSelectSession: ReturnType<typeof vi.fn>
   onNewSession: ReturnType<typeof vi.fn>
@@ -20,11 +45,13 @@ const defaultProps: {
   onToggleTheme: vi.fn(),
 }
 
-function renderLayout(overrides: Partial<typeof defaultProps> = {}, children?: React.ReactNode) {
+function renderLayout(overrides: Partial<typeof defaultProps> = {}, children?: React.ReactNode, initialPath = '/app') {
   return render(
-    <Layout {...defaultProps} {...overrides}>
-      {children ?? <div>Main content</div>}
-    </Layout>,
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Layout {...defaultProps} {...overrides}>
+        {children ?? <div>Main content</div>}
+      </Layout>
+    </MemoryRouter>,
   )
 }
 
@@ -43,9 +70,20 @@ describe('Layout', () => {
     expect(screen.getByText('Test content here')).toBeInTheDocument()
   })
 
-  it('renders theme toggle in sidebar', () => {
-    renderLayout()
-    expect(screen.getByTitle('Toggle theme')).toBeInTheDocument()
+  it('renders theme entry in account menu', async () => {
+    const user = userEvent.setup()
+    const { container } = renderLayout()
+    await user.click(container.querySelector('.account-badge-btn') as HTMLElement)
+    expect(screen.getByRole('button', { name: 'Dark theme' })).toBeInTheDocument()
+  })
+})
+
+describe('Layout admin sub-nav', () => {
+  it('shows taxonomy, languages, and translations entries on admin route', () => {
+    renderLayout({}, undefined, '/app/admin')
+    expect(screen.getByRole('button', { name: 'Taxonomy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Languages' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Translations' })).toBeInTheDocument()
   })
 })
 

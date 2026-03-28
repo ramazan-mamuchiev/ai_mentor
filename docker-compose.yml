@@ -170,7 +170,7 @@ services:
       LOG_DIR: /app/logs
     volumes:
       - ${LOG_DIR:-./logs}:/app/logs
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring,translation
 
   beat:
     image: lexiro-backend

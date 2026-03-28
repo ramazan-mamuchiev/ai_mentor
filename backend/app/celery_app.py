@@ -50,6 +50,8 @@ celery.conf.update(
         "ensure_usage_partitions": {"queue": "monitoring"},
         "cleanup_expired_shares": {"queue": "monitoring"},
         "s3_health_probe": {"queue": "monitoring"},
+        "translate_all_for_language": {"queue": "translation"},
+        "translate_missing_keys": {"queue": "translation"},
     },
     beat_schedule={
         "cleanup-expired-uploads": {
@@ -1620,3 +1622,178 @@ def cleanup_expired_shares_task(self):
 
     if deleted:
         logger.info("Cleaned up expired/deactivated shared links", extra={"count": deleted})
+
+
+@celery.task(
+    name="translate_all_for_language",
+    bind=True,
+    soft_time_limit=3600,
+    max_retries=1,
+)
+def translate_all_for_language_task(self, language_id: int, source_lang: str = "en"):
+    """Translate all missing keys for a given language from source_lang."""
+    import redis as redis_lib
+    from app.i18n.translator import translate_batch
+    from app.models import Language, Translation
+
+    lock_key = f"translate_lock:{language_id}"
+    progress_key = f"translate_progress:{language_id}"
+    r = redis_lib.from_url(settings.redis_url)
+
+    lock = r.lock(lock_key, timeout=3600, blocking=False)
+    if not lock.acquire(blocking=False):
+        logger.warning("Translation already in progress for language %d", language_id)
+        return {"status": "already_running"}
+
+    engine = _get_sync_engine()
+    batch_size = settings.auto_translate_batch_size
+
+    try:
+        with Session(engine) as session:
+            lang = session.get(Language, language_id)
+            if not lang:
+                return {"status": "error", "detail": "Language not found"}
+
+            target_lang = lang.name_native
+            target_code = lang.code
+
+            src_lang_row = session.execute(
+                sa_select(Language).where(Language.code == source_lang)
+            ).scalar_one_or_none()
+            if not src_lang_row:
+                return {"status": "error", "detail": f"Source language '{source_lang}' not found"}
+
+            src_translations = session.execute(
+                sa_select(Translation.namespace, Translation.key, Translation.value).where(
+                    Translation.language_id == src_lang_row.id
+                )
+            ).all()
+
+            existing_keys = set()
+            existing_rows = session.execute(
+                sa_select(Translation.namespace, Translation.key).where(
+                    Translation.language_id == language_id
+                )
+            ).all()
+            for row in existing_rows:
+                existing_keys.add((row.namespace, row.key))
+
+            missing = [
+                {"namespace": t.namespace, "key": t.key, "value": t.value}
+                for t in src_translations
+                if (t.namespace, t.key) not in existing_keys and t.namespace != "meta"
+            ]
+
+            total = len(missing)
+            if total == 0:
+                r.hset(progress_key, mapping={"total": 0, "done": 0, "status": "complete"})
+                r.expire(progress_key, 300)
+                return {"status": "complete", "translated": 0}
+
+            r.hset(progress_key, mapping={"total": total, "done": 0, "status": "running"})
+            r.expire(progress_key, 3600)
+
+            done = 0
+            errors = 0
+            for i in range(0, total, batch_size):
+                batch = missing[i:i + batch_size]
+                strings_to_translate = {item["key"]: item["value"] for item in batch}
+
+                try:
+                    translated = translate_batch(strings_to_translate, source_lang, target_code)
+
+                    for item in batch:
+                        translated_value = translated.get(item["key"], item["value"])
+                        session.execute(
+                            sa_select(func.count()).select_from(Translation).where(
+                                Translation.language_id == language_id,
+                                Translation.namespace == item["namespace"],
+                                Translation.key == item["key"],
+                            )
+                        )
+                        new_t = Translation(
+                            language_id=language_id,
+                            namespace=item["namespace"],
+                            key=item["key"],
+                            value=translated_value,
+                            is_system=False,
+                        )
+                        session.merge(new_t)
+
+                    session.commit()
+                    done += len(batch)
+
+                except Exception as e:
+                    logger.error("Translation batch failed: %s", str(e))
+                    errors += len(batch)
+                    session.rollback()
+
+                r.hset(progress_key, mapping={
+                    "total": total, "done": done, "errors": errors, "status": "running",
+                })
+
+            status = "complete" if errors == 0 else "partial"
+            r.hset(progress_key, mapping={
+                "total": total, "done": done, "errors": errors, "status": status,
+            })
+            r.expire(progress_key, 300)
+
+            _invalidate_i18n_cache(r, target_code)
+
+            return {"status": status, "translated": done, "errors": errors}
+
+    except SoftTimeLimitExceeded:
+        r.hset(progress_key, "status", "timeout")
+        r.expire(progress_key, 300)
+        logger.error("Translation task timed out for language %d", language_id)
+        return {"status": "timeout"}
+    finally:
+        try:
+            lock.release()
+        except Exception:
+            pass
+
+
+@celery.task(name="translate_missing_keys", bind=True, soft_time_limit=600)
+def translate_missing_keys_task(self, language_id: int, keys: list[dict], source_lang: str = "en"):
+    """Translate specific missing keys for a language.
+
+    keys: list of {"namespace": str, "key": str, "value": str}
+    """
+    import redis as redis_lib
+    from app.i18n.translator import translate_batch
+    from app.models import Language, Translation
+
+    r = redis_lib.from_url(settings.redis_url)
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        lang = session.get(Language, language_id)
+        if not lang:
+            return {"status": "error", "detail": "Language not found"}
+
+        strings_to_translate = {item["key"]: item["value"] for item in keys}
+        translated = translate_batch(strings_to_translate, source_lang, lang.code)
+
+        for item in keys:
+            translated_value = translated.get(item["key"], item["value"])
+            new_t = Translation(
+                language_id=language_id,
+                namespace=item["namespace"],
+                key=item["key"],
+                value=translated_value,
+                is_system=False,
+            )
+            session.merge(new_t)
+
+        session.commit()
+        _invalidate_i18n_cache(r, lang.code)
+
+    return {"status": "complete", "translated": len(keys)}
+
+
+def _invalidate_i18n_cache(r, lang_code: str):
+    """Delete Redis cache keys for i18n translations."""
+    for ns in ("ui", "taxonomy"):
+        r.delete(f"i18n:{lang_code}:{ns}")
+    r.delete(f"i18n:version:{lang_code}")

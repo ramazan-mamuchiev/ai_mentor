@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Layout } from '../../components/Layout'
 import { useTheme } from '../../hooks/useTheme'
@@ -13,6 +14,10 @@ import { RoleDetailPage } from './RoleDetailPage'
 import { PromptsPage } from './PromptsPage'
 import { PromptEditorPage } from './PromptEditorPage'
 import { SystemPage } from './SystemPage'
+import { TaxonomyPage } from './TaxonomyPage'
+import { LanguagesPage } from './LanguagesPage'
+
+const TranslationsPage = lazy(() => import('./TranslationsPage'))
 
 export default function AdminApp() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -42,6 +47,9 @@ export default function AdminApp() {
           <Route path="logs" element={<LogsPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="system" element={<SystemPage />} />
+          <Route path="taxonomy" element={<TaxonomyPage />} />
+          <Route path="languages" element={<LanguagesPage />} />
+          <Route path="translations" element={<Suspense fallback={<div>Loading...</div>}><TranslationsPage /></Suspense>} />
           <Route path="*" element={<Navigate to="/app/admin" replace />} />
         </Routes>
       </div>

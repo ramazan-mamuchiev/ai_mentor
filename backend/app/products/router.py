@@ -5,19 +5,30 @@ import logging
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import case, func, select
 
+from fastapi import Query as QueryParam
+
 from app.config import settings
 from app.database import async_session
-from app.models import ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion, Product, SuggestionTemplate
+from app.models import (
+    ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion,
+    Product, ProductCategory, ProductTagLink, SearchKeyword, SuggestionTemplate, Tag,
+)
 from app.products.schemas import (
+    FacetValue,
+    Facets,
+    FirmwareVersionInfo,
     FormatCount,
+    PaginatedProducts,
     ProductDebugInfo,
     ProductDetail,
     ProductDocumentSummary,
     ProductDocumentUsage,
     ProductListItem,
+    ProductSuggestion,
     ProductUpdate,
     ProductUsageStats,
     SuggestionChip,
+    TagInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,6 +121,92 @@ async def get_suggestions():
         ))
 
     return chips
+
+
+@router.get("/suggest", response_model=list[ProductSuggestion])
+async def suggest_products(
+    q: str = QueryParam("", description="Search text"),
+    limit: int = QueryParam(20, ge=1, le=100),
+):
+    """Lightweight product search for autocompletes."""
+    async with async_session() as session:
+        stmt = select(Product).order_by(Product.name)
+
+        if q:
+            like = f"%{q}%"
+            stmt = stmt.where(Product.name.ilike(like) | Product.manufacturer.ilike(like))
+
+        stmt = stmt.limit(limit)
+        result = await session.execute(stmt)
+        products = result.scalars().all()
+
+        items = []
+        for p in products:
+            fw_result = await session.execute(
+                select(FirmwareVersion.id, FirmwareVersion.version)
+                .where(FirmwareVersion.product_id == p.id)
+                .order_by(FirmwareVersion.version)
+            )
+            fws = [FirmwareVersionInfo(id=r.id, version=r.version) for r in fw_result]
+
+            cat_slug = None
+            if p.category_id:
+                cat = await session.get(ProductCategory, p.category_id)
+                if cat:
+                    cat_slug = cat.slug
+
+            items.append(ProductSuggestion(
+                id=p.id,
+                name=p.name,
+                manufacturer=p.manufacturer,
+                slug=p.slug,
+                manufacturer_slug=p.manufacturer_slug,
+                category_slug=cat_slug,
+                firmware_versions=fws,
+            ))
+        return items
+
+
+@router.get("/categories")
+async def list_product_categories():
+    """Public endpoint: categories with product counts."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(
+                ProductCategory.id,
+                ProductCategory.slug,
+                ProductCategory.icon,
+                ProductCategory.sort_order,
+                func.count(Product.id).label("count"),
+            )
+            .outerjoin(Product, Product.category_id == ProductCategory.id)
+            .group_by(ProductCategory.id)
+            .order_by(ProductCategory.sort_order)
+        )
+        return [
+            {"id": r.id, "slug": r.slug, "icon": r.icon, "count": r.count}
+            for r in result
+        ]
+
+
+@router.get("/tags")
+async def list_product_tags():
+    """Public endpoint: tags with product counts."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(
+                Tag.id,
+                Tag.slug,
+                func.count(ProductTagLink.product_id).label("count"),
+            )
+            .outerjoin(ProductTagLink, ProductTagLink.tag_id == Tag.id)
+            .group_by(Tag.id)
+            .order_by(Tag.slug)
+        )
+        return [
+            {"id": r.id, "slug": r.slug, "count": r.count}
+            for r in result
+        ]
 
 
 @router.get("", response_model=list[ProductListItem])
@@ -298,6 +395,16 @@ async def update_product(manufacturer_slug: str, product_slug: str, body: Produc
             product.model = body.model
         if body.category is not None:
             product.category = body.category
+        if body.category_id is not None:
+            product.category_id = body.category_id
+
+        if body.tag_ids is not None:
+            from sqlalchemy import delete as sa_delete
+            await session.execute(
+                sa_delete(ProductTagLink).where(ProductTagLink.product_id == product.id)
+            )
+            for tag_id in body.tag_ids:
+                session.add(ProductTagLink(product_id=product.id, tag_id=tag_id))
 
         await session.commit()
         await session.refresh(product)
@@ -309,12 +416,29 @@ async def update_product(manufacturer_slug: str, product_slug: str, body: Produc
         )
         versions = [row[0] for row in fw_result.all()]
 
+        cat_slug = None
+        cat_label = None
+        if product.category_id:
+            cat = await session.get(ProductCategory, product.category_id)
+            if cat:
+                cat_slug = cat.slug
+
+        tag_result = await session.execute(
+            select(Tag.id, Tag.slug)
+            .join(ProductTagLink, ProductTagLink.tag_id == Tag.id)
+            .where(ProductTagLink.product_id == product.id)
+        )
+        tags = [TagInfo(id=r.id, slug=r.slug) for r in tag_result]
+
         return ProductDetail(
             id=product.id,
             name=product.name,
             manufacturer=product.manufacturer,
             model=product.model,
             category=product.category,
+            category_id=product.category_id,
+            category_slug=cat_slug,
+            tags=tags,
             slug=product.slug,
             manufacturer_slug=product.manufacturer_slug,
             created_at=product.created_at,

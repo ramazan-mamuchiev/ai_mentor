@@ -2327,18 +2327,6 @@
 
 /* --- Controls --- */
 
-.system-auto-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.system-auto-toggle input {
-  accent-color: var(--accent);
-}
 
 @keyframes spin {
   from { transform: rotate(0deg); }

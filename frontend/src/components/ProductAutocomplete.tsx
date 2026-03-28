@@ -1,115 +1,37 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Plus, X } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-import { listProducts } from '../api/products'
-import type { ProductListItem } from '../types'
+import { useState, useEffect, useRef } from 'react'
+import { Search } from 'lucide-react'
+import { suggestProducts, type ProductSuggestion } from '../api/products'
+import { useDebounce } from '../hooks/useDebounce'
 
-export interface ProductSelection {
-  productName: string
-  manufacturer: string
-  firmwareVersion: string
-  isExisting: boolean
+interface ProductAutocompleteProps {
+  value?: string
+  onSelect: (product: ProductSuggestion) => void
+  placeholder?: string
 }
 
-interface Props {
-  value: ProductSelection
-  onChange: (selection: ProductSelection) => void
-  disabled?: boolean
-  autoFocus?: boolean
-}
-
-export function ProductAutocomplete({ value, onChange, disabled, autoFocus }: Props) {
-  const { t } = useTranslation()
-  const [products, setProducts] = useState<ProductListItem[]>([])
-  const [query, setQuery] = useState(value.isExisting ? value.productName : '')
+export function ProductAutocomplete({ value = '', onSelect, placeholder = 'Search products...' }: ProductAutocompleteProps) {
+  const [query, setQuery] = useState(value)
+  const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([])
   const [open, setOpen] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false)
+  const debouncedQuery = useDebounce(query, 300)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    let cancelled = false
-    listProducts()
-      .then(list => { if (!cancelled) { setProducts(list); setLoaded(true) } })
-      .catch(() => { if (!cancelled) setLoaded(true) })
-    return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    if (value.isExisting) {
-      const display = value.firmwareVersion
-        ? `${value.productName} ${value.firmwareVersion}`
-        : value.productName
-      setQuery(display)
+    if (!debouncedQuery || debouncedQuery.length < 2) {
+      setSuggestions([])
+      return
     }
-  }, [value.isExisting, value.productName, value.firmwareVersion])
-
-  const filtered = useMemo(() => {
-    if (!query.trim()) return products
-    const q = query.toLowerCase()
-    return products.filter(
-      p => p.display_name.toLowerCase().includes(q)
-        || p.name.toLowerCase().includes(q)
-        || p.manufacturer.toLowerCase().includes(q),
-    )
-  }, [products, query])
-
-  const exactMatch = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return q ? products.some(p => p.display_name.toLowerCase() === q) : false
-  }, [products, query])
-
-  const handleSelect = useCallback((product: ProductListItem) => {
-    onChange({
-      productName: product.name,
-      manufacturer: product.manufacturer,
-      firmwareVersion: product.version || '1.0',
-      isExisting: true,
-    })
-    setQuery(product.display_name || product.name)
-    setOpen(false)
-  }, [onChange])
-
-  const handleCreateNew = useCallback(() => {
-    const name = query.trim()
-    if (!name) return
-    onChange({
-      productName: name,
-      manufacturer: '',
-      firmwareVersion: '1.0',
-      isExisting: false,
-    })
-    setOpen(false)
-  }, [query, onChange])
-
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    setQuery(val)
-    setOpen(true)
-    if (value.isExisting) {
-      onChange({
-        productName: val,
-        manufacturer: '',
-        firmwareVersion: '1.0',
-        isExisting: false,
-      })
-    }
-  }, [value.isExisting, onChange])
-
-  const handleClear = useCallback(() => {
-    setQuery('')
-    onChange({
-      productName: '',
-      manufacturer: '',
-      firmwareVersion: '1.0',
-      isExisting: false,
-    })
-    inputRef.current?.focus()
-  }, [onChange])
+    setLoading(true)
+    suggestProducts(debouncedQuery, 15)
+      .then(setSuggestions)
+      .catch(() => setSuggestions([]))
+      .finally(() => setLoading(false))
+  }, [debouncedQuery])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }
@@ -117,93 +39,51 @@ export function ProductAutocomplete({ value, onChange, disabled, autoFocus }: Pr
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setOpen(false)
-    } else if (e.key === 'ArrowDown' && !open) {
-      setOpen(true)
-    }
-  }, [open])
-
   return (
-    <div className="product-autocomplete" ref={wrapperRef}>
-      <div className="product-autocomplete-input-wrap">
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <div style={{ position: 'relative' }}>
+        <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
         <input
-          ref={inputRef}
-          type="text"
           value={query}
-          onChange={handleInputChange}
-          onFocus={() => loaded && setOpen(true)}
-          onKeyDown={handleKeyDown}
-          placeholder={t('upload.productPlaceholder')}
-          disabled={disabled}
-          autoFocus={autoFocus}
-          className={value.isExisting ? 'product-autocomplete-selected' : ''}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
+          placeholder={placeholder}
+          className="admin-input"
+          style={{ paddingLeft: 28, width: '100%' }}
         />
-        {query && !disabled && (
-          <button
-            type="button"
-            className="product-autocomplete-clear"
-            onClick={handleClear}
-            tabIndex={-1}
-          >
-            <X size={14} />
-          </button>
-        )}
-        <button
-          type="button"
-          className="product-autocomplete-toggle"
-          onClick={() => loaded && setOpen(!open)}
-          disabled={disabled}
-          tabIndex={-1}
-        >
-          <ChevronDown size={14} />
-        </button>
       </div>
-
-      {open && (
-        <div className="product-autocomplete-dropdown">
-          {filtered.length === 0 && !query.trim() && (
-            <div className="product-autocomplete-empty">
-              {t('productAutocomplete.noProducts')}
+      {open && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0,
+          background: 'var(--bg-primary)', border: '1px solid var(--border)',
+          borderRadius: 6, maxHeight: 240, overflowY: 'auto', zIndex: 100,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        }}>
+          {suggestions.map(product => (
+            <div
+              key={product.id}
+              onClick={() => { onSelect(product); setQuery(product.name); setOpen(false) }}
+              style={{
+                padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                borderBottom: '1px solid var(--border)',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <strong>{product.name}</strong>
+              {product.manufacturer && <span style={{ opacity: 0.6 }}> — {product.manufacturer}</span>}
             </div>
-          )}
-
-          {filtered.map(p => {
-            const key = p.firmware_version_id
-              ? `${p.id}-${p.firmware_version_id}`
-              : String(p.id)
-            return (
-              <button
-                key={key}
-                type="button"
-                className="product-autocomplete-option"
-                onClick={() => handleSelect(p)}
-              >
-                <span className="product-autocomplete-option-name">
-                  {p.display_name || p.name}
-                </span>
-                <span className="product-autocomplete-option-meta">
-                  {p.manufacturer && <span>{p.manufacturer}</span>}
-                  <span>{p.total_documents} docs</span>
-                </span>
-              </button>
-            )
-          })}
-
-          {query.trim() && !exactMatch && (
-            <>
-              {filtered.length > 0 && <div className="product-autocomplete-divider" />}
-              <button
-                type="button"
-                className="product-autocomplete-option product-autocomplete-create"
-                onClick={handleCreateNew}
-              >
-                <Plus size={14} />
-                <span>{t('productAutocomplete.createNew', { name: query.trim() })}</span>
-              </button>
-            </>
-          )}
+          ))}
+        </div>
+      )}
+      {open && loading && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0,
+          padding: '8px 12px', fontSize: 13, color: 'var(--text-tertiary)',
+          background: 'var(--bg-primary)', border: '1px solid var(--border)',
+          borderRadius: 6,
+        }}>
+          Searching...
         </div>
       )}
     </div>

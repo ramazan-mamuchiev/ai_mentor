@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Activity, RefreshCw, Database, HardDrive, Cpu, Server, Layers,
-  Clock, Loader, AlertTriangle, Zap, MessageSquare, Users,
+  Clock, Loader, AlertTriangle, Zap, MessageSquare, Users, Radio,
 } from 'lucide-react'
 import { getSystemInfo, type SystemInfo } from '../../api/admin'
 
@@ -145,14 +145,13 @@ export function SystemPage() {
           {lastUpdated && (
             <span className="system-last-updated">{fmtTime(lastUpdated)}</span>
           )}
-          <label className="system-auto-toggle">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={e => setAutoRefresh(e.target.checked)}
-            />
-            <span>{t('admin.system.autoRefresh')}</span>
-          </label>
+          <button
+            className={`logs-live-btn${autoRefresh ? ' logs-live-btn--active' : ''}`}
+            onClick={() => setAutoRefresh(v => !v)}
+          >
+            <Radio size={13} />
+            {t('admin.system.autoRefresh')}
+          </button>
           <button
             className="admin-btn admin-btn--sm"
             onClick={() => fetchData(true)}

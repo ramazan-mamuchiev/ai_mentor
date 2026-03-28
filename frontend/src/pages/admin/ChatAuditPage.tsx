@@ -435,7 +435,7 @@ function SessionListView() {
                 <span className={`badge ${m.role === 'user' ? 'badge--blue' : 'badge--gray'}`}>{m.role}</span>
                 <span className="chat-audit-msg-row__tenant">{m.tenant_email || '—'}</span>
                 <span className="chat-audit-msg-row__session">{String(m.session_id).slice(0, 8)}</span>
-                <span className="chat-audit-msg-row__date">{new Date(m.created_at).toLocaleDateString()}</span>
+                <span className="chat-audit-msg-row__date">{new Date(m.created_at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}, {new Date(m.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
                 <ChevronRight size={14} className="chat-audit-msg-row__arrow" />
               </div>
               <div className="chat-audit-msg-row__content">{m.content}</div>
@@ -466,7 +466,7 @@ function SessionListView() {
                   <span>{s.tenant_email || '—'}</span>
                   {s.product_filter && <span>· {s.product_filter}</span>}
                   <span>· {s.messages_count} {t('admin.chats.messages').toLowerCase()}</span>
-                  <span>· {new Date(s.updated_at).toLocaleDateString()}</span>
+                  <span>· {new Date(s.updated_at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}, {new Date(s.updated_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               </div>
             ))}

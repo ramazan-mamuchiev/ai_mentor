@@ -463,6 +463,16 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Prompt templates seed failed", exc_info=True)
 
+    try:
+        from app.admin.seed_i18n import seed_i18n
+        from app.admin.seed_taxonomy import seed_taxonomy
+        from app.database import async_session as _session_factory
+        async with _session_factory() as session:
+            await seed_i18n(session)
+            await seed_taxonomy(session)
+    except Exception:
+        logger.warning("i18n/taxonomy seed failed", exc_info=True)
+
     monitor_task = asyncio.create_task(_system_monitor())
     async with mcp.session_manager.run():
         yield
@@ -500,8 +510,17 @@ app.include_router(share_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(uploads_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(share_public_router, prefix="/api/v1")
 
+from app.i18n.router import router as i18n_router
+app.include_router(i18n_router, prefix="/api/v1")
+
 from app.admin.router import router as admin_router
 app.include_router(admin_router, prefix="/api/v1", dependencies=_admin_auth)
+
+from app.i18n.admin_router import router as i18n_admin_router
+app.include_router(i18n_admin_router, prefix="/api/v1", dependencies=_admin_auth)
+
+from app.taxonomy.admin_router import router as taxonomy_admin_router
+app.include_router(taxonomy_admin_router, prefix="/api/v1", dependencies=_admin_auth)
 from app.mcp.auth_middleware import McpApiKeyAuthMiddleware
 app.router.routes.append(Mount("/mcp", app=McpApiKeyAuthMiddleware(mcp.streamable_http_app())))
 

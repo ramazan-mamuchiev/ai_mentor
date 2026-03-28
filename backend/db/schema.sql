@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Products (integration product catalog, formerly "devices")
 CREATE TABLE IF NOT EXISTS products (
