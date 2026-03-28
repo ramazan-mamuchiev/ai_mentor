@@ -18,7 +18,7 @@ export interface ProductAutocompleteProps {
   autoFocus?: boolean
 }
 
-export function ProductAutocomplete({ value = '', onSelect, onChange, placeholder = 'Search products...', autoFocus }: ProductAutocompleteProps) {
+export function ProductAutocomplete({ value = '', onSelect, onChange, placeholder, autoFocus }: ProductAutocompleteProps) {
   const initialQuery = typeof value === 'string' ? value : value.productName
   const [query, setQuery] = useState(initialQuery)
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([])

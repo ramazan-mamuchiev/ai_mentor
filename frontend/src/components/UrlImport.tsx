@@ -188,6 +188,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                 <ProductAutocomplete
                   value={productSel}
                   onChange={setProductSel}
+                  placeholder={t('upload.productPlaceholder')}
                 />
               </label>
 

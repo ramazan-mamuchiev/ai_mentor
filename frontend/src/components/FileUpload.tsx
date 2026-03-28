@@ -378,6 +378,7 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                       value={productSel}
                       onChange={setProductSel}
                       autoFocus={!hasProductContext}
+                      placeholder={t('upload.productPlaceholder')}
                     />
                   </label>
                   <div className="file-upload-row">

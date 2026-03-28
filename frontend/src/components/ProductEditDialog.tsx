@@ -110,7 +110,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
             />
           </label>
 
-          <div className="product-edit-row">
+          <div className="product-edit-row product-edit-row--three">
             <label className="product-edit-label">
               <span>{t('products.edit.manufacturer')}</span>
               <input
@@ -129,9 +129,6 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
                 className="product-edit-input"
               />
             </label>
-          </div>
-
-          <div className="product-edit-row">
             <label className="product-edit-label">
               <span>{t('products.edit.version')}</span>
               <input
@@ -141,9 +138,10 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
                 className="product-edit-input"
               />
             </label>
+          </div>
 
-            <div className="product-edit-label">
-              <span>{t('products.edit.category')}</span>
+          <div className="product-edit-label">
+            <span>{t('products.edit.category')}</span>
             <div className="product-edit-cat-select">
               <button
                 ref={triggerRef}
@@ -202,7 +200,6 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
                 document.body
               )}
             </div>
-          </div>
           </div>
         </div>
 
