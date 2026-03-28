@@ -18,7 +18,6 @@ import {
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { listProducts, deleteProduct, reingestProduct, cancelProductIngestion } from '../api/products'
-import { FilterSidebar, ActiveFilters, type FacetValue } from '../components/FilterSidebar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DocsRightPanel } from '../components/DocsRightPanel'
 import { ProductEditDialog } from '../components/ProductEditDialog'
@@ -230,7 +229,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const [debugPanel, setDebugPanel] = useState<ProductListItem | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -444,14 +442,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     },
   ], [t, navigate, openDebug])
 
-  const filteredProducts = useMemo(() => {
-    let list = products
-    if (selectedCategories.length > 0) {
-      list = list.filter(p => selectedCategories.includes(p.category || ''))
-    }
-    return list
-  }, [products, selectedCategories])
-
   const {
     table,
     columnOrder,
@@ -461,50 +451,17 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     toggleGrouping,
     resetSettings,
   } = useDataTable({
-    data: filteredProducts,
+    data: products,
     columns,
     storageKey: STORAGE_KEY,
     defaultColumnOrder: DEFAULT_COLUMN_ORDER,
     defaultSorting: [{ id: 'name', desc: false }],
+    defaultGrouping: ['name'],
     getRowId: row => row.firmware_version_id ? `${row.id}-${row.firmware_version_id}` : String(row.id),
     columnFilters,
     globalFilter,
     onGlobalFilterChange: setGlobalFilter,
   })
-
-  const categoryFacets: FacetValue[] = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const p of products) {
-      if (p.category) map.set(p.category, (map.get(p.category) ?? 0) + 1)
-    }
-    return [...map.entries()]
-      .map(([v, c]) => ({ value: v, label: v, count: c }))
-      .sort((a, b) => b.count - a.count)
-  }, [products])
-
-  const manufacturerFacets: FacetValue[] = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const p of products) {
-      if (p.manufacturer) map.set(p.manufacturer, (map.get(p.manufacturer) ?? 0) + 1)
-    }
-    return [...map.entries()].map(([v, c]) => ({ value: v, label: v, count: c })).sort((a, b) => b.count - a.count)
-  }, [products])
-
-  const activeFilterChips = useMemo(() => {
-    const chips: Array<{ facet: string; value: string; label: string }> = []
-    for (const v of selectedCategories) {
-      chips.push({ facet: 'category', value: v, label: v })
-    }
-    return chips
-  }, [selectedCategories])
-
-  const handleRemoveFilter = useCallback((facet: string, value: string) => {
-    if (facet === 'category') setSelectedCategories(prev => prev.filter(v => v !== value))
-  }, [])
-
-  const handleClearAllFilters = useCallback(() => {
-    setSelectedCategories([])
-  }, [])
 
   const handleResetAll = useCallback(() => {
     resetSettings()
@@ -551,21 +508,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
 
   return (
     <div className={`docs-page${debugPanel ? ' docs-page--with-panel' : ''}`}>
-      <div className="docs-page-main" style={{ display: 'flex', gap: 16 }}>
-      {(categoryFacets.filter(f => f.count > 0).length >= 2 || manufacturerFacets.length > 1) && (
-        <FilterSidebar
-          categories={categoryFacets.filter(f => f.count > 0)}
-          tags={[]}
-          manufacturers={manufacturerFacets.length > 1 ? manufacturerFacets : []}
-          selectedCategories={selectedCategories}
-          selectedTags={[]}
-          selectedManufacturers={[]}
-          onCategoriesChange={setSelectedCategories}
-          onTagsChange={() => {}}
-          onManufacturersChange={() => {}}
-        />
-      )}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="docs-page-main">
       <div className="docs-header">
         <h1 className="docs-page-title">
           <Box size={20} />
@@ -602,8 +545,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           )}
         </div>
       </div>
-
-      <ActiveFilters filters={activeFilterChips} onRemove={handleRemoveFilter} onClearAll={handleClearAllFilters} />
 
       {(formatCounts.length > 1 || statusCounts.length > 1) && (
         <div className="docs-filter-bar">
@@ -721,7 +662,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
             </div>
           ))
         }
-      </div>
       </div>
       </div>
 

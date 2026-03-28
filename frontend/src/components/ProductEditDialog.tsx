@@ -25,6 +25,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   const [name, setName] = useState(product.name)
   const [manufacturer, setManufacturer] = useState(product.manufacturer)
   const [model, setModel] = useState(product.model)
+  const [version, setVersion] = useState(product.version ?? '')
   const [category, setCategory] = useState<string>(product.category ?? '')
   const [saving, setSaving] = useState(false)
   const [catOpen, setCatOpen] = useState(false)
@@ -35,6 +36,7 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
     setName(product.name)
     setManufacturer(product.manufacturer)
     setModel(product.model)
+    setVersion(product.version ?? '')
     setCategory(product.category ?? '')
   }, [product.id])
 
@@ -72,6 +74,8 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
         manufacturer,
         model,
         category: category || undefined,
+        version: version || undefined,
+        firmware_version_id: product.firmware_version_id,
       })
       onSave()
     } catch { /* ignore */ }
@@ -119,6 +123,16 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
               />
             </label>
           </div>
+
+          <label className="product-edit-label">
+            <span>{t('products.edit.version')}</span>
+            <input
+              type="text"
+              value={version}
+              onChange={e => setVersion(e.target.value)}
+              className="product-edit-input"
+            />
+          </label>
 
           <div className="product-edit-label">
             <span>{t('products.edit.category')}</span>

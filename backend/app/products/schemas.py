@@ -92,6 +92,8 @@ class ProductUpdate(BaseModel):
     manufacturer: str | None = None
     model: str | None = None
     category: str | None = None
+    version: str | None = None
+    firmware_version_id: int | None = None
 
 
 class DocumentUpdate(BaseModel):

@@ -321,6 +321,11 @@ async def update_product(product_id: int, body: ProductUpdate):
         if body.category is not None:
             product.category = body.category
 
+        if body.version is not None and body.firmware_version_id is not None:
+            fw = await session.get(FirmwareVersion, body.firmware_version_id)
+            if fw and fw.product_id == product.id:
+                fw.version = body.version
+
         await session.commit()
         await session.refresh(product)
 
