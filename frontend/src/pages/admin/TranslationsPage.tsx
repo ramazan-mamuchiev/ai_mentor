@@ -1,17 +1,23 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Search, Save, ChevronLeft, ChevronRight, Languages, X } from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   adminListLanguages, adminListTranslations, adminUpsertTranslation,
   type AdminLanguage, type TranslationItem,
 } from '../../api/admin-i18n'
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
+import { DataTable } from '../../components/DataTable'
+import { useDataTable } from '../../hooks/useDataTable'
 import type { TenantSearchResult } from '../../api/admin'
+
+const STORAGE_KEY = 'lexiro-admin-translations'
+const DEFAULT_COLUMN_ORDER = ['key', 'value', 'modifiedBy', 'modifiedAt', 'actions']
 
 export default function TranslationsPage() {
   const { t } = useTranslation()
 
-  const relativeTime = (iso: string | null): string => {
+  const relativeTime = useCallback((iso: string | null): string => {
     if (!iso) return ''
     const diff = Date.now() - new Date(iso).getTime()
     const mins = Math.floor(diff / 60000)
@@ -21,7 +27,8 @@ export default function TranslationsPage() {
     if (hours < 24) return t('admin.common.hoursAgo', { count: hours })
     const days = Math.floor(hours / 24)
     return t('admin.common.daysAgo', { count: days })
-  }
+  }, [t])
+
   const [languages, setLanguages] = useState<AdminLanguage[]>([])
   const [selectedLangId, setSelectedLangId] = useState<number | null>(null)
   const [namespace, setNamespace] = useState('ui')
@@ -79,16 +86,104 @@ export default function TranslationsPage() {
 
   const totalPages = Math.ceil(total / pageSize)
 
+  const columns = useMemo<ColumnDef<TranslationItem, unknown>[]>(() => [
+    {
+      id: 'key',
+      accessorKey: 'key',
+      header: () => t('admin.translations.colKey'),
+      cell: ({ getValue }) => <code style={{ fontSize: 12 }}>{String(getValue())}</code>,
+      enableGrouping: false,
+    },
+    {
+      id: 'value',
+      accessorKey: 'value',
+      header: () => t('admin.translations.colValue'),
+      cell: ({ row }) => {
+        const item = row.original
+        if (editingId === item.id) {
+          return (
+            <input
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleSave(item)
+                if (e.key === 'Escape') setEditingId(null)
+              }}
+              onBlur={() => handleSave(item)}
+              className="logs-search"
+              style={{ width: '100%' }}
+              autoFocus
+            />
+          )
+        }
+        return (
+          <span
+            className="translation-value-cell"
+            onClick={() => { setEditingId(item.id); setEditValue(item.value) }}
+          >
+            {item.value || <em className="translation-value-cell__empty">empty</em>}
+          </span>
+        )
+      },
+      enableGrouping: false,
+    },
+    {
+      id: 'modifiedBy',
+      accessorFn: row => row.modified_by_name || row.modified_by_email || '',
+      header: () => t('admin.common.modifiedBy'),
+      cell: ({ getValue }) => <span className="audit-cell">{String(getValue())}</span>,
+      enableGrouping: false,
+    },
+    {
+      id: 'modifiedAt',
+      accessorKey: 'modified_at',
+      header: () => t('admin.common.modifiedAt'),
+      cell: ({ getValue }) => <span className="audit-cell">{relativeTime(getValue() as string | null)}</span>,
+      enableGrouping: false,
+      sortingFn: 'datetime',
+    },
+    {
+      id: 'actions',
+      header: () => '',
+      enableSorting: false,
+      enableGrouping: false,
+      cell: ({ row }) => {
+        const item = row.original
+        if (editingId !== item.id) return null
+        return (
+          <button onClick={() => handleSave(item)} className="docs-action-btn">
+            <Save size={14} />
+          </button>
+        )
+      },
+    },
+  ], [t, editingId, editValue, relativeTime])
+
+  const {
+    table,
+    columnOrder,
+    grouping,
+    handleColumnOrderChange,
+    removeGrouping,
+    toggleGrouping,
+    resetSettings,
+  } = useDataTable({
+    data: items,
+    columns,
+    storageKey: STORAGE_KEY,
+    defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+    defaultSorting: [],
+    getRowId: row => String(row.id),
+  })
+
   return (
     <div className="logs-page">
       <div className="admin-page-header">
         <h1><Languages size={20} /> {t('admin.nav.translations')}</h1>
       </div>
 
-      {/* Toolbar — logs-style */}
       <div className="logs-toolbar">
         <div className="logs-toolbar__row">
-          {/* Language select */}
           <select
             className="logs-select"
             value={selectedLangId ?? ''}
@@ -99,7 +194,6 @@ export default function TranslationsPage() {
             ))}
           </select>
 
-          {/* Namespace chips */}
           <div className="logs-chips" role="group" aria-label="Namespace">
             {(['ui', 'taxonomy'] as const).map(ns => (
               <button
@@ -112,7 +206,6 @@ export default function TranslationsPage() {
             ))}
           </div>
 
-          {/* Search */}
           <div className="logs-search-wrap">
             <Search size={14} className="logs-search-wrap__icon" />
             <input
@@ -130,78 +223,35 @@ export default function TranslationsPage() {
 
           <TenantFilterCombo value={tenantFilter} onChange={setTenantFilter} />
 
-          {/* Count */}
-          <span className="logs-count">{total} {t('admin.translations.keys', { defaultValue: 'keys' })}</span>
+          <span className="logs-count">{total} {t('admin.translations.keys')}</span>
         </div>
       </div>
 
       {loading && <div className="admin-loading">{t('admin.common.loading')}</div>}
 
       {!loading && items.length === 0 && (
-        <div className="admin-empty">{t('admin.translations.empty', { defaultValue: 'No translations found' })}</div>
+        <div className="admin-empty">{t('admin.translations.empty')}</div>
       )}
 
       {!loading && items.length > 0 && (
         <>
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th style={{ width: '30%' }}>{t('admin.translations.colKey')}</th>
-                <th>{t('admin.translations.colValue')}</th>
-                <th style={{ width: 130 }}>{t('admin.common.modifiedBy')}</th>
-                <th style={{ width: 100 }}>{t('admin.common.modifiedAt')}</th>
-                <th style={{ width: 40 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(item => (
-                <tr key={item.id}>
-                  <td><code style={{ fontSize: 12 }}>{item.key}</code></td>
-                  <td>
-                    {editingId === item.id ? (
-                      <input
-                        value={editValue}
-                        onChange={e => setEditValue(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') handleSave(item)
-                          if (e.key === 'Escape') setEditingId(null)
-                        }}
-                        onBlur={() => handleSave(item)}
-                        className="logs-search"
-                        style={{ width: '100%' }}
-                        autoFocus
-                      />
-                    ) : (
-                      <span
-                        className="translation-value-cell"
-                        onClick={() => { setEditingId(item.id); setEditValue(item.value) }}
-                      >
-                        {item.value || <em className="translation-value-cell__empty">empty</em>}
-                      </span>
-                    )}
-                  </td>
-                  <td className="audit-cell">{item.modified_by_name || item.modified_by_email || ''}</td>
-                  <td className="audit-cell">{relativeTime(item.modified_at)}</td>
-                  <td>
-                    {editingId === item.id && (
-                      <button onClick={() => handleSave(item)} className="logs-icon-btn">
-                        <Save size={14} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            table={table}
+            columnOrder={columnOrder}
+            grouping={grouping}
+            onColumnOrderChange={handleColumnOrderChange}
+            removeGrouping={removeGrouping}
+            toggleGrouping={toggleGrouping}
+            resetSettings={resetSettings}
+          />
 
-          {/* Pagination — logs style */}
           {totalPages > 1 && (
             <div className="logs-toolbar__row" style={{ justifyContent: 'center', marginTop: 12, gap: 8 }}>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="logs-icon-btn">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="docs-action-btn">
                 <ChevronLeft size={16} />
               </button>
               <span className="logs-count">{page} / {totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="logs-icon-btn">
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="docs-action-btn">
                 <ChevronRight size={16} />
               </button>
             </div>

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Pencil, Tags } from 'lucide-react'
+import { Plus, Trash2, Pencil, Tags, Check, X as XIcon } from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   adminListCategories,
   adminCreateCategory,
@@ -13,12 +14,19 @@ import {
   type TagItem,
 } from '../../api/admin-taxonomy'
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
+import { DataTable } from '../../components/DataTable'
+import { useDataTable } from '../../hooks/useDataTable'
 import type { TenantSearchResult } from '../../api/admin'
+
+const CAT_STORAGE_KEY = 'lexiro-admin-taxonomy-categories'
+const TAG_STORAGE_KEY = 'lexiro-admin-taxonomy-tags'
+const CAT_DEFAULT_ORDER = ['slug', 'icon', 'sortOrder', 'labelEn', 'labelRu', 'products', 'modifiedBy', 'modifiedAt', 'actions']
+const TAG_DEFAULT_ORDER = ['slug', 'labelEn', 'labelRu', 'products', 'modifiedBy', 'modifiedAt', 'actions']
 
 export function TaxonomyPage() {
   const { t } = useTranslation()
 
-  const relativeTime = (iso: string | null): string => {
+  const relativeTime = useCallback((iso: string | null): string => {
     if (!iso) return ''
     const diff = Date.now() - new Date(iso).getTime()
     const mins = Math.floor(diff / 60000)
@@ -28,7 +36,8 @@ export function TaxonomyPage() {
     if (hours < 24) return t('admin.common.hoursAgo', { count: hours })
     const days = Math.floor(hours / 24)
     return t('admin.common.daysAgo', { count: days })
-  }
+  }, [t])
+
   const [tab, setTab] = useState<'categories' | 'tags'>('categories')
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [tags, setTags] = useState<TagItem[]>([])
@@ -177,6 +186,247 @@ export function TaxonomyPage() {
 
   const labelOrDash = (v: string | undefined) => (v?.trim() ? v : t('admin.taxonomy.noLabel'))
 
+  /* ---- Category columns ---- */
+  const categoryColumns = useMemo<ColumnDef<CategoryItem, unknown>[]>(() => [
+    {
+      id: 'slug',
+      accessorKey: 'slug',
+      header: () => t('admin.taxonomy.slug'),
+      cell: ({ row }) => {
+        const cat = row.original
+        return <code>{cat.slug}</code>
+      },
+      enableGrouping: false,
+    },
+    {
+      id: 'icon',
+      accessorKey: 'icon',
+      header: () => t('admin.taxonomy.icon'),
+      cell: ({ row }) => {
+        const cat = row.original
+        if (editingCategoryId === cat.id) {
+          return (
+            <input
+              style={{ width: '100%', maxWidth: 120, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
+              value={editIcon}
+              onChange={e => setEditIcon(e.target.value)}
+            />
+          )
+        }
+        return cat.icon?.trim() ? cat.icon : t('admin.taxonomy.noLabel')
+      },
+      enableGrouping: false,
+    },
+    {
+      id: 'sortOrder',
+      accessorKey: 'sort_order',
+      header: () => t('admin.taxonomy.sortOrder'),
+      cell: ({ row }) => {
+        const cat = row.original
+        if (editingCategoryId === cat.id) {
+          return (
+            <input
+              type="number"
+              style={{ width: 72, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
+              value={editSortOrder}
+              onChange={e => setEditSortOrder(Number(e.target.value))}
+            />
+          )
+        }
+        return cat.sort_order
+      },
+      enableGrouping: false,
+    },
+    {
+      id: 'labelEn',
+      accessorFn: row => row.labels?.en ?? '',
+      header: () => t('admin.taxonomy.labelEn'),
+      cell: ({ row }) => {
+        const cat = row.original
+        if (editingCategoryId === cat.id) {
+          return (
+            <input
+              style={{ width: '100%', minWidth: 100, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
+              value={editLabelEn}
+              onChange={e => setEditLabelEn(e.target.value)}
+            />
+          )
+        }
+        return labelOrDash(cat.labels?.en)
+      },
+      enableGrouping: false,
+    },
+    {
+      id: 'labelRu',
+      accessorFn: row => row.labels?.ru ?? '',
+      header: () => t('admin.taxonomy.labelRu'),
+      cell: ({ row }) => {
+        const cat = row.original
+        if (editingCategoryId === cat.id) {
+          return (
+            <input
+              style={{ width: '100%', minWidth: 100, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
+              value={editLabelRu}
+              onChange={e => setEditLabelRu(e.target.value)}
+            />
+          )
+        }
+        return labelOrDash(cat.labels?.ru)
+      },
+      enableGrouping: false,
+    },
+    {
+      id: 'products',
+      accessorKey: 'product_count',
+      header: () => t('admin.taxonomy.products'),
+      cell: ({ getValue }) => <span className="docs-chunks">{Number(getValue())}</span>,
+      enableGrouping: false,
+    },
+    {
+      id: 'modifiedBy',
+      accessorFn: row => row.modified_by_name || row.modified_by_email || '',
+      header: () => t('admin.common.modifiedBy'),
+      cell: ({ getValue }) => <span className="audit-cell">{String(getValue())}</span>,
+      enableGrouping: false,
+    },
+    {
+      id: 'modifiedAt',
+      accessorKey: 'modified_at',
+      header: () => t('admin.common.modifiedAt'),
+      cell: ({ getValue }) => <span className="audit-cell">{relativeTime(getValue() as string | null)}</span>,
+      enableGrouping: false,
+      sortingFn: 'datetime',
+    },
+    {
+      id: 'actions',
+      header: () => t('admin.common.actions'),
+      enableSorting: false,
+      enableGrouping: false,
+      cell: ({ row }) => {
+        const cat = row.original
+        if (editingCategoryId === cat.id) {
+          return (
+            <div className="docs-actions">
+              <button
+                className="docs-action-btn"
+                disabled={savingEdit}
+                onClick={() => void handleSaveCategory(cat.id)}
+              >
+                <Check size={14} />
+              </button>
+              <button className="docs-action-btn" onClick={cancelEditCategory}>
+                <XIcon size={14} />
+              </button>
+            </div>
+          )
+        }
+        return (
+          <div className="docs-actions">
+            <button
+              className="docs-action-btn"
+              disabled={cat.is_system}
+              onClick={() => !cat.is_system && startEditCategory(cat)}
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              className="docs-action-btn"
+              disabled={cat.is_system}
+              onClick={() => void handleDeleteCategory(cat.id, cat.is_system)}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, editingCategoryId, editIcon, editSortOrder, editLabelEn, editLabelRu, savingEdit, relativeTime])
+
+  /* ---- Tag columns ---- */
+  const tagColumns = useMemo<ColumnDef<TagItem, unknown>[]>(() => [
+    {
+      id: 'slug',
+      accessorKey: 'slug',
+      header: () => t('admin.taxonomy.slug'),
+      cell: ({ getValue }) => <code>{String(getValue())}</code>,
+      enableGrouping: false,
+    },
+    {
+      id: 'labelEn',
+      accessorFn: row => row.labels?.en ?? '',
+      header: () => t('admin.taxonomy.labelEn'),
+      cell: ({ row }) => labelOrDash(row.original.labels?.en),
+      enableGrouping: false,
+    },
+    {
+      id: 'labelRu',
+      accessorFn: row => row.labels?.ru ?? '',
+      header: () => t('admin.taxonomy.labelRu'),
+      cell: ({ row }) => labelOrDash(row.original.labels?.ru),
+      enableGrouping: false,
+    },
+    {
+      id: 'products',
+      accessorKey: 'product_count',
+      header: () => t('admin.taxonomy.products'),
+      cell: ({ getValue }) => <span className="docs-chunks">{Number(getValue())}</span>,
+      enableGrouping: false,
+    },
+    {
+      id: 'modifiedBy',
+      accessorFn: row => row.modified_by_name || row.modified_by_email || '',
+      header: () => t('admin.common.modifiedBy'),
+      cell: ({ getValue }) => <span className="audit-cell">{String(getValue())}</span>,
+      enableGrouping: false,
+    },
+    {
+      id: 'modifiedAt',
+      accessorKey: 'modified_at',
+      header: () => t('admin.common.modifiedAt'),
+      cell: ({ getValue }) => <span className="audit-cell">{relativeTime(getValue() as string | null)}</span>,
+      enableGrouping: false,
+      sortingFn: 'datetime',
+    },
+    {
+      id: 'actions',
+      header: () => t('admin.common.actions'),
+      enableSorting: false,
+      enableGrouping: false,
+      cell: ({ row }) => {
+        const tag = row.original
+        return (
+          <div className="docs-actions">
+            <button
+              className="docs-action-btn"
+              disabled={tag.is_system}
+              onClick={() => void handleDeleteTag(tag.id, tag.is_system)}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, relativeTime])
+
+  const catTable = useDataTable({
+    data: categories,
+    columns: categoryColumns,
+    storageKey: CAT_STORAGE_KEY,
+    defaultColumnOrder: CAT_DEFAULT_ORDER,
+    defaultSorting: [{ id: 'sortOrder', desc: false }],
+    getRowId: row => String(row.id),
+  })
+
+  const tagTable = useDataTable({
+    data: tags,
+    columns: tagColumns,
+    storageKey: TAG_STORAGE_KEY,
+    defaultColumnOrder: TAG_DEFAULT_ORDER,
+    defaultSorting: [{ id: 'slug', desc: false }],
+    getRowId: row => String(row.id),
+  })
+
   return (
     <div className="logs-page">
       <div className="admin-page-header">
@@ -185,7 +435,6 @@ export function TaxonomyPage() {
         </h1>
       </div>
 
-      {/* Tabs — logs toolbar style */}
       <div className="logs-toolbar">
         <div className="logs-toolbar__row">
           <div className="logs-chips" role="group">
@@ -254,120 +503,21 @@ export function TaxonomyPage() {
             </div>
           </div>
 
-          <div className="admin-table-wrapper">
-            {loading ? (
-              <div className="admin-loading">{t('admin.common.loading')}</div>
-            ) : (
-              <div className="admin-table-scroll">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>{t('admin.taxonomy.slug')}</th>
-                      <th>{t('admin.taxonomy.icon')}</th>
-                      <th>{t('admin.taxonomy.sortOrder')}</th>
-                      <th>{t('admin.taxonomy.labelEn')}</th>
-                      <th>{t('admin.taxonomy.labelRu')}</th>
-                      <th>{t('admin.taxonomy.products')}</th>
-                      <th>{t('admin.common.modifiedBy')}</th>
-                      <th>{t('admin.common.modifiedAt')}</th>
-                      <th>{t('admin.common.actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {categories.map(cat =>
-                      editingCategoryId === cat.id ? (
-                        <tr key={cat.id}>
-                          <td>
-                            <code>{cat.slug}</code>
-                          </td>
-                          <td>
-                            <input
-                              style={{ width: '100%', maxWidth: 120, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                              value={editIcon}
-                              onChange={e => setEditIcon(e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              style={{ width: 72, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                              value={editSortOrder}
-                              onChange={e => setEditSortOrder(Number(e.target.value))}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              style={{ width: '100%', minWidth: 100, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                              value={editLabelEn}
-                              onChange={e => setEditLabelEn(e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              style={{ width: '100%', minWidth: 100, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                              value={editLabelRu}
-                              onChange={e => setEditLabelRu(e.target.value)}
-                            />
-                          </td>
-                          <td>{cat.product_count}</td>
-                          <td className="audit-cell">{cat.modified_by_name || cat.modified_by_email || ''}</td>
-                          <td className="audit-cell">{relativeTime(cat.modified_at)}</td>
-                          <td>
-                            <div className="admin-actions">
-                              <button
-                                type="button"
-                                className="admin-btn admin-btn--primary admin-btn--sm"
-                                disabled={savingEdit}
-                                onClick={() => void handleSaveCategory(cat.id)}
-                              >
-                                {t('admin.common.save')}
-                              </button>
-                              <button type="button" className="logs-icon-btn" onClick={cancelEditCategory}>
-                                {t('admin.common.cancel')}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr key={cat.id}>
-                          <td>
-                            <code>{cat.slug}</code>
-                          </td>
-                          <td>{cat.icon?.trim() ? cat.icon : t('admin.taxonomy.noLabel')}</td>
-                          <td>{cat.sort_order}</td>
-                          <td>{labelOrDash(cat.labels?.en)}</td>
-                          <td>{labelOrDash(cat.labels?.ru)}</td>
-                          <td>{cat.product_count}</td>
-                          <td className="audit-cell">{cat.modified_by_name || cat.modified_by_email || ''}</td>
-                          <td className="audit-cell">{relativeTime(cat.modified_at)}</td>
-                          <td>
-                            <div className="admin-actions">
-                              <button
-                                type="button"
-                                className="logs-icon-btn"
-                                disabled={cat.is_system}
-                                onClick={() => !cat.is_system && startEditCategory(cat)}
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                className="logs-icon-btn"
-                                disabled={cat.is_system}
-                                onClick={() => void handleDeleteCategory(cat.id, cat.is_system)}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {loading ? (
+            <div className="admin-loading">{t('admin.common.loading')}</div>
+          ) : categories.length === 0 ? (
+            <div className="admin-empty">{t('admin.taxonomy.emptyCategories')}</div>
+          ) : (
+            <DataTable
+              table={catTable.table}
+              columnOrder={catTable.columnOrder}
+              grouping={catTable.grouping}
+              onColumnOrderChange={catTable.handleColumnOrderChange}
+              removeGrouping={catTable.removeGrouping}
+              toggleGrouping={catTable.toggleGrouping}
+              resetSettings={catTable.resetSettings}
+            />
+          )}
         </>
       )}
 
@@ -407,51 +557,21 @@ export function TaxonomyPage() {
             </div>
           </div>
 
-          <div className="admin-table-wrapper">
-            {loading ? (
-              <div className="admin-loading">{t('admin.common.loading')}</div>
-            ) : (
-              <div className="admin-table-scroll">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>{t('admin.taxonomy.slug')}</th>
-                      <th>{t('admin.taxonomy.labelEn')}</th>
-                      <th>{t('admin.taxonomy.labelRu')}</th>
-                      <th>{t('admin.taxonomy.products')}</th>
-                      <th>{t('admin.common.modifiedBy')}</th>
-                      <th>{t('admin.common.modifiedAt')}</th>
-                      <th>{t('admin.common.actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tags.map(tag => (
-                      <tr key={tag.id}>
-                        <td>
-                          <code>{tag.slug}</code>
-                        </td>
-                        <td>{labelOrDash(tag.labels?.en)}</td>
-                        <td>{labelOrDash(tag.labels?.ru)}</td>
-                        <td>{tag.product_count}</td>
-                        <td className="audit-cell">{tag.modified_by_name || tag.modified_by_email || ''}</td>
-                        <td className="audit-cell">{relativeTime(tag.modified_at)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="logs-icon-btn"
-                            disabled={tag.is_system}
-                            onClick={() => void handleDeleteTag(tag.id, tag.is_system)}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {loading ? (
+            <div className="admin-loading">{t('admin.common.loading')}</div>
+          ) : tags.length === 0 ? (
+            <div className="admin-empty">{t('admin.taxonomy.emptyTags')}</div>
+          ) : (
+            <DataTable
+              table={tagTable.table}
+              columnOrder={tagTable.columnOrder}
+              grouping={tagTable.grouping}
+              onColumnOrderChange={tagTable.handleColumnOrderChange}
+              removeGrouping={tagTable.removeGrouping}
+              toggleGrouping={tagTable.toggleGrouping}
+              resetSettings={tagTable.resetSettings}
+            />
+          )}
         </>
       )}
     </div>
