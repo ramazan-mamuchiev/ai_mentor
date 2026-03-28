@@ -383,24 +383,24 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                   </label>
                   <div className="file-upload-row">
                     <label>
-                      {t('upload.version')}
-                      <input
-                        type="text"
-                        value={firmwareVersion}
-                        onChange={e => setProductSel(prev => ({ ...prev, firmwareVersion: e.target.value }))}
-                        placeholder={t('upload.versionPlaceholder')}
-                        readOnly={productSel.isExisting}
-                        className={productSel.isExisting ? 'input-readonly' : ''}
-                        autoFocus={hasProductContext}
-                      />
-                    </label>
-                    <label>
                       {t('upload.manufacturer')}
                       <input
                         type="text"
                         value={manufacturer}
                         onChange={e => setProductSel(prev => ({ ...prev, manufacturer: e.target.value }))}
                         placeholder={t('upload.manufacturerPlaceholder')}
+                        readOnly={productSel.isExisting}
+                        className={productSel.isExisting ? 'input-readonly' : ''}
+                        autoFocus={hasProductContext}
+                      />
+                    </label>
+                    <label>
+                      {t('upload.version')}
+                      <input
+                        type="text"
+                        value={firmwareVersion}
+                        onChange={e => setProductSel(prev => ({ ...prev, firmwareVersion: e.target.value }))}
+                        placeholder={t('upload.versionPlaceholder')}
                         readOnly={productSel.isExisting}
                         className={productSel.isExisting ? 'input-readonly' : ''}
                       />
