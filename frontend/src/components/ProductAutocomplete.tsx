@@ -3,14 +3,25 @@ import { Search } from 'lucide-react'
 import { suggestProducts, type ProductSuggestion } from '../api/products'
 import { useDebounce } from '../hooks/useDebounce'
 
-interface ProductAutocompleteProps {
-  value?: string
-  onSelect: (product: ProductSuggestion) => void
-  placeholder?: string
+export interface ProductSelection {
+  productName: string
+  manufacturer: string
+  firmwareVersion: string
+  isExisting: boolean
+  productId?: number
 }
 
-export function ProductAutocomplete({ value = '', onSelect, placeholder = 'Search products...' }: ProductAutocompleteProps) {
-  const [query, setQuery] = useState(value)
+export interface ProductAutocompleteProps {
+  value?: string | ProductSelection
+  onSelect?: (product: ProductSuggestion) => void
+  onChange?: (sel: ProductSelection | ((prev: ProductSelection) => ProductSelection)) => void
+  placeholder?: string
+  autoFocus?: boolean
+}
+
+export function ProductAutocomplete({ value = '', onSelect, onChange, placeholder = 'Search products...', autoFocus }: ProductAutocompleteProps) {
+  const initialQuery = typeof value === 'string' ? value : value.productName
+  const [query, setQuery] = useState(initialQuery)
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -45,11 +56,18 @@ export function ProductAutocomplete({ value = '', onSelect, placeholder = 'Searc
         <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
         <input
           value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onChange={e => {
+            setQuery(e.target.value)
+            setOpen(true)
+            if (onChange) {
+              onChange(prev => ({ ...prev, productName: e.target.value, isExisting: false, productId: undefined }))
+            }
+          }}
           onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
           placeholder={placeholder}
           className="admin-input"
           style={{ paddingLeft: 28, width: '100%' }}
+          autoFocus={autoFocus}
         />
       </div>
       {open && suggestions.length > 0 && (
@@ -62,7 +80,20 @@ export function ProductAutocomplete({ value = '', onSelect, placeholder = 'Searc
           {suggestions.map(product => (
             <div
               key={product.id}
-              onClick={() => { onSelect(product); setQuery(product.name); setOpen(false) }}
+              onClick={() => {
+                if (onSelect) onSelect(product)
+                if (onChange) {
+                  onChange({
+                    productName: product.name,
+                    manufacturer: product.manufacturer || '',
+                    firmwareVersion: '',
+                    isExisting: true,
+                    productId: product.id,
+                  })
+                }
+                setQuery(product.name)
+                setOpen(false)
+              }}
               style={{
                 padding: '8px 12px', cursor: 'pointer', fontSize: 13,
                 borderBottom: '1px solid var(--border)',

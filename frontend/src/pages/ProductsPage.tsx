@@ -453,6 +453,21 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     },
   ], [t, navigate, openDebug])
 
+  const filteredProducts = useMemo(() => {
+    let list = products
+    if (selectedCategories.length > 0) {
+      list = list.filter(p =>
+        selectedCategories.includes(p.category_slug || '') || selectedCategories.includes(p.category || '')
+      )
+    }
+    if (selectedTags.length > 0) {
+      list = list.filter(p =>
+        p.tags?.some(t => selectedTags.includes(t.slug))
+      )
+    }
+    return list
+  }, [products, selectedCategories, selectedTags])
+
   const {
     table,
     columnOrder,
@@ -529,21 +544,6 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     }
     return [...map.entries()].map(([v, c]) => ({ value: v, label: v, count: c })).sort((a, b) => b.count - a.count)
   }, [products])
-
-  const filteredProducts = useMemo(() => {
-    let list = products
-    if (selectedCategories.length > 0) {
-      list = list.filter(p =>
-        selectedCategories.includes(p.category_slug || '') || selectedCategories.includes(p.category || '')
-      )
-    }
-    if (selectedTags.length > 0) {
-      list = list.filter(p =>
-        p.tags?.some(t => selectedTags.includes(t.slug))
-      )
-    }
-    return list
-  }, [products, selectedCategories, selectedTags])
 
   const activeFilterChips = useMemo(() => {
     const chips: Array<{ facet: string; value: string; label: string }> = []
