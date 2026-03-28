@@ -133,9 +133,15 @@ def _file_hash(path: str) -> str:
     return h.hexdigest()
 
 
-def detect_format(file_path: str) -> str:
-    """Auto-detect document format by extension and content."""
+def detect_format(file_path: str, content_path: str | None = None) -> str:
+    """Auto-detect document format by extension and content.
+
+    ``file_path`` is used for its extension.  ``content_path``, when given,
+    is the actual file on disk whose bytes will be inspected (e.g. the temp
+    file downloaded from S3).  When omitted, *file_path* is used for both.
+    """
     ext = os.path.splitext(file_path)[1].lower()
+    probe = content_path or file_path
 
     if ext in (".md", ".txt"):
         return "markdown"
@@ -146,9 +152,9 @@ def detect_format(file_path: str) -> str:
     if ext in (".wsdl", ".xml"):
         return "markdown"
     if ext in (".yaml", ".yml", ".json"):
-        if ext == ".json" and is_postman_collection(file_path):
+        if ext == ".json" and is_postman_collection(probe):
             return "postman"
-        if is_swagger_file(file_path):
+        if is_swagger_file(probe):
             return "swagger"
         if ext == ".json":
             return "markdown"
@@ -706,7 +712,7 @@ def ingest_from_bytes(
     t0 = time.perf_counter()
     fmt = document.format
     if fmt == "auto":
-        fmt = detect_format(original_filename) if original_filename else detect_format(file_path)
+        fmt = detect_format(original_filename, content_path=file_path) if original_filename else detect_format(file_path)
         document.format = fmt
 
     logger.info(
