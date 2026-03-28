@@ -172,7 +172,7 @@ export function LanguagesPage() {
                     ) : isSourceLang ? (
                       <span style={{ fontSize: 12, opacity: 0.4 }}>—</span>
                     ) : (
-                      <button onClick={() => handleTranslate(lang.id)} className="logs-icon-btn" title={t('admin.languages.translateTitle')}>
+                      <button onClick={() => handleTranslate(lang.id)} className="logs-icon-btn">
                         <Play size={14} />
                       </button>
                     )}
@@ -184,7 +184,6 @@ export function LanguagesPage() {
                       <button
                         className="logs-icon-btn"
                         onClick={() => handleDelete(lang.id, lang.is_system)}
-                        title={t('admin.common.delete')}
                       >
                         <Trash2 size={14} />
                       </button>

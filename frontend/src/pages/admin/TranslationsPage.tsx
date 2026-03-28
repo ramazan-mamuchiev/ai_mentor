@@ -156,7 +156,6 @@ export default function TranslationsPage() {
                       <span
                         onClick={() => { setEditingId(item.id); setEditValue(item.value) }}
                         style={{ cursor: 'pointer' }}
-                        title={t('admin.translations.clickToEdit', { defaultValue: 'Click to edit' })}
                       >
                         {item.value || <em style={{ opacity: 0.4 }}>—</em>}
                       </span>
@@ -164,7 +163,7 @@ export default function TranslationsPage() {
                   </td>
                   <td>
                     {editingId === item.id && (
-                      <button onClick={() => handleSave(item)} className="logs-icon-btn" title={t('admin.common.save')}>
+                      <button onClick={() => handleSave(item)} className="logs-icon-btn">
                         <Save size={14} />
                       </button>
                     )}

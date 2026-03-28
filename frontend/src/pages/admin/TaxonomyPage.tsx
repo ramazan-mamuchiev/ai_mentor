@@ -322,7 +322,6 @@ export function TaxonomyPage() {
                                 type="button"
                                 className="logs-icon-btn"
                                 disabled={cat.is_system}
-                                title={cat.is_system ? t('admin.taxonomy.systemCategory') : t('admin.taxonomy.edit')}
                                 onClick={() => !cat.is_system && startEditCategory(cat)}
                               >
                                 <Pencil size={14} />
@@ -331,7 +330,6 @@ export function TaxonomyPage() {
                                 type="button"
                                 className="logs-icon-btn"
                                 disabled={cat.is_system}
-                                title={cat.is_system ? t('admin.taxonomy.systemCategory') : t('admin.common.delete')}
                                 onClick={() => void handleDeleteCategory(cat.id, cat.is_system)}
                               >
                                 <Trash2 size={14} />
@@ -414,7 +412,6 @@ export function TaxonomyPage() {
                             type="button"
                             className="logs-icon-btn"
                             disabled={tag.is_system}
-                            title={tag.is_system ? t('admin.taxonomy.systemTag') : t('admin.common.delete')}
                             onClick={() => void handleDeleteTag(tag.id, tag.is_system)}
                           >
                             <Trash2 size={14} />
