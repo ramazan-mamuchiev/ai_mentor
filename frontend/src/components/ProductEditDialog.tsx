@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { ChevronDown, Check, Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   listProductCategories,
@@ -30,8 +30,10 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   const [taxonomyLoading, setTaxonomyLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tagSearch, setTagSearch] = useState('')
+  const [catOpen, setCatOpen] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const tagSearchRef = useRef<HTMLInputElement>(null)
+  const catRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setName(product.name)
@@ -68,11 +70,23 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   useEffect(() => {
     nameRef.current?.focus()
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
+      if (e.key === 'Escape') {
+        if (catOpen) { setCatOpen(false); e.stopPropagation(); return }
+        onCancel()
+      }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onCancel])
+  }, [onCancel, catOpen])
+
+  useEffect(() => {
+    if (!catOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [catOpen])
 
   const toggleTag = (id: number) => {
     setSelectedTagIds(prev =>
@@ -90,6 +104,12 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
   }, [tags, tagSearch, t])
 
   const selectedCount = selectedTagIds.length
+
+  const selectedCatLabel = useMemo(() => {
+    if (categoryId === null) return t('products.edit.categoryNone')
+    const cat = categories.find(c => c.id === categoryId)
+    return cat ? t(`category.${cat.slug}`, { ns: 'taxonomy', defaultValue: cat.slug }) : t('products.edit.categoryNone')
+  }, [categoryId, categories, t])
 
   const handleSave = async () => {
     setSaving(true)
@@ -148,30 +168,47 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
             </label>
           </div>
 
-          <label className="product-edit-label">
+          <div className="product-edit-label">
             <span>{t('products.edit.category')}</span>
-            <div className="product-edit-categories">
+            <div className="product-edit-cat-select" ref={catRef}>
               <button
                 type="button"
-                className={`product-edit-cat-chip${categoryId === null ? ' product-edit-cat-chip--active' : ''}`}
-                onClick={() => setCategoryId(null)}
+                className={`product-edit-cat-trigger${catOpen ? ' product-edit-cat-trigger--open' : ''}`}
+                onClick={() => setCatOpen(v => !v)}
                 disabled={taxonomyLoading}
               >
-                {t('products.edit.categoryNone')}
+                <span className={categoryId === null ? 'product-edit-cat-trigger-placeholder' : ''}>
+                  {selectedCatLabel}
+                </span>
+                <ChevronDown size={15} className="product-edit-cat-chevron" />
               </button>
-              {categories.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`product-edit-cat-chip${categoryId === c.id ? ' product-edit-cat-chip--active' : ''}`}
-                  onClick={() => setCategoryId(c.id)}
-                  disabled={taxonomyLoading}
-                >
-                  {t(`category.${c.slug}`, { ns: 'taxonomy', defaultValue: c.slug })}
-                </button>
-              ))}
+              {catOpen && (
+                <div className="product-edit-cat-dropdown">
+                  <button
+                    type="button"
+                    className={`product-edit-cat-option${categoryId === null ? ' product-edit-cat-option--active' : ''}`}
+                    onClick={() => { setCategoryId(null); setCatOpen(false) }}
+                  >
+                    <span className="product-edit-cat-radio" />
+                    <span className="product-edit-cat-option-label product-edit-cat-option-none">{t('products.edit.categoryNone')}</span>
+                    {categoryId === null && <Check size={14} className="product-edit-cat-check" />}
+                  </button>
+                  {categories.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={`product-edit-cat-option${categoryId === c.id ? ' product-edit-cat-option--active' : ''}`}
+                      onClick={() => { setCategoryId(c.id); setCatOpen(false) }}
+                    >
+                      <span className="product-edit-cat-radio" />
+                      <span className="product-edit-cat-option-label">{t(`category.${c.slug}`, { ns: 'taxonomy', defaultValue: c.slug })}</span>
+                      {categoryId === c.id && <Check size={14} className="product-edit-cat-check" />}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          </label>
+          </div>
 
           <div className="product-edit-label product-edit-tags-block">
             <span>
