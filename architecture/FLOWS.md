@@ -8,44 +8,118 @@
 
 ### Visual Overview
 
-```mermaid
-flowchart TB
-    subgraph upload [Upload]
-        Client["Client: POST /ingest"]
-        API["FastAPI: auth, detect format,<br/>save to S3, enqueue"]
-    end
-
-    subgraph worker [Celery Worker — 7 stages, all powered by Gemini]
-        S3["1. Download from S3"]
-        Convert["2. Convert to Markdown<br/>PDF: parallel 50-page chunks<br/>OCR: Gemini Vision (2-pass)"]
-        Normalize["3. NFKC normalization"]
-        Parse["4. Parse → Sections<br/>H1-H6 heading extraction<br/>code-block protection"]
-        Chunk["5. Chunk → Split/Merge<br/>max 512 tokens, min 50<br/>overlap 2 blocks"]
-        Extract["6. LLM Metadata Extraction<br/>Gemini Flash: doc_type + entities<br/>batches of 5 chunks"]
-        Enrich["7. Enrich for Embedding<br/>[heading_path] + [type] + [entities]<br/>+ cleaned Markdown"]
-        Embed["8. Gemini Embedding<br/>gemini-embedding-2-preview<br/>batches of 100, 1024 dims"]
-        Store["9. Store in pgvector<br/>+ tsvector for BM25<br/>+ content_clean"]
-    end
-
-    Client --> API
-    API -->|"Celery task"| S3
-    S3 --> Convert
-    Convert --> Normalize
-    Normalize --> Parse
-    Parse --> Chunk
-    Chunk --> Extract
-    Extract --> Enrich
-    Enrich --> Embed
-    Embed --> Store
-    Store -->|"status=ready"| Done["Document indexed"]
-
-    GeminiFlash["Gemini 2.5 Flash"]
-    GeminiEmbed["Gemini Embedding 2"]
-
-    GeminiFlash -.->|"OCR lang detect"| Convert
-    GeminiFlash -.->|"Vision OCR"| Convert
-    GeminiFlash -.->|"metadata extraction"| Extract
-    GeminiEmbed -.->|"1024-dim vectors"| Embed
+```
+  ┌─────────────────────────────────────────────────────────────────────────────────────┐
+  │  CLIENT                                                                             │
+  │  POST /api/v1/documents/ingest  { file, product_name, firmware_version, format }    │
+  └────────────────────────────────────┬────────────────────────────────────────────────┘
+                                       │
+                                       ▼
+  ┌─────────────────────────────────────────────────────────────────────────────────────┐
+  │  FASTAPI                                                                            │
+  │  auth → detect format → billable_units → save to S3 → create Document → Celery task │
+  └────────────────────────────────────┬────────────────────────────────────────────────┘
+                                       │
+           ┌───────────────────────────┘
+           │  Celery Worker
+           ▼
+  ┌─────────────────────────────────────────────────────────────────────────────────────┐
+  │                                                                                     │
+  │  ┌───────────────┐     ┌───────────────────────────────────────────────────────┐    │
+  │  │ 1. DOWNLOAD   │     │  Format Converters (all output → Markdown)            │    │
+  │  │    from S3    │────▶│  ┌──────────┬──────────┬────────┬───────┬──────────┐  │    │
+  │  │    [5%]       │     │  │ Markdown │ Swagger  │  PDF   │ Proto │   Web    │  │    │
+  │  └───────────────┘     │  │ (pass-   │ (1 chunk │ pymu-  │ proto │ httpx +  │  │    │
+  │                        │  │  through)│  /endpt) │ pdf4llm│ parser│ BS4      │  │    │
+  │                        │  └──────────┴──────────┴───┬────┴───────┴──────────┘  │    │
+  │                        │                            │                          │    │
+  │                        │        ┌───────────────────┘                          │    │
+  │                        │        │ PDF only, if images detected                 │    │
+  │                        │        ▼                                              │    │
+  │                        │  ┌─────────────────────────────────────────────┐      │    │
+  │                        │  │  TWO-PASS OCR (Gemini Vision)              │      │    │
+  │                        │  │  Pass 1: pymupdf4llm text extraction       │      │    │
+  │                        │  │  Lang:   Gemini Flash → ISO 639-1 codes    │◄╌╌╌╌╌╌╌╌╌╌╌╌╌┐
+  │                        │  │  Pass 2: Gemini Vision per image           │◄╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+  │                        │  │  Metrics: images total/ok/empty/fail       │      │    │  ┆
+  │                        │  └─────────────────────────────────────────────┘      │    │  ┆
+  │                        └──────────────────────────┬────────────────────────────┘    │  ┆
+  │                                                   │                                │  ┆
+  │  2. CONVERT [5%→45%]                              │                                │  ┆
+  │  ─────────────────────────────────────────────────┘                                │  ┆
+  │                        │                                                           │  ┆
+  │                        ▼                                                           │  ┆
+  │  ┌─────────────────────────────────────────────────────────────────────────┐       │  ┆
+  │  │ 3. NORMALIZE (NFKC)                                                    │       │  ┆
+  │  │    Collapses fullwidth Latin, ligatures, non-breaking spaces            │       │  ┆
+  │  └────────────────────────────────────┬────────────────────────────────────┘       │  ┆
+  │                                       │                                            │  ┆
+  │                                       ▼                                            │  ┆
+  │  ┌─────────────────────────────────────────────────────────────────────────┐       │  ┆
+  │  │ 4. PARSE → SECTIONS  [45%]                                             │       │  ┆
+  │  │    H1-H6 heading extraction with code-block protection                  │       │  ┆
+  │  │    Heading cleaning: strip bold/italic/links/images/HTML                │       │  ┆
+  │  │    Generic "Document"/"Preamble" → actual document title                │       │  ┆
+  │  └────────────────────────────────────┬────────────────────────────────────┘       │  ┆
+  │                                       │                                            │  ┆
+  │                                       ▼                                            │  ┆
+  │  ┌─────────────────────────────────────────────────────────────────────────┐       │  ┆
+  │  │ 5. CHUNK  [45%→50%]                                                    │       │  ┆
+  │  │    a. Atomic blocks: code fences + tables never split                   │       │  ┆
+  │  │    b. Split large: >512 tokens → pieces with 2-block overlap            │       │  ┆
+  │  │       parent_content stores full section for small-to-big               │       │  ┆
+  │  │    c. Merge small: <50 tokens → join neighbors (same parent heading)    │       │  ┆
+  │  │    d. Token estimate: len(words) × 1.3                                  │       │  ┆
+  │  │    e. Quality log: min/max/avg/median token counts                      │       │  ┆
+  │  └────────────────────────────────────┬────────────────────────────────────┘       │  ┆
+  │                                       │                                            │  ┆
+  │                                       ▼                                    Gemini  │  ┆
+  │  ┌─────────────────────────────────────────────────────────────────────────┐  2.5  │  ┆
+  │  │ 6. LLM METADATA EXTRACTION  [50%→55%]                                  │ Flash │  ┆
+  │  │    Gemini Flash extracts per chunk (batches of 5):                      │◄╌╌╌╌╌╌╌╌╌┤
+  │  │    ├─ doc_type: api_reference | user_guide | configuration | ...        │       │  ┆
+  │  │    └─ entities: { api_endpoints[], config_params[], error_codes[],      │       │  ┆
+  │  │                    protocols[], keywords[] }                             │       │  ┆
+  │  │    First 1500 chars/chunk → JSON response → validated & cleaned         │       │  ┆
+  │  └────────────────────────────────────┬────────────────────────────────────┘       │  ┆
+  │                                       │                                            │  ┆
+  │                                       ▼                                            │  ┆
+  │  ┌─────────────────────────────────────────────────────────────────────────┐       │  ┆
+  │  │ 7. ENRICH FOR EMBEDDING  [55%]                                         │       │  ┆
+  │  │    Clean: strip bold/links/images/HTML/list-markers (keep code blocks)  │       │  ┆
+  │  │    Prefix:  [heading_path]                                              │       │  ┆
+  │  │             [type: api_reference]                                        │       │  ┆
+  │  │             [entities: POST /api/door, ONVIF, ...]                       │       │  ┆
+  │  │    Truncation guard: >500 tokens → trim content, keep prefix            │       │  ┆
+  │  └────────────────────────────────────┬────────────────────────────────────┘       │  ┆
+  │                                       │                                            │  ┆
+  │                                       ▼                                    Gemini  │  ┆
+  │  ┌─────────────────────────────────────────────────────────────────────────┐ Emb.  │  ┆
+  │  │ 8. EMBED  [55%→92%]                                                    │  2    │  ┆
+  │  │    Model: gemini-embedding-2-preview (1024 dims)                        │◄╌╌╌╌╌╌╌╌╌┘
+  │  │    task_type = RETRIEVAL_DOCUMENT                                       │       │
+  │  │    Batch: 100 texts/request, L2-normalized                              │       │
+  │  │    Retry: 5× exponential backoff (2ˢ base, 120s cap) on 429/503        │       │
+  │  └────────────────────────────────────┬────────────────────────────────────┘       │
+  │                                       │                                            │
+  │                                       ▼                                            │
+  │  ┌─────────────────────────────────────────────────────────────────────────┐       │
+  │  │ 9. STORE IN POSTGRESQL  [92%→100%]                                     │       │
+  │  │    INSERT chunks: content, content_clean, parent_content, embedding,    │       │
+  │  │                   doc_type, entities                                     │       │
+  │  │    tsvector trigger: english stemmer on content_clean (for BM25)         │       │
+  │  │    UPDATE document: status='ready', indexed_at, timing metrics           │       │
+  │  └────────────────────────────────────┬────────────────────────────────────┘       │
+  │                                       │                                            │
+  └───────────────────────────────────────┼────────────────────────────────────────────┘
+                                          │
+                                          ▼
+                                  ┌───────────────┐
+                                  │   DOCUMENT     │
+                                  │   INDEXED      │
+                                  │  status=ready  │
+                                  │  progress=100% │
+                                  └───────────────┘
 ```
 
 ### Step-by-Step Pipeline
