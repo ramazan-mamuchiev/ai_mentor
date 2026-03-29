@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Globe, X, AlertCircle, Loader2, Search } from 'lucide-react'
+import { Globe, X, AlertCircle, Loader2, Search, Github } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ingestUrl, ingestSite } from '../api/documents'
+import { ingestUrl, ingestSite, ingestGitHub } from '../api/documents'
 import type { ProductContext } from './FileUpload'
 import type { ProductSelection } from './ProductAutocomplete'
 
@@ -31,10 +31,12 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
   const [maxDepth, setMaxDepth] = useState(5)
   const [maxPages, setMaxPages] = useState(500)
   const [downloadResources, setDownloadResources] = useState(true)
+  const [githubBranch, setGithubBranch] = useState('main')
 
   const isConfluence = /\/confluence\/spaces\/[^/]+\/pages\/\d+/.test(url)
+  const isGitHub = /^https?:\/\/(?:www\.)?github\.com\/[^/]+\/[^/]+/.test(url.trim())
   const isHttpUrl = /^https?:\/\/.+/.test(url.trim())
-  const showSiteCrawlOption = isHttpUrl && !isConfluence
+  const showSiteCrawlOption = isHttpUrl && !isConfluence && !isGitHub
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -44,7 +46,15 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setError('')
 
     try {
-      if (crawlSite && showSiteCrawlOption) {
+      if (isGitHub) {
+        await ingestGitHub({
+          url: url.trim(),
+          product_name: productName.trim(),
+          firmware_version: firmwareVersion || '1.0',
+          manufacturer: manufacturer,
+          branch: githubBranch || 'main',
+        })
+      } else if (crawlSite && showSiteCrawlOption) {
         await ingestSite({
           url: url.trim(),
           product_name: productName.trim(),
@@ -68,7 +78,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
       setStatus('error')
       setError(err instanceof Error ? err.message : String(err))
     }
-  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, maxDepth, maxPages, downloadResources, onComplete, onClose])
+  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, isGitHub, githubBranch, maxDepth, maxPages, downloadResources, onComplete, onClose])
 
   const handleReset = useCallback(() => {
     setUrl('')
@@ -81,6 +91,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setStatus('idle')
     setError('')
     setCrawlSite(false)
+    setGithubBranch('main')
     setMaxDepth(5)
     setMaxPages(500)
     setDownloadResources(true)
@@ -124,16 +135,30 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
 
               {url.trim() && (
                 <div className="url-import-type-hint">
-                  <Globe size={14} />
+                  {isGitHub ? <Github size={14} /> : <Globe size={14} />}
                   <span>
-                    {isConfluence
-                      ? t('urlImport.confluenceDetected')
-                      : crawlSite
-                        ? t('urlImport.siteDetected')
-                        : t('urlImport.webPageDetected')
+                    {isGitHub
+                      ? t('urlImport.githubDetected')
+                      : isConfluence
+                        ? t('urlImport.confluenceDetected')
+                        : crawlSite
+                          ? t('urlImport.siteDetected')
+                          : t('urlImport.webPageDetected')
                     }
                   </span>
                 </div>
+              )}
+
+              {isGitHub && (
+                <label>
+                  {t('urlImport.githubBranch')}
+                  <input
+                    type="text"
+                    value={githubBranch}
+                    onChange={e => setGithubBranch(e.target.value)}
+                    placeholder="main"
+                  />
+                </label>
               )}
 
               {showSiteCrawlOption && (
@@ -224,7 +249,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
               className="file-upload-start"
               disabled={!isValid}
             >
-              {crawlSite ? <Search size={16} /> : <Globe size={16} />}
+              {isGitHub ? <Github size={16} /> : crawlSite ? <Search size={16} /> : <Globe size={16} />}
               {t('urlImport.startImport')}
             </button>
           </form>
@@ -233,14 +258,16 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
         {status === 'submitting' && (
           <div className="file-upload-progress">
             <div className="file-upload-file-info">
-              {crawlSite ? <Search size={20} /> : <Globe size={20} />}
+              {isGitHub ? <Github size={20} /> : crawlSite ? <Search size={20} /> : <Globe size={20} />}
               <div>
                 <strong>
-                  {isConfluence
-                    ? t('urlImport.crawling')
-                    : crawlSite
-                      ? t('urlImport.crawlingSite')
-                      : t('urlImport.fetching')
+                  {isGitHub
+                    ? t('urlImport.crawlingGithub')
+                    : isConfluence
+                      ? t('urlImport.crawling')
+                      : crawlSite
+                        ? t('urlImport.crawlingSite')
+                        : t('urlImport.fetching')
                   }
                 </strong>
                 <span className="docs-cell-overflow" style={{ maxWidth: 300 }}>{url}</span>

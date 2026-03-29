@@ -21,6 +21,7 @@ from app.documents.schemas import (
     DocumentStatus,
     DocumentUsageEntry,
     DocumentUsageStats,
+    GitHubIngestRequest,
     IngestResponse,
     SiteIngestRequest,
     UrlIngestRequest,
@@ -328,6 +329,85 @@ async def ingest_site(request: Request, body: SiteIngestRequest, tenant: Tenant 
         except Exception as exc:
             await session.rollback()
             logger.error("Failed to queue site ingest task", extra={
+                "url": url, "error_type": type(exc).__name__, "error": str(exc),
+            }, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
+
+
+@router.post("/ingest-github", response_model=UrlIngestResponse)
+async def ingest_github(request: Request, body: GitHubIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
+    """Import documentation files from a public GitHub repository.
+
+    Creates a placeholder Document (format='github') and dispatches a Celery task
+    that fetches the repo tree via GitHub API and imports matching files.
+    """
+    from app.ingestion.converters.github import parse_github_url
+
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    try:
+        owner, repo, url_branch = parse_github_url(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    branch = url_branch or body.branch or "main"
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+
+    logger.info("GitHub ingest request received", extra={
+        "url": url, "owner": owner, "repo": repo, "branch": branch,
+        "product_name": body.product_name, "client_ip": client_ip,
+    })
+
+    async with async_session() as session:
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, tenant_id=tenant.id)
+        fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
+
+        placeholder = Document(
+            product_id=product.id,
+            firmware_version_id=fw.id,
+            format="github",
+            original_filename=url[:200],
+            title=f"GitHub: {owner}/{repo}",
+            status="pending",
+            source_path=url,
+            source_container=url,
+            progress_stage="queued",
+            tenant_id=tenant.id,
+        )
+        session.add(placeholder)
+        await session.flush()
+
+        try:
+            from app.celery_app import ingest_github_task
+            task = ingest_github_task.delay(
+                document_id=placeholder.id,
+                branch=branch,
+            )
+
+            placeholder.celery_task_id = task.id
+            await session.commit()
+
+            logger.info("GitHub ingest task queued", extra={
+                "url": url, "task_id": task.id, "document_id": placeholder.id,
+                "owner": owner, "repo": repo, "branch": branch,
+                "product_id": product.id, "client_ip": client_ip,
+            })
+
+            return UrlIngestResponse(
+                status="pending",
+                message=f"GitHub import queued for {owner}/{repo} ({branch})",
+                url=url,
+                product_name=body.product_name,
+                task_id=task.id,
+                product_id=product.id,
+                document_id=placeholder.id,
+            )
+        except Exception as exc:
+            await session.rollback()
+            logger.error("Failed to queue GitHub ingest task", extra={
                 "url": url, "error_type": type(exc).__name__, "error": str(exc),
             }, exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
@@ -916,6 +996,7 @@ async def reingest_single_document(document_id: int):
 
         is_confluence = doc.format == "confluence"
         is_url = doc.format == "url"
+        is_github = doc.format == "github"
         is_confluence_child = (
             doc.format == "markdown"
             and doc.source_path
@@ -937,10 +1018,10 @@ async def reingest_single_document(document_id: int):
             except ValueError:
                 pass
 
-        if not doc.s3_key and not is_confluence and not is_url and not is_confluence_child:
+        if not doc.s3_key and not is_confluence and not is_url and not is_github and not is_confluence_child:
             raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
 
-        if is_confluence or is_url:
+        if is_confluence or is_url or is_github:
             if not doc.source_path:
                 raise HTTPException(status_code=400, detail="No source URL stored — cannot reingest")
 
@@ -978,10 +1059,21 @@ async def reingest_single_document(document_id: int):
         doc.error_message = None
         doc.progress_percent = 0
         doc.progress_stage = "queued"
-        doc.title = doc.source_path[:200] if (is_confluence or is_url) else doc.title
+        doc.title = doc.source_path[:200] if (is_confluence or is_url or is_github) else doc.title
         await session.flush()
 
-        if is_confluence:
+        if is_github:
+            from app.celery_app import ingest_github_task
+            from app.ingestion.converters.github import parse_github_url
+            _branch = "main"
+            try:
+                _, _, url_branch = parse_github_url(doc.source_path)
+                if url_branch:
+                    _branch = url_branch
+            except ValueError:
+                pass
+            task = ingest_github_task.delay(document_id=document_id, branch=_branch)
+        elif is_confluence:
             from app.celery_app import ingest_confluence_task
             task = ingest_confluence_task.delay(document_id=document_id)
         elif is_url:

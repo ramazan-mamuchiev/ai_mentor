@@ -513,7 +513,11 @@
   "urlImport.maxPages": "Макс. страниц",
   "urlImport.downloadResources": "Скачивать ресурсы (PDF, файлы)",
   "urlImport.crawlingSite": "Обход страниц сайта...",
+  "urlImport.githubDetected": "GitHub-репозиторий — все файлы документации будут импортированы",
+  "urlImport.githubBranch": "Ветка",
+  "urlImport.crawlingGithub": "Импорт GitHub-репозитория...",
 
+  "docs.format.github": "GitHub",
   "docs.format.confluence": "Confluence",
   "docs.format.url": "Веб",
   "docs.format.markdown": "Markdown",

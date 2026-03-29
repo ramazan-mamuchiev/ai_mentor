@@ -112,6 +112,26 @@ class SiteIngestRequest(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class GitHubIngestRequest(BaseModel):
+    url: str
+    product_name: str
+    firmware_version: str = "1.0"
+    manufacturer: str = ""
+    branch: str = "main"
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        v = v.strip()
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        if "github.com" not in v:
+            raise ValueError("URL must be a GitHub repository URL")
+        return v
+
+    model_config = {"from_attributes": True}
+
+
 class UrlIngestResponse(BaseModel):
     status: str
     message: str

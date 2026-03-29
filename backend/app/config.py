@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     site_crawl_max_pages: int = 1000
     site_crawl_max_seconds: int = 3600
 
+    # --- GitHub importer ---
+    github_api_token: str = ""
+    github_max_files: int = 500
+    github_max_file_size_mb: int = 10
+
     # --- Auth ---
     jwt_secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
     jwt_algorithm: str = "HS256"

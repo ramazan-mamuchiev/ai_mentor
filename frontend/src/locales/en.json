@@ -492,7 +492,11 @@
   "urlImport.maxPages": "Max pages",
   "urlImport.downloadResources": "Download resources (PDF, files)",
   "urlImport.crawlingSite": "Crawling website pages...",
+  "urlImport.githubDetected": "GitHub repository — all documentation files will be imported",
+  "urlImport.githubBranch": "Branch",
+  "urlImport.crawlingGithub": "Importing GitHub repository...",
 
+  "docs.format.github": "GitHub",
   "docs.format.confluence": "Confluence",
   "docs.format.url": "Web",
   "docs.format.markdown": "Markdown",

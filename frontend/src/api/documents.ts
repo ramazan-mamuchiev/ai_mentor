@@ -99,6 +99,21 @@ export async function ingestSite(data: SiteIngestRequest): Promise<UrlIngestResp
   })
 }
 
+export interface GitHubIngestRequest {
+  url: string
+  product_name: string
+  firmware_version?: string
+  manufacturer?: string
+  branch?: string
+}
+
+export async function ingestGitHub(data: GitHubIngestRequest): Promise<UrlIngestResponse> {
+  return apiFetch<UrlIngestResponse>('/documents/ingest-github', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 export async function listReindexJobs(): Promise<ReindexJobList> {
   return apiFetch<ReindexJobList>('/reindex/jobs')
 }

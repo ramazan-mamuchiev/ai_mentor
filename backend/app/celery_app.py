@@ -1657,6 +1657,284 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
     }
 
 
+@celery.task(name="ingest_github", bind=True, max_retries=2, default_retry_delay=30,
+             soft_time_limit=3600, time_limit=3660)
+def ingest_github_task(self, document_id: int, branch: str = "main"):
+    """Background task: import files from a public GitHub repository.
+
+    Receives the placeholder Document id (format='github').
+    For every matching file the task:
+      1. Downloads the file via raw.githubusercontent.com
+      2. Creates a child Document in the DB (status='pending')
+      3. Uploads content to S3
+      4. Dispatches ``ingest_document_task`` for that child
+    """
+    import asyncio
+    from datetime import datetime, timezone
+    from app.models import Document
+    from app.ingestion.converters.github import crawl_github, parse_github_url, GitHubFile
+    from app.s3 import upload_file
+
+    t0 = time.perf_counter()
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        placeholder = session.get(Document, document_id)
+        if placeholder is None:
+            logger.error("Placeholder document not found", extra={"document_id": document_id})
+            return {"status": "error", "error": "Placeholder not found"}
+
+        url = placeholder.source_path
+        product_id = placeholder.product_id
+        firmware_version_id = placeholder.firmware_version_id
+        gh_tenant_id = placeholder.tenant_id
+        _set_tenant_log_context(gh_tenant_id, session)
+
+        placeholder.status = "processing"
+        placeholder.processing_started_at = datetime.now(timezone.utc)
+        placeholder.progress_stage = "fetching repository tree"
+        placeholder.progress_percent = 0
+        session.commit()
+
+    try:
+        owner, repo, url_branch = parse_github_url(url)
+    except ValueError as exc:
+        with Session(engine) as session:
+            ph = session.get(Document, document_id)
+            if ph:
+                ph.status = "error"
+                ph.error_message = str(exc)
+                ph.progress_stage = ""
+                session.commit()
+        return {"status": "error", "error": str(exc)}
+
+    effective_branch = url_branch or branch
+
+    logger.info("Celery ingest_github_task started", extra={
+        "url": url, "document_id": document_id, "task_id": self.request.id,
+        "owner": owner, "repo": repo, "branch": effective_branch,
+    })
+
+    dispatched = 0
+    skipped = 0
+    errors = 0
+
+    def _on_file(gh_file: GitHubFile) -> None:
+        nonlocal dispatched, skipped, errors
+
+        try:
+            if not gh_file.local_path or not os.path.isfile(gh_file.local_path):
+                errors += 1
+                return
+
+            with open(gh_file.local_path, "rb") as f:
+                file_bytes = f.read()
+
+            if not file_bytes:
+                skipped += 1
+                return
+
+            source_hash = hashlib.sha256(file_bytes).hexdigest()
+            filename = gh_file.path.rsplit("/", 1)[-1][:200]
+            fmt = gh_file.format
+
+            with Session(engine) as s:
+                existing = s.execute(
+                    sa_select(Document).where(
+                        Document.source_hash == source_hash,
+                        Document.product_id == product_id,
+                        Document.firmware_version_id == firmware_version_id,
+                    ).limit(1)
+                ).scalar_one_or_none()
+                if existing is not None:
+                    skipped += 1
+                    return
+
+                doc = Document(
+                    product_id=product_id,
+                    firmware_version_id=firmware_version_id,
+                    format=fmt,
+                    original_filename=filename,
+                    file_size_bytes=len(file_bytes),
+                    title=gh_file.path[:200],
+                    status="pending",
+                    source_hash=source_hash,
+                    source_container=url,
+                    source_path=gh_file.url,
+                    tenant_id=gh_tenant_id,
+                )
+                s.add(doc)
+                s.flush()
+
+                ext = os.path.splitext(gh_file.path)[1] or ".bin"
+                s3_key = f"documents/{doc.id}/source{ext}"
+                content_type = "application/pdf" if ext == ".pdf" else "application/octet-stream"
+                upload_file(s3_key, file_bytes, content_type=content_type)
+                doc.s3_key = s3_key
+                s.commit()
+
+                try:
+                    task = ingest_document_task.delay(doc.id)
+                    doc.celery_task_id = task.id
+                    s.commit()
+                except Exception as task_exc:
+                    logger.warning("Failed to dispatch ingest task for GitHub file", extra={
+                        "child_document_id": doc.id, "error": str(task_exc)[:200],
+                    })
+
+                dispatched += 1
+
+        except Exception as exc:
+            errors += 1
+            logger.warning("Failed to persist GitHub file — skipping", extra={
+                "path": gh_file.path,
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:300],
+            })
+        finally:
+            if gh_file.local_path and os.path.isfile(gh_file.local_path):
+                try:
+                    os.unlink(gh_file.local_path)
+                except OSError:
+                    pass
+
+        try:
+            with Session(engine) as s:
+                ph = s.get(Document, document_id)
+                if ph:
+                    total = dispatched + skipped
+                    ph.progress_stage = f"importing ({dispatched} files queued, {skipped} skipped)"
+                    if errors:
+                        ph.progress_stage += f", {errors} errors"
+                    s.commit()
+        except Exception:
+            pass
+
+    try:
+        try:
+            loop = asyncio.get_event_loop()
+            crawl_result = loop.run_until_complete(
+                crawl_github(
+                    owner=owner,
+                    repo=repo,
+                    branch=effective_branch,
+                    token=settings.github_api_token,
+                    max_files=settings.github_max_files,
+                    max_file_size_mb=settings.github_max_file_size_mb,
+                    file_callback=_on_file,
+                )
+            )
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                crawl_result = loop.run_until_complete(
+                    crawl_github(
+                        owner=owner,
+                        repo=repo,
+                        branch=effective_branch,
+                        token=settings.github_api_token,
+                        max_files=settings.github_max_files,
+                        max_file_size_mb=settings.github_max_file_size_mb,
+                        file_callback=_on_file,
+                    )
+                )
+            finally:
+                loop.close()
+
+    except SoftTimeLimitExceeded:
+        with Session(engine) as session:
+            ph = session.get(Document, document_id)
+            if ph:
+                if dispatched > 0:
+                    ph.status = "ready"
+                    ph.progress_stage = "done"
+                    ph.error_message = (
+                        f"GitHub import stopped by time limit. "
+                        f"Processed {dispatched} files before timeout."
+                    )
+                else:
+                    ph.status = "error"
+                    ph.progress_stage = ""
+                    ph.error_message = "GitHub import exceeded time limit without processing any files."
+                ph.progress_percent = 100
+                session.commit()
+        return {"status": "error", "error": "soft_time_limit", "document_id": document_id}
+
+    except Exception as exc:
+        with Session(engine) as session:
+            ph = session.get(Document, document_id)
+            if ph:
+                ph.status = "error"
+                ph.error_message = f"GitHub import failed: {type(exc).__name__}: {str(exc)[:1900]}"
+                ph.progress_stage = ""
+                session.commit()
+
+        logger.error("GitHub crawl failed", extra={
+            "url": url, "document_id": document_id,
+            "error_type": type(exc).__name__,
+        }, exc_info=True)
+        raise self.retry(exc=exc)
+
+    with Session(engine) as session:
+        ph = session.get(Document, document_id)
+        if ph:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            ph.progress_percent = 100
+            ph.ingest_duration_ms = duration_ms
+            ph.total_chunks = dispatched
+            ph.title = f"{owner}/{repo} ({crawl_result.files_downloaded} files)"
+
+            if dispatched == 0:
+                ph.status = "error"
+                ph.progress_stage = "done"
+                if crawl_result.files_found == 0:
+                    ph.error_message = (
+                        f"No supported files found in {owner}/{repo} ({effective_branch}). "
+                        f"Check that the repository contains .md, .yaml, .json, or other supported files."
+                    )
+                else:
+                    ph.error_message = (
+                        f"No documents created from {crawl_result.files_found} files "
+                        f"({skipped} duplicates/empty, {errors} errors)."
+                    )
+            elif errors > dispatched:
+                ph.status = "error"
+                ph.progress_stage = "done"
+                ph.error_message = f"Too many failures: {errors} errors vs {dispatched} documents."
+            elif errors > 0:
+                ph.status = "ready"
+                ph.progress_stage = "done"
+                ph.error_message = f"Partial failures: {errors} items could not be saved."
+            else:
+                ph.status = "ready"
+                ph.progress_stage = "done"
+                ph.error_message = None
+            session.commit()
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    logger.info("Celery ingest_github_task completed", extra={
+        "url": url, "document_id": document_id,
+        "owner": owner, "repo": repo, "branch": effective_branch,
+        "files_found": crawl_result.files_found,
+        "files_downloaded": crawl_result.files_downloaded,
+        "dispatched": dispatched, "skipped": skipped, "errors": errors,
+        "duration_ms": duration_ms,
+    })
+    return {
+        "status": "ok",
+        "url": url,
+        "document_id": document_id,
+        "repo": f"{owner}/{repo}",
+        "branch": effective_branch,
+        "files_found": crawl_result.files_found,
+        "files_downloaded": crawl_result.files_downloaded,
+        "dispatched": dispatched,
+        "skipped": skipped,
+        "errors": errors,
+        "duration_ms": duration_ms,
+    }
+
+
 @celery.task(name="reingest_confluence_page", bind=True, max_retries=2, default_retry_delay=30,
              soft_time_limit=2700, time_limit=3000)
 def reingest_confluence_page_task(self, document_id: int):
