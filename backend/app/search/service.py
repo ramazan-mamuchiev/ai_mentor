@@ -31,7 +31,7 @@ async def _fetch_products_with_keys(session: AsyncSession) -> list[dict]:
     rows = (await session.execute(text("""
         SELECT p.id, p.name, p.manufacturer, p.category,
                COALESCE(
-                   (SELECT array_agg(psk.key)
+                   (SELECT array_agg(DISTINCT psk.key)
                     FROM product_search_keys psk
                     WHERE psk.product_id = p.id),
                    ARRAY[]::text[]
@@ -55,7 +55,7 @@ async def _llm_resolve_product(name: str, products: list[dict]) -> ResolveResult
     """Use Gemini Flash to match user input to a product from the catalog."""
     products_context = "\n".join(
         f"- id={p['id']}, name=\"{p['name']}\", manufacturer=\"{p['manufacturer']}\", "
-        f"category=\"{p['category']}\", keys={p['keys'][:30]}"
+        f"category=\"{p['category']}\", keys={p['keys']}"
         for p in products
     )
 

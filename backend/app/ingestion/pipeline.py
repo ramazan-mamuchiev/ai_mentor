@@ -22,7 +22,7 @@ from app.config import settings as _settings
 from app.ingestion.parsers.markdown import parse_markdown
 from app.ingestion.parsers.swagger import parse_swagger
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
-from app.models import Chunk, Product, Document, FirmwareVersion, ProductSearchKey
+from app.models import Chunk, Product, Document, FirmwareVersion
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,20 @@ class IngestionCancelled(Exception):
     """Raised when a document's ingestion is cancelled mid-flight."""
 
 
-def _save_product_keys_sync(session, product_id: int, keys: list[str], source: str) -> int:
-    """Upsert search keys for a product (sync, for Celery)."""
+def _save_doc_chunk_keys_sync(session, product_id: int, document_id: int, chunk_meta_dicts: list[dict]) -> int:
+    """Extract entity keys from chunk metadata and save per-document (sync).
+
+    Deletes old chunk keys for this document, then inserts new ones.
+    """
+    from app.ingestion.product_keys_extractor import aggregate_chunk_entities
     from sqlalchemy import text
+
+    session.execute(
+        text("DELETE FROM product_search_keys WHERE document_id = :did AND source = 'chunk'"),
+        {"did": document_id},
+    )
+
+    keys = aggregate_chunk_entities(chunk_meta_dicts)
     count = 0
     for key in keys:
         key = key.strip()
@@ -41,20 +52,31 @@ def _save_product_keys_sync(session, product_id: int, keys: list[str], source: s
             continue
         session.execute(
             text("""
-                INSERT INTO product_search_keys (product_id, key, source)
-                VALUES (:pid, :key, :src)
-                ON CONFLICT (product_id, key) DO NOTHING
+                INSERT INTO product_search_keys (product_id, document_id, key, source)
+                VALUES (:pid, :did, :key, 'chunk')
+                ON CONFLICT (product_id, document_id, key) DO NOTHING
             """),
-            {"pid": product_id, "key": key, "src": source},
+            {"pid": product_id, "did": document_id, "key": key},
         )
         count += 1
     session.flush()
     return count
 
 
-async def _save_product_keys_async(session, product_id: int, keys: list[str], source: str) -> int:
-    """Upsert search keys for a product (async, for FastAPI)."""
+async def _save_doc_chunk_keys_async(session, product_id: int, document_id: int, chunk_meta_dicts: list[dict]) -> int:
+    """Extract entity keys from chunk metadata and save per-document (async).
+
+    Deletes old chunk keys for this document, then inserts new ones.
+    """
+    from app.ingestion.product_keys_extractor import aggregate_chunk_entities
     from sqlalchemy import text
+
+    await session.execute(
+        text("DELETE FROM product_search_keys WHERE document_id = :did AND source = 'chunk'"),
+        {"did": document_id},
+    )
+
+    keys = aggregate_chunk_entities(chunk_meta_dicts)
     count = 0
     for key in keys:
         key = key.strip()
@@ -62,35 +84,69 @@ async def _save_product_keys_async(session, product_id: int, keys: list[str], so
             continue
         await session.execute(
             text("""
-                INSERT INTO product_search_keys (product_id, key, source)
-                VALUES (:pid, :key, :src)
-                ON CONFLICT (product_id, key) DO NOTHING
+                INSERT INTO product_search_keys (product_id, document_id, key, source)
+                VALUES (:pid, :did, :key, 'chunk')
+                ON CONFLICT (product_id, document_id, key) DO NOTHING
             """),
-            {"pid": product_id, "key": key, "src": source},
+            {"pid": product_id, "did": document_id, "key": key},
         )
         count += 1
     await session.flush()
     return count
 
 
-def _cleanup_product_keys_sync(session, product_id: int, source: str) -> None:
-    """Delete product search keys with given source (sync)."""
+def _save_llm_keys_sync(session, product_id: int, keys: list[str]) -> int:
+    """Save LLM-generated keys for a product (document_id=NULL, sync).
+
+    Uses DELETE+INSERT pattern to avoid NULL-aware ON CONFLICT issues.
+    """
     from sqlalchemy import text
     session.execute(
-        text("DELETE FROM product_search_keys WHERE product_id = :pid AND source = :src"),
-        {"pid": product_id, "src": source},
+        text("DELETE FROM product_search_keys WHERE product_id = :pid AND source = 'llm' AND document_id IS NULL"),
+        {"pid": product_id},
     )
+    count = 0
+    for key in keys:
+        key = key.strip()
+        if not key:
+            continue
+        session.execute(
+            text("""
+                INSERT INTO product_search_keys (product_id, document_id, key, source)
+                VALUES (:pid, NULL, :key, 'llm')
+            """),
+            {"pid": product_id, "key": key},
+        )
+        count += 1
     session.flush()
+    return count
 
 
-async def _cleanup_product_keys_async(session, product_id: int, source: str) -> None:
-    """Delete product search keys with given source (async)."""
+async def _save_llm_keys_async(session, product_id: int, keys: list[str]) -> int:
+    """Save LLM-generated keys for a product (document_id=NULL, async).
+
+    Uses DELETE+INSERT pattern to avoid NULL-aware ON CONFLICT issues.
+    """
     from sqlalchemy import text
     await session.execute(
-        text("DELETE FROM product_search_keys WHERE product_id = :pid AND source = :src"),
-        {"pid": product_id, "src": source},
+        text("DELETE FROM product_search_keys WHERE product_id = :pid AND source = 'llm' AND document_id IS NULL"),
+        {"pid": product_id},
     )
+    count = 0
+    for key in keys:
+        key = key.strip()
+        if not key:
+            continue
+        await session.execute(
+            text("""
+                INSERT INTO product_search_keys (product_id, document_id, key, source)
+                VALUES (:pid, NULL, :key, 'llm')
+            """),
+            {"pid": product_id, "key": key},
+        )
+        count += 1
     await session.flush()
+    return count
 
 
 def _has_llm_keys_sync(session, product_id: int) -> bool:
@@ -458,28 +514,6 @@ async def ingest_file(
         embeddings, embedding_api_tokens = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
-        from app.ingestion.product_keys_extractor import (
-            aggregate_chunk_entities,
-            generate_product_keys_async,
-        )
-        await _cleanup_product_keys_async(session, product.id, source="chunk")
-        entity_keys = aggregate_chunk_entities(chunk_meta_dicts)
-        if entity_keys:
-            await _save_product_keys_async(session, product.id, entity_keys, source="chunk")
-
-        if _settings.product_keys_extraction_enabled and not await _has_llm_keys_async(session, product.id):
-            keys_result = await generate_product_keys_async(
-                name=product.name,
-                manufacturer=product.manufacturer,
-                model=product.model,
-                category=product.category,
-            )
-            if keys_result.keys:
-                await _save_product_keys_async(session, product.id, keys_result.keys, source="llm")
-            doc.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
-            doc.product_keys_completion_tokens = keys_result.usage.completion_tokens
-            doc.product_keys_ms = keys_result.usage.extract_ms
-
         t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
             meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
@@ -510,6 +544,28 @@ async def ingest_file(
 
         await session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+        from app.ingestion.product_keys_extractor import generate_product_keys_async
+        chunk_key_count = await _save_doc_chunk_keys_async(
+            session, product.id, doc.id, chunk_meta_dicts,
+        )
+        logger.info("Document chunk keys saved", extra={
+            "product_id": product.id, "document_id": doc.id,
+            "key_count": chunk_key_count,
+        })
+
+        if _settings.product_keys_extraction_enabled and not await _has_llm_keys_async(session, product.id):
+            keys_result = await generate_product_keys_async(
+                name=product.name,
+                manufacturer=product.manufacturer,
+                model=product.model,
+                category=product.category,
+            )
+            if keys_result.keys:
+                await _save_llm_keys_async(session, product.id, keys_result.keys)
+            doc.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
+            doc.product_keys_completion_tokens = keys_result.usage.completion_tokens
+            doc.product_keys_ms = keys_result.usage.extract_ms
 
         duration = time.perf_counter() - t0
         doc.ingest_duration_ms = round(duration * 1000, 1)
@@ -694,28 +750,6 @@ async def ingest_url(
         embeddings, embedding_api_tokens = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
-        from app.ingestion.product_keys_extractor import (
-            aggregate_chunk_entities as _agg_url,
-            generate_product_keys_async as _gen_url,
-        )
-        await _cleanup_product_keys_async(session, product.id, source="chunk")
-        entity_keys = _agg_url(chunk_meta_dicts)
-        if entity_keys:
-            await _save_product_keys_async(session, product.id, entity_keys, source="chunk")
-
-        if _settings.product_keys_extraction_enabled and not await _has_llm_keys_async(session, product.id):
-            keys_result = await _gen_url(
-                name=product.name,
-                manufacturer=product.manufacturer,
-                model=product.model,
-                category=product.category,
-            )
-            if keys_result.keys:
-                await _save_product_keys_async(session, product.id, keys_result.keys, source="llm")
-            doc.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
-            doc.product_keys_completion_tokens = keys_result.usage.completion_tokens
-            doc.product_keys_ms = keys_result.usage.extract_ms
-
         t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
             meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
@@ -746,6 +780,28 @@ async def ingest_url(
 
         await session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+        from app.ingestion.product_keys_extractor import generate_product_keys_async as _gen_url
+        chunk_key_count = await _save_doc_chunk_keys_async(
+            session, product.id, doc.id, chunk_meta_dicts,
+        )
+        logger.info("Document chunk keys saved", extra={
+            "product_id": product.id, "document_id": doc.id,
+            "key_count": chunk_key_count,
+        })
+
+        if _settings.product_keys_extraction_enabled and not await _has_llm_keys_async(session, product.id):
+            keys_result = await _gen_url(
+                name=product.name,
+                manufacturer=product.manufacturer,
+                model=product.model,
+                category=product.category,
+            )
+            if keys_result.keys:
+                await _save_llm_keys_async(session, product.id, keys_result.keys)
+            doc.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
+            doc.product_keys_completion_tokens = keys_result.usage.completion_tokens
+            doc.product_keys_ms = keys_result.usage.extract_ms
 
         duration = time.perf_counter() - t0
         doc.ingest_duration_ms = round(duration * 1000, 1)
@@ -1028,14 +1084,15 @@ def ingest_from_bytes(
         _check_cancelled(session, document)
         _update_progress(session, document, 90, "product_keys")
 
-        from app.ingestion.product_keys_extractor import (
-            aggregate_chunk_entities,
-            generate_product_keys_sync,
+        from app.ingestion.product_keys_extractor import generate_product_keys_sync
+
+        chunk_key_count = _save_doc_chunk_keys_sync(
+            session, document.product_id, document.id, chunk_meta_dicts,
         )
-        _cleanup_product_keys_sync(session, document.product_id, source="chunk")
-        entity_keys = aggregate_chunk_entities(chunk_meta_dicts)
-        if entity_keys:
-            _save_product_keys_sync(session, document.product_id, entity_keys, source="chunk")
+        logger.info("Document chunk keys saved", extra={
+            "product_id": document.product_id, "document_id": document.id,
+            "key_count": chunk_key_count,
+        })
 
         if _settings.product_keys_extraction_enabled and not _has_llm_keys_sync(session, document.product_id):
             product_obj = session.get(Product, document.product_id)
@@ -1047,7 +1104,7 @@ def ingest_from_bytes(
                     category=product_obj.category,
                 )
                 if keys_result.keys:
-                    _save_product_keys_sync(session, document.product_id, keys_result.keys, source="llm")
+                    _save_llm_keys_sync(session, document.product_id, keys_result.keys)
                 document.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
                 document.product_keys_completion_tokens = keys_result.usage.completion_tokens
                 document.product_keys_ms = keys_result.usage.extract_ms

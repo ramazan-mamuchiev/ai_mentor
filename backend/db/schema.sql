@@ -638,12 +638,16 @@ ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_ms FLOAT NOT NULL D
 CREATE TABLE IF NOT EXISTS product_search_keys (
     id SERIAL PRIMARY KEY,
     product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    document_id INT REFERENCES documents(id) ON DELETE CASCADE,
     key TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'llm',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(product_id, key)
+    UNIQUE(product_id, document_id, key)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_psk_product_null_doc_key
+    ON product_search_keys(product_id, key) WHERE document_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_psk_product ON product_search_keys(product_id);
+CREATE INDEX IF NOT EXISTS idx_psk_document ON product_search_keys(document_id) WHERE document_id IS NOT NULL;
 
 -- Migration: drop legacy product_aliases if it exists
 DROP TABLE IF EXISTS product_aliases;

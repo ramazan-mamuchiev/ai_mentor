@@ -8,12 +8,14 @@ DROP TABLE IF EXISTS product_aliases;
 CREATE TABLE IF NOT EXISTS product_search_keys (
     id SERIAL PRIMARY KEY,
     product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    document_id INT REFERENCES documents(id) ON DELETE CASCADE,
     key TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'llm',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(product_id, key)
+    UNIQUE(product_id, document_id, key)
 );
 CREATE INDEX IF NOT EXISTS idx_psk_product ON product_search_keys(product_id);
+CREATE INDEX IF NOT EXISTS idx_psk_document ON product_search_keys(document_id) WHERE document_id IS NOT NULL;
 
 -- Product resolve metrics on mcp_request_log
 ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_prompt_tokens INT NOT NULL DEFAULT 0;
