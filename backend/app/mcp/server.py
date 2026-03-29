@@ -571,3 +571,387 @@ async def tool_list_products(
     )
 
     return response_text
+
+
+async def tool_get_document_outline(
+    product: str,
+    document_title: str | None = None,
+) -> str:
+    """Get the table of contents (heading structure) of a product's documentation.
+
+    Use this tool to understand the structure of available documentation before diving
+    into specific sections. This helps you navigate large API references and find
+    the right section to read.
+
+    Args:
+        product: Product name (use list_products to discover available products).
+            Examples: "HikCentral", "Axxon One", "DS-2CD2347G2-LU"
+        document_title: Optional document title to narrow down to a specific document.
+            If omitted, returns outlines for all documents of the product.
+    """
+    request_id = str(uuid4())
+    logger.debug(
+        "MCP get_document_outline called",
+        extra={"product": product, "document_title": document_title, "request_id": request_id},
+    )
+
+    t0 = time.perf_counter()
+    async with async_session() as session:
+        where_clauses = [
+            "d.status = 'ready'",
+            "p.name ILIKE '%' || :product || '%'",
+        ]
+        params: dict = {"product": product}
+
+        if document_title:
+            where_clauses.append("d.title ILIKE '%' || :doc_title || '%'")
+            params["doc_title"] = document_title
+
+        where_sql = " AND ".join(where_clauses)
+
+        sql = text(f"""
+            SELECT DISTINCT
+                d.id AS document_id,
+                d.title AS doc_title,
+                c.heading_path,
+                c.heading_level,
+                c.doc_type,
+                c.chunk_index
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.id
+            JOIN products p ON d.product_id = p.id
+            WHERE {where_sql}
+            ORDER BY d.id, c.chunk_index
+        """)
+
+        result = await session.execute(sql, params)
+        rows = result.mappings().all()
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    logger.info(
+        "MCP get_document_outline completed",
+        extra={"tool": "get_document_outline", "result_count": len(rows), "duration_ms": duration_ms, "request_id": request_id},
+    )
+
+    if not rows:
+        response_text = f"No documentation found for product '{product}'. Use list_products to see available products."
+    else:
+        docs: dict[int, dict] = {}
+        for row in rows:
+            doc_id = row["document_id"]
+            if doc_id not in docs:
+                docs[doc_id] = {"title": row["doc_title"], "headings": []}
+            indent = "  " * max(0, row["heading_level"] - 1)
+            type_tag = f" [{row['doc_type']}]" if row["doc_type"] and row["doc_type"] != "other" else ""
+            docs[doc_id]["headings"].append(f"{indent}- {row['heading_path']}{type_tag}")
+
+        parts: list[str] = []
+        for doc_id, doc in docs.items():
+            seen: set[str] = set()
+            unique_headings: list[str] = []
+            for h in doc["headings"]:
+                if h not in seen:
+                    seen.add(h)
+                    unique_headings.append(h)
+            parts.append(f"## {doc['title']} (doc_id: {doc_id})\n" + "\n".join(unique_headings))
+        response_text = "\n\n".join(parts)
+
+    await _save_search_analytics(
+        source="mcp",
+        tool_name="get_document_outline",
+        query=product,
+        duration_ms=duration_ms,
+        result_count=len(rows),
+        product_filter=product,
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
+    )
+
+    await write_usage_log(
+        channel="mcp",
+        action="get_document_outline",
+        request_id=request_id,
+        query_text=product,
+        query_tokens=0,
+        result_count=len(rows),
+        response_length=len(response_text),
+        duration_ms=duration_ms,
+        cogs_usd=Decimal("0"),
+        charge_usd=Decimal("0"),
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
+    )
+
+    await _save_mcp_request_log(
+        request_id=request_id,
+        tool_name="get_document_outline",
+        query_text=product,
+        product_filter=product,
+        result_count=len(rows),
+        response_length=len(response_text),
+        duration_ms=duration_ms,
+        cogs_usd=Decimal("0"),
+        charge_usd=Decimal("0"),
+    )
+
+    return response_text
+
+
+async def tool_get_section(
+    document_id: int,
+    heading: str,
+) -> str:
+    """Get the full text of a specific section from a document.
+
+    Use this after search_documentation or get_document_outline when you need the
+    complete, untruncated content of a section. This is especially useful when a search
+    result was truncated or you need surrounding context (sibling/child sections).
+
+    Args:
+        document_id: The document ID (returned by search_documentation and get_document_outline).
+        heading: The heading path to retrieve. Partial match supported.
+            Examples: "Authentication", "POST /api/v1/doors", "Error Codes"
+    """
+    request_id = str(uuid4())
+    logger.debug(
+        "MCP get_section called",
+        extra={"document_id": document_id, "heading": heading, "request_id": request_id},
+    )
+
+    t0 = time.perf_counter()
+    async with async_session() as session:
+        sql = text("""
+            SELECT
+                c.content,
+                c.parent_content,
+                c.heading_path,
+                c.heading_level,
+                c.doc_type,
+                c.entities,
+                c.chunk_index,
+                d.title AS doc_title,
+                p.name AS product_name,
+                fw.version AS firmware_version
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.id
+            JOIN products p ON d.product_id = p.id
+            JOIN firmware_versions fw ON d.firmware_version_id = fw.id
+            WHERE c.document_id = :doc_id
+              AND c.heading_path ILIKE '%' || :heading || '%'
+            ORDER BY c.chunk_index
+            LIMIT 20
+        """)
+        result = await session.execute(sql, {"doc_id": document_id, "heading": heading})
+        rows = result.mappings().all()
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    logger.info(
+        "MCP get_section completed",
+        extra={"tool": "get_section", "result_count": len(rows), "duration_ms": duration_ms, "request_id": request_id},
+    )
+
+    if not rows:
+        response_text = (
+            f"No section matching '{heading}' found in document {document_id}. "
+            "Use get_document_outline to see available sections."
+        )
+    else:
+        first = rows[0]
+        header = (
+            f"{first['product_name']} | {first['firmware_version']} | "
+            f"{first['doc_title']}"
+        )
+        seen_parents: set[str] = set()
+        parts: list[str] = []
+        for row in rows:
+            type_tag = f" [{row['doc_type']}]" if row["doc_type"] and row["doc_type"] != "other" else ""
+            meta = f"### {row['heading_path']}{type_tag}"
+            body = _format_mcp_body(dict(row), seen_parents)
+            parts.append(f"{meta}\n\n{body}")
+        response_text = f"# {header}\n\n" + "\n\n---\n\n".join(parts)
+
+    response_tokens = max(1, len(response_text) // 4)
+    await _save_search_analytics(
+        source="mcp",
+        tool_name="get_section",
+        query=heading,
+        duration_ms=duration_ms,
+        result_count=len(rows),
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
+    )
+
+    await write_usage_log(
+        channel="mcp",
+        action="get_section",
+        request_id=request_id,
+        query_text=heading,
+        query_tokens=max(1, len(heading) // 4),
+        result_count=len(rows),
+        response_tokens=response_tokens,
+        response_length=len(response_text),
+        duration_ms=duration_ms,
+        cogs_usd=Decimal("0"),
+        charge_usd=Decimal("0"),
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
+    )
+
+    await _save_mcp_request_log(
+        request_id=request_id,
+        tool_name="get_section",
+        query_text=heading,
+        result_count=len(rows),
+        response_length=len(response_text),
+        query_tokens=max(1, len(heading) // 4),
+        response_tokens=response_tokens,
+        duration_ms=duration_ms,
+        cogs_usd=Decimal("0"),
+        charge_usd=Decimal("0"),
+    )
+
+    return response_text
+
+
+async def tool_get_code_examples(
+    product: str,
+    topic: str | None = None,
+    language: str | None = None,
+) -> str:
+    """Find code examples and integration patterns from product documentation.
+
+    Use this when you need working code snippets, SDK usage patterns, or integration
+    examples for a specific product. Results include code blocks extracted from
+    documentation with surrounding context.
+
+    Args:
+        product: Product name. Examples: "HikCentral", "Axxon One"
+        topic: What the code example should demonstrate.
+            Examples: "authentication", "door control", "camera registration",
+            "event subscription", "PTZ control"
+        language: Programming language filter.
+            Examples: "python", "csharp", "javascript", "curl", "xml", "json"
+    """
+    request_id = str(uuid4())
+    logger.debug(
+        "MCP get_code_examples called",
+        extra={"product": product, "topic": topic, "language": language, "request_id": request_id},
+    )
+
+    t0 = time.perf_counter()
+    async with async_session() as session:
+        where_clauses = [
+            "d.status = 'ready'",
+            "p.name ILIKE '%' || :product || '%'",
+            "(c.doc_type IN ('example', 'api_reference') OR c.content LIKE '%```%' OR c.content LIKE '%<code%' OR c.content LIKE '%curl %')",
+        ]
+        params: dict = {"product": product}
+
+        if topic:
+            where_clauses.append(
+                "(c.heading_path ILIKE '%' || :topic || '%' OR c.content ILIKE '%' || :topic || '%')"
+            )
+            params["topic"] = topic
+
+        if language:
+            where_clauses.append(
+                "(c.content ILIKE '%```' || :lang || '%' OR c.content ILIKE '%' || :lang || '%')"
+            )
+            params["lang"] = language
+
+        where_sql = " AND ".join(where_clauses)
+
+        sql = text(f"""
+            SELECT
+                c.document_id,
+                c.content,
+                c.parent_content,
+                c.heading_path,
+                c.heading_level,
+                c.doc_type,
+                c.entities,
+                d.title AS doc_title,
+                p.name AS product_name,
+                fw.version AS firmware_version
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.id
+            JOIN products p ON d.product_id = p.id
+            JOIN firmware_versions fw ON d.firmware_version_id = fw.id
+            WHERE {where_sql}
+            ORDER BY
+                CASE WHEN c.doc_type = 'example' THEN 0 ELSE 1 END,
+                c.chunk_index
+            LIMIT 15
+        """)
+
+        result = await session.execute(sql, params)
+        rows = result.mappings().all()
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    result_count = len(rows)
+    logger.info(
+        "MCP get_code_examples completed",
+        extra={"tool": "get_code_examples", "result_count": result_count, "duration_ms": duration_ms, "request_id": request_id},
+    )
+
+    if not rows:
+        fallback_hint = ""
+        if topic:
+            fallback_hint = f" Try search_documentation with query '{topic} example code'."
+        response_text = f"No code examples found for '{product}'.{fallback_hint}"
+    else:
+        seen_parents: set[str] = set()
+        parts: list[str] = []
+        for i, row in enumerate(rows, 1):
+            meta = _format_mcp_meta(i, dict(row))
+            body = _format_mcp_body(dict(row), seen_parents)
+            parts.append(f"{meta}\n\n{body}")
+        response_text = "\n\n---\n\n".join(parts)
+
+    response_tokens = max(1, len(response_text) // 4)
+    query_text = f"{product} {topic or ''} {language or ''}".strip()
+    query_tokens = max(1, len(query_text) // 4)
+
+    await _save_search_analytics(
+        source="mcp",
+        tool_name="get_code_examples",
+        query=query_text,
+        duration_ms=duration_ms,
+        result_count=result_count,
+        product_filter=product,
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
+    )
+
+    await write_usage_log(
+        channel="mcp",
+        action="get_code_examples",
+        request_id=request_id,
+        query_text=query_text,
+        query_tokens=query_tokens,
+        result_count=result_count,
+        response_tokens=response_tokens,
+        response_length=len(response_text),
+        duration_ms=duration_ms,
+        product_filter=product,
+        cogs_usd=Decimal("0"),
+        charge_usd=Decimal("0"),
+        tenant_id=current_tenant_id.get(),
+        api_key_id=current_api_key_id.get(),
+    )
+
+    await _save_mcp_request_log(
+        request_id=request_id,
+        tool_name="get_code_examples",
+        query_text=query_text,
+        product_filter=product,
+        result_count=result_count,
+        response_length=len(response_text),
+        query_tokens=query_tokens,
+        response_tokens=response_tokens,
+        duration_ms=duration_ms,
+        cogs_usd=Decimal("0"),
+        charge_usd=Decimal("0"),
+    )
+
+    return response_text

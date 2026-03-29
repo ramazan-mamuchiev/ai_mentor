@@ -25,6 +25,9 @@ from app.logging_config import setup_logging, active_requests_count
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.mcp.server import (
     tool_get_api_endpoint,
+    tool_get_code_examples,
+    tool_get_document_outline,
+    tool_get_section,
     tool_list_products,
     tool_search_documentation,
 )
@@ -45,6 +48,9 @@ mcp = FastMCP(
 mcp.tool(name="search_documentation")(tool_search_documentation)
 mcp.tool(name="get_api_endpoint")(tool_get_api_endpoint)
 mcp.tool(name="list_products")(tool_list_products)
+mcp.tool(name="get_document_outline")(tool_get_document_outline)
+mcp.tool(name="get_section")(tool_get_section)
+mcp.tool(name="get_code_examples")(tool_get_code_examples)
 
 _start_time: float = 0.0
 
