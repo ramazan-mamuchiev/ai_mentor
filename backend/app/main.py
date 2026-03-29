@@ -10,6 +10,7 @@ from sqlalchemy import text
 from starlette.routing import Mount
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from app.config import settings
 from app.auth.router import router as auth_router
@@ -36,6 +37,9 @@ mcp = FastMCP(
     stateless_http=True,
     json_response=True,
     streamable_http_path="/",
+    transport_security=TransportSecuritySettings(
+        allowed_hosts=["lexiro.io", "localhost", "127.0.0.1"],
+    ),
 )
 
 mcp.tool(name="search_documentation")(tool_search_documentation)
