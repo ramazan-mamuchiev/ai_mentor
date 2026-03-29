@@ -2,66 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Plug, X, AlertTriangle, Clock, User, Bug, FileSearch, Search,
+  Plug, AlertTriangle, Clock, Bug, FileSearch, Search, X,
   ChevronDown, ChevronRight, Copy, Check,
 } from 'lucide-react'
 import {
-  listMcpRequests, getMcpRequestDetail, searchTenants,
+  listMcpRequests, getMcpRequestDetail,
   type McpRequestItem, type McpRequestDetail, type TenantSearchResult,
 } from '../../api/admin'
 import { RightPanel } from '../../components/RightPanel'
+import { TenantFilterCombo } from '../../components/TenantFilterCombo'
+import { TIME_RANGES, timeRangeToISO, fmtTs, fmtMs, fmtUsd, highlightSearch } from '../../utils/auditUtils'
 import type { McpSourceInfo } from '../../types'
 
-const TIME_RANGES = [
-  { value: '', label: 'All' },
-  { value: '24h', label: '24h' },
-  { value: '7d', label: '7d' },
-  { value: '30d', label: '30d' },
-  { value: '90d', label: '90d' },
-] as const
-
 const TOOLS = ['', 'search_documentation', 'get_api_endpoint', 'list_products'] as const
-
-function timeRangeToISO(range: string): { start?: string; end?: string } {
-  if (!range) return {}
-  const now = Date.now()
-  const units: Record<string, number> = { h: 3_600_000, d: 86_400_000 }
-  const match = range.match(/^(\d+)([hd])$/)
-  if (!match) return {}
-  const ms = parseInt(match[1]) * units[match[2]]
-  return { start: new Date(now - ms).toISOString(), end: new Date(now).toISOString() }
-}
-
-function fmtTs(iso: string) {
-  const d = new Date(iso)
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mi = String(d.getMinutes()).padStart(2, '0')
-  const ss = String(d.getSeconds()).padStart(2, '0')
-  return `${dd}.${mm} ${hh}:${mi}:${ss}`
-}
-
-function fmtMs(v: number | null | undefined) { return v != null ? `${Math.round(v)}ms` : '—' }
-function fmtUsd(v: string) { return `$${parseFloat(v).toFixed(6)}` }
 
 function totalTokens(r: McpRequestItem): number {
   return r.query_tokens + r.response_tokens + r.embedding_tokens
     + (r.rerank_total_tokens || 0)
     + (r.resolve_prompt_tokens || 0) + (r.resolve_completion_tokens || 0)
-}
-
-function highlightSearch(text: string, query: string): React.ReactNode {
-  if (!query || query.length < 2) return text
-  const idx = text.toLowerCase().indexOf(query.toLowerCase())
-  if (idx === -1) return text
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark className="log-highlight">{text.slice(idx, idx + query.length)}</mark>
-      {text.slice(idx + query.length)}
-    </>
-  )
 }
 
 function McpRow({ item, search, isSelected, onDebug, onSources }: {
@@ -169,11 +127,6 @@ export function McpAuditPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [tenantFilter, setTenantFilter] = useState<TenantSearchResult | null>(null)
-  const [tenantQuery, setTenantQuery] = useState('')
-  const [tenantOptions, setTenantOptions] = useState<TenantSearchResult[]>([])
-  const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false)
-  const tenantDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const tenantWrapRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [panel, setPanel] = useState<PanelState>(null)
@@ -188,30 +141,6 @@ export function McpAuditPage() {
     }, 300)
     return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current) }
   }, [search])
-
-  useEffect(() => {
-    if (tenantDebounceRef.current) clearTimeout(tenantDebounceRef.current)
-    if (!tenantQuery || tenantQuery.length < 1) { setTenantOptions([]); return }
-    tenantDebounceRef.current = setTimeout(async () => {
-      try {
-        const results = await searchTenants(tenantQuery)
-        setTenantOptions(results)
-        setTenantDropdownOpen(true)
-      } catch { setTenantOptions([]) }
-    }, 300)
-    return () => { if (tenantDebounceRef.current) clearTimeout(tenantDebounceRef.current) }
-  }, [tenantQuery])
-
-  useEffect(() => {
-    if (!tenantDropdownOpen) return
-    const handler = (e: MouseEvent) => {
-      if (tenantWrapRef.current && !tenantWrapRef.current.contains(e.target as Node)) {
-        setTenantDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [tenantDropdownOpen])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -324,39 +253,10 @@ export function McpAuditPage() {
               ))}
             </div>
 
-            <div className="logs-tenant-combo" ref={tenantWrapRef}>
-              {tenantFilter ? (
-                <div className="logs-tenant-chip">
-                  <User size={12} />
-                  <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
-                  <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
-                </div>
-              ) : (
-                <>
-                  <User size={13} className="logs-tenant-combo__icon" />
-                  <input
-                    className="logs-tenant-input"
-                    placeholder="User..."
-                    value={tenantQuery}
-                    onChange={e => setTenantQuery(e.target.value)}
-                    onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
-                  />
-                  {tenantQuery && (
-                    <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
-                  )}
-                </>
-              )}
-              {tenantDropdownOpen && tenantOptions.length > 0 && (
-                <div className="logs-tenant-dropdown">
-                  {tenantOptions.map(opt => (
-                    <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
-                      <span className="logs-tenant-dropdown__name">{opt.name}</span>
-                      <span className="logs-tenant-dropdown__email">{opt.email}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <TenantFilterCombo
+              value={tenantFilter}
+              onChange={v => { setTenantFilter(v); setPage(1) }}
+            />
 
             <div className="logs-search-wrap">
               <Search size={14} className="logs-search-wrap__icon" />

@@ -1725,7 +1725,7 @@
   color: var(--accent);
 }
 
-/* ── Chat Audit — mobile ── */
+/* ── Responsive: toolbar & log-row on mobile ── */
 @media (max-width: 767px) {
   .admin-main {
     padding: 16px 12px;
@@ -1737,6 +1737,76 @@
 
   .admin-page-header p {
     font-size: 12px;
+  }
+
+  .logs-toolbar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .logs-toolbar__row {
+    gap: 6px;
+  }
+
+  .logs-select {
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+
+  .logs-chips {
+    order: 10;
+    flex-basis: 100%;
+  }
+
+  .logs-tenant-combo {
+    min-width: 0;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .logs-search-wrap {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .logs-level-chips {
+    flex-wrap: wrap;
+  }
+
+  .log-row__header {
+    padding: 4px 8px;
+    gap: 4px;
+  }
+
+  .log-row__ts {
+    min-width: 70px;
+    font-size: 10px;
+  }
+
+  .log-row__level {
+    font-size: 9px;
+    min-width: 36px;
+  }
+
+  .log-row__meta-pill {
+    display: none;
+  }
+
+  .log-row--expanded .log-row__meta-pill {
+    display: inline-flex;
+  }
+
+  .log-row__details {
+    padding: 4px 8px 8px 24px;
+  }
+
+  .log-row__key {
+    min-width: 80px;
+    font-size: 10px;
+  }
+
+  .log-row__value {
+    font-size: 10px;
   }
 }
 

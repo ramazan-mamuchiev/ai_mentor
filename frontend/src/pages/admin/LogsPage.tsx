@@ -17,6 +17,8 @@ const LEVELS = [
   { value: 'debug', label: 'DEBUG', color: 'var(--log-debug)' },
 ] as const
 
+import { timeRangeToISO, highlightSearch } from '../../utils/auditUtils'
+
 const TIME_RANGES = [
   { value: '15m', label: '15m' },
   { value: '1h', label: '1h' },
@@ -25,18 +27,6 @@ const TIME_RANGES = [
   { value: '24h', label: '24h' },
   { value: '7d', label: '7d' },
 ] as const
-
-function timeRangeToISO(range: string): { start: string; end: string } {
-  const now = Date.now()
-  const units: Record<string, number> = { m: 60_000, h: 3_600_000, d: 86_400_000 }
-  const match = range.match(/^(\d+)([mhd])$/)
-  if (!match) return { start: '', end: '' }
-  const ms = parseInt(match[1]) * units[match[2]]
-  return {
-    start: new Date(now - ms).toISOString(),
-    end: new Date(now).toISOString(),
-  }
-}
 
 function formatTimestamp(ts: string): string {
   try {
@@ -59,18 +49,6 @@ function tryParseJSON(msg: string): Record<string, unknown> | null {
   try { return JSON.parse(msg) } catch { return null }
 }
 
-function highlightSearch(text: string, query: string): React.ReactNode {
-  if (!query || query.length < 2) return text
-  const idx = text.toLowerCase().indexOf(query.toLowerCase())
-  if (idx === -1) return text
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark className="log-highlight">{text.slice(idx, idx + query.length)}</mark>
-      {text.slice(idx + query.length)}
-    </>
-  )
-}
 
 function LogRow({ entry, search, defaultExpanded, showService }: {
   entry: LogEntry; search: string; defaultExpanded: boolean; showService?: boolean
