@@ -19,7 +19,7 @@ from app.mcp.auth_middleware import (
     current_user_agent,
 )
 from app.models import McpRequestLog, SearchAnalytics
-from app.search.service import search_documents, search_endpoint
+from app.search.service import resolve_product, search_documents, search_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -478,10 +478,15 @@ async def tool_list_products(
             where_clauses.append("p.category ILIKE '%' || :category || '%'")
             params["category"] = category
         if query:
+            normalized = query.replace(" ", "").replace("-", "").replace("_", "")
             where_clauses.append(
-                "(p.name ILIKE :query OR p.manufacturer ILIKE :query)"
+                "(p.name ILIKE :query OR p.manufacturer ILIKE :query"
+                " OR REPLACE(REPLACE(REPLACE(p.name, ' ', ''), '-', ''), '_', '') ILIKE :query_norm"
+                " OR similarity(p.name, :query_raw) > 0.25)"
             )
             params["query"] = f"%{query}%"
+            params["query_norm"] = f"%{normalized}%"
+            params["query_raw"] = query
 
         where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
         joins_sql = "\n".join(extra_joins)
@@ -597,11 +602,14 @@ async def tool_get_document_outline(
 
     t0 = time.perf_counter()
     async with async_session() as session:
-        where_clauses = [
-            "d.status = 'ready'",
-            "p.name ILIKE '%' || :product || '%'",
-        ]
-        params: dict = {"product": product}
+        product_id, resolved_name = await resolve_product(session, product)
+
+        if product_id is None:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            return f"No product matching '{product}' found. Use list_products to see available products."
+
+        where_clauses = ["d.status = 'ready'", "d.product_id = :product_id"]
+        params: dict = {"product_id": product_id}
 
         if document_title:
             where_clauses.append("d.title ILIKE '%' || :doc_title || '%'")
@@ -840,12 +848,17 @@ async def tool_get_code_examples(
 
     t0 = time.perf_counter()
     async with async_session() as session:
+        product_id, resolved_name = await resolve_product(session, product)
+
+        if product_id is None:
+            return f"No product matching '{product}' found. Use list_products to see available products."
+
         where_clauses = [
             "d.status = 'ready'",
-            "p.name ILIKE '%' || :product || '%'",
+            "d.product_id = :product_id",
             "(c.doc_type IN ('example', 'api_reference') OR c.content LIKE '%```%' OR c.content LIKE '%<code%' OR c.content LIKE '%curl %')",
         ]
-        params: dict = {"product": product}
+        params: dict = {"product_id": product_id}
 
         if topic:
             where_clauses.append(

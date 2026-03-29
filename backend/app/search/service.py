@@ -13,6 +13,62 @@ from app.ingestion.embedder import embed_query
 logger = logging.getLogger(__name__)
 
 
+async def resolve_product(
+    session: AsyncSession,
+    name: str,
+) -> tuple[int | None, str | None]:
+    """Fuzzy-resolve a product name to (product_id, canonical_name).
+
+    Cascade: exact match → ILIKE substring → normalized (no spaces/hyphens) → trigram.
+    Returns (None, None) if no match found.
+    """
+    if not name or not name.strip():
+        return None, None
+
+    name = name.strip()
+
+    row = (await session.execute(
+        text("SELECT id, name FROM products WHERE name = :n LIMIT 1"),
+        {"n": name},
+    )).mappings().first()
+    if row:
+        return row["id"], row["name"]
+
+    row = (await session.execute(
+        text("SELECT id, name FROM products WHERE name ILIKE '%' || :n || '%' ORDER BY LENGTH(name) LIMIT 1"),
+        {"n": name},
+    )).mappings().first()
+    if row:
+        return row["id"], row["name"]
+
+    normalized = name.replace(" ", "").replace("-", "").replace("_", "")
+    row = (await session.execute(
+        text("""
+            SELECT id, name FROM products
+            WHERE REPLACE(REPLACE(REPLACE(name, ' ', ''), '-', ''), '_', '') ILIKE '%' || :n || '%'
+            ORDER BY LENGTH(name) LIMIT 1
+        """),
+        {"n": normalized},
+    )).mappings().first()
+    if row:
+        return row["id"], row["name"]
+
+    row = (await session.execute(
+        text("""
+            SELECT id, name, similarity(name, :n) AS sim
+            FROM products
+            WHERE similarity(name, :n) > 0.25
+            ORDER BY sim DESC LIMIT 1
+        """),
+        {"n": name},
+    )).mappings().first()
+    if row:
+        logger.info("Fuzzy product match: %r → %r (sim=%.2f)", name, row["name"], row["sim"])
+        return row["id"], row["name"]
+
+    return None, None
+
+
 def _content_hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
@@ -170,15 +226,17 @@ async def search_documents(
     else:
         fetch_limit = limit * 3
 
+    if product_id is None and product:
+        product_id, resolved_name = await resolve_product(session, product)
+        if resolved_name:
+            logger.debug("Product resolved: %r → %r (id=%s)", product, resolved_name, product_id)
+
     where_clauses = ["d.status = 'ready'"]
     params: dict = {"embedding": embedding_str, "limit": fetch_limit}
 
     if product_id is not None:
         where_clauses.append("d.product_id = :product_id")
         params["product_id"] = product_id
-    elif product:
-        where_clauses.append("p.name ILIKE '%' || :product || '%'")
-        params["product"] = product
     if version:
         where_clauses.append("fw.version = :version")
         params["version"] = version
@@ -372,6 +430,9 @@ async def search_endpoint(
     """
     t0 = time.perf_counter()
 
+    if product_id is None and product:
+        product_id, _ = await resolve_product(session, product)
+
     where_clauses = [
         "d.status = 'ready'",
         "c.heading_path ILIKE '%' || :endpoint || '%'",
@@ -381,9 +442,6 @@ async def search_endpoint(
     if product_id is not None:
         where_clauses.append("d.product_id = :product_id")
         params["product_id"] = product_id
-    elif product:
-        where_clauses.append("p.name ILIKE '%' || :product || '%'")
-        params["product"] = product
 
     where_sql = " AND ".join(where_clauses)
 
