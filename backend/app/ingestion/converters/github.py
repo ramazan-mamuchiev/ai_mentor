@@ -290,10 +290,23 @@ async def crawl_github(
         "max_files": max_files, "extensions": sorted(allowed_ext),
     })
 
-    tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
     headers = _build_headers(token)
 
     async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT) as client:
+        if branch == "main":
+            repo_url = f"https://api.github.com/repos/{owner}/{repo}"
+            repo_resp = await client.get(repo_url, headers=headers)
+            if repo_resp.status_code == 200:
+                default_branch = repo_resp.json().get("default_branch", "main")
+                if default_branch != branch:
+                    logger.info("Using repository default branch", extra={
+                        "owner": owner, "repo": repo,
+                        "requested": branch, "default": default_branch,
+                    })
+                    branch = default_branch
+                    result.branch = branch
+
+        tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
         resp = await client.get(tree_url, headers=headers)
 
     if resp.status_code == 404:
