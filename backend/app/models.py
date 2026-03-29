@@ -815,6 +815,58 @@ class UsageLog(Base):
     )
 
 
+class McpRequestLog(Base):
+    """Per-tool-call audit log for MCP requests. One row per MCP tool invocation."""
+    __tablename__ = "mcp_request_log"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant_id = mapped_column(UUID(as_uuid=True), nullable=False)
+    api_key_id = mapped_column(UUID(as_uuid=True), nullable=False)
+    request_id: Mapped[str] = mapped_column(Text, nullable=False)
+    tool_name: Mapped[str] = mapped_column(Text, nullable=False)
+
+    query_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    product_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    doc_type_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    result_count: Mapped[int] = mapped_column(Integer, default=0)
+    top_similarity: Mapped[float] = mapped_column(Float, default=0)
+    response_length: Mapped[int] = mapped_column(Integer, default=0)
+
+    query_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    response_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    embedding_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rerank_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rerank_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rerank_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    rerank_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    duration_ms: Mapped[float] = mapped_column(Float, default=0)
+    embed_ms: Mapped[float] = mapped_column(Float, default=0)
+    search_ms: Mapped[float] = mapped_column(Float, default=0)
+    rerank_ms: Mapped[float] = mapped_column(Float, default=0)
+
+    cogs_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
+    charge_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
+
+    client_ip: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text, default="ok")
+
+    __table_args__ = (
+        Index("idx_mcp_req_log_tenant", "tenant_id", "created_at"),
+        Index("idx_mcp_req_log_api_key", "api_key_id", "created_at"),
+        Index("idx_mcp_req_log_tool", "tool_name", "created_at"),
+        Index("idx_mcp_req_log_request", "request_id"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # RBAC models
 # ---------------------------------------------------------------------------

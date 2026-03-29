@@ -4,13 +4,14 @@ import { useSearchParams } from 'react-router-dom'
 import { BarChart3 } from 'lucide-react'
 import {
   getOverview, getUsageStats, getModelStats, getIngestionStats, getSearchStats,
-  getChatStats, getDocumentStats, getExtendedSearchStats, getCostStats,
+  getChatStats, getDocumentStats, getExtendedSearchStats, getCostStats, getMcpStats,
   type PlatformOverview, type DailyUsageStat, type ModelUsageStat, type IngestionStat,
   type ChatStats as ChatStatsT, type DocumentStats as DocStatsT,
   type ExtendedSearchStats as SearchStatsT, type CostStats as CostStatsT,
+  type McpStats as McpStatsT,
 } from '../../api/admin'
 
-const TABS = ['overview', 'chat', 'documents', 'search', 'costs'] as const
+const TABS = ['overview', 'chat', 'documents', 'search', 'mcp', 'costs'] as const
 type Tab = typeof TABS[number]
 
 function SimpleBar({ data, labelKey, valueKey, label }: {
@@ -395,6 +396,80 @@ function SearchTab({ days, t }: { days: number; t: any }) {
   )
 }
 
+/* ───── Tab: MCP ───── */
+function McpTab({ days, t }: { days: number; t: any }) {
+  const [data, setData] = useState<McpStatsT | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    getMcpStats(days).then(setData).catch(() => {}).finally(() => setLoading(false))
+  }, [days])
+
+  if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
+  if (!data) return <div className="admin-empty">{t('admin.stats.noData')}</div>
+
+  const totalTokens = data.total_query_tokens + data.total_response_tokens + data.total_embedding_tokens
+
+  return (
+    <>
+      <div className="stats-grid">
+        <StatCard label={t('admin.stats.mcp.totalRequests')} value={data.total_requests.toLocaleString()} />
+        <StatCard label={t('admin.stats.mcp.totalTokens')} value={totalTokens.toLocaleString()} />
+        <StatCard label={t('admin.stats.mcp.avgLatency')} value={fmtMs(data.avg_duration_ms)} />
+        <StatCard label={t('admin.stats.mcp.errorRate')} value={`${data.error_rate}%`} sub={`${data.error_count} errors`} variant={data.error_rate > 5 ? 'warning' : undefined} />
+        <StatCard label={t('admin.stats.mcp.totalCharge')} value={fmtUsd(data.total_charge_usd)} variant="accent" />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '16px 0' }}>
+        <div>
+          <h2 className="admin-section-title">{t('admin.stats.mcp.requestsPerDay')}</h2>
+          {data.daily.length > 0 ? (
+            <SimpleBar data={data.daily} labelKey="date" valueKey="requests" label={t('admin.stats.mcp.requestsPerDay')} />
+          ) : <div className="admin-empty">{t('admin.stats.noData')}</div>}
+        </div>
+        <div>
+          <h2 className="admin-section-title">{t('admin.stats.mcp.byTool')}</h2>
+          {data.by_tool.length > 0 ? (
+            <div className="admin-detail-card" style={{ padding: 16 }}>
+              <HorizBar items={data.by_tool.map(b => ({ label: b.tool_name, pct: b.pct, sub: String(b.count) }))} colorVar="var(--accent3)" />
+            </div>
+          ) : <div className="admin-empty">{t('admin.stats.noData')}</div>}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div>
+          <h2 className="admin-section-title">{t('admin.stats.mcp.topQueries')}</h2>
+          {data.top_queries.length > 0 ? (
+            <div className="admin-detail-card" style={{ padding: 16 }}>
+              {data.top_queries.slice(0, 10).map((q, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>{q.query}</span>
+                  <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{q.count}</span>
+                </div>
+              ))}
+            </div>
+          ) : <div className="admin-empty">{t('admin.stats.noData')}</div>}
+        </div>
+        <div>
+          <h2 className="admin-section-title">{t('admin.stats.mcp.topTenants')}</h2>
+          {data.top_tenants.length > 0 ? (
+            <div className="admin-detail-card" style={{ padding: 16 }}>
+              {data.top_tenants.map((te, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span>{te.email}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{te.count} req · {fmtUsd(te.charge_usd)}</span>
+                </div>
+              ))}
+            </div>
+          ) : <div className="admin-empty">{t('admin.stats.noData')}</div>}
+        </div>
+      </div>
+    </>
+  )
+}
+
 /* ───── Tab: Costs ───── */
 function CostsTab({ days, t }: { days: number; t: any }) {
   const [data, setData] = useState<CostStatsT | null>(null)
@@ -500,6 +575,7 @@ export function StatsPage() {
     chat: t('admin.stats.tabs.chat'),
     documents: t('admin.stats.tabs.documents'),
     search: t('admin.stats.tabs.search'),
+    mcp: t('admin.stats.tabs.mcp'),
     costs: t('admin.stats.tabs.costs'),
   }
 
@@ -541,6 +617,7 @@ export function StatsPage() {
         {activeTab === 'chat' && <ChatTab days={days} t={t} />}
         {activeTab === 'documents' && <DocumentsTab days={days} t={t} />}
         {activeTab === 'search' && <SearchTab days={days} t={t} />}
+        {activeTab === 'mcp' && <McpTab days={days} t={t} />}
         {activeTab === 'costs' && <CostsTab days={days} t={t} />}
       </div>
     </div>

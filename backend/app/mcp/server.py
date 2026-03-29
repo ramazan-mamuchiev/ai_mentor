@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import time
+from decimal import Decimal
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -10,8 +11,13 @@ from sqlalchemy import text
 from app.billing.usage_writer import write_usage_log
 from app.config import settings
 from app.database import async_session
-from app.mcp.auth_middleware import current_api_key_id, current_tenant_id
-from app.models import SearchAnalytics
+from app.mcp.auth_middleware import (
+    current_api_key_id,
+    current_client_ip,
+    current_tenant_id,
+    current_user_agent,
+)
+from app.models import McpRequestLog, SearchAnalytics
 from app.search.service import search_documents, search_endpoint
 
 logger = logging.getLogger(__name__)
@@ -106,6 +112,64 @@ async def _save_search_analytics(
         logger.warning("Failed to save search analytics", exc_info=True)
 
 
+async def _save_mcp_request_log(
+    *,
+    request_id: str,
+    tool_name: str,
+    query_text: str | None = None,
+    product_filter: str | None = None,
+    version_filter: str | None = None,
+    doc_type_filter: str | None = None,
+    result_count: int = 0,
+    top_similarity: float = 0.0,
+    response_length: int = 0,
+    query_tokens: int = 0,
+    response_tokens: int = 0,
+    metadata: dict | None = None,
+    duration_ms: float = 0.0,
+    cogs_usd: Decimal = Decimal("0"),
+    charge_usd: Decimal = Decimal("0"),
+    error: str | None = None,
+) -> None:
+    """Persist a detailed MCP request log record (fire-and-forget)."""
+    meta = metadata or {}
+    try:
+        async with async_session() as session:
+            session.add(McpRequestLog(
+                tenant_id=current_tenant_id.get(),
+                api_key_id=current_api_key_id.get(),
+                request_id=request_id,
+                tool_name=tool_name,
+                query_text=query_text,
+                product_filter=product_filter,
+                version_filter=version_filter,
+                doc_type_filter=doc_type_filter,
+                result_count=result_count,
+                top_similarity=top_similarity,
+                response_length=response_length,
+                query_tokens=query_tokens,
+                response_tokens=response_tokens,
+                embedding_tokens=meta.get("embedding_api_tokens", 0),
+                rerank_prompt_tokens=meta.get("rerank_prompt_tokens", 0),
+                rerank_completion_tokens=meta.get("rerank_completion_tokens", 0),
+                rerank_total_tokens=meta.get("rerank_total_tokens", 0),
+                rerank_model=meta.get("rerank_model"),
+                duration_ms=duration_ms,
+                embed_ms=meta.get("embed_ms", 0.0),
+                search_ms=meta.get("search_ms", 0.0),
+                rerank_ms=meta.get("rerank_ms", 0.0),
+                cogs_usd=cogs_usd,
+                charge_usd=charge_usd,
+                client_ip=current_client_ip.get(),
+                user_agent=current_user_agent.get(),
+                error=error,
+                status="error" if error else "ok",
+            ))
+            await session.commit()
+    except Exception:
+        logger.warning("Failed to save mcp_request_log", exc_info=True)
+
+
 async def tool_search_documentation(
     query: str,
     product: str | None = None,
@@ -148,11 +212,12 @@ async def tool_search_documentation(
         extra={"query": query, "product": product, "version": version, "limit": limit, "request_id": request_id},
     )
 
+    metadata: dict = {}
     t0 = time.perf_counter()
     async with async_session() as session:
         results = await search_documents(
             session, query, product=product, version=version,
-            doc_type=doc_type, limit=limit,
+            doc_type=doc_type, limit=limit, metadata=metadata,
         )
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -213,8 +278,26 @@ async def tool_search_documentation(
         product_filter=product,
         version_filter=version,
         duration_ms=duration_ms,
+        embedding_ms=metadata.get("embed_ms", 0.0),
+        search_ms=metadata.get("search_ms", 0.0),
         tenant_id=current_tenant_id.get(),
         api_key_id=current_api_key_id.get(),
+    )
+
+    await _save_mcp_request_log(
+        request_id=request_id,
+        tool_name="search_documentation",
+        query_text=query,
+        product_filter=product,
+        version_filter=version,
+        doc_type_filter=doc_type,
+        result_count=result_count,
+        top_similarity=top_similarity,
+        response_length=len(response_text),
+        query_tokens=query_tokens,
+        response_tokens=response_tokens,
+        metadata=metadata,
+        duration_ms=duration_ms,
     )
 
     return response_text
@@ -243,17 +326,29 @@ async def tool_get_api_endpoint(
         extra={"endpoint": endpoint, "product": product, "request_id": request_id},
     )
 
+    metadata: dict = {}
+    error_msg: str | None = None
     t0 = time.perf_counter()
     try:
         async with async_session() as session:
-            results = await search_endpoint(session, endpoint, product=product)
+            results = await search_endpoint(session, endpoint, product=product, metadata=metadata)
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     except Exception as e:
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+        error_msg = f"{type(e).__name__}: {e}"
         logger.error(
             "MCP get_api_endpoint failed",
             extra={"tool": "get_api_endpoint", "duration_ms": duration_ms, "error_type": type(e).__name__, "request_id": request_id},
             exc_info=True,
+        )
+        await _save_mcp_request_log(
+            request_id=request_id,
+            tool_name="get_api_endpoint",
+            query_text=endpoint,
+            product_filter=product,
+            duration_ms=duration_ms,
+            metadata=metadata,
+            error=error_msg,
         )
         raise
 
@@ -309,8 +404,24 @@ async def tool_get_api_endpoint(
         top_similarity=top_similarity,
         product_filter=product,
         duration_ms=duration_ms,
+        embedding_ms=metadata.get("embed_ms", 0.0),
+        search_ms=metadata.get("search_ms", 0.0),
         tenant_id=current_tenant_id.get(),
         api_key_id=current_api_key_id.get(),
+    )
+
+    await _save_mcp_request_log(
+        request_id=request_id,
+        tool_name="get_api_endpoint",
+        query_text=endpoint,
+        product_filter=product,
+        result_count=result_count,
+        top_similarity=top_similarity,
+        response_length=len(response_text),
+        query_tokens=query_tokens,
+        response_tokens=response_tokens,
+        metadata=metadata,
+        duration_ms=duration_ms,
     )
 
     return response_text
@@ -410,7 +521,6 @@ async def tool_list_products(
             parts.append(line)
         response_text = f"Available products ({len(rows)}):\n" + "\n".join(parts)
 
-    from decimal import Decimal
     query_tokens = max(1, len(query) // 4) if query else 0
     await write_usage_log(
         channel="mcp",
@@ -425,6 +535,18 @@ async def tool_list_products(
         charge_usd=Decimal("0"),
         tenant_id=current_tenant_id.get(),
         api_key_id=current_api_key_id.get(),
+    )
+
+    await _save_mcp_request_log(
+        request_id=request_id,
+        tool_name="list_products",
+        query_text=query,
+        result_count=len(rows),
+        response_length=len(response_text),
+        query_tokens=query_tokens,
+        duration_ms=duration_ms,
+        cogs_usd=Decimal("0"),
+        charge_usd=Decimal("0"),
     )
 
     return response_text

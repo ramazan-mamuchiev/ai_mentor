@@ -6,6 +6,7 @@ import { TenantsPage } from './TenantsPage'
 import { TenantDetailPage } from './TenantDetailPage'
 import { DocumentsAdminPage } from './DocumentsAdminPage'
 import { ChatAuditPage } from './ChatAuditPage'
+import { McpAuditPage } from './McpAuditPage'
 import { LogsPage } from './LogsPage'
 import { StatsPage } from './StatsPage'
 import { RolesPage } from './RolesPage'
@@ -35,6 +36,7 @@ export default function AdminApp() {
           <Route path="documents" element={<DocumentsAdminPage />} />
           <Route path="chats" element={<ChatAuditPage />} />
           <Route path="chats/:id" element={<ChatAuditPage />} />
+          <Route path="mcp" element={<McpAuditPage />} />
           <Route path="roles" element={<RolesPage />} />
           <Route path="roles/:id" element={<RoleDetailPage />} />
           <Route path="prompts" element={<PromptsPage />} />

@@ -281,6 +281,70 @@ class CostStats(BaseModel):
     top_api_keys: list[TopApiKeyStat] = []
 
 
+# --- MCP Audit ---
+
+class McpRequestItem(BaseModel):
+    id: int
+    created_at: datetime
+    tenant_email: str | None = None
+    key_prefix: str | None = None
+    request_id: str
+    tool_name: str
+    query_text: str | None
+    result_count: int
+    top_similarity: float
+    duration_ms: float
+    query_tokens: int
+    response_tokens: int
+    embedding_tokens: int
+    charge_usd: str
+    status: str
+
+class McpRequestDetail(McpRequestItem):
+    tenant_id: str | None = None
+    api_key_id: str | None = None
+    product_filter: str | None
+    version_filter: str | None
+    doc_type_filter: str | None
+    response_length: int
+    rerank_prompt_tokens: int
+    rerank_completion_tokens: int
+    rerank_total_tokens: int
+    rerank_model: str | None
+    embed_ms: float
+    search_ms: float
+    rerank_ms: float
+    cogs_usd: str
+    client_ip: str | None
+    user_agent: str | None
+    error: str | None
+
+class McpRequestListResponse(BaseModel):
+    items: list[McpRequestItem]
+    total: int
+    page: int
+    page_size: int
+
+class McpToolBreakdown(BaseModel):
+    tool_name: str
+    count: int
+    pct: float
+
+class McpStats(BaseModel):
+    total_requests: int
+    total_query_tokens: int
+    total_response_tokens: int
+    total_embedding_tokens: int
+    total_charge_usd: str
+    avg_duration_ms: float | None
+    error_count: int
+    error_rate: float
+    daily: list[dict] = []
+    by_tool: list[McpToolBreakdown] = []
+    top_queries: list[dict] = []
+    top_tenants: list[dict] = []
+
+
 # --- Logs ---
 
 class LogEntry(BaseModel):

@@ -1617,3 +1617,208 @@ async def get_system_info(session: AsyncSession) -> dict:
         **activity,
         "services": health,
     }
+
+
+# ---------------------------------------------------------------------------
+# MCP Audit
+# ---------------------------------------------------------------------------
+
+async def list_mcp_requests(
+    session: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 50,
+    tenant_id: str | None = None,
+    api_key_id: str | None = None,
+    tool_name: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> tuple[list[dict], int]:
+    where = ["1=1"]
+    params: dict = {}
+    if tenant_id:
+        where.append("m.tenant_id = :tenant_id")
+        params["tenant_id"] = tenant_id
+    if api_key_id:
+        where.append("m.api_key_id = :api_key_id")
+        params["api_key_id"] = api_key_id
+    if tool_name:
+        where.append("m.tool_name = :tool_name")
+        params["tool_name"] = tool_name
+    if date_from:
+        where.append("m.created_at >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        where.append("m.created_at <= :date_to")
+        params["date_to"] = date_to
+    where_sql = " AND ".join(where)
+
+    count_row = (await session.execute(
+        text(f"SELECT COUNT(*) FROM mcp_request_log m WHERE {where_sql}"), params,
+    )).scalar() or 0
+
+    offset = (page - 1) * page_size
+    rows = (await session.execute(text(f"""
+        SELECT m.*, t.email AS tenant_email, ak.key_prefix
+        FROM mcp_request_log m
+        LEFT JOIN tenants t ON t.id = m.tenant_id
+        LEFT JOIN api_keys ak ON ak.id = m.api_key_id
+        WHERE {where_sql}
+        ORDER BY m.created_at DESC
+        LIMIT :limit OFFSET :offset
+    """), {**params, "limit": page_size, "offset": offset})).mappings().all()
+
+    items = [
+        {
+            "id": r["id"],
+            "created_at": r["created_at"],
+            "tenant_email": r["tenant_email"],
+            "key_prefix": r["key_prefix"],
+            "request_id": r["request_id"],
+            "tool_name": r["tool_name"],
+            "query_text": r["query_text"],
+            "result_count": r["result_count"],
+            "top_similarity": round(float(r["top_similarity"]), 4),
+            "duration_ms": round(float(r["duration_ms"]), 1),
+            "query_tokens": r["query_tokens"],
+            "response_tokens": r["response_tokens"],
+            "embedding_tokens": r["embedding_tokens"],
+            "charge_usd": str(r["charge_usd"]),
+            "status": r["status"],
+        }
+        for r in rows
+    ]
+    return items, int(count_row)
+
+
+async def get_mcp_request_detail(session: AsyncSession, request_id: str) -> dict | None:
+    row = (await session.execute(text("""
+        SELECT m.*, t.email AS tenant_email, ak.key_prefix
+        FROM mcp_request_log m
+        LEFT JOIN tenants t ON t.id = m.tenant_id
+        LEFT JOIN api_keys ak ON ak.id = m.api_key_id
+        WHERE m.request_id = :request_id
+        LIMIT 1
+    """), {"request_id": request_id})).mappings().first()
+    if not row:
+        return None
+    return {
+        "id": row["id"],
+        "created_at": row["created_at"],
+        "tenant_id": str(row["tenant_id"]) if row["tenant_id"] else None,
+        "api_key_id": str(row["api_key_id"]) if row["api_key_id"] else None,
+        "tenant_email": row["tenant_email"],
+        "key_prefix": row["key_prefix"],
+        "request_id": row["request_id"],
+        "tool_name": row["tool_name"],
+        "query_text": row["query_text"],
+        "product_filter": row["product_filter"],
+        "version_filter": row["version_filter"],
+        "doc_type_filter": row["doc_type_filter"],
+        "result_count": row["result_count"],
+        "top_similarity": round(float(row["top_similarity"]), 4),
+        "response_length": row["response_length"],
+        "query_tokens": row["query_tokens"],
+        "response_tokens": row["response_tokens"],
+        "embedding_tokens": row["embedding_tokens"],
+        "rerank_prompt_tokens": row["rerank_prompt_tokens"],
+        "rerank_completion_tokens": row["rerank_completion_tokens"],
+        "rerank_total_tokens": row["rerank_total_tokens"],
+        "rerank_model": row["rerank_model"],
+        "duration_ms": round(float(row["duration_ms"]), 1),
+        "embed_ms": round(float(row["embed_ms"]), 1),
+        "search_ms": round(float(row["search_ms"]), 1),
+        "rerank_ms": round(float(row["rerank_ms"]), 1),
+        "cogs_usd": str(row["cogs_usd"]),
+        "charge_usd": str(row["charge_usd"]),
+        "client_ip": row["client_ip"],
+        "user_agent": row["user_agent"],
+        "error": row["error"],
+        "status": row["status"],
+    }
+
+
+async def get_mcp_stats(session: AsyncSession, days: int = 30) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    params = {"since": since}
+
+    totals = (await session.execute(text("""
+        SELECT
+            COUNT(*) AS cnt,
+            COALESCE(SUM(query_tokens), 0) AS q_tokens,
+            COALESCE(SUM(response_tokens), 0) AS r_tokens,
+            COALESCE(SUM(embedding_tokens), 0) AS e_tokens,
+            COALESCE(SUM(charge_usd), 0) AS charge,
+            AVG(duration_ms) AS avg_dur,
+            COUNT(*) FILTER (WHERE status = 'error') AS errors
+        FROM mcp_request_log
+        WHERE created_at >= :since
+    """), params)).mappings().one()
+
+    total = int(totals["cnt"])
+
+    daily = (await session.execute(text("""
+        SELECT DATE(created_at) AS d,
+            COUNT(*) AS cnt,
+            COALESCE(SUM(query_tokens + response_tokens + embedding_tokens), 0) AS tokens,
+            COALESCE(SUM(charge_usd), 0) AS charge,
+            COUNT(*) FILTER (WHERE status = 'error') AS errors
+        FROM mcp_request_log
+        WHERE created_at >= :since
+        GROUP BY DATE(created_at) ORDER BY d
+    """), params)).mappings().all()
+
+    by_tool = (await session.execute(text("""
+        SELECT tool_name, COUNT(*) AS cnt
+        FROM mcp_request_log
+        WHERE created_at >= :since
+        GROUP BY tool_name ORDER BY cnt DESC
+    """), params)).mappings().all()
+
+    top_queries = (await session.execute(text("""
+        SELECT query_text, COUNT(*) AS cnt
+        FROM mcp_request_log
+        WHERE created_at >= :since AND query_text IS NOT NULL AND query_text != ''
+        GROUP BY query_text ORDER BY cnt DESC LIMIT 20
+    """), params)).mappings().all()
+
+    top_tenants = (await session.execute(text("""
+        SELECT m.tenant_id, t.email, COUNT(*) AS cnt,
+            COALESCE(SUM(m.charge_usd), 0) AS charge
+        FROM mcp_request_log m
+        LEFT JOIN tenants t ON t.id = m.tenant_id
+        WHERE m.created_at >= :since
+        GROUP BY m.tenant_id, t.email ORDER BY cnt DESC LIMIT 10
+    """), params)).mappings().all()
+
+    tool_total = max(total, 1)
+    return {
+        "total_requests": total,
+        "total_query_tokens": int(totals["q_tokens"]),
+        "total_response_tokens": int(totals["r_tokens"]),
+        "total_embedding_tokens": int(totals["e_tokens"]),
+        "total_charge_usd": f"{float(totals['charge']):.8f}",
+        "avg_duration_ms": round(float(totals["avg_dur"]), 1) if totals["avg_dur"] else None,
+        "error_count": int(totals["errors"]),
+        "error_rate": round(int(totals["errors"]) / tool_total * 100, 2),
+        "daily": [
+            {"date": str(r["d"]), "requests": int(r["cnt"]),
+             "tokens": int(r["tokens"]), "charge_usd": str(r["charge"]),
+             "errors": int(r["errors"])}
+            for r in daily
+        ],
+        "by_tool": [
+            {"tool_name": r["tool_name"], "count": int(r["cnt"]),
+             "pct": round(int(r["cnt"]) / tool_total * 100, 1)}
+            for r in by_tool
+        ],
+        "top_queries": [
+            {"query": (r["query_text"] or "")[:200], "count": int(r["cnt"])}
+            for r in top_queries
+        ],
+        "top_tenants": [
+            {"email": r["email"] or "—", "count": int(r["cnt"]),
+             "charge_usd": str(r["charge"])}
+            for r in top_tenants
+        ],
+    }

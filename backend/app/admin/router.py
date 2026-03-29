@@ -25,6 +25,9 @@ from app.admin.schemas import (
     ExtendedSearchStats,
     IngestionStat,
     LogsResponse,
+    McpRequestDetail,
+    McpRequestListResponse,
+    McpStats,
     ModelUsageStat,
     PlatformOverview,
     PromptPreviewResponse,
@@ -303,6 +306,52 @@ async def stats_costs(
     session: AsyncSession = Depends(get_session),
 ):
     return await service.get_cost_stats(session, days=days)
+
+
+# ---------------------------------------------------------------------------
+# MCP Audit
+# ---------------------------------------------------------------------------
+
+@router.get("/mcp/requests", response_model=McpRequestListResponse)
+async def list_mcp_requests(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    tenant_id: uuid.UUID | None = None,
+    api_key_id: uuid.UUID | None = None,
+    tool_name: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    from datetime import datetime as dt
+    df = dt.fromisoformat(date_from) if date_from else None
+    dto = dt.fromisoformat(date_to) if date_to else None
+    items, total = await service.list_mcp_requests(
+        session, page=page, page_size=page_size,
+        tenant_id=str(tenant_id) if tenant_id else None,
+        api_key_id=str(api_key_id) if api_key_id else None,
+        tool_name=tool_name, date_from=df, date_to=dto,
+    )
+    return McpRequestListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/mcp/requests/{request_id}", response_model=McpRequestDetail)
+async def get_mcp_request(
+    request_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    detail = await service.get_mcp_request_detail(session, request_id)
+    if not detail:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "MCP request not found")
+    return detail
+
+
+@router.get("/mcp/stats", response_model=McpStats)
+async def mcp_stats(
+    days: int = Query(30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_mcp_stats(session, days=days)
 
 
 # ---------------------------------------------------------------------------

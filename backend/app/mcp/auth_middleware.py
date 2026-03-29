@@ -8,12 +8,15 @@ from contextvars import ContextVar
 from sqlalchemy import select
 
 from app.database import async_session
+from app.logging_config import tenant_id_ctx, tenant_name_ctx
 from app.models import ApiKey, Tenant
 
 logger = logging.getLogger(__name__)
 
 current_tenant_id: ContextVar[str | None] = ContextVar("current_tenant_id", default=None)
 current_api_key_id: ContextVar[str | None] = ContextVar("current_api_key_id", default=None)
+current_client_ip: ContextVar[str | None] = ContextVar("current_client_ip", default=None)
+current_user_agent: ContextVar[str | None] = ContextVar("current_user_agent", default=None)
 
 
 class McpApiKeyAuthMiddleware:
@@ -69,11 +72,27 @@ class McpApiKeyAuthMiddleware:
             await self._send_401(send, "Authentication service unavailable")
             return
 
+        client_ip = None
+        if scope.get("client"):
+            client_ip = scope["client"][0]
+        x_forwarded = headers.get(b"x-forwarded-for", b"").decode()
+        if x_forwarded:
+            client_ip = x_forwarded.split(",")[0].strip()
+        ua = headers.get(b"user-agent", b"").decode() or None
+
         token_tid = current_tenant_id.set(str(tenant.id))
         token_akid = current_api_key_id.set(str(api_key.id))
+        token_cip = current_client_ip.set(client_ip)
+        token_ua = current_user_agent.set(ua)
+        log_tid = tenant_id_ctx.set(str(tenant.id))
+        log_tname = tenant_name_ctx.set(tenant.name or tenant.email or "-")
         try:
             await self.app(scope, receive, send)
         finally:
+            tenant_name_ctx.reset(log_tname)
+            tenant_id_ctx.reset(log_tid)
+            current_user_agent.reset(token_ua)
+            current_client_ip.reset(token_cip)
             current_api_key_id.reset(token_akid)
             current_tenant_id.reset(token_tid)
 

@@ -364,6 +364,7 @@ async def search_endpoint(
     endpoint: str,
     product_id: int | None = None,
     product: str | None = None,
+    metadata: dict | None = None,
 ) -> list[dict]:
     """Find documentation for a specific API endpoint path.
 
@@ -445,4 +446,4 @@ async def search_endpoint(
         "Endpoint search: no exact match, falling back to vector search",
         extra={"endpoint": endpoint, "product_id": product_id, "product": product},
     )
-    return await search_documents(session, f"API endpoint {endpoint}", product_id=product_id, product=product, limit=5)
+    return await search_documents(session, f"API endpoint {endpoint}", product_id=product_id, product=product, limit=5, metadata=metadata)

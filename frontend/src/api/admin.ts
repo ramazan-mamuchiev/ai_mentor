@@ -475,6 +475,104 @@ export async function getCostStats(days = 30): Promise<CostStats> {
 }
 
 
+// --- MCP Audit ---
+
+export interface McpRequestItem {
+  id: number
+  created_at: string
+  tenant_email: string | null
+  key_prefix: string | null
+  request_id: string
+  tool_name: string
+  query_text: string | null
+  result_count: number
+  top_similarity: number
+  duration_ms: number
+  query_tokens: number
+  response_tokens: number
+  embedding_tokens: number
+  charge_usd: string
+  status: string
+}
+
+export interface McpRequestDetail extends McpRequestItem {
+  tenant_id: string | null
+  api_key_id: string | null
+  product_filter: string | null
+  version_filter: string | null
+  doc_type_filter: string | null
+  response_length: number
+  rerank_prompt_tokens: number
+  rerank_completion_tokens: number
+  rerank_total_tokens: number
+  rerank_model: string | null
+  embed_ms: number
+  search_ms: number
+  rerank_ms: number
+  cogs_usd: string
+  client_ip: string | null
+  user_agent: string | null
+  error: string | null
+}
+
+export interface McpRequestListResponse {
+  items: McpRequestItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface McpToolBreakdown {
+  tool_name: string
+  count: number
+  pct: number
+}
+
+export interface McpStats {
+  total_requests: number
+  total_query_tokens: number
+  total_response_tokens: number
+  total_embedding_tokens: number
+  total_charge_usd: string
+  avg_duration_ms: number | null
+  error_count: number
+  error_rate: number
+  daily: Array<{ date: string; requests: number; tokens: number; charge_usd: string; errors: number }>
+  by_tool: McpToolBreakdown[]
+  top_queries: Array<{ query: string; count: number }>
+  top_tenants: Array<{ email: string; count: number; charge_usd: string }>
+}
+
+export async function listMcpRequests(params: {
+  page?: number
+  page_size?: number
+  tenant_id?: string
+  tool_name?: string
+  date_from?: string
+  date_to?: string
+} = {}): Promise<McpRequestListResponse> {
+  const sp = new URLSearchParams()
+  if (params.page) sp.set('page', String(params.page))
+  if (params.page_size) sp.set('page_size', String(params.page_size))
+  if (params.tenant_id) sp.set('tenant_id', params.tenant_id)
+  if (params.tool_name) sp.set('tool_name', params.tool_name)
+  if (params.date_from) sp.set('date_from', params.date_from)
+  if (params.date_to) sp.set('date_to', params.date_to)
+  const res = await fetch(`${BASE}/mcp/requests?${sp}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getMcpRequestDetail(requestId: string): Promise<McpRequestDetail> {
+  const res = await fetch(`${BASE}/mcp/requests/${requestId}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getMcpStats(days = 30): Promise<McpStats> {
+  const res = await fetch(`${BASE}/mcp/stats?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+
 // --- Logs ---
 
 export interface LogEntry {

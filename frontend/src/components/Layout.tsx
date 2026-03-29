@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  MessageSquare, Box, BarChart3, Settings, X, Shield,
+  MessageSquare, Box, BarChart3, Settings, X, Shield, Plug,
   LayoutDashboard, Users, FileText, ScrollText, KeyRound, MessageSquareCode,
   ArrowLeft, Activity,
 } from 'lucide-react'
@@ -63,6 +63,7 @@ const ADMIN_SUB_NAV: readonly { path: string; icon: typeof LayoutDashboard; labe
   { path: '/app/admin/tenants', icon: Users, labelKey: 'admin.nav.tenants' },
   { path: '/app/admin/documents', icon: FileText, labelKey: 'admin.nav.documents' },
   { path: '/app/admin/chats', icon: MessageSquare, labelKey: 'admin.nav.chatAudit' },
+  { path: '/app/admin/mcp', icon: Plug, labelKey: 'admin.nav.mcp' },
   { path: '/app/admin/roles', icon: KeyRound, labelKey: 'admin.nav.roles' },
   { path: '/app/admin/prompts', icon: MessageSquareCode, labelKey: 'admin.nav.prompts' },
   { path: '/app/admin/logs', icon: ScrollText, labelKey: 'admin.nav.logs' },
