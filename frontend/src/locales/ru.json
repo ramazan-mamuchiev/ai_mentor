@@ -858,8 +858,12 @@
   "admin.dashboard.manageTenantsDesc": "Просмотр и редактирование аккаунтов",
   "admin.dashboard.moderateDocs": "Модерация документов",
   "admin.dashboard.moderateDocsDesc": "Просмотр и управление контентом",
+  "admin.dashboard.chatRequests30d": "Чат-запросы (30д)",
+  "admin.dashboard.mcpRequests30d": "MCP-запросы (30д)",
   "admin.dashboard.chatAudit": "Аудит чатов",
   "admin.dashboard.chatAuditDesc": "Просмотр чат-сессий всех пользователей",
+  "admin.dashboard.mcpAudit": "Аудит MCP",
+  "admin.dashboard.mcpAuditDesc": "Просмотр MCP-вызовов и источников",
 
   "admin.logs.title": "Логи",
   "admin.logs.subtitle": "Просмотр логов платформы через Loki",

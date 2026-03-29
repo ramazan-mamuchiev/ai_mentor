@@ -820,8 +820,12 @@
   "admin.dashboard.manageTenantsDesc": "View and edit all tenant accounts",
   "admin.dashboard.moderateDocs": "Moderate Documents",
   "admin.dashboard.moderateDocsDesc": "Review and manage uploaded content",
+  "admin.dashboard.chatRequests30d": "Chat Requests (30d)",
+  "admin.dashboard.mcpRequests30d": "MCP Requests (30d)",
   "admin.dashboard.chatAudit": "Chat Audit",
   "admin.dashboard.chatAuditDesc": "Review chat sessions across tenants",
+  "admin.dashboard.mcpAudit": "MCP Audit",
+  "admin.dashboard.mcpAuditDesc": "Review MCP tool calls and sources",
 
   "admin.logs.title": "Logs",
   "admin.logs.subtitle": "View platform logs via Loki",

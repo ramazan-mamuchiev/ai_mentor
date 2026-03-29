@@ -102,6 +102,20 @@ export function DashboardPage() {
         <StatCard label={t('admin.dashboard.revenue30d')} value={`$${overview.total_charge_usd_30d}`} variant="success" />
       </div>
 
+      <div className="stats-grid">
+        <StatCard
+          label={t('admin.dashboard.chatRequests30d')}
+          value={overview.chat_requests_30d.toLocaleString()}
+          sub={`${overview.chat_tokens_30d.toLocaleString()} tok · $${overview.chat_charge_usd_30d}`}
+        />
+        <StatCard
+          label={t('admin.dashboard.mcpRequests30d')}
+          value={overview.mcp_requests_30d.toLocaleString()}
+          sub={`${overview.mcp_tokens_30d.toLocaleString()} tok · $${overview.mcp_charge_usd_30d}`}
+          variant="accent"
+        />
+      </div>
+
       <MiniBarChart data={daily} label={t('admin.dashboard.requestsPerDay')} />
 
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
@@ -128,6 +142,14 @@ export function DashboardPage() {
         >
           <span className="stat-card__label">{t('admin.dashboard.chatAudit')}</span>
           <span className="stat-card__sub">{t('admin.dashboard.chatAuditDesc')}</span>
+        </div>
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => navigate('/app/admin/mcp')}
+        >
+          <span className="stat-card__label">{t('admin.dashboard.mcpAudit')}</span>
+          <span className="stat-card__sub">{t('admin.dashboard.mcpAuditDesc')}</span>
         </div>
       </div>
     </div>

@@ -141,6 +141,12 @@ class PlatformOverview(BaseModel):
     total_tokens_30d: int
     total_requests_30d: int
     total_charge_usd_30d: str
+    chat_requests_30d: int = 0
+    chat_tokens_30d: int = 0
+    chat_charge_usd_30d: str = "0"
+    mcp_requests_30d: int = 0
+    mcp_tokens_30d: int = 0
+    mcp_charge_usd_30d: str = "0"
     total_chunks: int = 0
     total_api_keys: int = 0
     total_shared_links: int = 0

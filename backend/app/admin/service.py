@@ -510,6 +510,18 @@ async def get_platform_overview(session: AsyncSession) -> dict:
         "FROM usage_log WHERE created_at >= :since"
     ), {"since": since})).mappings().one()
 
+    chat_usage = (await session.execute(text(
+        "SELECT COUNT(*) AS cnt, COALESCE(SUM(total_tokens),0) AS tokens, "
+        "COALESCE(SUM(charge_usd),0) AS charge "
+        "FROM usage_log WHERE created_at >= :since AND channel = 'chat'"
+    ), {"since": since})).mappings().one()
+
+    mcp_usage = (await session.execute(text(
+        "SELECT COUNT(*) AS cnt, COALESCE(SUM(total_tokens),0) AS tokens, "
+        "COALESCE(SUM(charge_usd),0) AS charge "
+        "FROM usage_log WHERE created_at >= :since AND channel = 'mcp'"
+    ), {"since": since})).mappings().one()
+
     total_chunks = await session.scalar(select(func.count()).select_from(Chunk)) or 0
     total_api_keys = await session.scalar(select(func.count()).select_from(ApiKey)) or 0
     total_shared_links = await session.scalar(select(func.count()).select_from(SharedLink)) or 0
@@ -530,6 +542,12 @@ async def get_platform_overview(session: AsyncSession) -> dict:
         "total_tokens_30d": int(usage["tokens"]),
         "total_requests_30d": int(usage["cnt"]),
         "total_charge_usd_30d": str(usage["charge"]),
+        "chat_requests_30d": int(chat_usage["cnt"]),
+        "chat_tokens_30d": int(chat_usage["tokens"]),
+        "chat_charge_usd_30d": str(chat_usage["charge"]),
+        "mcp_requests_30d": int(mcp_usage["cnt"]),
+        "mcp_tokens_30d": int(mcp_usage["tokens"]),
+        "mcp_charge_usd_30d": str(mcp_usage["charge"]),
         "total_chunks": total_chunks,
         "total_api_keys": total_api_keys,
         "total_shared_links": total_shared_links,

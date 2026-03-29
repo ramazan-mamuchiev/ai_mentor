@@ -280,6 +280,12 @@ export interface PlatformOverview {
   total_tokens_30d: number
   total_requests_30d: number
   total_charge_usd_30d: string
+  chat_requests_30d: number
+  chat_tokens_30d: number
+  chat_charge_usd_30d: string
+  mcp_requests_30d: number
+  mcp_tokens_30d: number
+  mcp_charge_usd_30d: string
   total_chunks: number
   total_api_keys: number
   total_shared_links: number
