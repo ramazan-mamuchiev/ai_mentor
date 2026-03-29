@@ -526,6 +526,8 @@
   "docs.format.web": "Веб",
   "docs.format.proto": "Proto",
   "docs.format.postman": "Postman",
+  "docs.format.xml": "XML",
+  "docs.format.wsdl": "WSDL",
 
   "reindex.title": "Задачи переиндексации",
   "reindex.start": "Запустить переиндексацию",

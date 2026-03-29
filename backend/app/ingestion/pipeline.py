@@ -16,6 +16,7 @@ from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_fi
 from app.ingestion.converters.postman import convert_postman_file, is_postman_collection
 from app.ingestion.converters.wsdl import convert_wsdl
 from app.ingestion.converters.web import convert_url
+from app.ingestion.converters.xml_doc import convert_xml_doc
 from app.ingestion.embedder import embed_texts
 from app.config import settings as _settings
 from app.ingestion.parsers.markdown import parse_markdown
@@ -814,6 +815,18 @@ def ingest_from_bytes(
             session.commit()
             return {"status": "error", "error": str(e)}
         fmt_effective = "markdown"
+    elif fmt == "xml":
+        try:
+            text, convert_metadata = convert_xml_doc(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"XML conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
     else:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -829,7 +842,7 @@ def ingest_from_bytes(
 
     read_ms = round((time.perf_counter() - t_read) * 1000, 1)
 
-    if fmt in ("pdf", "swagger", "postman", "proto", "wsdl"):
+    if fmt in ("pdf", "swagger", "postman", "proto", "wsdl", "xml"):
         try:
             from app.s3 import upload_file as _s3_upload
             converted_key = f"documents/{document.id}/converted.md"

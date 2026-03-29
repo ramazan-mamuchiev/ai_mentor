@@ -505,6 +505,8 @@
   "docs.format.web": "Web",
   "docs.format.proto": "Proto",
   "docs.format.postman": "Postman",
+  "docs.format.xml": "XML",
+  "docs.format.wsdl": "WSDL",
 
   "reindex.title": "Reindex Jobs",
   "reindex.start": "Start Reindex",

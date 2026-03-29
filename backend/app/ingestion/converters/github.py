@@ -17,7 +17,6 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from typing import Callable
-from urllib.parse import urlparse
 
 import httpx
 
@@ -28,12 +27,12 @@ _USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Lexiro/1.0"
 
 SUPPORTED_EXTENSIONS = {
     ".md", ".txt", ".yaml", ".yml", ".json", ".pdf",
-    ".proto", ".wsdl",
+    ".proto", ".wsdl", ".xml",
 }
 
 EXCLUDED_DIRS = {
     ".github", ".git", "node_modules", "__pycache__", ".venv", "venv",
-    "dist", "build", ".idea", ".vscode",
+    "dist", ".idea", ".vscode",
 }
 
 FORMAT_MAP = {
@@ -45,7 +44,99 @@ FORMAT_MAP = {
     ".pdf": "pdf",
     ".proto": "proto",
     ".wsdl": "wsdl",
+    ".xml": "xml",
 }
+
+# ---------------------------------------------------------------------------
+# Smart XML classification: decide whether an XML file is documentation
+# (DocBook, DITA, XSD, WSDL, etc.) or noise (XSLT, SVG, configs, i18n).
+# We inspect the root element of the first ~4 KB of the file.
+# ---------------------------------------------------------------------------
+
+_XML_ROOT_TAG_RE = re.compile(
+    r"<(?:\w+:)?(\w+)[\s/>]",
+)
+
+_DOC_XML_ROOT_TAGS = frozenset({
+    # DocBook
+    "book", "article", "chapter", "section", "refentry", "set", "part",
+    "appendix", "preface", "glossary", "bibliography", "index",
+    # DITA
+    "topic", "concept", "task", "reference", "map", "bookmap", "ditamap",
+    "learningContent", "troubleshooting",
+    # XSD / WSDL (supplementary to .wsdl extension)
+    "schema", "definitions",
+    # TEI (scholarly docs)
+    "TEI",
+    # Mallard (GNOME docs)
+    "page",
+    # Generic spec roots
+    "specification", "standard", "document", "spec", "rfc",
+})
+
+_NOISE_XML_ROOT_TAGS = frozenset({
+    # XSLT
+    "stylesheet", "transform",
+    # Graphics
+    "svg",
+    # HTML mislabeled as .xml
+    "html", "HTML",
+    # Build systems
+    "Project", "project", "build", "target", "ivy", "assembly",
+    "pom", "settings", "plugin", "metadata",
+    # .NET / Java configs
+    "configuration", "appSettings", "connectionStrings",
+    "web", "beans", "context",
+    # i18n / resources
+    "resources", "xliff", "translations", "root", "data",
+    # Feeds
+    "rss", "feed",
+    # Apple
+    "plist",
+    # MIME
+    "mime-info",
+    # Android
+    "manifest", "selector", "shape", "vector", "layer-list",
+    "RelativeLayout", "LinearLayout", "ConstraintLayout", "FrameLayout",
+})
+
+_XML_MIN_DOC_SIZE = 5_000
+
+
+def _classify_xml_content(content_head: bytes) -> bool:
+    """Return True if XML content looks like documentation, False if noise.
+
+    Inspects the root element tag of the first few KB.
+    """
+    try:
+        text = content_head.decode("utf-8", errors="ignore")
+    except Exception:
+        return False
+
+    text_stripped = text.lstrip()
+    if text_stripped.startswith("<?"):
+        close = text_stripped.find("?>")
+        if close != -1:
+            text_stripped = text_stripped[close + 2:].lstrip()
+
+    while text_stripped.startswith("<!"):
+        close = text_stripped.find(">")
+        if close == -1:
+            break
+        text_stripped = text_stripped[close + 1:].lstrip()
+
+    m = _XML_ROOT_TAG_RE.search(text_stripped[:500])
+    if not m:
+        return False
+
+    root_tag = m.group(1)
+
+    if root_tag in _DOC_XML_ROOT_TAGS:
+        return True
+    if root_tag in _NOISE_XML_ROOT_TAGS:
+        return False
+
+    return len(content_head) >= _XML_MIN_DOC_SIZE
 
 
 def _get_extension(path: str) -> str:
@@ -126,15 +217,30 @@ def _download_file(
     url: str,
     suffix: str,
     timeout: int = _FETCH_TIMEOUT,
+    classify_xml: bool = False,
 ) -> str | None:
-    """Download a raw file to a temp path. Returns path or None on failure."""
+    """Download a raw file to a temp path. Returns path or None on failure.
+
+    When *classify_xml* is True and the suffix is .xml, the downloaded content
+    is checked with _classify_xml_content(); returns None for noise XML.
+    """
     try:
         with httpx.Client(timeout=timeout, follow_redirects=True) as client:
             resp = client.get(url, headers={"User-Agent": _USER_AGENT})
             resp.raise_for_status()
+            content = resp.content
+
+            if classify_xml and suffix.lower() == ".xml":
+                head = content[:4096]
+                if not _classify_xml_content(head):
+                    logger.debug("XML classified as noise, skipping", extra={
+                        "url": url[:300], "head_bytes": len(head),
+                    })
+                    return None
+
             fd, path = tempfile.mkstemp(suffix=suffix, prefix="lexiro_gh_")
             with os.fdopen(fd, "wb") as f:
-                f.write(resp.content)
+                f.write(content)
             return path
     except Exception as exc:
         logger.warning("GitHub file download failed", extra={
@@ -260,10 +366,14 @@ async def crawl_github(
         fmt = _detect_format(file_path)
 
         local_path = await asyncio.to_thread(
-            _download_file, raw_url, ext or ".bin",
+            _download_file, raw_url, ext or ".bin", _FETCH_TIMEOUT, ext == ".xml",
         )
         if local_path is None:
-            result.errors.append(f"Download failed: {file_path}")
+            if ext == ".xml":
+                result.files_skipped += 1
+                logger.debug("XML file skipped (noise)", extra={"path": file_path})
+            else:
+                result.errors.append(f"Download failed: {file_path}")
             continue
 
         gh_file = GitHubFile(
