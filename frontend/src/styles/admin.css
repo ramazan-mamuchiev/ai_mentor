@@ -914,6 +914,60 @@
   font-family: var(--font-mono);
 }
 
+/* ── Summary bar (aggregation row between toolbar and data) ── */
+.logs-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.logs-summary__count {
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-right: auto;
+}
+
+.logs-summary__metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.logs-summary__label {
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.logs-summary__value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  .logs-summary {
+    padding: 4px 10px;
+    gap: 4px;
+  }
+  .logs-summary__metric {
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+}
+
 /* Error banner */
 .logs-error {
   display: flex;

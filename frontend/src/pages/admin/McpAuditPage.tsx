@@ -258,6 +258,16 @@ export function McpAuditPage() {
     return c
   }, [items])
 
+  const summary = useMemo(() => {
+    let tokens = 0, charge = 0, durationMs = 0
+    for (const i of items) {
+      tokens += totalTokens(i)
+      charge += parseFloat(i.charge_usd) || 0
+      durationMs += i.duration_ms || 0
+    }
+    return { tokens, charge, durationMs }
+  }, [items])
+
   return (
     <div className={`docs-page${panel ? ' docs-page--with-panel' : ''}`}>
       <div className="docs-page-main">
@@ -364,6 +374,24 @@ export function McpAuditPage() {
             <span className="logs-count">{total} requests</span>
           </div>
         </div>
+
+        {items.length > 0 && (
+          <div className="logs-summary">
+            <span className="logs-summary__count">{items.length} requests</span>
+            <span className="logs-summary__metric">
+              <span className="logs-summary__label">tokens</span>
+              <span className="logs-summary__value">{summary.tokens.toLocaleString()}</span>
+            </span>
+            <span className="logs-summary__metric">
+              <span className="logs-summary__label">charge</span>
+              <span className="logs-summary__value">{fmtUsd(summary.charge)}</span>
+            </span>
+            <span className="logs-summary__metric">
+              <span className="logs-summary__label">duration</span>
+              <span className="logs-summary__value">{fmtMs(summary.durationMs)}</span>
+            </span>
+          </div>
+        )}
 
         {error && <div className="chat-audit-error"><AlertTriangle size={14} /> {error}</div>}
 

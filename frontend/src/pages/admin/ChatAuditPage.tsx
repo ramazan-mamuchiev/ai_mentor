@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -364,6 +364,17 @@ function SessionListView() {
 
   const totalPages = Math.ceil(total / pageSize)
 
+  const chatSummary = useMemo(() => {
+    let messages = 0, tokens = 0, charge = 0, durationMs = 0
+    for (const i of items) {
+      messages += i.messages_count
+      tokens += i.total_tokens
+      charge += parseFloat(i.total_charge_usd) || 0
+      durationMs += i.total_duration_ms
+    }
+    return { messages, tokens, charge, durationMs }
+  }, [items])
+
   return (
     <div className="chat-audit-page">
       <div className="admin-page-header">
@@ -453,6 +464,28 @@ function SessionListView() {
           <span className="logs-count">{total} {t('admin.chats.sessionsLabel', { defaultValue: 'sessions' })}</span>
         </div>
       </div>
+
+      {items.length > 0 && !isMessageSearch && (
+        <div className="logs-summary">
+          <span className="logs-summary__count">{items.length} sessions</span>
+          <span className="logs-summary__metric">
+            <span className="logs-summary__label">msg</span>
+            <span className="logs-summary__value">{chatSummary.messages.toLocaleString()}</span>
+          </span>
+          <span className="logs-summary__metric">
+            <span className="logs-summary__label">tokens</span>
+            <span className="logs-summary__value">{chatSummary.tokens.toLocaleString()}</span>
+          </span>
+          <span className="logs-summary__metric">
+            <span className="logs-summary__label">charge</span>
+            <span className="logs-summary__value">{fmtUsd(chatSummary.charge)}</span>
+          </span>
+          <span className="logs-summary__metric">
+            <span className="logs-summary__label">duration</span>
+            <span className="logs-summary__value">{fmtDuration(chatSummary.durationMs)}</span>
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="chat-audit-error">
