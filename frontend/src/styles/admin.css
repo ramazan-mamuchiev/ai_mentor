@@ -2439,6 +2439,107 @@
   font-style: italic;
 }
 
+/* --- MCP audit: filters layout --- */
+
+.mcp-audit-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.mcp-audit-tools-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mcp-audit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* --- MCP audit: table container --- */
+
+.mcp-table-container {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.mcp-audit-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  min-width: 900px;
+}
+
+.mcp-audit-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.mcp-audit-table thead th {
+  white-space: nowrap;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.mcp-audit-table tbody td {
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.mcp-audit-table tbody tr:hover {
+  background: var(--surface-hover, rgba(128, 128, 128, 0.04));
+}
+
+.mcp-td-time { white-space: nowrap; }
+.mcp-td-user { font-size: 12px; }
+.mcp-td-query { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcp-td-mono { font-family: var(--font-mono); font-size: 12px; }
+
+.mcp-key-prefix {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.mcp-td-actions {
+  white-space: nowrap;
+}
+
+.mcp-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: var(--radius, 6px);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.mcp-action-btn:hover {
+  background: var(--surface-hover);
+  color: var(--accent);
+}
+
 /* --- MCP audit: time gap separator --- */
 
 .mcp-time-gap-row {

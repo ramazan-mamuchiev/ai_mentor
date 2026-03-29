@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Plug, X, AlertTriangle, Clock, User, Bug,
+  Plug, X, AlertTriangle, Clock, User, Bug, FileSearch,
 } from 'lucide-react'
 import {
   listMcpRequests, getMcpRequestDetail, searchTenants,
@@ -124,22 +124,24 @@ export function McpAuditPage() {
 
   useEffect(() => { load() }, [load])
 
-  const openDetail = useCallback(async (requestId: string) => {
+  const openPanel = useCallback(async (requestId: string, mode: 'mcp-debug' | 'mcp-sources') => {
     setPanelLoading(true)
     try {
       const detail = await getMcpRequestDetail(requestId)
-      setPanel({ mode: 'mcp-debug', detail })
+      if (mode === 'mcp-sources' && detail.sources?.length) {
+        setPanel({ mode: 'mcp-sources', sources: detail.sources, detail })
+      } else {
+        setPanel({ mode: 'mcp-debug', detail })
+      }
       setSearchParams({ request: requestId }, { replace: true })
-    } catch {
-      /* silently ignore */
-    }
+    } catch { /* ignore */ }
     setPanelLoading(false)
   }, [setSearchParams])
 
   useEffect(() => {
     const rid = searchParams.get('request')
     if (rid && !panel) {
-      openDetail(rid)
+      openPanel(rid, 'mcp-debug')
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -153,10 +155,6 @@ export function McpAuditPage() {
       setPanel({ mode: 'mcp-sources', sources: panel.detail.sources, detail: panel.detail })
     }
   }, [panel])
-
-  const handleRowClick = useCallback((r: McpRequestItem) => {
-    openDetail(r.request_id)
-  }, [openDetail])
 
   const totalPages = Math.ceil(total / pageSize)
 
@@ -175,11 +173,14 @@ export function McpAuditPage() {
     }
   }
 
+  const panelDetail = panel?.detail ?? null
   const panelContent = panel?.mode === 'mcp-debug'
     ? { mode: 'mcp-debug' as const, detail: panel.detail }
     : panel?.mode === 'mcp-sources'
       ? { mode: 'mcp-sources' as const, sources: panel.sources }
       : null
+
+  const COL_COUNT = 10
 
   return (
     <div className={`docs-page${panel ? ' docs-page--with-panel' : ''}`}>
@@ -189,7 +190,7 @@ export function McpAuditPage() {
           <p>{t('admin.mcp.requestsCount', { count: total })}</p>
         </div>
 
-        <div className="chat-audit-toolbar chat-audit-toolbar--filters">
+        <div className="mcp-audit-filters">
           <div className="logs-chips" role="group" aria-label="Time range">
             <Clock size={13} className="logs-chips__icon" />
             {TIME_RANGES.map(r => (
@@ -203,7 +204,7 @@ export function McpAuditPage() {
             ))}
           </div>
 
-          <div className="chat-audit-mode-chips">
+          <div className="mcp-audit-tools-chips">
             {TOOLS.map(tool => (
               <button
                 key={tool}
@@ -215,41 +216,43 @@ export function McpAuditPage() {
             ))}
           </div>
 
-          <div className="logs-tenant-combo" ref={tenantWrapRef}>
-            {tenantFilter ? (
-              <div className="logs-tenant-chip">
-                <User size={12} />
-                <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
-                <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
-              </div>
-            ) : (
-              <>
-                <User size={13} className="logs-tenant-combo__icon" />
-                <input
-                  className="logs-tenant-input"
-                  placeholder="User..."
-                  value={tenantQuery}
-                  onChange={e => setTenantQuery(e.target.value)}
-                  onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
-                />
-                {tenantQuery && (
-                  <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
-                )}
-              </>
-            )}
-            {tenantDropdownOpen && tenantOptions.length > 0 && (
-              <div className="logs-tenant-dropdown">
-                {tenantOptions.map(opt => (
-                  <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
-                    <span className="logs-tenant-dropdown__name">{opt.name}</span>
-                    <span className="logs-tenant-dropdown__email">{opt.email}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <div className="mcp-audit-row">
+            <div className="logs-tenant-combo" ref={tenantWrapRef}>
+              {tenantFilter ? (
+                <div className="logs-tenant-chip">
+                  <User size={12} />
+                  <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
+                  <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
+                </div>
+              ) : (
+                <>
+                  <User size={13} className="logs-tenant-combo__icon" />
+                  <input
+                    className="logs-tenant-input"
+                    placeholder="User..."
+                    value={tenantQuery}
+                    onChange={e => setTenantQuery(e.target.value)}
+                    onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
+                  />
+                  {tenantQuery && (
+                    <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
+                  )}
+                </>
+              )}
+              {tenantDropdownOpen && tenantOptions.length > 0 && (
+                <div className="logs-tenant-dropdown">
+                  {tenantOptions.map(opt => (
+                    <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
+                      <span className="logs-tenant-dropdown__name">{opt.name}</span>
+                      <span className="logs-tenant-dropdown__email">{opt.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          <span className="logs-count">{total} requests</span>
+            <span className="logs-count">{total} requests</span>
+          </div>
         </div>
 
         {error && <div className="chat-audit-error"><AlertTriangle size={14} /> {error}</div>}
@@ -260,71 +263,81 @@ export function McpAuditPage() {
           <div className="admin-empty">{t('admin.mcp.noRequests')}</div>
         ) : (
           <>
-            <div className="admin-table-wrapper">
-              <div className="admin-table-scroll">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>User</th>
-                      <th>Tool</th>
-                      <th>Query</th>
-                      <th>Results</th>
-                      <th>Duration</th>
-                      <th>Tokens</th>
-                      <th>Charge</th>
-                      <th>Status</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tableRows.map((row, idx) => {
-                      if ('type' in row && row.type === 'gap') {
-                        return (
-                          <tr key={`gap-${idx}`} className="mcp-time-gap-row">
-                            <td colSpan={10}>
-                              <div className="mcp-time-gap">
-                                <span className="mcp-time-gap__line" />
-                                <span className="mcp-time-gap__label">{fmtGap(row.gap_ms)}</span>
-                                <span className="mcp-time-gap__line" />
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      }
-                      const r = row as McpRequestItem
-                      const isSelected = panel?.mode === 'mcp-debug' && panel.detail.request_id === r.request_id
-                        || panel?.mode === 'mcp-sources' && panel.detail.request_id === r.request_id
+            <div className="mcp-table-container">
+              <table className="admin-table mcp-audit-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Tool</th>
+                    <th>Query</th>
+                    <th>Results</th>
+                    <th>Duration</th>
+                    <th>Tokens</th>
+                    <th>Charge</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, idx) => {
+                    if ('type' in row && row.type === 'gap') {
                       return (
-                        <tr
-                          key={r.id}
-                          style={{ cursor: 'pointer' }}
-                          className={isSelected ? 'admin-table-row--selected' : ''}
-                          onClick={() => handleRowClick(r)}
-                        >
-                          <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{fmtTime(r.created_at)}</td>
-                          <td style={{ fontSize: 12 }}>
-                            {r.tenant_email || '—'}
-                            {r.key_prefix && <div style={{ color: 'var(--text-muted)', fontSize: 11 }}><code>{r.key_prefix}…</code></div>}
+                        <tr key={`gap-${idx}`} className="mcp-time-gap-row">
+                          <td colSpan={COL_COUNT}>
+                            <div className="mcp-time-gap">
+                              <span className="mcp-time-gap__line" />
+                              <span className="mcp-time-gap__label">{fmtGap(row.gap_ms)}</span>
+                              <span className="mcp-time-gap__line" />
+                            </div>
                           </td>
-                          <td><span className="badge badge--blue">{r.tool_name.replace('_', ' ')}</span></td>
-                          <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{r.query_text || '—'}</td>
-                          <td>{r.result_count}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtMs(r.duration_ms)}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.query_tokens + r.response_tokens + r.embedding_tokens + (r.rerank_total_tokens || 0) + (r.resolve_prompt_tokens || 0) + (r.resolve_completion_tokens || 0)).toLocaleString()}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtUsd(r.charge_usd)}</td>
-                          <td>
-                            {r.status === 'error'
-                              ? <span className="badge badge--red">error</span>
-                              : <span className="badge badge--green">ok</span>}
-                          </td>
-                          <td><Bug size={14} style={{ opacity: 0.4 }} /></td>
                         </tr>
                       )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                    }
+                    const r = row as McpRequestItem
+                    const isSelected = panelDetail?.request_id === r.request_id
+                    return (
+                      <tr
+                        key={r.id}
+                        className={isSelected ? 'admin-table-row--selected' : ''}
+                      >
+                        <td className="mcp-td-time">{fmtTime(r.created_at)}</td>
+                        <td className="mcp-td-user">
+                          {r.tenant_email || '—'}
+                          {r.key_prefix && <div className="mcp-key-prefix"><code>{r.key_prefix}…</code></div>}
+                        </td>
+                        <td><span className="badge badge--blue">{r.tool_name.replace('_', ' ')}</span></td>
+                        <td className="mcp-td-query">{r.query_text || '—'}</td>
+                        <td>{r.result_count}</td>
+                        <td className="mcp-td-mono">{fmtMs(r.duration_ms)}</td>
+                        <td className="mcp-td-mono">{(r.query_tokens + r.response_tokens + r.embedding_tokens + (r.rerank_total_tokens || 0) + (r.resolve_prompt_tokens || 0) + (r.resolve_completion_tokens || 0)).toLocaleString()}</td>
+                        <td className="mcp-td-mono">{fmtUsd(r.charge_usd)}</td>
+                        <td>
+                          {r.status === 'error'
+                            ? <span className="badge badge--red">error</span>
+                            : <span className="badge badge--green">ok</span>}
+                        </td>
+                        <td className="mcp-td-actions">
+                          <button
+                            className="mcp-action-btn"
+                            title="Debug"
+                            onClick={() => openPanel(r.request_id, 'mcp-debug')}
+                          >
+                            <Bug size={14} />
+                          </button>
+                          <button
+                            className="mcp-action-btn"
+                            title="Sources"
+                            onClick={() => openPanel(r.request_id, 'mcp-sources')}
+                          >
+                            <FileSearch size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
 
             {totalPages > 1 && (
@@ -348,9 +361,11 @@ export function McpAuditPage() {
         )}
       </div>
 
-      {panelContent && (
+      {panelContent && panelDetail && (
         <RightPanel
           content={panelContent}
+          sessionId={panelDetail.request_id}
+          messageId={undefined}
           onClose={handleClose}
           onSwitchToSources={handleSwitchToSources}
         />

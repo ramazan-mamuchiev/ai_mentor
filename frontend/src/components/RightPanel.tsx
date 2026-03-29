@@ -499,6 +499,12 @@ export function RightPanel({ content, sessionId, messageId, onClose, onSwitchToS
         : t('chat.debugPanel.title')
   const Icon = (isSourcesMode || isMcpSources) ? FileSearch : isMcpDebug ? Database : Bug
 
+  const mcpSubtitle = isMcpDebug
+    ? `${content.detail.tool_name} · ${sessionId?.slice(0, 8) ?? ''}`
+    : isMcpSources
+      ? sessionId?.slice(0, 8) ?? ''
+      : null
+
   return (
     <>
       {isMobile && (
@@ -521,11 +527,13 @@ export function RightPanel({ content, sessionId, messageId, onClose, onSwitchToS
             </div>
             <div className="sources-panel-header-text">
               <span className="sources-panel-title">{title}</span>
-              {(sessionId != null || messageId != null) && (
+              {mcpSubtitle ? (
+                <span className="sources-panel-ids">{mcpSubtitle}</span>
+              ) : (sessionId != null || messageId != null) ? (
                 <span className="sources-panel-ids">
                   {sessionId != null ? `S: ${sessionId.slice(0, 8)}` : ''}{sessionId != null && messageId != null ? ' · ' : ''}{messageId != null ? `M: ${messageId}` : ''}
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
           <div className="sources-panel-header-actions">
