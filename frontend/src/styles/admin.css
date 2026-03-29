@@ -9,6 +9,14 @@
   overflow-y: auto;
 }
 
+.admin-main > .docs-page {
+  overflow: visible;
+}
+
+.admin-main > .docs-page > .docs-page-main {
+  overflow: visible;
+}
+
 .admin-main:has(> .docs-page--with-panel) {
   padding: 0;
   overflow: hidden;
