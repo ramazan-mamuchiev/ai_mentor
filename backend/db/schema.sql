@@ -655,6 +655,10 @@ CREATE INDEX IF NOT EXISTS idx_psk_document ON product_search_keys(document_id) 
 -- Migration: drop legacy product_aliases if it exists
 DROP TABLE IF EXISTS product_aliases;
 
+-- Migration: chat_session_id in usage_log for charge aggregation
+ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS chat_session_id INT;
+CREATE INDEX IF NOT EXISTS idx_usage_log_chat_session ON usage_log (chat_session_id, created_at) WHERE chat_session_id IS NOT NULL;
+
 -- Migration tracking
 CREATE TABLE IF NOT EXISTS schema_migrations (
     filename TEXT PRIMARY KEY,

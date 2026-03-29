@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pgvector.sqlalchemy import Vector
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Numeric, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -833,12 +833,15 @@ class UsageLog(Base):
 
     tenant_id = mapped_column(UUID(as_uuid=True), nullable=True)
     api_key_id = mapped_column(UUID(as_uuid=True), nullable=True)
+    chat_session_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         Index("idx_usage_log_channel", "channel", "created_at"),
         Index("idx_usage_log_action", "action", "created_at"),
         Index("idx_usage_log_request", "request_id"),
         Index("idx_usage_log_api_key", "api_key_id", "created_at"),
+        Index("idx_usage_log_chat_session", "chat_session_id", "created_at",
+              postgresql_where=text("chat_session_id IS NOT NULL")),
     )
 
 

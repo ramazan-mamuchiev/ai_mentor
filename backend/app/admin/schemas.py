@@ -91,6 +91,7 @@ class AdminChatSessionItem(BaseModel):
     messages_count: int = 0
     total_tokens: int = 0
     total_duration_ms: float = 0
+    total_charge_usd: str = "0"
     created_at: datetime
     updated_at: datetime
 

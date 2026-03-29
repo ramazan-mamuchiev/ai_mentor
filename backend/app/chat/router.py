@@ -855,6 +855,7 @@ async def send_message(
                     llm_ms=llm_ms,
                     tenant_id=tenant_id_str,
                     api_key_id=api_key_id_str,
+                    chat_session_id=session_id,
                 )
 
                 classify_prompt_tokens = rag_debug.get("classify_prompt_tokens", 0)
@@ -873,6 +874,7 @@ async def send_message(
                         duration_ms=rag_debug.get("classify_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 if rag_debug.get("retry_used"):
@@ -888,6 +890,7 @@ async def send_message(
                         duration_ms=rag_debug.get("rephrase_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 if summary_meta.get("summary_total_tokens", 0) > 0:
@@ -904,6 +907,7 @@ async def send_message(
                         duration_ms=summary_meta.get("summary_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 decompose_prompt_tokens = rag_debug.get("decompose_prompt_tokens", 0)
@@ -922,6 +926,7 @@ async def send_message(
                         duration_ms=rag_debug.get("decompose_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 web_search_total = rag_debug.get("web_search_total_tokens", 0)
@@ -939,6 +944,7 @@ async def send_message(
                         duration_ms=rag_debug.get("web_search_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 rerank_total = rag_debug.get("rerank_total_tokens", 0)
@@ -956,6 +962,7 @@ async def send_message(
                         duration_ms=rag_debug.get("rerank_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 resolve_total = rag_debug.get("resolve_total_tokens", 0)
@@ -973,6 +980,7 @@ async def send_message(
                         duration_ms=rag_debug.get("resolve_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 rewrite_total = rag_debug.get("rewrite_total_tokens", 0)
@@ -990,6 +998,7 @@ async def send_message(
                         duration_ms=rag_debug.get("rewrite_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 embed_api_tokens = rag_debug.get("embedding_api_tokens", 0)
@@ -1007,6 +1016,7 @@ async def send_message(
                         duration_ms=0,
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
+                        chat_session_id=session_id,
                     )
 
                 if sources:
