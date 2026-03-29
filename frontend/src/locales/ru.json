@@ -661,6 +661,7 @@
   "analytics.tabs.chat": "Чат",
   "analytics.tabs.documents": "Документы",
   "analytics.tabs.search": "Поиск",
+  "analytics.tabs.mcp": "MCP",
   "analytics.tabs.costs": "Расходы",
 
   "analytics.chat.sessions": "Сессии",
@@ -699,6 +700,16 @@
   "analytics.search.daily": "Поиски по дням",
   "analytics.search.searchesPerDay": "Запросов в день",
   "analytics.search.topQueries": "Популярные запросы",
+
+  "analytics.mcp.totalRequests": "Всего запросов",
+  "analytics.mcp.totalTokens": "Токены",
+  "analytics.mcp.totalCharge": "Стоимость",
+  "analytics.mcp.errors": "Ошибки",
+  "analytics.mcp.avgDuration": "Сред. время",
+  "analytics.mcp.daily": "Запросы по дням",
+  "analytics.mcp.dailyTokens": "Токены по дням",
+  "analytics.mcp.byTool": "По инструментам",
+  "analytics.mcp.topQueries": "Популярные запросы",
 
   "analytics.costs.total": "За период",
   "analytics.costs.forecast": "Прогноз / месяц",

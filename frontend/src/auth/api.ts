@@ -234,6 +234,17 @@ export interface UserSearchStats {
   daily: Array<{ date: string; count: number; avg_similarity: number }>
 }
 
+export interface UserMcpStats {
+  total_requests: number
+  total_tokens: number
+  total_charge_usd: string
+  avg_duration_ms: number | null
+  error_count: number
+  by_tool: Array<{ tool_name: string; count: number; pct: number }>
+  top_queries: Array<{ query: string; count: number }>
+  daily: Array<{ date: string; requests: number; tokens: number; charge_usd: string }>
+}
+
 export interface UserCostStats {
   total_charge_usd: string
   avg_per_day: string
@@ -257,6 +268,11 @@ export async function getUserDocStats(days = 30): Promise<UserDocStats> {
 
 export async function getUserSearchStats(days = 30): Promise<UserSearchStats> {
   const res = await fetch(`${BASE}/analytics/search?days=${days}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getUserMcpStats(days = 30): Promise<UserMcpStats> {
+  const res = await fetch(`${BASE}/analytics/mcp?days=${days}`, { credentials: 'include' })
   return handleResponse(res)
 }
 

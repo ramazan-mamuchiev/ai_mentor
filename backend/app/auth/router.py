@@ -534,6 +534,73 @@ async def user_search_stats(
     )
 
 
+@router.get("/analytics/mcp")
+async def user_mcp_stats(
+    days: int = 30,
+    tenant: "Tenant" = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    from datetime import datetime, timedelta, timezone
+    from app.auth.schemas import UserMcpStats
+
+    days = max(1, min(days, 365))
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    tid = tenant.id
+
+    totals = (await session.execute(text(
+        "SELECT COUNT(*) AS cnt, "
+        "COALESCE(SUM(query_tokens + response_tokens + embedding_tokens "
+        "  + rerank_total_tokens + resolve_prompt_tokens + resolve_completion_tokens), 0) AS tokens, "
+        "COALESCE(SUM(charge_usd), 0) AS charge, "
+        "AVG(duration_ms) AS avg_dur, "
+        "COUNT(*) FILTER (WHERE status = 'error') AS errors "
+        "FROM mcp_request_log WHERE tenant_id = :tid AND created_at >= :since"
+    ), {"tid": tid, "since": since})).mappings().one()
+
+    total = int(totals["cnt"]) or 1
+
+    by_tool = (await session.execute(text(
+        "SELECT tool_name, COUNT(*) AS cnt "
+        "FROM mcp_request_log WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY tool_name ORDER BY cnt DESC"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    top_q = (await session.execute(text(
+        "SELECT query_text AS query, COUNT(*) AS cnt "
+        "FROM mcp_request_log WHERE tenant_id = :tid AND created_at >= :since "
+        "AND query_text IS NOT NULL AND query_text != '' "
+        "GROUP BY query_text ORDER BY cnt DESC LIMIT 10"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    daily = (await session.execute(text(
+        "SELECT DATE(created_at) AS d, COUNT(*) AS cnt, "
+        "COALESCE(SUM(query_tokens + response_tokens + embedding_tokens "
+        "  + rerank_total_tokens + resolve_prompt_tokens + resolve_completion_tokens), 0) AS tokens, "
+        "COALESCE(SUM(charge_usd), 0) AS charge "
+        "FROM mcp_request_log WHERE tenant_id = :tid AND created_at >= :since "
+        "GROUP BY DATE(created_at) ORDER BY d"
+    ), {"tid": tid, "since": since})).mappings().all()
+
+    return UserMcpStats(
+        total_requests=int(totals["cnt"]),
+        total_tokens=int(totals["tokens"]),
+        total_charge_usd=str(totals["charge"]),
+        avg_duration_ms=round(float(totals["avg_dur"]), 1) if totals["avg_dur"] else None,
+        error_count=int(totals["errors"]),
+        by_tool=[
+            {"tool_name": r["tool_name"], "count": int(r["cnt"]),
+             "pct": round(int(r["cnt"]) / total * 100, 1)}
+            for r in by_tool
+        ],
+        top_queries=[{"query": (r["query"] or "")[:100], "count": int(r["cnt"])} for r in top_q],
+        daily=[
+            {"date": str(r["d"]), "requests": int(r["cnt"]),
+             "tokens": int(r["tokens"]), "charge_usd": str(r["charge"])}
+            for r in daily
+        ],
+    )
+
+
 @router.get("/analytics/costs")
 async def user_cost_stats(
     days: int = 30,

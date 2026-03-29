@@ -183,6 +183,16 @@ class UserSearchStats(BaseModel):
     top_queries: list[dict] = []
     daily: list[dict] = []
 
+class UserMcpStats(BaseModel):
+    total_requests: int = 0
+    total_tokens: int = 0
+    total_charge_usd: str = "0"
+    avg_duration_ms: float | None = None
+    error_count: int = 0
+    by_tool: list[dict] = []
+    top_queries: list[dict] = []
+    daily: list[dict] = []
+
 class UserCostStats(BaseModel):
     total_charge_usd: str = "0"
     avg_per_day: str = "0"

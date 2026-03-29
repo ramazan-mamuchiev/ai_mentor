@@ -632,6 +632,7 @@
   "analytics.tabs.chat": "Chat",
   "analytics.tabs.documents": "Documents",
   "analytics.tabs.search": "Search",
+  "analytics.tabs.mcp": "MCP",
   "analytics.tabs.costs": "Costs",
 
   "analytics.chat.sessions": "Sessions",
@@ -663,6 +664,16 @@
   "analytics.search.daily": "Searches daily",
   "analytics.search.searchesPerDay": "Searches per day",
   "analytics.search.topQueries": "Top queries",
+
+  "analytics.mcp.totalRequests": "Total requests",
+  "analytics.mcp.totalTokens": "Total tokens",
+  "analytics.mcp.totalCharge": "Total charge",
+  "analytics.mcp.errors": "Errors",
+  "analytics.mcp.avgDuration": "Avg duration",
+  "analytics.mcp.daily": "Requests daily",
+  "analytics.mcp.dailyTokens": "Tokens daily",
+  "analytics.mcp.byTool": "By tool",
+  "analytics.mcp.topQueries": "Top queries",
 
   "analytics.costs.total": "Period total",
   "analytics.costs.forecast": "Monthly forecast",

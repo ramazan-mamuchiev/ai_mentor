@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { BarChart3 } from 'lucide-react'
 import {
-  getUsageSummary, getUserChatStats, getUserDocStats, getUserSearchStats, getUserCostStats,
+  getUsageSummary, getUserChatStats, getUserDocStats, getUserSearchStats, getUserMcpStats, getUserCostStats,
   type UsageSummaryResponse, type UserChatStats as ChatStatsT,
   type UserDocStats as DocStatsT, type UserSearchStats as SearchStatsT,
-  type UserCostStats as CostStatsT,
+  type UserMcpStats as McpStatsT, type UserCostStats as CostStatsT,
 } from '../auth/api'
 
-const TABS = ['overview', 'chat', 'documents', 'search', 'costs'] as const
+const TABS = ['overview', 'chat', 'documents', 'search', 'mcp', 'costs'] as const
 type Tab = typeof TABS[number]
 
 function SimpleBar({ data, labelKey, valueKey, label }: {
@@ -329,6 +329,79 @@ function SearchTab({ days, t }: { days: number; t: any }) {
   )
 }
 
+/* ───── Tab: MCP ───── */
+function McpTab({ days, t }: { days: number; t: any }) {
+  const [data, setData] = useState<McpStatsT | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    getUserMcpStats(days).then(setData).catch(() => {}).finally(() => setLoading(false))
+  }, [days])
+
+  if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
+  if (!data) return <div className="admin-empty">{t('analytics.noData')}</div>
+
+  return (
+    <>
+      <div className="stats-grid">
+        <StatCard label={t('analytics.mcp.totalRequests')} value={data.total_requests.toLocaleString()} />
+        <StatCard label={t('analytics.mcp.totalTokens')} value={data.total_tokens.toLocaleString()} />
+        <StatCard label={t('analytics.mcp.totalCharge')} value={fmtUsd(data.total_charge_usd)} variant="accent" />
+        <StatCard label={t('analytics.mcp.errors')} value={data.error_count}
+          variant={data.error_count > 0 ? 'warning' : undefined}
+          sub={data.avg_duration_ms != null ? `${t('analytics.mcp.avgDuration')}: ${fmtMs(data.avg_duration_ms)}` : undefined} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '16px 0' }}>
+        <div>
+          <h2 className="admin-section-title">{t('analytics.mcp.daily')}</h2>
+          {data.daily.length > 0 ? (
+            <SimpleBar data={data.daily} labelKey="date" valueKey="requests" label={t('analytics.mcp.daily')} />
+          ) : <div className="admin-empty">{t('analytics.noData')}</div>}
+        </div>
+        <div>
+          <h2 className="admin-section-title">{t('analytics.mcp.dailyTokens')}</h2>
+          {data.daily.length > 0 ? (
+            <SimpleBar data={data.daily} labelKey="date" valueKey="tokens" label={t('analytics.mcp.dailyTokens')} />
+          ) : <div className="admin-empty">{t('analytics.noData')}</div>}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div>
+          <h2 className="admin-section-title">{t('analytics.mcp.byTool')}</h2>
+          {data.by_tool.length > 0 ? (
+            <div className="admin-detail-card" style={{ padding: 16 }}>
+              <HorizBar
+                items={data.by_tool.map(b => ({
+                  label: b.tool_name,
+                  pct: b.pct,
+                  sub: String(b.count),
+                }))}
+                colorVar="var(--log-tool)"
+              />
+            </div>
+          ) : <div className="admin-empty">{t('analytics.noData')}</div>}
+        </div>
+        <div>
+          <h2 className="admin-section-title">{t('analytics.mcp.topQueries')}</h2>
+          {data.top_queries.length > 0 ? (
+            <div className="admin-detail-card" style={{ padding: 16 }}>
+              {data.top_queries.map((q, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>{q.query}</span>
+                  <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{q.count}</span>
+                </div>
+              ))}
+            </div>
+          ) : <div className="admin-empty">{t('analytics.noData')}</div>}
+        </div>
+      </div>
+    </>
+  )
+}
+
 /* ───── Tab: Costs ───── */
 function CostsTab({ days, t }: { days: number; t: any }) {
   const [data, setData] = useState<CostStatsT | null>(null)
@@ -414,6 +487,7 @@ export function AnalyticsPage() {
     chat: t('analytics.tabs.chat'),
     documents: t('analytics.tabs.documents'),
     search: t('analytics.tabs.search'),
+    mcp: t('analytics.tabs.mcp'),
     costs: t('analytics.tabs.costs'),
   }
 
@@ -455,6 +529,7 @@ export function AnalyticsPage() {
         {activeTab === 'chat' && <ChatTab days={days} t={t} />}
         {activeTab === 'documents' && <DocumentsTab days={days} t={t} />}
         {activeTab === 'search' && <SearchTab days={days} t={t} />}
+        {activeTab === 'mcp' && <McpTab days={days} t={t} />}
         {activeTab === 'costs' && <CostsTab days={days} t={t} />}
       </div>
     </div>
