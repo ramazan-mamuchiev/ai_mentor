@@ -3,7 +3,7 @@
 import logging
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import case, func, select
+from sqlalchemy import case, delete, func, select
 
 from fastapi import Query as QueryParam
 
@@ -373,48 +373,56 @@ async def delete_product(product_id: int):
 
 @router.post("/{product_id}/reingest", status_code=202)
 async def reingest_product(product_id: int):
-    """Re-run full ingestion for all documents of a product."""
+    """Re-run full ingestion for all documents of a product.
+
+    Only requeues file-based documents (ready/error). Placeholder documents
+    (site, confluence, url) are skipped — use their own reingest endpoints.
+    """
     from app.celery_app import ingest_document_task
+
+    _PLACEHOLDER_FORMATS = {"site", "confluence", "url"}
 
     async with async_session() as session:
         product = await _get_product(session, product_id)
 
         docs_result = await session.execute(
-            select(Document).where(Document.product_id == product_id)
+            select(Document).where(
+                Document.product_id == product_id,
+                Document.status.in_(["ready", "error", "pending", "processing"]),
+                Document.format.notin_(_PLACEHOLDER_FORMATS),
+            )
         )
         docs = docs_result.scalars().all()
         if not docs:
-            raise HTTPException(status_code=400, detail="Product has no documents")
+            raise HTTPException(status_code=400, detail="No documents to reingest")
 
-        queued = 0
+        doc_ids = [doc.id for doc in docs]
+
+        await session.execute(
+            delete(Chunk).where(Chunk.document_id.in_(doc_ids))
+        )
+
         for doc in docs:
-            if doc.status in ("ready", "error"):
-                chunks = (await session.execute(
-                    select(Chunk).where(Chunk.document_id == doc.id)
-                )).scalars().all()
-                for chunk in chunks:
-                    await session.delete(chunk)
-
-                doc.status = "pending"
-                doc.total_chunks = 0
-                doc.error_message = None
-
-            queued += 1
+            doc.status = "pending"
+            doc.total_chunks = 0
+            doc.error_message = None
+            doc.progress_percent = 0
+            doc.progress_stage = "queued"
 
         await session.commit()
 
-    for doc in docs:
-        ingest_document_task.delay(doc.id)
+    for doc_id in doc_ids:
+        ingest_document_task.delay(doc_id)
 
     logger.info(
         "Product reingest queued",
-        extra={"product_id": product_id, "product_name": product.name, "documents_queued": queued},
+        extra={"product_id": product_id, "product_name": product.name, "documents_queued": len(doc_ids)},
     )
     return {
         "product_id": product_id,
         "product_name": product.name,
         "status": "accepted",
-        "documents_queued": queued,
+        "documents_queued": len(doc_ids),
     }
 
 
