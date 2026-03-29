@@ -464,7 +464,7 @@ function SessionListView() {
                 </div>
                 <div className="chat-audit-session-row__meta">
                   <span>{s.tenant_email || '—'}</span>
-                  {s.product_filter && <span>· {s.product_filter}</span>}
+                  {s.product_filter && <span>· {s.product_filter.replace(/\n/g, ', ')}</span>}
                   <span>· {s.messages_count} {t('admin.chats.messages').toLowerCase()}</span>
                   <span>· {new Date(s.updated_at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}, {new Date(s.updated_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>

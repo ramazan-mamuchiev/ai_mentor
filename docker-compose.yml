@@ -132,8 +132,8 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 60s
+      retries: 30
+      start_period: 120s
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
 
   worker:
@@ -148,12 +148,10 @@ services:
         reservations:
           memory: 512M
     depends_on:
-      postgres:
+      api:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
-        condition: service_started
     environment: &worker-env
       DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
       DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
@@ -184,6 +182,8 @@ services:
           cpus: "0.25"
           memory: 256M
     depends_on:
+      api:
+        condition: service_healthy
       redis:
         condition: service_healthy
     environment: *worker-env
