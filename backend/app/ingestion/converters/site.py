@@ -94,6 +94,7 @@ class SiteCrawlResult:
     pages_crawled: int = 0
     files_found: int = 0
     crawl_ms: float = 0.0
+    stopped_by_time: bool = False
     errors: list[str] = field(default_factory=list)
 
 
@@ -197,6 +198,7 @@ async def crawl_site(
                         "max_seconds": max_seconds,
                         "pages_crawled": result.pages_crawled,
                     })
+                    result.stopped_by_time = True
                     result.errors.append(
                         f"Crawl stopped: time limit of {max_seconds}s reached "
                         f"after {result.pages_crawled} pages"

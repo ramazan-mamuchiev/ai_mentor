@@ -1959,6 +1959,28 @@
   cursor: not-allowed;
 }
 
+@media (max-width: 767px) {
+  .file-upload-modal {
+    max-width: calc(100vw - 32px);
+  }
+
+  .file-upload-header {
+    padding: 12px 16px;
+  }
+
+  .file-upload-form {
+    padding: 16px 20px;
+  }
+
+  .file-upload-progress {
+    padding: 16px 20px;
+  }
+
+  .file-upload-dropzone {
+    margin: 16px 20px 0;
+  }
+}
+
 .file-upload-progress {
   padding: 16px;
   flex: 1;

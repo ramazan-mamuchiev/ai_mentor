@@ -1208,7 +1208,7 @@ def ingest_confluence_task(self, document_id: int):
     }
 
 
-@celery.task(name="ingest_site", bind=True, max_retries=1, default_retry_delay=60,
+@celery.task(name="ingest_site", bind=True, max_retries=10, default_retry_delay=10,
              soft_time_limit=7200, time_limit=7500)
 def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_pages: int | None = None, download_resources: bool = True):
     """Background task: crawl a website and ingest each page + downloaded files.
@@ -1234,7 +1234,10 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
 
     _max_depth = max_depth or settings.site_crawl_max_depth
     _max_pages = max_pages or settings.site_crawl_max_pages
-    _max_seconds = settings.site_crawl_max_seconds
+    _max_seconds_cfg = settings.site_crawl_max_seconds
+
+    _soft_limit = (self.request.timelimit or (None, None))[0] or 7200
+    _deadline_seconds = int(_soft_limit * 0.85)
 
     t0 = time.perf_counter()
     engine = _get_sync_engine()
@@ -1262,6 +1265,7 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
     logger.info("Celery ingest_site_task started", extra={
         "url": url, "document_id": document_id, "task_id": self.request.id,
         "max_depth": _max_depth, "max_pages": _max_pages,
+        "retry": self.request.retries, "deadline_seconds": _deadline_seconds,
     })
 
     dispatched = 0
@@ -1478,6 +1482,10 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
         except Exception:
             pass
 
+    _elapsed_before_crawl = time.perf_counter() - t0
+    _remaining = max(60, _deadline_seconds - int(_elapsed_before_crawl))
+    _max_seconds = min(_max_seconds_cfg, _remaining)
+
     try:
         try:
             loop = asyncio.get_event_loop()
@@ -1517,12 +1525,22 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
             placeholder = session.get(Document, document_id)
             if placeholder:
                 total = dispatched + files_dispatched
-                placeholder.status = "error"
-                placeholder.error_message = (
-                    f"Crawl exceeded soft time limit (2 hours). "
-                    f"Processed {total} items before timeout."
-                )
-                placeholder.progress_stage = ""
+                if total > 0:
+                    placeholder.status = "ready"
+                    placeholder.progress_stage = "done"
+                    placeholder.error_message = (
+                        f"Crawl stopped by time limit ({_soft_limit // 3600}h). "
+                        f"Processed {total} items. Site may have more pages — "
+                        f"re-run to continue from checkpoint."
+                    )
+                else:
+                    placeholder.status = "error"
+                    placeholder.progress_stage = ""
+                    placeholder.error_message = (
+                        f"Crawl exceeded time limit ({_soft_limit // 3600}h) "
+                        f"without processing any items."
+                    )
+                placeholder.progress_percent = 100
                 session.commit()
         logger.error("ingest_site_task soft time limit exceeded", extra={
             "url": url, "document_id": document_id,
@@ -1531,6 +1549,7 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
         return {
             "status": "error", "error": "soft_time_limit",
             "url": url, "document_id": document_id,
+            "dispatched": dispatched, "files_dispatched": files_dispatched,
         }
 
     except Exception as exc:
@@ -1547,6 +1566,22 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
             "error_type": type(exc).__name__,
         }, exc_info=True)
         raise self.retry(exc=exc)
+
+    if crawl_result.stopped_by_time and self.request.retries < self.max_retries:
+        _save_progress()
+        total = dispatched + files_dispatched
+        logger.info("Site crawl auto-continuing via retry", extra={
+            "url": url, "document_id": document_id,
+            "retry": self.request.retries + 1,
+            "dispatched": dispatched, "files_dispatched": files_dispatched,
+            "pages_seen": pages_seen,
+        })
+        with Session(engine) as session:
+            ph = session.get(Document, document_id)
+            if ph:
+                ph.progress_stage = f"restarting ({total} items so far, retry {self.request.retries + 1})"
+                session.commit()
+        raise self.retry(countdown=10)
 
     with Session(engine) as session:
         placeholder = session.get(Document, document_id)
