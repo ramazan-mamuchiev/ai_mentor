@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight, Clock, User,
-  FileSearch, Bug,
+  FileSearch, Bug, ChevronDown,
 } from 'lucide-react'
 import {
   listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin, searchTenants,
@@ -35,6 +35,20 @@ function timeRangeToISO(range: string): { start?: string; end?: string } {
   }
 }
 
+function fmtTs(iso: string) {
+  const d = new Date(iso)
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${dd}.${mm} ${hh}:${mi}`
+}
+
+function fmtDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
 function toSourceInfos(sources: AdminChatMessage['sources']): SourceInfo[] {
   if (!sources || !Array.isArray(sources)) return []
   return sources.map(s => ({
@@ -46,6 +60,83 @@ function toSourceInfos(sources: AdminChatMessage['sources']): SourceInfo[] {
     firmware_version: '',
     document_id: s.document_id ?? null,
   }))
+}
+
+function highlightSearch(text: string, query: string): React.ReactNode {
+  if (!query || query.length < 2) return text
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="log-highlight">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
+
+function ChatSessionRow({ item, search, onClick }: {
+  item: AdminChatSessionItem
+  search: string
+  onClick: () => void
+}) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+
+  const title = item.title || t('admin.chats.untitled')
+
+  const handleClick = () => {
+    if (window.getSelection()?.toString()) return
+    setExpanded(v => !v)
+  }
+
+  const details: [string, string][] = [
+    ['session_id', item.id.slice(0, 8)],
+    ['email', item.tenant_email || '—'],
+    ['product', item.product_filter?.replace(/\n/g, ', ') || '—'],
+    ['messages', String(item.messages_count)],
+    ['total_tokens', item.total_tokens.toLocaleString()],
+    ['duration', fmtDuration(item.total_duration_ms)],
+    ['created', fmtTs(item.created_at)],
+    ['updated', fmtTs(item.updated_at)],
+  ]
+
+  return (
+    <div className={`log-row${expanded ? ' log-row--expanded' : ''}`} onClick={handleClick}>
+      <div className="log-row__header">
+        <span className="log-row__expand">
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </span>
+        <span className="log-row__ts">{fmtTs(item.updated_at)}</span>
+        <span className="log-row__level log-row__level--info">
+          {item.tenant_email?.split('@')[0] || '—'}
+        </span>
+        <span className="log-row__summary">{highlightSearch(title, search)}</span>
+        <span className="log-row__meta-pill">{item.messages_count} msg</span>
+        {item.total_tokens > 0 && (
+          <span className="log-row__meta-pill">{item.total_tokens.toLocaleString()} tok</span>
+        )}
+        {item.total_duration_ms > 0 && (
+          <span className="log-row__meta-pill">{fmtDuration(item.total_duration_ms)}</span>
+        )}
+      </div>
+      {expanded && (
+        <div className="log-row__details">
+          {details.map(([k, v]) => (
+            <div className="log-row__field" key={k}>
+              <span className="log-row__key">{k}</span>
+              <span className="log-row__value">{v}</span>
+            </div>
+          ))}
+          <div className="log-row__actions">
+            <button className="admin-btn admin-btn--sm" onClick={e => { e.stopPropagation(); onClick() }}>
+              <ChevronRight size={12} /> {t('admin.chats.openSession', { defaultValue: 'Open session' })}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SessionDetail({ sessionId }: { sessionId: string }) {
@@ -305,7 +396,6 @@ function SessionListView() {
       </div>
 
       <div className="logs-toolbar">
-        {/* Row 1: Time + User + Search */}
         <div className="logs-toolbar__row">
           <div className="logs-chips" role="group" aria-label="Time range">
             <Clock size={13} className="logs-chips__icon" />
@@ -394,7 +484,6 @@ function SessionListView() {
           </div>
         </div>
 
-        {/* Row 2: Search mode chips + count */}
         <div className="logs-toolbar__row">
           <div className="logs-level-chips" role="group" aria-label="Search mode">
             <button
@@ -414,32 +503,31 @@ function SessionListView() {
         </div>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="chat-audit-error">
           <AlertTriangle size={14} /> {error}
         </div>
       )}
 
-      {/* Results */}
       {loading ? (
         <div className="admin-loading">{t('admin.common.loading')}</div>
       ) : isMessageSearch && msgResults.length > 0 ? (
-        <div className="chat-audit-results">
+        <div className="log-viewer">
           {msgResults.map(m => (
             <div
               key={m.message_id}
-              className="chat-audit-msg-row"
+              className="log-row"
               onClick={() => navigate(`/app/admin/chats/${m.session_id}`)}
+              style={{ cursor: 'pointer' }}
             >
-              <div className="chat-audit-msg-row__header">
-                <span className={`badge ${m.role === 'user' ? 'badge--blue' : 'badge--gray'}`}>{m.role}</span>
-                <span className="chat-audit-msg-row__tenant">{m.tenant_email || '—'}</span>
-                <span className="chat-audit-msg-row__session">{String(m.session_id).slice(0, 8)}</span>
-                <span className="chat-audit-msg-row__date">{new Date(m.created_at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}, {new Date(m.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
-                <ChevronRight size={14} className="chat-audit-msg-row__arrow" />
+              <div className="log-row__header">
+                <span className="log-row__expand"><ChevronRight size={12} /></span>
+                <span className="log-row__ts">{fmtTs(m.created_at)}</span>
+                <span className={`log-row__level log-row__level--${m.role === 'user' ? 'info' : 'debug'}`}>{m.role}</span>
+                <span className="log-row__summary">{highlightSearch(m.content, debouncedSearch)}</span>
+                <span className="log-row__meta-pill">{m.tenant_email?.split('@')[0] || '—'}</span>
+                <span className="log-row__meta-pill">{m.session_id.slice(0, 8)}</span>
               </div>
-              <div className="chat-audit-msg-row__content">{m.content}</div>
             </div>
           ))}
         </div>
@@ -449,27 +537,14 @@ function SessionListView() {
         <div className="admin-empty">{t('admin.chats.noSessions')}</div>
       ) : (
         <>
-          <div className="chat-audit-results">
+          <div className="log-viewer">
             {items.map(s => (
-              <div
+              <ChatSessionRow
                 key={s.id}
-                className="chat-audit-session-row"
+                item={s}
+                search={debouncedSearch}
                 onClick={() => navigate(`/app/admin/chats/${s.id}`)}
-              >
-                <div className="chat-audit-session-row__main">
-                  <span className="chat-audit-session-row__id">{String(s.id).slice(0, 8)}</span>
-                  <span className="chat-audit-session-row__title">
-                    {s.title || t('admin.chats.untitled')}
-                  </span>
-                  <ChevronRight size={14} className="chat-audit-session-row__arrow" />
-                </div>
-                <div className="chat-audit-session-row__meta">
-                  <span>{s.tenant_email || '—'}</span>
-                  {s.product_filter && <span>· {s.product_filter.replace(/\n/g, ', ')}</span>}
-                  <span>· {s.messages_count} {t('admin.chats.messages').toLowerCase()}</span>
-                  <span>· {new Date(s.updated_at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}, {new Date(s.updated_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-              </div>
+              />
             ))}
           </div>
 

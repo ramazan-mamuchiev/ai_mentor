@@ -89,6 +89,8 @@ class AdminChatSessionItem(BaseModel):
     title: str | None
     product_filter: str | None
     messages_count: int = 0
+    total_tokens: int = 0
+    total_duration_ms: float = 0
     created_at: datetime
     updated_at: datetime
 

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Plug, X, AlertTriangle, Clock, User, Bug, FileSearch, Search,
+  ChevronDown, ChevronRight, Copy, Check,
 } from 'lucide-react'
 import {
   listMcpRequests, getMcpRequestDetail, searchTenants,
@@ -31,14 +32,120 @@ function timeRangeToISO(range: string): { start?: string; end?: string } {
   return { start: new Date(now - ms).toISOString(), end: new Date(now).toISOString() }
 }
 
-function fmtTime(iso: string) {
+function fmtTs(iso: string) {
   const d = new Date(iso)
-  return d.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
-    + ', ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  return `${dd}.${mm} ${hh}:${mi}:${ss}`
 }
 
 function fmtMs(v: number | null | undefined) { return v != null ? `${Math.round(v)}ms` : '—' }
 function fmtUsd(v: string) { return `$${parseFloat(v).toFixed(6)}` }
+
+function totalTokens(r: McpRequestItem): number {
+  return r.query_tokens + r.response_tokens + r.embedding_tokens
+    + (r.rerank_total_tokens || 0)
+    + (r.resolve_prompt_tokens || 0) + (r.resolve_completion_tokens || 0)
+}
+
+function highlightSearch(text: string, query: string): React.ReactNode {
+  if (!query || query.length < 2) return text
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="log-highlight">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
+
+function McpRow({ item, search, isSelected, onDebug, onSources }: {
+  item: McpRequestItem
+  search: string
+  isSelected: boolean
+  onDebug: () => void
+  onSources: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const summary = item.query_text || '—'
+  const tokens = totalTokens(item)
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(JSON.stringify(item, null, 2))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const handleClick = () => {
+    if (window.getSelection()?.toString()) return
+    setExpanded(v => !v)
+  }
+
+  const details: [string, string | React.ReactNode][] = [
+    ['request_id', item.request_id],
+    ['user', item.tenant_email || '—'],
+    ['key_prefix', item.key_prefix ? `${item.key_prefix}…` : '—'],
+    ['results', String(item.result_count)],
+    ['top_similarity', item.top_similarity > 0 ? item.top_similarity.toFixed(4) : '—'],
+    ['duration', fmtMs(item.duration_ms)],
+    ['query_tokens', item.query_tokens.toLocaleString()],
+    ['response_tokens', item.response_tokens.toLocaleString()],
+    ['embedding_tokens', item.embedding_tokens.toLocaleString()],
+    ['rerank_tokens', (item.rerank_total_tokens || 0).toLocaleString()],
+    ['resolve_tokens', ((item.resolve_prompt_tokens || 0) + (item.resolve_completion_tokens || 0)).toLocaleString()],
+    ['resolve_model', item.resolve_model || '—'],
+    ['resolve_ms', fmtMs(item.resolve_ms)],
+    ['charge', fmtUsd(item.charge_usd)],
+  ]
+
+  return (
+    <div className={`log-row${expanded ? ' log-row--expanded' : ''}${isSelected ? ' log-row--expanded' : ''}`} onClick={handleClick}>
+      <div className="log-row__header">
+        <span className="log-row__expand">
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </span>
+        <span className="log-row__ts">{fmtTs(item.created_at)}</span>
+        <span className={`log-row__level log-row__level--${item.status === 'error' ? 'error' : 'info'}`}>
+          {item.tool_name.replace(/_/g, ' ')}
+        </span>
+        <span className="log-row__summary">{highlightSearch(summary, search)}</span>
+        <span className="log-row__meta-pill">{tokens.toLocaleString()} tok</span>
+        <span className="log-row__meta-pill">{fmtUsd(item.charge_usd)}</span>
+        <span className="log-row__meta-pill">{fmtMs(item.duration_ms)}</span>
+        {item.status === 'error' && <span className="badge badge--red">error</span>}
+        <button className="log-row__copy" onClick={handleCopy} title="Copy JSON">
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+        </button>
+      </div>
+      {expanded && (
+        <div className="log-row__details">
+          {details.map(([k, v]) => (
+            <div className="log-row__field" key={k}>
+              <span className="log-row__key">{k}</span>
+              <span className="log-row__value">{v}</span>
+            </div>
+          ))}
+          <div className="log-row__actions">
+            <button className="admin-btn admin-btn--sm" onClick={e => { e.stopPropagation(); onDebug() }}>
+              <Bug size={12} /> Debug
+            </button>
+            <button className="admin-btn admin-btn--sm" onClick={e => { e.stopPropagation(); onSources() }}>
+              <FileSearch size={12} /> Sources
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 type PanelState = {
   mode: 'mcp-debug'
@@ -174,6 +281,14 @@ export function McpAuditPage() {
     ? `${panelDetail.tool_name} · ${panelDetail.request_id.slice(0, 8)}`
     : undefined
 
+  const statusCounts = useMemo(() => {
+    const c = { ok: 0, error: 0 }
+    for (const i of items) {
+      if (i.status === 'error') c.error++; else c.ok++
+    }
+    return c
+  }, [items])
+
   return (
     <div className={`docs-page${panel ? ' docs-page--with-panel' : ''}`}>
       <div className="docs-page-main">
@@ -183,8 +298,19 @@ export function McpAuditPage() {
         </div>
 
         <div className="logs-toolbar">
-          {/* Row 1: Time + User + Search */}
           <div className="logs-toolbar__row">
+            <select
+              className="logs-select"
+              value={toolFilter}
+              onChange={e => { setToolFilter(e.target.value); setPage(1) }}
+            >
+              {TOOLS.map(tool => (
+                <option key={tool || '_all'} value={tool}>
+                  {tool || t('admin.mcp.allTools')}
+                </option>
+              ))}
+            </select>
+
             <div className="logs-chips" role="group" aria-label="Time range">
               <Clock size={13} className="logs-chips__icon" />
               {TIME_RANGES.map(r => (
@@ -248,18 +374,22 @@ export function McpAuditPage() {
             </div>
           </div>
 
-          {/* Row 2: Tool chips + count */}
           <div className="logs-toolbar__row">
-            <div className="logs-level-chips" role="group" aria-label="Tools">
-              {TOOLS.map(tool => (
-                <button
-                  key={tool}
-                  className={`logs-level-chip logs-level-chip--all${toolFilter === tool ? ' logs-level-chip--active' : ''}`}
-                  onClick={() => { setToolFilter(tool); setPage(1) }}
-                >
-                  {tool || t('admin.mcp.allTools')}
-                </button>
-              ))}
+            <div className="logs-level-chips" role="group" aria-label="Status">
+              <button
+                className={`logs-level-chip logs-level-chip--all${!statusCounts ? '' : ' logs-level-chip--active'}`}
+                disabled
+                style={{ opacity: 1, cursor: 'default' }}
+              >
+                OK <span className="logs-level-chip__count">{statusCounts.ok}</span>
+              </button>
+              <button
+                className="logs-level-chip logs-level-chip--error"
+                disabled
+                style={{ opacity: 1, cursor: 'default' }}
+              >
+                ERROR <span className="logs-level-chip__count">{statusCounts.error}</span>
+              </button>
             </div>
             <span className="logs-count">{total} requests</span>
           </div>
@@ -273,67 +403,17 @@ export function McpAuditPage() {
           <div className="admin-empty">{t('admin.mcp.noRequests')}</div>
         ) : (
           <>
-            <div className="mcp-table-container">
-              <table className="admin-table mcp-audit-table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>User</th>
-                    <th>Tool</th>
-                    <th>Query</th>
-                    <th>Results</th>
-                    <th>Duration</th>
-                    <th>Tokens</th>
-                    <th>Charge</th>
-                    <th>Status</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map(r => {
-                    const isSelected = panelDetail?.request_id === r.request_id
-                    return (
-                      <tr
-                        key={r.id}
-                        className={isSelected ? 'admin-table-row--selected' : ''}
-                      >
-                        <td className="mcp-td-time">{fmtTime(r.created_at)}</td>
-                        <td className="mcp-td-user">
-                          {r.tenant_email || '—'}
-                          {r.key_prefix && <div className="mcp-key-prefix"><code>{r.key_prefix}…</code></div>}
-                        </td>
-                        <td><span className="badge badge--blue">{r.tool_name.replace('_', ' ')}</span></td>
-                        <td className="mcp-td-query">{r.query_text || '—'}</td>
-                        <td>{r.result_count}</td>
-                        <td className="mcp-td-mono">{fmtMs(r.duration_ms)}</td>
-                        <td className="mcp-td-mono">{(r.query_tokens + r.response_tokens + r.embedding_tokens + (r.rerank_total_tokens || 0) + (r.resolve_prompt_tokens || 0) + (r.resolve_completion_tokens || 0)).toLocaleString()}</td>
-                        <td className="mcp-td-mono">{fmtUsd(r.charge_usd)}</td>
-                        <td>
-                          {r.status === 'error'
-                            ? <span className="badge badge--red">error</span>
-                            : <span className="badge badge--green">ok</span>}
-                        </td>
-                        <td className="mcp-td-actions">
-                          <button
-                            className="mcp-action-btn"
-                            title="Debug"
-                            onClick={() => openPanel(r.request_id, 'mcp-debug')}
-                          >
-                            <Bug size={14} />
-                          </button>
-                          <button
-                            className="mcp-action-btn"
-                            title="Sources"
-                            onClick={() => openPanel(r.request_id, 'mcp-sources')}
-                          >
-                            <FileSearch size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+            <div className="log-viewer">
+              {items.map(r => (
+                <McpRow
+                  key={r.id}
+                  item={r}
+                  search={debouncedSearch}
+                  isSelected={panelDetail?.request_id === r.request_id}
+                  onDebug={() => openPanel(r.request_id, 'mcp-debug')}
+                  onSources={() => openPanel(r.request_id, 'mcp-sources')}
+                />
+              ))}
             </div>
 
             {totalPages > 1 && (

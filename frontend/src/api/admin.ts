@@ -185,6 +185,8 @@ export interface AdminChatSessionItem {
   title: string | null
   product_filter: string | null
   messages_count: number
+  total_tokens: number
+  total_duration_ms: number
   created_at: string
   updated_at: string
 }

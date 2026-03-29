@@ -320,10 +320,13 @@ async def list_chat_sessions_admin(
         select(
             ChatSession,
             Tenant.email.label("tenant_email"),
-            func.count(ChatMessage.id).label("messages_count"),
+            func.count(func.distinct(ChatMessage.id)).label("messages_count"),
+            func.coalesce(func.sum(ChatMessageAnalytics.llm_total_tokens), 0).label("total_tokens"),
+            func.coalesce(func.sum(ChatMessageAnalytics.total_ms), 0).label("total_duration_ms"),
         )
         .outerjoin(Tenant, ChatSession.tenant_id == Tenant.id)
         .outerjoin(ChatMessage, ChatMessage.session_id == ChatSession.id)
+        .outerjoin(ChatMessageAnalytics, ChatMessageAnalytics.session_id == ChatSession.id)
         .group_by(ChatSession.id, Tenant.email)
     )
     count_q = select(func.count()).select_from(ChatSession)
@@ -359,6 +362,8 @@ async def list_chat_sessions_admin(
             "title": cs.title,
             "product_filter": cs.product_filter,
             "messages_count": row.messages_count,
+            "total_tokens": int(row.total_tokens),
+            "total_duration_ms": float(row.total_duration_ms),
             "created_at": cs.created_at, "updated_at": cs.updated_at,
         })
 
