@@ -368,7 +368,8 @@ async def search_documents(
     )
 
     t_db = time.perf_counter()
-    await session.execute(text("SET LOCAL hnsw.ef_search = :ef"), {"ef": settings.hnsw_ef_search})
+    ef_val = int(settings.hnsw_ef_search)
+    await session.execute(text(f"SET LOCAL hnsw.ef_search = {ef_val}"))
     result = await session.execute(vector_sql, params)
     rows = result.mappings().all()
     vector_results = [
