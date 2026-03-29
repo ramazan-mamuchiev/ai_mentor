@@ -615,3 +615,9 @@ CREATE INDEX IF NOT EXISTS idx_mcp_req_log_tenant ON mcp_request_log(tenant_id, 
 CREATE INDEX IF NOT EXISTS idx_mcp_req_log_api_key ON mcp_request_log(api_key_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_mcp_req_log_tool ON mcp_request_log(tool_name, created_at);
 CREATE INDEX IF NOT EXISTS idx_mcp_req_log_request ON mcp_request_log(request_id);
+
+-- Migration tracking
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    filename TEXT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

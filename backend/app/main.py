@@ -108,17 +108,32 @@ async def _apply_schema():
 
 
 async def _apply_auth_schema():
-    """Apply auth tables migration (idempotent)."""
+    """Apply pending SQL migrations, skip already applied ones."""
     from app.database import engine
     import pathlib
 
     migrations_dir = pathlib.Path(__file__).resolve().parent.parent / "db" / "migrations"
-    for sql_file in sorted(migrations_dir.glob("*.sql")):
-        sql = sql_file.read_text(encoding="utf-8")
-        async with engine.begin() as conn:
-            raw = await conn.get_raw_connection()
-            await raw.driver_connection.execute(sql)
-        logger.info("Migration applied", extra={"file": sql_file.name})
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        drv = raw.driver_connection
+
+        applied = {
+            row["filename"]
+            for row in await drv.fetch("SELECT filename FROM schema_migrations")
+        }
+
+        for sql_file in sorted(migrations_dir.glob("*.sql")):
+            if sql_file.name in applied:
+                logger.debug("Migration already applied, skipping", extra={"file": sql_file.name})
+                continue
+
+            sql = sql_file.read_text(encoding="utf-8")
+            await drv.execute(sql)
+            await drv.execute(
+                "INSERT INTO schema_migrations (filename) VALUES ($1)",
+                sql_file.name,
+            )
+            logger.info("Migration applied", extra={"file": sql_file.name})
 
 
 async def _migrate_devices_to_products():
