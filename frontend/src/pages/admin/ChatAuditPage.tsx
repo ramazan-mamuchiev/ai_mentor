@@ -71,7 +71,7 @@ function ChatSessionRow({ item, search, onClick }: {
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
         <span className="log-row__ts">{fmtTsShort(item.updated_at)}</span>
-        <span className="log-row__level log-row__level--info">
+        <span className="log-row__level log-row__level--tenant">
           {item.tenant_email?.split('@')[0] || '—'}
         </span>
         <span className="log-row__summary">{highlightSearch(title, search)}</span>

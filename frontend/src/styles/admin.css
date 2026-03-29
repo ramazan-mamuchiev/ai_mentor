@@ -442,6 +442,9 @@
   --log-error: #dc2626;
   --log-debug: #6b7280;
   --log-key: #16a34a;
+  --log-ok: #16a34a;
+  --log-tool: #7c3aed;
+  --log-tenant: #0d9488;
   --log-highlight-bg: #fef08a;
 }
 
@@ -451,6 +454,9 @@
   --log-error: #f85149;
   --log-debug: #8b949e;
   --log-key: #7ee787;
+  --log-ok: #7ee787;
+  --log-tool: #a78bfa;
+  --log-tenant: #5eead4;
   --log-highlight-bg: #e3b34180;
 }
 
@@ -991,6 +997,9 @@
 .log-row__level--warning { color: var(--log-warn); }
 .log-row__level--error { color: var(--log-error); }
 .log-row__level--debug { color: var(--log-debug); }
+.log-row__level--ok { color: var(--log-ok); }
+.log-row__level--tool { color: var(--log-tool); }
+.log-row__level--tenant { color: var(--log-tenant); }
 
 .log-row__service {
   font-size: 9px;

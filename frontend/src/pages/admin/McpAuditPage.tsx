@@ -71,7 +71,7 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
         <span className="log-row__ts">{fmtTs(item.created_at)}</span>
-        <span className={`log-row__level log-row__level--${item.status === 'error' ? 'error' : 'info'}`}>
+        <span className="log-row__level log-row__level--tool">
           {item.tool_name.replace(/_/g, ' ')}
         </span>
         <span className="log-row__summary">{highlightSearch(summary, search)}</span>
