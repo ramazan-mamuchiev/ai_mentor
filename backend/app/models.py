@@ -170,6 +170,20 @@ class FirmwareVersion(Base):
     __table_args__ = (UniqueConstraint("product_id", "version"),)
 
 
+class ProductSearchKey(Base):
+    __tablename__ = "product_search_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    key: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(Text, default="llm")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (UniqueConstraint("product_id", "key"),)
+
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -236,6 +250,10 @@ class Document(Base):
     extract_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     extract_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     extract_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    product_keys_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    product_keys_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    product_keys_ms: Mapped[float] = mapped_column(Float, default=0)
 
     crawl_checkpoint: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
@@ -393,6 +411,12 @@ class ChatMessageAnalytics(Base):
     classify_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     classify_model: Mapped[str | None] = mapped_column(Text, nullable=True)
     classify_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    resolve_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    resolve_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    resolve_total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    resolve_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolve_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     rerank_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     rerank_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
@@ -852,6 +876,11 @@ class McpRequestLog(Base):
     embed_ms: Mapped[float] = mapped_column(Float, default=0)
     search_ms: Mapped[float] = mapped_column(Float, default=0)
     rerank_ms: Mapped[float] = mapped_column(Float, default=0)
+
+    resolve_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    resolve_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    resolve_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolve_ms: Mapped[float] = mapped_column(Float, default=0)
 
     cogs_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
     charge_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))

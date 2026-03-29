@@ -20,7 +20,7 @@ from app.config import settings
 from app.llm.http_client import gemini_client, ollama_client
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
 from app.models import ChatMessage, Product, SearchAnalytics
-from app.search.service import search_documents
+from app.search.service import ResolveResult, resolve_product, search_documents
 
 
 @dataclass
@@ -723,20 +723,25 @@ async def _parallel_search(
 ) -> list[dict]:
     """Run parallel searches for each sub-query and merge results with balanced interleaving."""
 
+    resolved_ids: dict[str, int | None] = {}
+    for sp in sub_products:
+        if sp and sp not in resolved_ids:
+            r = await resolve_product(db, sp)
+            resolved_ids[sp] = r.product_id
+
     async def _single(sq: str, sp: str | None) -> list[dict]:
         meta: dict = {}
-        if locked_product_id and sp and locked_product_name and sp.lower() == locked_product_name.lower():
-            results = await search_documents(
-                session=db, query=sq, product_id=locked_product_id,
-                version=version, doc_context=doc_context,
-                limit=limit_per_query, metadata=meta,
-            )
-        else:
-            results = await search_documents(
-                session=db, query=sq, product=sp,
-                version=version, doc_context=doc_context,
-                limit=limit_per_query, metadata=meta,
-            )
+        pid = locked_product_id
+        if not pid and sp:
+            if locked_product_name and sp.lower() == locked_product_name.lower():
+                pid = locked_product_id
+            else:
+                pid = resolved_ids.get(sp)
+        results = await search_documents(
+            session=db, query=sq, product_id=pid,
+            version=version, doc_context=doc_context,
+            limit=limit_per_query, metadata=meta,
+        )
         for r in results:
             r["_sub_query"] = sq
         return results
@@ -952,19 +957,14 @@ async def build_rag_prompt(
         )
 
         effective_product_id = product_id
+        resolve_usage = ResolveResult()
         if product_filter_source == "explicit" and product_id is None and product_filter:
-            product = await db.scalar(
-                sa_select(Product).where(Product.name.ilike(product_filter))
-            )
-            if not product:
-                product = await db.scalar(
-                    sa_select(Product).where(Product.name.ilike(f"%{product_filter}%"))
-                )
-            if product:
-                effective_product_id = product.id
+            resolve_usage = await resolve_product(db, product_filter)
+            if resolve_usage.product_id:
+                effective_product_id = resolve_usage.product_id
                 logger.info(
                     "Resolved product_id from product_filter for explicit lock",
-                    extra={"product_filter": product_filter, "product_id": effective_product_id, "product_name": product.name},
+                    extra={"product_filter": product_filter, "product_id": effective_product_id, "product_name": resolve_usage.product_name},
                 )
             else:
                 logger.warning(
@@ -998,7 +998,6 @@ async def build_rag_prompt(
                 session=db,
                 query=search_query,
                 product_id=effective_product_id if is_explicit_lock else None,
-                product=product_filter if not is_explicit_lock else None,
                 version=version_filter,
                 doc_context=doc_context,
                 limit=effective_top_k,
@@ -1063,7 +1062,6 @@ async def build_rag_prompt(
                 session=db,
                 query=rephrased,
                 product_id=effective_product_id if is_explicit_lock else None,
-                product=product_filter if not is_explicit_lock else None,
                 version=version_filter,
                 doc_context=doc_context,
                 limit=effective_top_k,
@@ -1337,6 +1335,11 @@ async def build_rag_prompt(
         "rerank_completion_tokens": search_meta.get("rerank_completion_tokens", 0),
         "rerank_total_tokens": search_meta.get("rerank_total_tokens", 0),
         "rerank_model": search_meta.get("rerank_model", ""),
+        "resolve_prompt_tokens": resolve_usage.prompt_tokens,
+        "resolve_completion_tokens": resolve_usage.completion_tokens,
+        "resolve_total_tokens": resolve_usage.prompt_tokens + resolve_usage.completion_tokens,
+        "resolve_model": resolve_usage.model,
+        "resolve_ms": resolve_usage.resolve_ms,
         "query_type": query_type,
         "prompt_hash": prompt_hash,
         "retry_used": retry_used,

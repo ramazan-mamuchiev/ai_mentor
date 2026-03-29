@@ -103,11 +103,16 @@ def calculate_mcp_cogs(
     rerank_model: str,
     rerank_prompt_tokens: int,
     rerank_completion_tokens: int,
+    resolve_model: str = "",
+    resolve_prompt_tokens: int = 0,
+    resolve_completion_tokens: int = 0,
 ) -> Decimal:
-    """Total COGS for one MCP tool call: search infra + embedding + rerank."""
+    """Total COGS for one MCP tool call: search infra + embedding + rerank + resolve."""
     cost = SEARCH_COGS_USD
     cost += calculate_embedding_cogs(embedding_model, embedding_tokens)
     cost += calculate_llm_cogs(rerank_model, rerank_prompt_tokens, rerank_completion_tokens)
+    if resolve_model and (resolve_prompt_tokens or resolve_completion_tokens):
+        cost += calculate_llm_cogs(resolve_model, resolve_prompt_tokens, resolve_completion_tokens)
     return cost
 
 
@@ -117,9 +122,14 @@ def calculate_mcp_charge(
     rerank_model: str,
     rerank_prompt_tokens: int,
     rerank_completion_tokens: int,
+    resolve_model: str = "",
+    resolve_prompt_tokens: int = 0,
+    resolve_completion_tokens: int = 0,
 ) -> Decimal:
-    """Total user-facing charge for one MCP tool call."""
+    """Total user-facing charge for one MCP tool call: search + embed + rerank + resolve."""
     charge = SEARCH_CHARGE_USD
     charge += calculate_embedding_charge(embedding_model, embedding_tokens)
     charge += calculate_llm_charge(rerank_model, rerank_prompt_tokens, rerank_completion_tokens)
+    if resolve_model and (resolve_prompt_tokens or resolve_completion_tokens):
+        charge += calculate_llm_charge(resolve_model, resolve_prompt_tokens, resolve_completion_tokens)
     return charge

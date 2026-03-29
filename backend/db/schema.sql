@@ -113,6 +113,11 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_ms FLOAT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_prompt_tokens INT NOT NULL DEFAULT 0;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS extract_completion_tokens INT NOT NULL DEFAULT 0;
 
+-- Product keys extraction metrics (LLM-based search key generation)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS product_keys_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS product_keys_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS product_keys_ms FLOAT NOT NULL DEFAULT 0;
+
 -- Confluence crawl checkpoint (resumable BFS state for long-running crawls)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS crawl_checkpoint JSONB;
 
@@ -447,6 +452,13 @@ ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_total_token
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_model TEXT;
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS classify_ms FLOAT;
 
+-- Product resolve step (LLM-based product name resolution)
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS resolve_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS resolve_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS resolve_total_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS resolve_model TEXT;
+ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS resolve_ms FLOAT;
+
 -- Rerank step
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rerank_prompt_tokens INT NOT NULL DEFAULT 0;
 ALTER TABLE chat_message_analytics ADD COLUMN IF NOT EXISTS rerank_completion_tokens INT NOT NULL DEFAULT 0;
@@ -615,6 +627,26 @@ CREATE INDEX IF NOT EXISTS idx_mcp_req_log_tenant ON mcp_request_log(tenant_id, 
 CREATE INDEX IF NOT EXISTS idx_mcp_req_log_api_key ON mcp_request_log(api_key_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_mcp_req_log_tool ON mcp_request_log(tool_name, created_at);
 CREATE INDEX IF NOT EXISTS idx_mcp_req_log_request ON mcp_request_log(request_id);
+
+-- Product resolve metrics (LLM-based product name resolution)
+ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_model TEXT;
+ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_ms FLOAT NOT NULL DEFAULT 0;
+
+-- Product search keys for LLM-based product resolution
+CREATE TABLE IF NOT EXISTS product_search_keys (
+    id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'llm',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(product_id, key)
+);
+CREATE INDEX IF NOT EXISTS idx_psk_product ON product_search_keys(product_id);
+
+-- Migration: drop legacy product_aliases if it exists
+DROP TABLE IF EXISTS product_aliases;
 
 -- Migration tracking
 CREATE TABLE IF NOT EXISTS schema_migrations (

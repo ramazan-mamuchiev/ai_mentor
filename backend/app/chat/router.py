@@ -32,6 +32,7 @@ from app.config import settings
 from app.database import async_session
 from app.llm.client import LLMError, stream_chat_completion
 from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, DocumentUsageLog, Product, Tenant
+from app.search.service import resolve_product
 
 MAX_CONTINUATIONS = settings.llm_max_continuations
 CONTINUE_PROMPT = (
@@ -160,22 +161,16 @@ async def update_session(
             and chat_session.product_id is None
             and chat_session.product_filter
         ):
-            product = await session.scalar(
-                select(Product).where(Product.name.ilike(chat_session.product_filter))
-            )
-            if not product:
-                product = await session.scalar(
-                    select(Product).where(Product.name.ilike(f"%{chat_session.product_filter}%"))
-                )
-            if product:
-                chat_session.product_id = product.id
+            resolve_result = await resolve_product(session, chat_session.product_filter)
+            if resolve_result.product_id:
+                chat_session.product_id = resolve_result.product_id
                 logger.info(
                     "Auto-resolved product_id for explicit lock",
                     extra={
                         "session_id": chat_session.id,
                         "product_filter": chat_session.product_filter,
-                        "product_id": product.id,
-                        "product_name": product.name,
+                        "product_id": resolve_result.product_id,
+                        "product_name": resolve_result.product_name,
                     },
                 )
             else:
@@ -788,6 +783,11 @@ async def send_message(
                     classify_total_tokens=debug_info.get("classify_total_tokens", 0),
                     classify_model=debug_info.get("classify_model"),
                     classify_ms=debug_info.get("classify_ms"),
+                    resolve_prompt_tokens=debug_info.get("resolve_prompt_tokens", 0),
+                    resolve_completion_tokens=debug_info.get("resolve_completion_tokens", 0),
+                    resolve_total_tokens=debug_info.get("resolve_total_tokens", 0),
+                    resolve_model=debug_info.get("resolve_model"),
+                    resolve_ms=debug_info.get("resolve_ms"),
                     rerank_prompt_tokens=debug_info.get("rerank_prompt_tokens", 0),
                     rerank_completion_tokens=debug_info.get("rerank_completion_tokens", 0),
                     rerank_total_tokens=debug_info.get("rerank_total_tokens", 0),
@@ -954,6 +954,23 @@ async def send_message(
                         query_text=req.content,
                         product_filter=chat_session.product_filter,
                         duration_ms=rag_debug.get("rerank_ms", 0),
+                        tenant_id=tenant_id_str,
+                        api_key_id=api_key_id_str,
+                    )
+
+                resolve_total = rag_debug.get("resolve_total_tokens", 0)
+                if resolve_total > 0:
+                    await write_usage_log(
+                        channel="chat",
+                        action="product_resolve",
+                        request_id=request_id,
+                        llm_provider="openai",
+                        llm_model=rag_debug.get("resolve_model", ""),
+                        prompt_tokens=rag_debug.get("resolve_prompt_tokens", 0),
+                        completion_tokens=rag_debug.get("resolve_completion_tokens", 0),
+                        query_text=req.content,
+                        product_filter=chat_session.product_filter,
+                        duration_ms=rag_debug.get("resolve_ms", 0),
                         tenant_id=tenant_id_str,
                         api_key_id=api_key_id_str,
                     )

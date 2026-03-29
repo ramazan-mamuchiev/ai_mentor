@@ -19,7 +19,7 @@ from app.mcp.auth_middleware import (
     current_user_agent,
 )
 from app.models import McpRequestLog, SearchAnalytics
-from app.search.service import resolve_product, search_documents, search_endpoint
+from app.search.service import ResolveResult, resolve_product, search_documents, search_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +87,17 @@ def _calc_mcp_costs(metadata: dict) -> tuple[Decimal, Decimal]:
     rerank_model = metadata.get("rerank_model", "") or ""
     rerank_pt = metadata.get("rerank_prompt_tokens", 0)
     rerank_ct = metadata.get("rerank_completion_tokens", 0)
-    cogs = calculate_mcp_cogs(emb_model, emb_tokens, rerank_model, rerank_pt, rerank_ct)
-    charge = calculate_mcp_charge(emb_model, emb_tokens, rerank_model, rerank_pt, rerank_ct)
+    resolve_model = metadata.get("resolve_model", "") or ""
+    resolve_pt = metadata.get("resolve_prompt_tokens", 0)
+    resolve_ct = metadata.get("resolve_completion_tokens", 0)
+    cogs = calculate_mcp_cogs(
+        emb_model, emb_tokens, rerank_model, rerank_pt, rerank_ct,
+        resolve_model, resolve_pt, resolve_ct,
+    )
+    charge = calculate_mcp_charge(
+        emb_model, emb_tokens, rerank_model, rerank_pt, rerank_ct,
+        resolve_model, resolve_pt, resolve_ct,
+    )
     return cogs, charge
 
 
@@ -167,6 +176,10 @@ async def _save_mcp_request_log(
                 rerank_completion_tokens=meta.get("rerank_completion_tokens", 0),
                 rerank_total_tokens=meta.get("rerank_total_tokens", 0),
                 rerank_model=meta.get("rerank_model"),
+                resolve_prompt_tokens=meta.get("resolve_prompt_tokens", 0),
+                resolve_completion_tokens=meta.get("resolve_completion_tokens", 0),
+                resolve_model=meta.get("resolve_model"),
+                resolve_ms=meta.get("resolve_ms", 0.0),
                 duration_ms=duration_ms,
                 embed_ms=meta.get("embed_ms", 0.0),
                 search_ms=meta.get("search_ms", 0.0),
@@ -228,8 +241,29 @@ async def tool_search_documentation(
     metadata: dict = {}
     t0 = time.perf_counter()
     async with async_session() as session:
+        resolve = ResolveResult()
+        if product:
+            resolve = await resolve_product(session, product)
+            metadata["resolve_prompt_tokens"] = resolve.prompt_tokens
+            metadata["resolve_completion_tokens"] = resolve.completion_tokens
+            metadata["resolve_model"] = resolve.model
+            metadata["resolve_ms"] = resolve.resolve_ms
+
+        product_id = resolve.product_id
+
+        if product and not product_id:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            cogs, charge = _calc_mcp_costs(metadata)
+            await _save_mcp_request_log(
+                request_id=request_id, tool_name="search_documentation",
+                query_text=query, product_filter=product, version_filter=version,
+                doc_type_filter=doc_type, duration_ms=duration_ms,
+                metadata=metadata, cogs_usd=cogs, charge_usd=charge,
+            )
+            return f"No product matching '{product}'. Use list_products to see available products."
+
         results = await search_documents(
-            session, query, product=product, version=version,
+            session, query, product_id=product_id, version=version,
             doc_type=doc_type, limit=limit, metadata=metadata,
         )
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -349,7 +383,28 @@ async def tool_get_api_endpoint(
     t0 = time.perf_counter()
     try:
         async with async_session() as session:
-            results = await search_endpoint(session, endpoint, product=product, metadata=metadata)
+            resolve = ResolveResult()
+            if product:
+                resolve = await resolve_product(session, product)
+                metadata["resolve_prompt_tokens"] = resolve.prompt_tokens
+                metadata["resolve_completion_tokens"] = resolve.completion_tokens
+                metadata["resolve_model"] = resolve.model
+                metadata["resolve_ms"] = resolve.resolve_ms
+
+            product_id = resolve.product_id
+
+            if product and not product_id:
+                duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+                cogs, charge = _calc_mcp_costs(metadata)
+                await _save_mcp_request_log(
+                    request_id=request_id, tool_name="get_api_endpoint",
+                    query_text=endpoint, product_filter=product,
+                    duration_ms=duration_ms, metadata=metadata,
+                    cogs_usd=cogs, charge_usd=charge,
+                )
+                return f"No product matching '{product}'. Use list_products."
+
+            results = await search_endpoint(session, endpoint, product_id=product_id, metadata=metadata)
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
     except Exception as e:
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -359,6 +414,7 @@ async def tool_get_api_endpoint(
             extra={"tool": "get_api_endpoint", "duration_ms": duration_ms, "error_type": type(e).__name__, "request_id": request_id},
             exc_info=True,
         )
+        cogs, charge = _calc_mcp_costs(metadata)
         await _save_mcp_request_log(
             request_id=request_id,
             tool_name="get_api_endpoint",
@@ -366,6 +422,7 @@ async def tool_get_api_endpoint(
             product_filter=product,
             duration_ms=duration_ms,
             metadata=metadata,
+            cogs_usd=cogs, charge_usd=charge,
             error=error_msg,
         )
         raise
@@ -600,12 +657,26 @@ async def tool_get_document_outline(
         extra={"product": product, "document_title": document_title, "request_id": request_id},
     )
 
+    metadata: dict = {}
     t0 = time.perf_counter()
     async with async_session() as session:
-        product_id, resolved_name = await resolve_product(session, product)
+        resolve = await resolve_product(session, product)
+        metadata["resolve_prompt_tokens"] = resolve.prompt_tokens
+        metadata["resolve_completion_tokens"] = resolve.completion_tokens
+        metadata["resolve_model"] = resolve.model
+        metadata["resolve_ms"] = resolve.resolve_ms
+
+        product_id = resolve.product_id
 
         if product_id is None:
             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            cogs, charge = _calc_mcp_costs(metadata)
+            await _save_mcp_request_log(
+                request_id=request_id, tool_name="get_document_outline",
+                query_text=product, product_filter=product,
+                duration_ms=duration_ms, metadata=metadata,
+                cogs_usd=cogs, charge_usd=charge,
+            )
             return f"No product matching '{product}' found. Use list_products to see available products."
 
         where_clauses = ["d.status = 'ready'", "d.product_id = :product_id"]
@@ -675,6 +746,7 @@ async def tool_get_document_outline(
         api_key_id=current_api_key_id.get(),
     )
 
+    cogs, charge = _calc_mcp_costs(metadata)
     await write_usage_log(
         channel="mcp",
         action="get_document_outline",
@@ -684,8 +756,8 @@ async def tool_get_document_outline(
         result_count=len(rows),
         response_length=len(response_text),
         duration_ms=duration_ms,
-        cogs_usd=Decimal("0"),
-        charge_usd=Decimal("0"),
+        cogs_usd=cogs,
+        charge_usd=charge,
         tenant_id=current_tenant_id.get(),
         api_key_id=current_api_key_id.get(),
     )
@@ -697,9 +769,10 @@ async def tool_get_document_outline(
         product_filter=product,
         result_count=len(rows),
         response_length=len(response_text),
+        metadata=metadata,
         duration_ms=duration_ms,
-        cogs_usd=Decimal("0"),
-        charge_usd=Decimal("0"),
+        cogs_usd=cogs,
+        charge_usd=charge,
     )
 
     return response_text
@@ -846,11 +919,26 @@ async def tool_get_code_examples(
         extra={"product": product, "topic": topic, "language": language, "request_id": request_id},
     )
 
+    metadata: dict = {}
     t0 = time.perf_counter()
     async with async_session() as session:
-        product_id, resolved_name = await resolve_product(session, product)
+        resolve = await resolve_product(session, product)
+        metadata["resolve_prompt_tokens"] = resolve.prompt_tokens
+        metadata["resolve_completion_tokens"] = resolve.completion_tokens
+        metadata["resolve_model"] = resolve.model
+        metadata["resolve_ms"] = resolve.resolve_ms
+
+        product_id = resolve.product_id
 
         if product_id is None:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            cogs, charge = _calc_mcp_costs(metadata)
+            await _save_mcp_request_log(
+                request_id=request_id, tool_name="get_code_examples",
+                query_text=f"{product} {topic or ''}", product_filter=product,
+                duration_ms=duration_ms, metadata=metadata,
+                cogs_usd=cogs, charge_usd=charge,
+            )
             return f"No product matching '{product}' found. Use list_products to see available products."
 
         where_clauses = [
@@ -936,6 +1024,7 @@ async def tool_get_code_examples(
         api_key_id=current_api_key_id.get(),
     )
 
+    cogs, charge = _calc_mcp_costs(metadata)
     await write_usage_log(
         channel="mcp",
         action="get_code_examples",
@@ -947,8 +1036,8 @@ async def tool_get_code_examples(
         response_length=len(response_text),
         duration_ms=duration_ms,
         product_filter=product,
-        cogs_usd=Decimal("0"),
-        charge_usd=Decimal("0"),
+        cogs_usd=cogs,
+        charge_usd=charge,
         tenant_id=current_tenant_id.get(),
         api_key_id=current_api_key_id.get(),
     )
@@ -962,9 +1051,10 @@ async def tool_get_code_examples(
         response_length=len(response_text),
         query_tokens=query_tokens,
         response_tokens=response_tokens,
+        metadata=metadata,
         duration_ms=duration_ms,
-        cogs_usd=Decimal("0"),
-        charge_usd=Decimal("0"),
+        cogs_usd=cogs,
+        charge_usd=charge,
     )
 
     return response_text
@@ -991,11 +1081,27 @@ async def tool_list_documents(
     request_id = str(uuid4())
     logger.debug("MCP list_documents called", extra={"product": product, "doc_type": doc_type, "request_id": request_id})
 
+    metadata: dict = {}
     t0 = time.perf_counter()
     async with async_session() as session:
-        product_id, resolved_name = await resolve_product(session, product)
+        resolve = await resolve_product(session, product)
+        metadata["resolve_prompt_tokens"] = resolve.prompt_tokens
+        metadata["resolve_completion_tokens"] = resolve.completion_tokens
+        metadata["resolve_model"] = resolve.model
+        metadata["resolve_ms"] = resolve.resolve_ms
+
+        product_id = resolve.product_id
+        resolved_name = resolve.product_name
 
         if product_id is None:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            cogs, charge = _calc_mcp_costs(metadata)
+            await _save_mcp_request_log(
+                request_id=request_id, tool_name="list_documents",
+                query_text=product, product_filter=product,
+                duration_ms=duration_ms, metadata=metadata,
+                cogs_usd=cogs, charge_usd=charge,
+            )
             return f"No product matching '{product}' found. Use list_products to see available products."
 
         where_clauses = ["d.status = 'ready'", "d.product_id = :product_id"]
@@ -1052,6 +1158,7 @@ async def tool_list_documents(
             )
         response_text = f"Documents for {resolved_name} ({result_count}):\n" + "\n".join(parts)
 
+    cogs, charge = _calc_mcp_costs(metadata)
     await _save_search_analytics(
         source="mcp", tool_name="list_documents", query=product,
         duration_ms=duration_ms, result_count=result_count, product_filter=product,
@@ -1061,14 +1168,14 @@ async def tool_list_documents(
         channel="mcp", action="list_documents", request_id=request_id,
         query_text=product, query_tokens=0, result_count=result_count,
         response_length=len(response_text), duration_ms=duration_ms,
-        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        cogs_usd=cogs, charge_usd=charge,
         tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
     )
     await _save_mcp_request_log(
         request_id=request_id, tool_name="list_documents",
         query_text=product, product_filter=product, result_count=result_count,
-        response_length=len(response_text), duration_ms=duration_ms,
-        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        response_length=len(response_text), metadata=metadata, duration_ms=duration_ms,
+        cogs_usd=cogs, charge_usd=charge,
     )
 
     return response_text
@@ -1101,6 +1208,7 @@ async def tool_grep_docs(
         extra={"pattern": pattern, "product": product, "document_id": document_id, "request_id": request_id},
     )
 
+    metadata: dict = {}
     t0 = time.perf_counter()
     async with async_session() as session:
         where_clauses = [
@@ -1113,10 +1221,14 @@ async def tool_grep_docs(
             where_clauses.append("c.document_id = :doc_id")
             params["doc_id"] = document_id
         elif product:
-            product_id, _ = await resolve_product(session, product)
-            if product_id:
+            resolve = await resolve_product(session, product)
+            metadata["resolve_prompt_tokens"] = resolve.prompt_tokens
+            metadata["resolve_completion_tokens"] = resolve.completion_tokens
+            metadata["resolve_model"] = resolve.model
+            metadata["resolve_ms"] = resolve.resolve_ms
+            if resolve.product_id:
                 where_clauses.append("d.product_id = :product_id")
-                params["product_id"] = product_id
+                params["product_id"] = resolve.product_id
 
         where_sql = " AND ".join(where_clauses)
 
@@ -1198,6 +1310,7 @@ async def tool_grep_docs(
     response_tokens = max(1, len(response_text) // 4)
     query_tokens = max(1, len(pattern) // 4)
 
+    cogs, charge = _calc_mcp_costs(metadata)
     await _save_search_analytics(
         source="mcp", tool_name="grep_docs", query=pattern,
         duration_ms=duration_ms, result_count=result_count, product_filter=product,
@@ -1208,15 +1321,15 @@ async def tool_grep_docs(
         query_text=pattern, query_tokens=query_tokens, result_count=result_count,
         response_tokens=response_tokens, response_length=len(response_text),
         duration_ms=duration_ms, product_filter=product,
-        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        cogs_usd=cogs, charge_usd=charge,
         tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
     )
     await _save_mcp_request_log(
         request_id=request_id, tool_name="grep_docs",
         query_text=pattern, product_filter=product, result_count=result_count,
         response_length=len(response_text), query_tokens=query_tokens,
-        response_tokens=response_tokens, duration_ms=duration_ms,
-        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        response_tokens=response_tokens, metadata=metadata, duration_ms=duration_ms,
+        cogs_usd=cogs, charge_usd=charge,
     )
 
     return response_text
@@ -1239,11 +1352,26 @@ async def tool_get_product_info(
     request_id = str(uuid4())
     logger.debug("MCP get_product_info called", extra={"product": product, "request_id": request_id})
 
+    metadata: dict = {}
     t0 = time.perf_counter()
     async with async_session() as session:
-        product_id, resolved_name = await resolve_product(session, product)
+        resolve = await resolve_product(session, product)
+        metadata["resolve_prompt_tokens"] = resolve.prompt_tokens
+        metadata["resolve_completion_tokens"] = resolve.completion_tokens
+        metadata["resolve_model"] = resolve.model
+        metadata["resolve_ms"] = resolve.resolve_ms
+
+        product_id = resolve.product_id
 
         if product_id is None:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            cogs, charge = _calc_mcp_costs(metadata)
+            await _save_mcp_request_log(
+                request_id=request_id, tool_name="get_product_info",
+                query_text=product, product_filter=product,
+                duration_ms=duration_ms, metadata=metadata,
+                cogs_usd=cogs, charge_usd=charge,
+            )
             return f"No product matching '{product}' found. Use list_products to see available products."
 
         info_sql = text("""
@@ -1320,6 +1448,7 @@ async def tool_get_product_info(
 
     response_text = "\n".join(lines)
 
+    cogs, charge = _calc_mcp_costs(metadata)
     await _save_search_analytics(
         source="mcp", tool_name="get_product_info", query=product,
         duration_ms=duration_ms, result_count=1, product_filter=product,
@@ -1329,14 +1458,14 @@ async def tool_get_product_info(
         channel="mcp", action="get_product_info", request_id=request_id,
         query_text=product, query_tokens=0, result_count=1,
         response_length=len(response_text), duration_ms=duration_ms,
-        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        cogs_usd=cogs, charge_usd=charge,
         tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
     )
     await _save_mcp_request_log(
         request_id=request_id, tool_name="get_product_info",
         query_text=product, product_filter=product, result_count=1,
-        response_length=len(response_text), duration_ms=duration_ms,
-        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        response_length=len(response_text), metadata=metadata, duration_ms=duration_ms,
+        cogs_usd=cogs, charge_usd=charge,
     )
 
     return response_text

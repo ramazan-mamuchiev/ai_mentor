@@ -1684,6 +1684,10 @@ async def list_mcp_requests(
             "response_tokens": r["response_tokens"],
             "embedding_tokens": r["embedding_tokens"],
             "rerank_total_tokens": r["rerank_total_tokens"],
+            "resolve_prompt_tokens": r["resolve_prompt_tokens"],
+            "resolve_completion_tokens": r["resolve_completion_tokens"],
+            "resolve_model": r["resolve_model"],
+            "resolve_ms": round(float(r["resolve_ms"]), 1) if r["resolve_ms"] is not None else None,
             "charge_usd": str(r["charge_usd"]),
             "status": r["status"],
         }
@@ -1726,10 +1730,14 @@ async def get_mcp_request_detail(session: AsyncSession, request_id: str) -> dict
         "rerank_completion_tokens": row["rerank_completion_tokens"],
         "rerank_total_tokens": row["rerank_total_tokens"],
         "rerank_model": row["rerank_model"],
+        "resolve_prompt_tokens": row["resolve_prompt_tokens"],
+        "resolve_completion_tokens": row["resolve_completion_tokens"],
+        "resolve_model": row["resolve_model"],
         "duration_ms": round(float(row["duration_ms"]), 1),
         "embed_ms": round(float(row["embed_ms"]), 1),
         "search_ms": round(float(row["search_ms"]), 1),
         "rerank_ms": round(float(row["rerank_ms"]), 1),
+        "resolve_ms": round(float(row["resolve_ms"]), 1) if row["resolve_ms"] is not None else None,
         "cogs_usd": str(row["cogs_usd"]),
         "charge_usd": str(row["charge_usd"]),
         "client_ip": row["client_ip"],
@@ -1750,6 +1758,8 @@ async def get_mcp_stats(session: AsyncSession, days: int = 30) -> dict:
             COALESCE(SUM(response_tokens), 0) AS r_tokens,
             COALESCE(SUM(embedding_tokens), 0) AS e_tokens,
             COALESCE(SUM(rerank_total_tokens), 0) AS rr_tokens,
+            COALESCE(SUM(resolve_prompt_tokens), 0) AS rs_pt,
+            COALESCE(SUM(resolve_completion_tokens), 0) AS rs_ct,
             COALESCE(SUM(charge_usd), 0) AS charge,
             AVG(duration_ms) AS avg_dur,
             COUNT(*) FILTER (WHERE status = 'error') AS errors
@@ -1762,7 +1772,8 @@ async def get_mcp_stats(session: AsyncSession, days: int = 30) -> dict:
     daily = (await session.execute(text("""
         SELECT DATE(created_at) AS d,
             COUNT(*) AS cnt,
-            COALESCE(SUM(query_tokens + response_tokens + embedding_tokens + rerank_total_tokens), 0) AS tokens,
+            COALESCE(SUM(query_tokens + response_tokens + embedding_tokens + rerank_total_tokens
+                + resolve_prompt_tokens + resolve_completion_tokens), 0) AS tokens,
             COALESCE(SUM(charge_usd), 0) AS charge,
             COUNT(*) FILTER (WHERE status = 'error') AS errors
         FROM mcp_request_log
@@ -1800,6 +1811,7 @@ async def get_mcp_stats(session: AsyncSession, days: int = 30) -> dict:
         "total_response_tokens": int(totals["r_tokens"]),
         "total_embedding_tokens": int(totals["e_tokens"]),
         "total_rerank_tokens": int(totals["rr_tokens"]),
+        "total_resolve_tokens": int(totals["rs_pt"]) + int(totals["rs_ct"]),
         "total_charge_usd": f"{float(totals['charge']):.8f}",
         "avg_duration_ms": round(float(totals["avg_dur"]), 1) if totals["avg_dur"] else None,
         "error_count": int(totals["errors"]),

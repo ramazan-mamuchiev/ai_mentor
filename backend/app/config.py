@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     metadata_extraction_model: str = "gemini-2.5-flash"
     metadata_extraction_batch_size: int = 5
 
+    product_keys_extraction_enabled: bool = True
+    product_resolve_model: str = "gemini-2.5-flash"
+
     search_retry_enabled: bool = True
 
     decompose_enabled: bool = True

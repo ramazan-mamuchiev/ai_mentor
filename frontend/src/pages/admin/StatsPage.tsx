@@ -409,7 +409,7 @@ function McpTab({ days, t }: { days: number; t: any }) {
   if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
   if (!data) return <div className="admin-empty">{t('admin.stats.noData')}</div>
 
-  const totalTokens = data.total_query_tokens + data.total_response_tokens + data.total_embedding_tokens + (data.total_rerank_tokens || 0)
+  const totalTokens = data.total_query_tokens + data.total_response_tokens + data.total_embedding_tokens + (data.total_rerank_tokens || 0) + (data.total_resolve_tokens || 0)
 
   return (
     <>

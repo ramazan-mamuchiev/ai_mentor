@@ -1,29 +1,154 @@
 """Hybrid search service: pgvector cosine + PostgreSQL BM25 + RRF fusion + cross-encoder re-ranking."""
 
 import hashlib
+import json
 import logging
 import time
+from dataclasses import dataclass
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.ingestion.embedder import embed_query
+from app.llm.http_client import gemini_client
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ResolveResult:
+    product_id: int | None = None
+    product_name: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    model: str | None = None
+    resolve_ms: float = 0.0
+
+
+async def _fetch_products_with_keys(session: AsyncSession) -> list[dict]:
+    """Load all products with their search keys for LLM context."""
+    rows = (await session.execute(text("""
+        SELECT p.id, p.name, p.manufacturer, p.category,
+               COALESCE(
+                   (SELECT array_agg(psk.key)
+                    FROM product_search_keys psk
+                    WHERE psk.product_id = p.id),
+                   ARRAY[]::text[]
+               ) AS keys
+        FROM products p
+        ORDER BY p.id
+    """))).mappings().all()
+    return [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "manufacturer": row["manufacturer"] or "",
+            "category": row["category"] or "",
+            "keys": list(row["keys"]) if row["keys"] else [],
+        }
+        for row in rows
+    ]
+
+
+async def _llm_resolve_product(name: str, products: list[dict]) -> ResolveResult:
+    """Use Gemini Flash to match user input to a product from the catalog."""
+    products_context = "\n".join(
+        f"- id={p['id']}, name=\"{p['name']}\", manufacturer=\"{p['manufacturer']}\", "
+        f"category=\"{p['category']}\", keys={p['keys'][:30]}"
+        for p in products
+    )
+
+    prompt = f"""\
+You are a product name resolver for a documentation system.
+
+User typed: "{name}"
+
+Product catalog:
+{products_context}
+
+Which product (if any) matches the user's input?
+Consider: exact name, abbreviations, transliterations (Cyrillic↔Latin),
+partial matches, manufacturer/category hints, and search keys.
+
+If you find a match, return JSON: {{"id": <product_id>, "name": "<product_name>"}}
+If no match, return JSON: {{"id": null, "name": null}}
+Return ONLY valid JSON, nothing else."""
+
+    url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+    payload = {
+        "model": settings.product_resolve_model,
+        "messages": [
+            {"role": "system", "content": "You match user input to products. Return only JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0,
+        "max_tokens": 128,
+        "reasoning_effort": "none",
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {settings.gemini_api_key}",
+    }
+
+    t0 = time.perf_counter()
+    try:
+        resp = await gemini_client().post(url, json=payload, headers=headers, timeout=15.0)
+        resp.raise_for_status()
+        data = resp.json()
+
+        raw_text = data["choices"][0]["message"]["content"].strip()
+        api_usage = data.get("usage", {})
+        resolve_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        if raw_text.startswith("```"):
+            lines = raw_text.split("\n")
+            raw_text = "\n".join(lines[1:])
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3].strip()
+
+        parsed = json.loads(raw_text)
+        product_id = parsed.get("id")
+        product_name = parsed.get("name")
+
+        result = ResolveResult(
+            product_id=int(product_id) if product_id is not None else None,
+            product_name=product_name,
+            prompt_tokens=api_usage.get("prompt_tokens", 0),
+            completion_tokens=api_usage.get("completion_tokens", 0),
+            model=settings.product_resolve_model,
+            resolve_ms=resolve_ms,
+        )
+
+        if product_id is not None:
+            logger.info(
+                "LLM product resolved: %r → %r (id=%s, %.0fms)",
+                name, product_name, product_id, resolve_ms,
+            )
+        else:
+            logger.info("LLM product resolve: no match for %r (%.0fms)", name, resolve_ms)
+
+        return result
+
+    except Exception:
+        resolve_ms = round((time.perf_counter() - t0) * 1000, 1)
+        logger.warning("LLM product resolve failed for %r", name, exc_info=True)
+        return ResolveResult(
+            model=settings.product_resolve_model,
+            resolve_ms=resolve_ms,
+        )
 
 
 async def resolve_product(
     session: AsyncSession,
     name: str,
-) -> tuple[int | None, str | None]:
-    """Fuzzy-resolve a product name to (product_id, canonical_name).
+) -> ResolveResult:
+    """Resolve a product name to product_id using exact match + LLM fallback.
 
-    Cascade: exact match → ILIKE substring → normalized (no spaces/hyphens) → trigram.
-    Returns (None, None) if no match found.
+    Returns ResolveResult with product info and LLM usage stats.
     """
     if not name or not name.strip():
-        return None, None
+        return ResolveResult()
 
     name = name.strip()
 
@@ -32,41 +157,13 @@ async def resolve_product(
         {"n": name},
     )).mappings().first()
     if row:
-        return row["id"], row["name"]
+        return ResolveResult(product_id=row["id"], product_name=row["name"])
 
-    row = (await session.execute(
-        text("SELECT id, name FROM products WHERE name ILIKE '%' || :n || '%' ORDER BY LENGTH(name) LIMIT 1"),
-        {"n": name},
-    )).mappings().first()
-    if row:
-        return row["id"], row["name"]
+    products = await _fetch_products_with_keys(session)
+    if not products:
+        return ResolveResult()
 
-    normalized = name.replace(" ", "").replace("-", "").replace("_", "")
-    row = (await session.execute(
-        text("""
-            SELECT id, name FROM products
-            WHERE REPLACE(REPLACE(REPLACE(name, ' ', ''), '-', ''), '_', '') ILIKE '%' || :n || '%'
-            ORDER BY LENGTH(name) LIMIT 1
-        """),
-        {"n": normalized},
-    )).mappings().first()
-    if row:
-        return row["id"], row["name"]
-
-    row = (await session.execute(
-        text("""
-            SELECT id, name, similarity(name, :n) AS sim
-            FROM products
-            WHERE similarity(name, :n) > 0.25
-            ORDER BY sim DESC LIMIT 1
-        """),
-        {"n": name},
-    )).mappings().first()
-    if row:
-        logger.info("Fuzzy product match: %r → %r (sim=%.2f)", name, row["name"], row["sim"])
-        return row["id"], row["name"]
-
-    return None, None
+    return await _llm_resolve_product(name, products)
 
 
 def _content_hash(content: str) -> str:
@@ -197,7 +294,6 @@ async def search_documents(
     session: AsyncSession,
     query: str,
     product_id: int | None = None,
-    product: str | None = None,
     version: str | None = None,
     doc_context: str | None = None,
     doc_type: str | None = None,
@@ -209,9 +305,7 @@ async def search_documents(
     Returns list of dicts with content, heading_path, similarity, product info.
     Fetches extra candidates and deduplicates to handle multiple uploads of the same doc.
 
-    Args:
-        product_id: Exact product ID filter (preferred, used for explicit lock).
-        product: Product name filter (fallback, partial match via ILIKE).
+    Product resolution is done by the caller — this function only accepts product_id.
     """
     t0 = time.perf_counter()
 
@@ -225,11 +319,6 @@ async def search_documents(
         fetch_limit = max(limit * 3, settings.rerank_candidates)
     else:
         fetch_limit = limit * 3
-
-    if product_id is None and product:
-        product_id, resolved_name = await resolve_product(session, product)
-        if resolved_name:
-            logger.debug("Product resolved: %r → %r (id=%s)", product, resolved_name, product_id)
 
     where_clauses = ["d.status = 'ready'"]
     params: dict = {"embedding": embedding_str, "limit": fetch_limit}
@@ -350,7 +439,7 @@ async def search_documents(
     top_similarity = results[0]["similarity"] if results else 0.0
 
     log_extra = {
-        "query": query, "product_id": product_id, "product": product, "version": version,
+        "query": query, "product_id": product_id, "version": version,
         "result_count": result_count, "top_similarity": top_similarity,
         "duration_ms": duration_ms, "embed_ms": embed_ms, "db_ms": db_ms,
         "bm25_ms": bm25_ms, "rerank_ms": rerank_ms,
@@ -421,17 +510,14 @@ async def search_endpoint(
     session: AsyncSession,
     endpoint: str,
     product_id: int | None = None,
-    product: str | None = None,
     metadata: dict | None = None,
 ) -> list[dict]:
     """Find documentation for a specific API endpoint path.
 
     First tries exact heading_path match (ILIKE), then falls back to vector search.
+    Product resolution is done by the caller.
     """
     t0 = time.perf_counter()
-
-    if product_id is None and product:
-        product_id, _ = await resolve_product(session, product)
 
     where_clauses = [
         "d.status = 'ready'",
@@ -478,7 +564,7 @@ async def search_endpoint(
         logger.info(
             "Endpoint search: exact match",
             extra={
-                "endpoint": endpoint, "product_id": product_id, "product": product,
+                "endpoint": endpoint, "product_id": product_id,
                 "result_count": len(rows), "match_type": "exact",
                 "duration_ms": duration_ms,
             },
@@ -505,6 +591,6 @@ async def search_endpoint(
 
     logger.warning(
         "Endpoint search: no exact match, falling back to vector search",
-        extra={"endpoint": endpoint, "product_id": product_id, "product": product},
+        extra={"endpoint": endpoint, "product_id": product_id},
     )
-    return await search_documents(session, f"API endpoint {endpoint}", product_id=product_id, product=product, limit=5, metadata=metadata)
+    return await search_documents(session, f"API endpoint {endpoint}", product_id=product_id, limit=5, metadata=metadata)

@@ -64,7 +64,9 @@ class TestHybridSearch:
             firmware_version="1.0",
         )
 
-        results = await search_documents(db_session, "door", product="ZKTeco")
+        from app.search.service import resolve_product
+        resolve = await resolve_product(db_session, "ZKTeco")
+        results = await search_documents(db_session, "door", product_id=resolve.product_id)
         assert len(results) > 0
         assert all(r["product_name"] == "ZKTeco InBio" for r in results)
 

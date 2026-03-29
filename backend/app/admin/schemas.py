@@ -298,6 +298,10 @@ class McpRequestItem(BaseModel):
     response_tokens: int
     embedding_tokens: int
     rerank_total_tokens: int = 0
+    resolve_prompt_tokens: int = 0
+    resolve_completion_tokens: int = 0
+    resolve_model: str | None = None
+    resolve_ms: float | None = None
     charge_usd: str
     status: str
 
@@ -337,6 +341,7 @@ class McpStats(BaseModel):
     total_response_tokens: int
     total_embedding_tokens: int
     total_rerank_tokens: int = 0
+    total_resolve_tokens: int = 0
     total_charge_usd: str
     avg_duration_ms: float | None
     error_count: int

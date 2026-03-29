@@ -101,6 +101,7 @@ function RequestDetail({ requestId, onBack }: { requestId: string; onBack: () =>
             <div className="admin-detail-row"><dt>Embedding</dt><dd>{fmtMs(detail.embed_ms)}</dd></div>
             <div className="admin-detail-row"><dt>Search</dt><dd>{fmtMs(detail.search_ms)}</dd></div>
             <div className="admin-detail-row"><dt>Rerank</dt><dd>{fmtMs(detail.rerank_ms)}</dd></div>
+            <div className="admin-detail-row"><dt>Resolve</dt><dd>{fmtMs(detail.resolve_ms)}</dd></div>
           </dl>
         </div>
 
@@ -113,6 +114,9 @@ function RequestDetail({ requestId, onBack }: { requestId: string; onBack: () =>
             <div className="admin-detail-row"><dt>Rerank prompt</dt><dd>{detail.rerank_prompt_tokens}</dd></div>
             <div className="admin-detail-row"><dt>Rerank completion</dt><dd>{detail.rerank_completion_tokens}</dd></div>
             {detail.rerank_model && <div className="admin-detail-row"><dt>Rerank model</dt><dd>{detail.rerank_model}</dd></div>}
+            <div className="admin-detail-row"><dt>Resolve prompt</dt><dd>{detail.resolve_prompt_tokens}</dd></div>
+            <div className="admin-detail-row"><dt>Resolve completion</dt><dd>{detail.resolve_completion_tokens}</dd></div>
+            {detail.resolve_model && <div className="admin-detail-row"><dt>Resolve model</dt><dd>{detail.resolve_model}</dd></div>}
           </dl>
           <div style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
             <div className="admin-detail-row"><dt>COGS</dt><dd>{fmtUsd(detail.cogs_usd)}</dd></div>
@@ -305,6 +309,10 @@ export function McpAuditPage() {
                     <th>Query</th>
                     <th>Results</th>
                     <th>Duration</th>
+                    <th>Resolve pr.</th>
+                    <th>Resolve cm.</th>
+                    <th>Resolve model</th>
+                    <th>Resolve ms</th>
                     <th>Tokens</th>
                     <th>Charge</th>
                     <th>Status</th>
@@ -327,7 +335,11 @@ export function McpAuditPage() {
                       <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{r.query_text || '—'}</td>
                       <td>{r.result_count}</td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtMs(r.duration_ms)}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.query_tokens + r.response_tokens + r.embedding_tokens + (r.rerank_total_tokens || 0)).toLocaleString()}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.resolve_prompt_tokens ?? 0).toLocaleString()}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.resolve_completion_tokens ?? 0).toLocaleString()}</td>
+                      <td style={{ fontSize: 11, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.resolve_model || ''}>{r.resolve_model || '—'}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtMs(r.resolve_ms)}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.query_tokens + r.response_tokens + r.embedding_tokens + (r.rerank_total_tokens || 0) + (r.resolve_prompt_tokens || 0) + (r.resolve_completion_tokens || 0)).toLocaleString()}</td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtUsd(r.charge_usd)}</td>
                       <td>
                         {r.status === 'error'
