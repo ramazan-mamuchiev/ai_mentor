@@ -179,4 +179,22 @@ class ProductDebugInfo(BaseModel):
     sum_extract_ms: float | None = None
     total_extract_tokens: int = 0
 
+    search_keys_total: int = 0
+    search_keys_llm: int = 0
+    search_keys_chunk: int = 0
+
     documents: list[ProductDocumentSummary] = []
+
+
+class DocumentKeysGroup(BaseModel):
+    document_id: int
+    title: str
+    keys: list[str] = []
+
+
+class ProductSearchKeysResponse(BaseModel):
+    product_id: int
+    product_name: str
+    total_keys: int = 0
+    llm_keys: list[str] = []
+    chunk_keys_by_document: list[DocumentKeysGroup] = []

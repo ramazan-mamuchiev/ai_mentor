@@ -108,6 +108,7 @@ export interface AdminDocumentItem {
   status: string
   file_size_bytes: number
   total_chunks: number
+  search_keys_count: number
   error_message: string | null
   uploaded_at: string
   indexed_at: string | null

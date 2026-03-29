@@ -55,6 +55,7 @@ class AdminDocumentItem(BaseModel):
     status: str
     file_size_bytes: int
     total_chunks: int
+    search_keys_count: int = 0
     error_message: str | None
     uploaded_at: datetime
     indexed_at: datetime | None

@@ -18,16 +18,18 @@ from app.documents.schemas import (
     DocumentDownload,
     DocumentListItem,
     DocumentMarkdownPreview,
+    DocumentSearchKeysResponse,
     DocumentStatus,
     DocumentUsageEntry,
     DocumentUsageStats,
     GitHubIngestRequest,
     IngestResponse,
+    SearchKeyItem,
     SiteIngestRequest,
     UrlIngestRequest,
     UrlIngestResponse,
 )
-from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, FirmwareVersion, Tenant
+from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, FirmwareVersion, ProductSearchKey, Tenant
 from app.s3 import delete_file, generate_presigned_url, s3_key_for_document, upload_file
 from app.config import settings
 
@@ -731,7 +733,36 @@ async def get_document_debug(document_id: int):
         if data.get("extract_ms") is not None:
             from app.config import settings as _cfg
             data["extract_model"] = _cfg.metadata_extraction_model
+
+        keys_count = (await session.execute(
+            select(func.count()).select_from(ProductSearchKey)
+            .where(ProductSearchKey.document_id == document_id)
+        )).scalar() or 0
+        data["search_keys_count"] = keys_count
+
         return DocumentDebugInfo(**data)
+
+
+@router.get("/{document_id}/search-keys", response_model=DocumentSearchKeysResponse)
+async def get_document_search_keys(document_id: int):
+    """Get all search keys associated with a document."""
+    async with async_session() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        rows = (await session.execute(
+            select(ProductSearchKey.key, ProductSearchKey.source)
+            .where(ProductSearchKey.document_id == document_id)
+            .order_by(ProductSearchKey.source, ProductSearchKey.key)
+        )).all()
+
+        keys = [SearchKeyItem(key=r.key, source=r.source) for r in rows]
+        return DocumentSearchKeysResponse(
+            document_id=document_id,
+            total_keys=len(keys),
+            keys=keys,
+        )
 
 
 @router.get("/{document_id}/usage-stats", response_model=DocumentUsageStats)

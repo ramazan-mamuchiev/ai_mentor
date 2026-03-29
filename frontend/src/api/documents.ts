@@ -4,6 +4,7 @@ import type {
   DocumentDebugInfo,
   DocumentDownload,
   DocumentMarkdownPreview,
+  DocumentSearchKeysResponse,
   DocumentUsageStats,
   ReindexJob,
   ReindexJobList,
@@ -135,4 +136,8 @@ export async function createReindexJob(
 
 export async function cancelReindexJob(id: number): Promise<ReindexJob> {
   return apiFetch<ReindexJob>(`/reindex/jobs/${id}/cancel`, { method: 'POST' })
+}
+
+export async function getDocumentSearchKeys(documentId: number): Promise<DocumentSearchKeysResponse> {
+  return apiFetch<DocumentSearchKeysResponse>(`/documents/${documentId}/search-keys`)
 }

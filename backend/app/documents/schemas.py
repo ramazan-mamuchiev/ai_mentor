@@ -235,7 +235,20 @@ class DocumentDebugInfo(BaseModel):
     extract_prompt_tokens: int | None = None
     extract_completion_tokens: int | None = None
 
+    search_keys_count: int = 0
+
     product_name: str = ""
     firmware_version: str = ""
 
     model_config = {"from_attributes": True}
+
+
+class SearchKeyItem(BaseModel):
+    key: str
+    source: str
+
+
+class DocumentSearchKeysResponse(BaseModel):
+    document_id: int
+    total_keys: int = 0
+    keys: list[SearchKeyItem] = []

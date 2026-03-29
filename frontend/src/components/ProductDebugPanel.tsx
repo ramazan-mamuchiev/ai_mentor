@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Key, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getProductDebug, getProductUsageStats } from '../api/products'
 import type { ProductDebugInfo, ProductUsageStats } from '../types'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
+import { SearchKeysModal } from './SearchKeysModal'
 
 function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
@@ -69,6 +70,7 @@ export function ProductDebugContent({ productId, initialDebug, initialUsage }: C
   const [usage, setUsage] = useState<ProductUsageStats | null>(initialUsage ?? null)
   const [loading, setLoading] = useState(!initialDebug)
   const [error, setError] = useState<string | null>(null)
+  const [showKeysModal, setShowKeysModal] = useState(false)
 
   useEffect(() => {
     if (initialDebug || productId == null) return
@@ -179,6 +181,30 @@ export function ProductDebugContent({ productId, initialDebug, initialUsage }: C
           <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.embeddingTokens')}</span><code>{fmt(debug.total_embedding_tokens)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.extractTotalTokens')}</span><code>{fmt(debug.total_extract_tokens)}</code></div>
         </div>
+
+        <div className="doc-debug-section">
+          <div className="doc-debug-section-title">{t('searchKeys.sectionTitle')}</div>
+          <div className="doc-debug-row"><span>{t('searchKeys.totalKeys')}</span><code>{fmt(debug.search_keys_total)}</code></div>
+          <div className="doc-debug-row"><span>{t('searchKeys.llmKeys')}</span><code>{fmt(debug.search_keys_llm)}</code></div>
+          <div className="doc-debug-row"><span>{t('searchKeys.chunkKeys')}</span><code>{fmt(debug.search_keys_chunk)}</code></div>
+          {debug.search_keys_total > 0 && (
+            <div className="doc-debug-row">
+              <button className="sk-view-btn" onClick={() => setShowKeysModal(true)}>
+                <Key size={12} />
+                {t('searchKeys.viewKeys')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {showKeysModal && (
+          <SearchKeysModal
+            mode="product"
+            entityId={debug.product_id}
+            entityTitle={debug.product_name}
+            onClose={() => setShowKeysModal(false)}
+          />
+        )}
 
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.ragUsage')}</div>

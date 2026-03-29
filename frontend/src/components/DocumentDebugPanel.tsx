@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Key, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getDocumentDebug, getDocumentUsageStats } from '../api/documents'
 import type { DocumentDebugInfo, DocumentUsageStats } from '../types'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
+import { SearchKeysModal } from './SearchKeysModal'
 
 function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
@@ -92,6 +93,7 @@ export function DocumentDebugContent({ documentId, initialDebug, initialUsage }:
   const [usage, setUsage] = useState<DocumentUsageStats | null>(initialUsage ?? null)
   const [loading, setLoading] = useState(!initialDebug)
   const [error, setError] = useState<string | null>(null)
+  const [showKeysModal, setShowKeysModal] = useState(false)
 
   useEffect(() => {
     if (initialDebug || documentId == null) return
@@ -208,6 +210,28 @@ export function DocumentDebugContent({ documentId, initialDebug, initialUsage }:
             <div className="doc-debug-row"><span>{t('docDebug.extractCompletionTokens')}</span><code>{fmt(debug.extract_completion_tokens)}</code></div>
             <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.extractTotalTokens')}</span><code>{fmt((debug.extract_prompt_tokens ?? 0) + (debug.extract_completion_tokens ?? 0))}</code></div>
           </div>
+        )}
+
+        <div className="doc-debug-section">
+          <div className="doc-debug-section-title">{t('searchKeys.sectionTitle')}</div>
+          <div className="doc-debug-row"><span>{t('searchKeys.chunkKeys')}</span><code>{fmt(debug.search_keys_count)}</code></div>
+          {debug.search_keys_count > 0 && (
+            <div className="doc-debug-row">
+              <button className="sk-view-btn" onClick={() => setShowKeysModal(true)}>
+                <Key size={12} />
+                {t('searchKeys.viewKeys')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {showKeysModal && (
+          <SearchKeysModal
+            mode="document"
+            entityId={debug.document_id}
+            entityTitle={debug.title}
+            onClose={() => setShowKeysModal(false)}
+          />
         )}
 
         <div className="doc-debug-section">

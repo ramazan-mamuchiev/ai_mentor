@@ -21,6 +21,7 @@ from app.models import (
     DocumentUsageLog,
     FirmwareVersion,
     Product,
+    ProductSearchKey,
     PromptTemplate,
     Role,
     SearchAnalytics,
@@ -166,6 +167,13 @@ async def list_documents_admin(
     tenant_id: uuid.UUID | None = None,
     search: str | None = None,
 ) -> tuple[list[dict], int]:
+    keys_sub = (
+        select(func.count())
+        .where(ProductSearchKey.document_id == Document.id)
+        .correlate(Document)
+        .scalar_subquery()
+        .label("search_keys_count")
+    )
     base = (
         select(
             Document,
@@ -173,6 +181,7 @@ async def list_documents_admin(
             Product.name.label("product_name"),
             Product.manufacturer.label("manufacturer"),
             FirmwareVersion.version.label("firmware_version"),
+            keys_sub,
         )
         .outerjoin(Tenant, Document.tenant_id == Tenant.id)
         .outerjoin(Product, Document.product_id == Product.id)
@@ -224,6 +233,7 @@ async def list_documents_admin(
             "format": doc.format, "status": doc.status,
             "file_size_bytes": doc.file_size_bytes,
             "total_chunks": doc.total_chunks,
+            "search_keys_count": row.search_keys_count or 0,
             "error_message": doc.error_message,
             "uploaded_at": doc.uploaded_at, "indexed_at": doc.indexed_at,
         })

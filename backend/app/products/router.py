@@ -11,9 +11,10 @@ from app.config import settings
 from app.database import async_session
 from app.models import (
     ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion,
-    Product, SuggestionTemplate,
+    Product, ProductSearchKey, SuggestionTemplate,
 )
 from app.products.schemas import (
+    DocumentKeysGroup,
     FacetValue,
     Facets,
     FirmwareVersionInfo,
@@ -23,6 +24,7 @@ from app.products.schemas import (
     ProductDetail,
     ProductDocumentSummary,
     ProductDocumentUsage,
+    ProductSearchKeysResponse,
     ProductListItem,
     ProductSuggestion,
     ProductUpdate,
@@ -546,6 +548,15 @@ async def get_product_debug(product_id: int):
             for row in docs_result.all()
         ]
 
+        keys_result = await session.execute(
+            select(
+                func.count().label("total"),
+                func.count().filter(ProductSearchKey.source == "llm").label("llm"),
+                func.count().filter(ProductSearchKey.source == "chunk").label("chunk"),
+            ).where(ProductSearchKey.product_id == product_id)
+        )
+        keys_agg = keys_result.one()
+
         return ProductDebugInfo(
             product_id=product.id,
             product_name=product.name,
@@ -569,7 +580,52 @@ async def get_product_debug(product_id: int):
             total_rag_hit_count=agg.total_rag_hit_count or 0,
             avg_rag_similarity=float(agg.avg_rag_similarity) if agg.avg_rag_similarity else None,
             last_rag_used_at=agg.last_rag_used_at,
+            search_keys_total=keys_agg.total or 0,
+            search_keys_llm=keys_agg.llm or 0,
+            search_keys_chunk=keys_agg.chunk or 0,
             documents=docs,
+        )
+
+
+@router.get("/{product_id}/search-keys", response_model=ProductSearchKeysResponse)
+async def get_product_search_keys(product_id: int):
+    """Get all search keys for a product, grouped by source."""
+    async with async_session() as session:
+        product = await _get_product(session, product_id)
+
+        from sqlalchemy import text
+        llm_rows = (await session.execute(
+            select(ProductSearchKey.key)
+            .where(ProductSearchKey.product_id == product_id, ProductSearchKey.source == "llm")
+            .order_by(ProductSearchKey.key)
+        )).scalars().all()
+
+        chunk_rows = (await session.execute(text("""
+            SELECT psk.document_id, d.title, array_agg(psk.key ORDER BY psk.key) AS keys
+            FROM product_search_keys psk
+            JOIN documents d ON psk.document_id = d.id
+            WHERE psk.product_id = :pid AND psk.source = 'chunk'
+            GROUP BY psk.document_id, d.title
+            ORDER BY d.title
+        """), {"pid": product_id})).mappings().all()
+
+        chunk_groups = [
+            DocumentKeysGroup(
+                document_id=row["document_id"],
+                title=row["title"] or "",
+                keys=list(row["keys"]) if row["keys"] else [],
+            )
+            for row in chunk_rows
+        ]
+
+        total = len(llm_rows) + sum(len(g.keys) for g in chunk_groups)
+
+        return ProductSearchKeysResponse(
+            product_id=product.id,
+            product_name=product.name,
+            total_keys=total,
+            llm_keys=list(llm_rows),
+            chunk_keys_by_document=chunk_groups,
         )
 
 

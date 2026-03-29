@@ -364,7 +364,7 @@ async def search_documents(
 
     logger.debug(
         "Search query executing",
-        extra={"query": query, "product_id": product_id, "product": product, "version": version, "embed_ms": embed_ms},
+        extra={"query": query, "product_id": product_id, "version": version, "embed_ms": embed_ms},
     )
 
     t_db = time.perf_counter()

@@ -262,8 +262,35 @@ export interface DocumentDebugInfo {
   extract_prompt_tokens: number | null
   extract_completion_tokens: number | null
 
+  search_keys_count: number
+
   product_name: string
   firmware_version: string
+}
+
+export interface SearchKeyItem {
+  key: string
+  source: string
+}
+
+export interface DocumentSearchKeysResponse {
+  document_id: number
+  total_keys: number
+  keys: SearchKeyItem[]
+}
+
+export interface DocumentKeysGroup {
+  document_id: number
+  title: string
+  keys: string[]
+}
+
+export interface ProductSearchKeysResponse {
+  product_id: number
+  product_name: string
+  total_keys: number
+  llm_keys: string[]
+  chunk_keys_by_document: DocumentKeysGroup[]
 }
 
 export interface DocumentDownload {
@@ -354,6 +381,9 @@ export interface ProductDebugInfo {
   last_rag_used_at: string | null
   sum_extract_ms: number | null
   total_extract_tokens: number
+  search_keys_total: number
+  search_keys_llm: number
+  search_keys_chunk: number
   documents: ProductDocumentSummary[]
 }
 

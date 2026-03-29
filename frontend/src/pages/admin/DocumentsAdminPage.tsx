@@ -6,6 +6,7 @@ import {
   listDocumentsAdmin, patchDocumentAdmin, deleteDocumentAdmin,
   type AdminDocumentItem,
 } from '../../api/admin'
+import { SearchKeysModal } from '../../components/SearchKeysModal'
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
@@ -33,6 +34,7 @@ export function DocumentsAdminPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
+  const [keysModal, setKeysModal] = useState<{ id: number; title: string } | null>(null)
 
   const tenantId = searchParams.get('tenant_id') || undefined
   const pageSize = 50
@@ -125,6 +127,7 @@ export function DocumentsAdminPage() {
                   <th>{t('admin.docs.format')}</th>
                   <th>{t('admin.docs.size')}</th>
                   <th>{t('admin.docs.chunks')}</th>
+                  <th>{t('admin.docs.keys')}</th>
                   <th>{t('admin.docs.uploaded')}</th>
                   <th>{t('admin.common.actions')}</th>
                 </tr>
@@ -146,6 +149,18 @@ export function DocumentsAdminPage() {
                     <td><span className="badge badge--gray">{d.format}</span></td>
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{formatBytes(d.file_size_bytes)}</td>
                     <td>{d.total_chunks}</td>
+                    <td>
+                      {d.search_keys_count > 0 ? (
+                        <button
+                          className="sk-view-btn"
+                          onClick={() => setKeysModal({ id: d.id, title: d.title || d.original_filename })}
+                        >
+                          {d.search_keys_count}
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--text-secondary)' }}>0</span>
+                      )}
+                    </td>
                     <td style={{ fontSize: 12 }}>{new Date(d.uploaded_at).toLocaleDateString()}</td>
                     <td>
                       <div className="admin-actions">
@@ -185,6 +200,15 @@ export function DocumentsAdminPage() {
           </div>
         )}
       </div>
+
+      {keysModal && (
+        <SearchKeysModal
+          mode="document"
+          entityId={keysModal.id}
+          entityTitle={keysModal.title}
+          onClose={() => setKeysModal(null)}
+        />
+      )}
     </div>
   )
 }
