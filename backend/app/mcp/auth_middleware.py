@@ -1,6 +1,5 @@
 """ASGI middleware for MCP endpoint: authenticate via Bearer API key (ipx_...)."""
 
-import hashlib
 import json
 import logging
 from contextvars import ContextVar
@@ -43,7 +42,8 @@ class McpApiKeyAuthMiddleware:
             return
 
         raw_key = auth_value[len("Bearer "):]
-        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        from app.auth.service import hash_api_key
+        key_hash = hash_api_key(raw_key)
 
         try:
             async with async_session() as session:

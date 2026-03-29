@@ -69,6 +69,10 @@ class CreateApiKeyRequest(BaseModel):
     scopes: str = "search,list"
 
 
+class RevokeApiKeyRequest(BaseModel):
+    reason: str | None = None
+
+
 class ApiKeyResponse(BaseModel):
     id: uuid.UUID
     key_prefix: str
@@ -76,6 +80,8 @@ class ApiKeyResponse(BaseModel):
     scopes: str
     is_active: bool
     last_used_at: datetime | None
+    revoked_at: datetime | None = None
+    revoke_reason: str | None = None
     created_at: datetime
 
 

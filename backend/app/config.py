@@ -114,6 +114,7 @@ class Settings(BaseSettings):
     github_max_file_size_mb: int = 10
 
     # --- Auth ---
+    api_key_hmac_secret: str = ""  # HMAC-SHA256 secret for API key hashing; empty = plain SHA-256 fallback
     jwt_secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
     jwt_algorithm: str = "HS256"
     jwt_access_token_minutes: int = 15

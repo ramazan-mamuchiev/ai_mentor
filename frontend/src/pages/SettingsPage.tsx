@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Copy, Key, Plus, Trash2, Check, User, Save, X, ChevronDown, ChevronUp, Settings } from 'lucide-react'
+import { Copy, Key, Plus, ShieldOff, Check, User, Save, X, ChevronDown, ChevronUp, Settings, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { getApiKeys, createApiKey, deleteApiKey, updateMe, getApiKeyUsage, type ApiKeyItem, type ApiKeyCreated, type ApiKeyUsageResponse } from '../auth/api'
+import { getApiKeys, createApiKey, revokeApiKey, updateMe, getApiKeyUsage, type ApiKeyItem, type ApiKeyCreated, type ApiKeyUsageResponse } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
 
 type Tab = 'profile' | 'api-keys'
@@ -108,6 +108,8 @@ function ProfileTab() {
   )
 }
 
+const REVOKE_REASONS = ['compromised', 'rotation', 'unused', 'employee_left', 'other'] as const
+
 function ApiKeysTab() {
   const { t } = useTranslation()
   const [keys, setKeys] = useState<ApiKeyItem[]>([])
@@ -115,25 +117,27 @@ function ApiKeysTab() {
   const [newKey, setNewKey] = useState<ApiKeyCreated | null>(null)
   const [keyName, setKeyName] = useState('')
   const [creating, setCreating] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<ApiKeyItem | null>(null)
+  const [revokeTarget, setRevokeTarget] = useState<ApiKeyItem | null>(null)
+  const [revokeReason, setRevokeReason] = useState<string>('')
+  const [showRevoked, setShowRevoked] = useState(false)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [usageData, setUsageData] = useState<Record<string, ApiKeyUsageResponse>>({})
   const [usageLoading, setUsageLoading] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!deleteTarget) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setDeleteTarget(null) }
+    if (!revokeTarget) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') { setRevokeTarget(null); setRevokeReason('') } }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [deleteTarget])
+  }, [revokeTarget])
 
   const load = useCallback(async () => {
     try {
-      const data = await getApiKeys()
+      const data = await getApiKeys(showRevoked)
       setKeys(data)
     } catch { /* ignore */ }
     setLoading(false)
-  }, [])
+  }, [showRevoked])
 
   useEffect(() => { load() }, [load])
 
@@ -148,10 +152,11 @@ function ApiKeysTab() {
     setCreating(false)
   }
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return
-    await deleteApiKey(deleteTarget.id)
-    setDeleteTarget(null)
+  const handleRevokeConfirm = async () => {
+    if (!revokeTarget) return
+    await revokeApiKey(revokeTarget.id, revokeReason || undefined)
+    setRevokeTarget(null)
+    setRevokeReason('')
     await load()
   }
 
@@ -188,6 +193,16 @@ function ApiKeysTab() {
         </button>
       </div>
 
+      <label className="show-revoked-toggle">
+        <input
+          type="checkbox"
+          checked={showRevoked}
+          onChange={e => setShowRevoked(e.target.checked)}
+        />
+        {showRevoked ? <Eye size={14} /> : <EyeOff size={14} />}
+        {t('settings.showRevoked')}
+      </label>
+
       {newKey && (
         <NewKeyModal
           newKey={newKey}
@@ -213,18 +228,34 @@ function ApiKeysTab() {
           <tbody>
             {keys.map(k => (
               <>
-                <tr key={k.id} className={expandedKey === k.id ? 'row-expanded' : ''} style={{ cursor: 'pointer' }} onClick={() => toggleUsage(k.id)}>
+                <tr
+                  key={k.id}
+                  className={`${expandedKey === k.id ? 'row-expanded' : ''} ${!k.is_active ? 'row-revoked' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => toggleUsage(k.id)}
+                >
                   <td>
                     {expandedKey === k.id ? <ChevronUp size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} /> : <ChevronDown size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />}
                     {k.name || '—'}
+                    {!k.is_active && (
+                      <span className="revoked-badge" title={k.revoke_reason ? t(`settings.reason.${k.revoke_reason}`) : undefined}>
+                        {t('settings.revoked')}
+                      </span>
+                    )}
                   </td>
-                  <td><code>{k.key_prefix}</code></td>
+                  <td><code className={!k.is_active ? 'text-muted' : ''}>{k.key_prefix}</code></td>
                   <td className="hide-mobile">{new Date(k.created_at).toLocaleDateString()}</td>
-                  <td className="hide-mobile">{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}</td>
+                  <td className="hide-mobile">
+                    {!k.is_active && k.revoked_at
+                      ? new Date(k.revoked_at).toLocaleDateString()
+                      : k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}
+                  </td>
                   <td>
-                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(k) }} className="btn-icon btn-danger">
-                      <Trash2 size={16} />
-                    </button>
+                    {k.is_active && (
+                      <button onClick={e => { e.stopPropagation(); setRevokeTarget(k) }} className="btn-icon btn-danger" title={t('settings.revokeKey')}>
+                        <ShieldOff size={16} />
+                      </button>
+                    )}
                   </td>
                 </tr>
                 {expandedKey === k.id && (
@@ -244,25 +275,38 @@ function ApiKeysTab() {
         </table>
       )}
 
-      {deleteTarget && (
-        <div className="api-key-modal-overlay" onClick={() => setDeleteTarget(null)}>
+      {revokeTarget && (
+        <div className="api-key-modal-overlay" onClick={() => { setRevokeTarget(null); setRevokeReason('') }}>
           <div className="api-key-modal api-key-modal--small" onClick={e => e.stopPropagation()}>
             <div className="api-key-modal-header">
-              <h3>{t('settings.deleteKeyTitle')}</h3>
-              <button onClick={() => setDeleteTarget(null)} className="btn-icon">
+              <h3>{t('settings.revokeKeyTitle')}</h3>
+              <button onClick={() => { setRevokeTarget(null); setRevokeReason('') }} className="btn-icon">
                 <X size={18} />
               </button>
             </div>
             <p className="confirm-delete-text">
-              {t('settings.deleteKeyConfirm', { name: deleteTarget.name || deleteTarget.key_prefix })}
+              {t('settings.revokeKeyConfirm', { name: revokeTarget.name || revokeTarget.key_prefix })}
             </p>
+            <div className="revoke-reason-field">
+              <label className="profile-label">{t('settings.revokeReason')}</label>
+              <select
+                value={revokeReason}
+                onChange={e => setRevokeReason(e.target.value)}
+                className="auth-input"
+              >
+                <option value="">{t('settings.reason.none')}</option>
+                {REVOKE_REASONS.map(r => (
+                  <option key={r} value={r}>{t(`settings.reason.${r}`)}</option>
+                ))}
+              </select>
+            </div>
             <div className="api-key-modal-footer">
-              <button onClick={() => setDeleteTarget(null)} className="btn-secondary">
+              <button onClick={() => { setRevokeTarget(null); setRevokeReason('') }} className="btn-secondary">
                 {t('settings.cancel')}
               </button>
-              <button onClick={handleDeleteConfirm} className="btn-danger-solid">
-                <Trash2 size={16} />
-                {t('settings.deleteKey')}
+              <button onClick={handleRevokeConfirm} className="btn-danger-solid">
+                <ShieldOff size={16} />
+                {t('settings.revokeKey')}
               </button>
             </div>
           </div>

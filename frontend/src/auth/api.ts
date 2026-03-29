@@ -51,6 +51,8 @@ export interface ApiKeyItem {
   scopes: string
   is_active: boolean
   last_used_at: string | null
+  revoked_at: string | null
+  revoke_reason: string | null
   created_at: string
 }
 
@@ -116,8 +118,9 @@ export async function updateMe(data: { name?: string }): Promise<MeResponse> {
   return handleResponse(res)
 }
 
-export async function getApiKeys(): Promise<ApiKeyItem[]> {
-  const res = await fetch(`${BASE}/api-keys`, { credentials: 'include' })
+export async function getApiKeys(includeRevoked = false): Promise<ApiKeyItem[]> {
+  const qs = includeRevoked ? '?include_revoked=true' : ''
+  const res = await fetch(`${BASE}/api-keys${qs}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
@@ -131,9 +134,11 @@ export async function createApiKey(name: string): Promise<ApiKeyCreated> {
   return handleResponse(res)
 }
 
-export async function deleteApiKey(id: string): Promise<void> {
+export async function revokeApiKey(id: string, reason?: string): Promise<void> {
   await fetch(`${BASE}/api-keys/${id}`, {
     method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason || null }),
     credentials: 'include',
   })
 }

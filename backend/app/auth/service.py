@@ -1,6 +1,7 @@
 """Core auth business logic: register, login, token management, OAuth."""
 
 import hashlib
+import hmac
 import re
 import secrets
 import uuid
@@ -32,10 +33,18 @@ async def _ensure_unique_slug(slug: str, session: AsyncSession) -> str:
     return f"{slug}-{secrets.token_hex(3)}"
 
 
+def hash_api_key(raw: str) -> str:
+    """Hash a raw API key. Uses HMAC-SHA256 when secret is configured, plain SHA-256 otherwise."""
+    secret = settings.api_key_hmac_secret
+    if secret:
+        return hmac.new(secret.encode(), raw.encode(), hashlib.sha256).hexdigest()
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 def _generate_api_key() -> tuple[str, str, str]:
-    """Return (raw_key, sha256_hash, prefix 'ipx_...')."""
+    """Return (raw_key, hash, prefix 'ipx_...')."""
     raw = f"ipx_{secrets.token_urlsafe(32)}"
-    key_hash = hashlib.sha256(raw.encode()).hexdigest()
+    key_hash = hash_api_key(raw)
     prefix = raw[:12] + "..."
     return raw, key_hash, prefix
 
@@ -235,26 +244,30 @@ async def create_api_key(
 async def list_api_keys(
     tenant_id: uuid.UUID,
     session: AsyncSession,
+    include_revoked: bool = False,
 ) -> list[ApiKey]:
-    result = await session.execute(
-        select(ApiKey)
-        .where(ApiKey.tenant_id == tenant_id, ApiKey.is_active.is_(True))
-        .order_by(ApiKey.created_at)
-    )
+    query = select(ApiKey).where(ApiKey.tenant_id == tenant_id)
+    if not include_revoked:
+        query = query.where(ApiKey.is_active.is_(True))
+    query = query.order_by(ApiKey.created_at)
+    result = await session.execute(query)
     return list(result.scalars().all())
 
 
-async def delete_api_key(
+async def revoke_api_key(
     tenant_id: uuid.UUID,
     key_id: uuid.UUID,
     session: AsyncSession,
+    reason: str | None = None,
 ) -> bool:
     result = await session.execute(
         select(ApiKey).where(ApiKey.id == key_id, ApiKey.tenant_id == tenant_id)
     )
     api_key = result.scalar_one_or_none()
-    if not api_key:
+    if not api_key or not api_key.is_active:
         return False
     api_key.is_active = False
+    api_key.revoked_at = datetime.now(timezone.utc)
+    api_key.revoke_reason = reason
     await session.commit()
     return True

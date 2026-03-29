@@ -15,6 +15,7 @@ from app.auth.schemas import (
     OAuthCallbackResponse,
     RegisterRequest,
     RegisterResponse,
+    RevokeApiKeyRequest,
     TokenResponse,
     UpdateMeRequest,
     UsageSummaryResponse,
@@ -23,11 +24,11 @@ from app.auth.service import (
     authenticate_tenant,
     create_api_key,
     create_token_pair,
-    delete_api_key,
     find_or_create_oauth_tenant,
     list_api_keys,
     register_tenant,
     revoke_all_refresh_tokens,
+    revoke_api_key,
     rotate_refresh_token,
 )
 from app.config import settings
@@ -169,14 +170,17 @@ async def auth_providers():
 
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
 async def get_api_keys(
+    include_revoked: bool = False,
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    keys = await list_api_keys(tenant.id, session)
+    keys = await list_api_keys(tenant.id, session, include_revoked=include_revoked)
     return [
         ApiKeyResponse(
             id=k.id, key_prefix=k.key_prefix, name=k.name, scopes=k.scopes,
-            is_active=k.is_active, last_used_at=k.last_used_at, created_at=k.created_at,
+            is_active=k.is_active, last_used_at=k.last_used_at,
+            revoked_at=k.revoked_at, revoke_reason=k.revoke_reason,
+            created_at=k.created_at,
         )
         for k in keys
     ]
@@ -192,7 +196,8 @@ async def create_key(
     return ApiKeyCreatedResponse(
         id=api_key.id, key_prefix=api_key.key_prefix, name=api_key.name,
         scopes=api_key.scopes, is_active=api_key.is_active,
-        last_used_at=api_key.last_used_at, created_at=api_key.created_at,
+        last_used_at=api_key.last_used_at, revoked_at=api_key.revoked_at,
+        revoke_reason=api_key.revoke_reason, created_at=api_key.created_at,
         key=raw,
     )
 
@@ -200,6 +205,7 @@ async def create_key(
 @router.delete("/api-keys/{key_id}", status_code=204)
 async def remove_key(
     key_id: str,
+    body: RevokeApiKeyRequest | None = None,
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
@@ -208,8 +214,9 @@ async def remove_key(
         kid = _uuid.UUID(key_id)
     except ValueError:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid key id")
-    if not await delete_api_key(tenant.id, kid, session):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    reason = body.reason if body else None
+    if not await revoke_api_key(tenant.id, kid, session, reason=reason):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found or already revoked")
 
 
 # ---------------------------------------------------------------------------

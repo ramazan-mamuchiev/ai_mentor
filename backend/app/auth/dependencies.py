@@ -23,8 +23,8 @@ _BEARER = "Bearer "
 
 async def _resolve_api_key(raw_key: str, session: AsyncSession) -> tuple[Tenant, uuid.UUID]:
     """Look up tenant by raw API key (ipx_...). Returns (tenant, api_key_id)."""
-    import hashlib
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    from app.auth.service import hash_api_key
+    key_hash = hash_api_key(raw_key)
     result = await session.execute(
         select(ApiKey).where(ApiKey.key_hash == key_hash, ApiKey.is_active.is_(True))
     )

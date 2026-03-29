@@ -963,6 +963,62 @@
   background: var(--bg-hover);
 }
 
+.row-revoked {
+  opacity: 0.55;
+}
+
+.row-revoked td {
+  text-decoration: line-through;
+  text-decoration-color: var(--text-muted);
+}
+
+.row-revoked td:last-child {
+  text-decoration: none;
+}
+
+.revoked-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  background: var(--danger-bg, #fef2f2);
+  color: var(--danger, #dc2626);
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.show-revoked-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+  user-select: none;
+}
+
+.show-revoked-toggle input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.revoke-reason-field {
+  margin: 0.75rem 0;
+}
+
+.revoke-reason-field select {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
 .key-usage-panel {
   padding: 1rem 0.75rem;
 }
