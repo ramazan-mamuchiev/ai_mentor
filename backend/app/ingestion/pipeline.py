@@ -99,17 +99,20 @@ def _save_llm_keys_sync(session, product_id: int, keys: list[str]) -> int:
     """Save LLM-generated keys for a product (document_id=NULL, sync).
 
     Uses DELETE+INSERT pattern to avoid NULL-aware ON CONFLICT issues.
+    Deduplicates keys case-insensitively before inserting.
     """
     from sqlalchemy import text
     session.execute(
         text("DELETE FROM product_search_keys WHERE product_id = :pid AND source = 'llm' AND document_id IS NULL"),
         {"pid": product_id},
     )
+    seen: set[str] = set()
     count = 0
     for key in keys:
         key = key.strip()
-        if not key:
+        if not key or key.lower() in seen:
             continue
+        seen.add(key.lower())
         session.execute(
             text("""
                 INSERT INTO product_search_keys (product_id, document_id, key, source)
@@ -126,17 +129,20 @@ async def _save_llm_keys_async(session, product_id: int, keys: list[str]) -> int
     """Save LLM-generated keys for a product (document_id=NULL, async).
 
     Uses DELETE+INSERT pattern to avoid NULL-aware ON CONFLICT issues.
+    Deduplicates keys case-insensitively before inserting.
     """
     from sqlalchemy import text
     await session.execute(
         text("DELETE FROM product_search_keys WHERE product_id = :pid AND source = 'llm' AND document_id IS NULL"),
         {"pid": product_id},
     )
+    seen: set[str] = set()
     count = 0
     for key in keys:
         key = key.strip()
-        if not key:
+        if not key or key.lower() in seen:
             continue
+        seen.add(key.lower())
         await session.execute(
             text("""
                 INSERT INTO product_search_keys (product_id, document_id, key, source)

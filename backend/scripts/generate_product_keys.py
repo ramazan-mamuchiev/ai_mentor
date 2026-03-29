@@ -38,11 +38,16 @@ async def main():
                     "DELETE FROM product_search_keys "
                     "WHERE product_id = :pid AND source = 'llm' AND document_id IS NULL"
                 ), {"pid": r["id"]})
+                seen = set()
                 for key in result.keys:
+                    key_lower = key.strip().lower()
+                    if key_lower in seen or not key.strip():
+                        continue
+                    seen.add(key_lower)
                     await s.execute(text(
                         "INSERT INTO product_search_keys (product_id, document_id, key, source) "
                         "VALUES (:pid, NULL, :key, 'llm')"
-                    ), {"pid": r["id"], "key": key})
+                    ), {"pid": r["id"], "key": key.strip()})
                 await s.commit()
             print(
                 f"  {r['name']}: {len(result.keys)} keys, "
