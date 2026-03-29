@@ -2421,16 +2421,6 @@
   font-style: italic;
 }
 
-/* --- MCP audit: layout --- */
-
-.mcp-audit-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow-y: auto;
-}
-
 /* --- MCP audit: time gap separator --- */
 
 .mcp-time-gap-row {

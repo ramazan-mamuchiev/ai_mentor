@@ -182,8 +182,8 @@ export function McpAuditPage() {
       : null
 
   return (
-    <div className={`chat-audit-page${panel ? ' docs-page--with-panel' : ''}`}>
-      <div className="mcp-audit-content">
+    <div className={`docs-page${panel ? ' docs-page--with-panel' : ''}`}>
+      <div className="docs-page-main">
         <div className="admin-page-header">
           <h1><Plug size={20} /> {t('admin.mcp.title')}</h1>
           <p>{t('admin.mcp.requestsCount', { count: total })}</p>
