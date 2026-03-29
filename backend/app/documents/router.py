@@ -997,6 +997,7 @@ async def reingest_single_document(document_id: int):
         is_confluence = doc.format == "confluence"
         is_url = doc.format == "url"
         is_github = doc.format == "github"
+        is_site = doc.format == "site"
         is_confluence_child = (
             doc.format == "markdown"
             and doc.source_path
@@ -1018,10 +1019,10 @@ async def reingest_single_document(document_id: int):
             except ValueError:
                 pass
 
-        if not doc.s3_key and not is_confluence and not is_url and not is_github and not is_confluence_child:
+        if not doc.s3_key and not is_confluence and not is_url and not is_github and not is_site and not is_confluence_child:
             raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
 
-        if is_confluence or is_url or is_github:
+        if is_confluence or is_url or is_github or is_site:
             if not doc.source_path:
                 raise HTTPException(status_code=400, detail="No source URL stored — cannot reingest")
 
@@ -1059,10 +1060,15 @@ async def reingest_single_document(document_id: int):
         doc.error_message = None
         doc.progress_percent = 0
         doc.progress_stage = "queued"
-        doc.title = doc.source_path[:200] if (is_confluence or is_url or is_github) else doc.title
+        doc.title = doc.source_path[:200] if (is_confluence or is_url or is_github or is_site) else doc.title
+        if is_site:
+            doc.crawl_checkpoint = None
         await session.flush()
 
-        if is_github:
+        if is_site:
+            from app.celery_app import ingest_site_task
+            task = ingest_site_task.delay(document_id=document_id)
+        elif is_github:
             from app.celery_app import ingest_github_task
             from app.ingestion.converters.github import parse_github_url
             _branch = "main"

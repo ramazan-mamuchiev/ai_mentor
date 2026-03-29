@@ -369,6 +369,7 @@
   "docs.reingest.message": "The document will be re-processed: existing chunks will be deleted, and the file will be parsed, chunked, and embedded again.",
   "docs.reingest.confirm": "Reindex",
   "docs.reingest.cancel": "Cancel",
+  "docs.reingest.error": "Failed to start reindexing",
   "docs.actions.cancel": "Cancel indexing",
   "docs.cancel.title": "Cancel indexing",
   "docs.cancel.message": "The indexing process for this document will be stopped. You can restart it later.",

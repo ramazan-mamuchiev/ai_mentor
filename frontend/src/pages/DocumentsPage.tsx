@@ -352,9 +352,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       setDocuments(prev =>
         prev.map(d => d.id === reingestTarget.id ? { ...d, status: 'pending' as const, error_message: null, total_chunks: 0, progress_percent: 0, progress_stage: '' } : d)
       )
-    } catch { /* ignore */ }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      alert(`${t('docs.reingest.error')}: ${detail}`)
+    }
     finally { setReingestTarget(null) }
-  }, [reingestTarget])
+  }, [reingestTarget, t])
 
   const handleCancelConfirm = useCallback(async () => {
     if (!cancelTarget) return
