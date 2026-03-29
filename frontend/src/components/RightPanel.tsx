@@ -419,17 +419,6 @@ export function McpDebugPanelContent({ detail, onSwitchToSources }: { detail: Mc
         </div>
       )}
 
-      {detail.sources && detail.sources.length > 0 && onSwitchToSources && (
-        <div className="debug-section">
-          <button
-            className="mcp-sources-button"
-            onClick={onSwitchToSources}
-          >
-            <FileSearch size={14} />
-            {t('debug.mcp.viewSources', { count: detail.sources.length })}
-          </button>
-        </div>
-      )}
     </div>
   )
 }
