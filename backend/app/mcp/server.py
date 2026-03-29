@@ -223,6 +223,8 @@ async def tool_search_documentation(
 
     min_sim = settings.rag_min_similarity
     results = [r for r in results if r.get("similarity", 0) >= min_sim]
+    if settings.rerank_enabled:
+        results = [r for r in results if r.get("rerank_score", 1.0) >= settings.rerank_min_score]
 
     result_count = len(results)
     top_similarity = results[0]["similarity"] if results else 0.0
@@ -263,7 +265,7 @@ async def tool_search_documentation(
             parts.append(f"{meta}\n\n{body}")
         response_text = "\n\n---\n\n".join(parts)
 
-    response_tokens = sum(r.get("token_count", 0) for r in results)
+    response_tokens = max(1, len(response_text) // 4)
     query_tokens = max(1, len(query) // 4)
     await write_usage_log(
         channel="mcp",
@@ -390,7 +392,7 @@ async def tool_get_api_endpoint(
             parts.append(f"{meta}\n\n{body}")
         response_text = "\n\n---\n\n".join(parts)
 
-    response_tokens = sum(r.get("token_count", 0) for r in results)
+    response_tokens = max(1, len(response_text) // 4)
     query_tokens = max(1, len(endpoint) // 4)
     await write_usage_log(
         channel="mcp",

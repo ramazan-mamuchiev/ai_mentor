@@ -415,6 +415,8 @@ async def search_endpoint(
 
     if rows:
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+        if metadata is not None:
+            metadata["search_ms"] = duration_ms
         logger.info(
             "Endpoint search: exact match",
             extra={
@@ -438,6 +440,7 @@ async def search_endpoint(
                 "manufacturer": row["manufacturer"],
                 "firmware_version": row["firmware_version"],
                 "match_type": "exact",
+                "similarity": 1.0,
             }
             for row in rows
         ]
