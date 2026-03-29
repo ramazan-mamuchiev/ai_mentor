@@ -155,17 +155,43 @@ Services:
 
 ### Connect MCP to Cursor
 
-Add to `.cursor/mcp.json`:
+Every MCP connection requires an API key. Generate one in the admin panel
+(**Settings → API Keys**) or use the pre-seeded key from `.env`.
+Keys use the `ipx_` prefix.
+
+Add to your project's `.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "lexiro": {
-      "url": "http://localhost:8000/mcp"
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer ipx_your_api_key_here"
+      }
     }
   }
 }
 ```
+
+For the hosted version at [lexiro.io](https://lexiro.io):
+
+```json
+{
+  "mcpServers": {
+    "lexiro": {
+      "url": "https://lexiro.io/mcp",
+      "headers": {
+        "Authorization": "Bearer ipx_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+> **Authentication**: The MCP endpoint validates the API key on every request.
+> The key must belong to an active tenant with `is_active = true`.
+> Invalid or missing keys receive a `401` JSON-RPC error.
 
 Then ask your AI assistant:
 
