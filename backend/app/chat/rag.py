@@ -330,7 +330,10 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
             if flat:
                 entity_line = f"Entities: {', '.join(flat[:15])}\n"
 
-        parts.append(f"--- Source {i}{doc_id_tag}: {source} (similarity: {chunk['similarity']}) ---\n{entity_line}{body}")
+        sim_info = f"similarity: {chunk['similarity']}"
+        if "rerank_score" in chunk:
+            sim_info += f", rerank: {chunk['rerank_score']}"
+        parts.append(f"--- Source {i}{doc_id_tag}: {source} ({sim_info}) ---\n{entity_line}{body}")
 
     return "\n\n".join(parts)
 
@@ -995,7 +998,9 @@ async def build_rag_prompt(
         search_ms = round((time.perf_counter() - t_search) * 1000, 1)
 
         all_chunks_before_filter = chunks
-        if settings.rag_min_similarity > 0:
+        if settings.rerank_enabled and settings.rerank_min_score > 0:
+            chunks = [c for c in chunks if c.get("rerank_score", c["similarity"]) >= settings.rerank_min_score]
+        elif settings.rag_min_similarity > 0:
             chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
 
         if not chunks and all_chunks_before_filter and not is_explicit_lock and (product_filter or auto_product):
@@ -1055,7 +1060,9 @@ async def build_rag_prompt(
                 metadata=retry_meta,
             )
 
-            if settings.rag_min_similarity > 0:
+            if settings.rerank_enabled and settings.rerank_min_score > 0:
+                retry_chunks = [c for c in retry_chunks if c.get("rerank_score", c["similarity"]) >= settings.rerank_min_score]
+            elif settings.rag_min_similarity > 0:
                 retry_chunks = [c for c in retry_chunks if c["similarity"] >= settings.rag_min_similarity]
 
             if retry_chunks:
@@ -1280,11 +1287,16 @@ async def build_rag_prompt(
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     top_sim = round(chunks[0]["similarity"], 4) if chunks else 0
     min_sim = round(chunks[-1]["similarity"], 4) if chunks else 0
+    rerank_scores = [c["rerank_score"] for c in chunks if "rerank_score" in c]
+    top_rerank = round(max(rerank_scores), 4) if rerank_scores else 0
+    min_rerank = round(min(rerank_scores), 4) if rerank_scores else 0
 
     rag_debug = {
         "chunks_found": len(chunks),
         "top_similarity": top_sim,
         "min_similarity": min_sim,
+        "top_rerank_score": top_rerank,
+        "min_rerank_score": min_rerank,
         "context_tokens": context_tokens,
         "query_tokens": query_tokens,
         "history_tokens": history_tokens,

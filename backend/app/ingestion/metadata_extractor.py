@@ -185,10 +185,14 @@ async def _call_llm_async(prompt: str) -> tuple[str, dict]:
     return text, usage
 
 
-def extract_metadata_batch_sync(chunk_texts: list[str]) -> ExtractionResult:
+def extract_metadata_batch_sync(
+    chunk_texts: list[str],
+    progress_callback: "Callable[[float], None] | None" = None,
+) -> ExtractionResult:
     """Extract metadata from chunks synchronously (for Celery worker).
 
     Splits chunks into batches, calls LLM for each batch, and aggregates results.
+    ``progress_callback`` receives a float 0.0→1.0 after each batch.
     """
     if not settings.metadata_extraction_enabled or not chunk_texts:
         return ExtractionResult(
@@ -222,6 +226,9 @@ def extract_metadata_batch_sync(chunk_texts: list[str]) -> ExtractionResult:
             )
             all_metadata.extend([_default_metadata() for _ in batch])
 
+        if progress_callback:
+            progress_callback(len(all_metadata) / len(chunk_texts))
+
     total_usage.total_tokens = total_usage.prompt_tokens + total_usage.completion_tokens
     total_usage.extract_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -239,8 +246,14 @@ def extract_metadata_batch_sync(chunk_texts: list[str]) -> ExtractionResult:
     return ExtractionResult(metadata=all_metadata, usage=total_usage)
 
 
-async def extract_metadata_batch_async(chunk_texts: list[str]) -> ExtractionResult:
-    """Extract metadata from chunks asynchronously (for FastAPI endpoints)."""
+async def extract_metadata_batch_async(
+    chunk_texts: list[str],
+    progress_callback: "Callable[[float], None] | None" = None,
+) -> ExtractionResult:
+    """Extract metadata from chunks asynchronously (for FastAPI endpoints).
+
+    ``progress_callback`` receives a float 0.0→1.0 after each batch.
+    """
     if not settings.metadata_extraction_enabled or not chunk_texts:
         return ExtractionResult(
             metadata=[_default_metadata() for _ in chunk_texts],
@@ -272,6 +285,9 @@ async def extract_metadata_batch_async(chunk_texts: list[str]) -> ExtractionResu
                 exc_info=True,
             )
             all_metadata.extend([_default_metadata() for _ in batch])
+
+        if progress_callback:
+            progress_callback(len(all_metadata) / len(chunk_texts))
 
     total_usage.total_tokens = total_usage.prompt_tokens + total_usage.completion_tokens
     total_usage.extract_ms = round((time.perf_counter() - t0) * 1000, 1)

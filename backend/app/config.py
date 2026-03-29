@@ -10,6 +10,8 @@ class Settings(BaseSettings):
 
     embedding_model_gemini: str = "gemini-embedding-2-preview"
     embedding_dims: int = 1024
+    embedding_cache_enabled: bool = True
+    embedding_cache_ttl_hours: int = 48
 
     redis_url: str = "redis://localhost:6379/0"
 
@@ -62,11 +64,13 @@ class Settings(BaseSettings):
     rerank_enabled: bool = True
     rerank_candidates: int = 20
     rerank_model: str = "gemini-2.5-flash"
+    rerank_min_score: float = 0.3
 
     hybrid_search_enabled: bool = True
     hybrid_bm25_weight: float = 0.3
     hybrid_vector_weight: float = 0.7
     hybrid_rrf_k: int = 60
+    hnsw_ef_search: int = 128
 
     chunk_max_tokens: int = 512
     chunk_min_tokens: int = 50
@@ -86,6 +90,8 @@ class Settings(BaseSettings):
     web_search_model: str = "gemini-2.5-flash"
     web_search_max_tokens: int = 1500
     web_search_max_context_chars: int = 5000
+
+    rag_max_context_tokens_per_source: int = 3000
 
     model_max_input_tokens: int = 1_000_000
 

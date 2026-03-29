@@ -878,7 +878,10 @@ def ingest_from_bytes(
 
         from app.ingestion.metadata_extractor import extract_metadata_batch_sync
         extraction_result = extract_metadata_batch_sync(
-            [c.content for c in chunks]
+            [c.content for c in chunks],
+            progress_callback=lambda pct: _update_progress(
+                session, document, 50 + int(pct * 5), "extracting_metadata",
+            ),
         )
         chunk_meta_dicts = [
             {"doc_type": m.doc_type, "entities": m.entities}

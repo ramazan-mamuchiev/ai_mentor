@@ -210,7 +210,6 @@ async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResul
     for r, score in scored[:top_k]:
         r = dict(r)
         r["rerank_score"] = round(score, 4)
-        r["similarity"] = round(score, 4)
         reranked.append(r)
 
     logger.debug(
