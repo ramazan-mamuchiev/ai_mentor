@@ -48,6 +48,29 @@ export function fmtUsd(v: string | number): string {
   return `$${parseFloat(String(v)).toFixed(6)}`
 }
 
+export function downloadBlob(content: string, filename: string, mime: string): void {
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export function exportItemsJSON<T>(items: T[]): string {
+  return JSON.stringify(items, null, 2)
+}
+
+export function exportItemsCSV<T extends Record<string, unknown>>(items: T[], columns: string[]): string {
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const header = columns.join(',')
+  const rows = items.map(item => columns.map(c => esc(item[c])).join(','))
+  return [header, ...rows].join('\n')
+}
+
 export function highlightSearch(text: string, query: string): React.ReactNode {
   if (!query || query.length < 2) return text
   const idx = text.toLowerCase().indexOf(query.toLowerCase())

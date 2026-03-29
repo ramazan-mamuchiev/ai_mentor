@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Plug, AlertTriangle, Clock, Bug, FileSearch, Search, X,
-  ChevronDown, ChevronRight, Copy, Check,
+  ChevronDown, ChevronRight, Copy, Check, RefreshCw, Download, Radio, Loader2,
 } from 'lucide-react'
 import {
   listMcpRequests, getMcpRequestDetail,
@@ -11,7 +11,7 @@ import {
 } from '../../api/admin'
 import { RightPanel } from '../../components/RightPanel'
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
-import { TIME_RANGES, timeRangeToISO, fmtTs, fmtMs, fmtUsd, highlightSearch } from '../../utils/auditUtils'
+import { TIME_RANGES, timeRangeToISO, fmtTs, fmtMs, fmtUsd, highlightSearch, downloadBlob, exportItemsJSON, exportItemsCSV } from '../../utils/auditUtils'
 import type { McpSourceInfo } from '../../types'
 
 const TOOLS = ['', 'search_documentation', 'get_api_endpoint', 'list_products'] as const
@@ -132,6 +132,11 @@ export function McpAuditPage() {
   const [error, setError] = useState('')
   const [panel, setPanel] = useState<PanelState>(null)
   const [panelLoading, setPanelLoading] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const exportRef = useRef<HTMLDivElement>(null)
   const pageSize = 50
 
   useEffect(() => {
@@ -166,6 +171,39 @@ export function McpAuditPage() {
   }, [page, tenantFilter, toolFilter, statusFilter, timeRange, debouncedSearch])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (autoRefresh) {
+      intervalRef.current = setInterval(load, 5000)
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [autoRefresh, load])
+
+  useEffect(() => {
+    if (!exportOpen) return
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [exportOpen])
+
+  const handleExport = useCallback((format: 'json' | 'csv') => {
+    setExportOpen(false)
+    setExporting(true)
+    try {
+      const date = new Date().toISOString().slice(0, 10)
+      const base = `lexiro-mcp-audit_${date}`
+      if (format === 'json') {
+        downloadBlob(exportItemsJSON(items), `${base}.json`, 'application/json')
+      } else {
+        const cols = ['created_at', 'tool_name', 'query_text', 'result_count', 'top_similarity', 'duration_ms', 'charge_usd', 'status', 'tenant_email', 'request_id']
+        downloadBlob(exportItemsCSV(items as unknown as Record<string, unknown>[], cols), `${base}.csv`, 'text/csv')
+      }
+    } finally {
+      setExporting(false)
+    }
+  }, [items])
 
   const openPanel = useCallback(async (requestId: string, mode: 'mcp-debug' | 'mcp-sources') => {
     setPanelLoading(true)
@@ -268,13 +306,39 @@ export function McpAuditPage() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
-              {search && (
-                <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+            {search && (
+              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
+                <X size={14} />
+              </button>
+            )}
           </div>
+
+          <button className="logs-icon-btn" onClick={load}>
+            <RefreshCw size={14} className={loading ? 'spin' : ''} />
+          </button>
+          <div className="logs-export-wrap" ref={exportRef}>
+            <button
+              className="logs-icon-btn"
+              onClick={() => setExportOpen(v => !v)}
+              disabled={exporting || items.length === 0}
+            >
+              {exporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+            </button>
+            {exportOpen && (
+              <div className="logs-export-dropdown">
+                <button className="logs-export-dropdown__item" onClick={() => handleExport('json')}>JSON</button>
+                <button className="logs-export-dropdown__item" onClick={() => handleExport('csv')}>CSV</button>
+              </div>
+            )}
+          </div>
+          <button
+            className={`logs-live-btn${autoRefresh ? ' logs-live-btn--active' : ''}`}
+            onClick={() => setAutoRefresh(v => !v)}
+          >
+            <Radio size={13} />
+            {t('admin.logs.live')}
+          </button>
+        </div>
 
           <div className="logs-toolbar__row">
             <div className="logs-level-chips" role="group" aria-label="Status">

@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight, Clock,
-  FileSearch, Bug, ChevronDown, Copy, Check,
+  FileSearch, Bug, ChevronDown, Copy, Check, RefreshCw, Download, Radio, Loader2,
 } from 'lucide-react'
 import {
   listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin,
@@ -13,7 +13,7 @@ import {
 import { MarkdownRenderer } from '../../components/MarkdownRenderer'
 import { RightPanel } from '../../components/RightPanel'
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
-import { TIME_RANGES, timeRangeToISO, fmtTsShort, fmtDuration, fmtUsd, highlightSearch } from '../../utils/auditUtils'
+import { TIME_RANGES, timeRangeToISO, fmtTsShort, fmtDuration, fmtUsd, highlightSearch, downloadBlob, exportItemsJSON, exportItemsCSV } from '../../utils/auditUtils'
 import type { SourceInfo, DebugInfo } from '../../types'
 
 function toSourceInfos(sources: AdminChatMessage['sources']): SourceInfo[] {
@@ -278,6 +278,11 @@ function SessionListView() {
   const [error, setError] = useState('')
   const [searchMode, setSearchMode] = useState<'sessions' | 'messages'>('sessions')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const exportRef = useRef<HTMLDivElement>(null)
 
   const tenantIdFromUrl = searchParams.get('tenant_id') || undefined
   const activeTenantId = tenantFilter?.id || tenantIdFromUrl
@@ -324,6 +329,39 @@ function SessionListView() {
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    if (autoRefresh) {
+      intervalRef.current = setInterval(load, 5000)
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [autoRefresh, load])
+
+  useEffect(() => {
+    if (!exportOpen) return
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [exportOpen])
+
+  const handleExport = useCallback((format: 'json' | 'csv') => {
+    setExportOpen(false)
+    setExporting(true)
+    try {
+      const date = new Date().toISOString().slice(0, 10)
+      const base = `lexiro-chat-audit_${date}`
+      if (format === 'json') {
+        downloadBlob(exportItemsJSON(items), `${base}.json`, 'application/json')
+      } else {
+        const cols = ['id', 'tenant_email', 'title', 'messages_count', 'total_tokens', 'total_duration_ms', 'total_charge_usd', 'created_at', 'updated_at']
+        downloadBlob(exportItemsCSV(items as unknown as Record<string, unknown>[], cols), `${base}.csv`, 'text/csv')
+      }
+    } finally {
+      setExporting(false)
+    }
+  }, [items])
+
   const totalPages = Math.ceil(total / pageSize)
 
   return (
@@ -369,6 +407,32 @@ function SessionListView() {
               </button>
             )}
           </div>
+
+          <button className="logs-icon-btn" onClick={load}>
+            <RefreshCw size={14} className={loading ? 'spin' : ''} />
+          </button>
+          <div className="logs-export-wrap" ref={exportRef}>
+            <button
+              className="logs-icon-btn"
+              onClick={() => setExportOpen(v => !v)}
+              disabled={exporting || items.length === 0}
+            >
+              {exporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+            </button>
+            {exportOpen && (
+              <div className="logs-export-dropdown">
+                <button className="logs-export-dropdown__item" onClick={() => handleExport('json')}>JSON</button>
+                <button className="logs-export-dropdown__item" onClick={() => handleExport('csv')}>CSV</button>
+              </div>
+            )}
+          </div>
+          <button
+            className={`logs-live-btn${autoRefresh ? ' logs-live-btn--active' : ''}`}
+            onClick={() => setAutoRefresh(v => !v)}
+          >
+            <Radio size={13} />
+            {t('admin.logs.live')}
+          </button>
         </div>
 
         <div className="logs-toolbar__row">
