@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ArrowLeft, Plug, Search, X, AlertTriangle, Clock, User, ChevronRight,
+  Plug, X, AlertTriangle, Clock, User, Bug,
 } from 'lucide-react'
 import {
   listMcpRequests, getMcpRequestDetail, searchTenants,
   type McpRequestItem, type McpRequestDetail, type TenantSearchResult,
 } from '../../api/admin'
+import { RightPanel } from '../../components/RightPanel'
+import type { McpSourceInfo } from '../../types'
 
 const TIME_RANGES = [
   { value: '', label: 'All' },
@@ -18,6 +20,8 @@ const TIME_RANGES = [
 ] as const
 
 const TOOLS = ['', 'search_documentation', 'get_api_endpoint', 'list_products'] as const
+
+const GAP_THRESHOLD_MS = 5 * 60 * 1000
 
 function timeRangeToISO(range: string): { start?: string; end?: string } {
   if (!range) return {}
@@ -35,118 +39,27 @@ function fmtTime(iso: string) {
     + ', ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-function fmtMs(v: number | null) { return v != null ? `${Math.round(v)}ms` : '—' }
+function fmtMs(v: number | null | undefined) { return v != null ? `${Math.round(v)}ms` : '—' }
 function fmtUsd(v: string) { return `$${parseFloat(v).toFixed(6)}` }
 
-function RequestDetail({ requestId, onBack }: { requestId: string; onBack: () => void }) {
-  const { t } = useTranslation()
-  const [detail, setDetail] = useState<McpRequestDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    setLoading(true)
-    setError('')
-    getMcpRequestDetail(requestId)
-      .then(setDetail)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [requestId])
-
-  if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
-  if (error) return (
-    <div>
-      <button className="chat-audit-back" onClick={onBack}><ArrowLeft size={14} /> {t('admin.mcp.detail.back')}</button>
-      <div className="chat-audit-error"><AlertTriangle size={14} /> {error}</div>
-    </div>
-  )
-  if (!detail) return <div className="admin-empty">Not found</div>
-
-  return (
-    <div className="admin-page">
-      <button className="chat-audit-back" onClick={onBack}><ArrowLeft size={14} /> {t('admin.mcp.detail.back')}</button>
-      <div className="admin-page-header" style={{ marginTop: 8 }}>
-        <h1>{t('admin.mcp.detail.title')}</h1>
-        <p>
-          <span className="badge badge--blue">{detail.tool_name}</span>
-          {' '}{detail.tenant_email || '—'}
-          {detail.key_prefix && <> · <code>{detail.key_prefix}…</code></>}
-          {' · '}{fmtTime(detail.created_at)}
-          {detail.status === 'error' && <span className="badge badge--red" style={{ marginLeft: 8 }}>error</span>}
-        </p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
-        <div className="admin-detail-card">
-          <h3 style={{ margin: '0 0 8px' }}>Query</h3>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {detail.query_text || '—'}
-          </div>
-          {(detail.product_filter || detail.version_filter || detail.doc_type_filter) && (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-              {detail.product_filter && <span>Product: {detail.product_filter} </span>}
-              {detail.version_filter && <span>· Version: {detail.version_filter} </span>}
-              {detail.doc_type_filter && <span>· Type: {detail.doc_type_filter}</span>}
-            </div>
-          )}
-          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-            Results: {detail.result_count} · Top similarity: {detail.top_similarity.toFixed(4)} · Response: {detail.response_length.toLocaleString()} chars
-          </div>
-        </div>
-
-        <div className="admin-detail-card">
-          <h3 style={{ margin: '0 0 8px' }}>{t('admin.mcp.detail.timing')}</h3>
-          <dl>
-            <div className="admin-detail-row"><dt>Total</dt><dd>{fmtMs(detail.duration_ms)}</dd></div>
-            <div className="admin-detail-row"><dt>Embedding</dt><dd>{fmtMs(detail.embed_ms)}</dd></div>
-            <div className="admin-detail-row"><dt>Search</dt><dd>{fmtMs(detail.search_ms)}</dd></div>
-            <div className="admin-detail-row"><dt>Rerank</dt><dd>{fmtMs(detail.rerank_ms)}</dd></div>
-            <div className="admin-detail-row"><dt>Resolve</dt><dd>{fmtMs(detail.resolve_ms)}</dd></div>
-          </dl>
-        </div>
-
-        <div className="admin-detail-card">
-          <h3 style={{ margin: '0 0 8px' }}>{t('admin.mcp.detail.tokens')}</h3>
-          <dl>
-            <div className="admin-detail-row"><dt>Query tokens</dt><dd>{detail.query_tokens}</dd></div>
-            <div className="admin-detail-row"><dt>Response tokens</dt><dd>{detail.response_tokens}</dd></div>
-            <div className="admin-detail-row"><dt>Embedding tokens</dt><dd>{detail.embedding_tokens}</dd></div>
-            <div className="admin-detail-row"><dt>Rerank prompt</dt><dd>{detail.rerank_prompt_tokens}</dd></div>
-            <div className="admin-detail-row"><dt>Rerank completion</dt><dd>{detail.rerank_completion_tokens}</dd></div>
-            {detail.rerank_model && <div className="admin-detail-row"><dt>Rerank model</dt><dd>{detail.rerank_model}</dd></div>}
-            <div className="admin-detail-row"><dt>Resolve prompt</dt><dd>{detail.resolve_prompt_tokens}</dd></div>
-            <div className="admin-detail-row"><dt>Resolve completion</dt><dd>{detail.resolve_completion_tokens}</dd></div>
-            {detail.resolve_model && <div className="admin-detail-row"><dt>Resolve model</dt><dd>{detail.resolve_model}</dd></div>}
-          </dl>
-          <div style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-            <div className="admin-detail-row"><dt>COGS</dt><dd>{fmtUsd(detail.cogs_usd)}</dd></div>
-            <div className="admin-detail-row"><dt>Charge</dt><dd>{fmtUsd(detail.charge_usd)}</dd></div>
-          </div>
-        </div>
-
-        <div className="admin-detail-card">
-          <h3 style={{ margin: '0 0 8px' }}>{t('admin.mcp.detail.client')}</h3>
-          <dl>
-            <div className="admin-detail-row"><dt>IP</dt><dd>{detail.client_ip || '—'}</dd></div>
-            <div className="admin-detail-row"><dt>User-Agent</dt><dd style={{ fontSize: 11, wordBreak: 'break-all' }}>{detail.user_agent || '—'}</dd></div>
-            <div className="admin-detail-row"><dt>Request ID</dt><dd style={{ fontSize: 11 }}>{detail.request_id}</dd></div>
-          </dl>
-          {detail.error && (
-            <div style={{ marginTop: 8, padding: 8, background: 'var(--error-bg, #fef2f2)', borderRadius: 4, fontSize: 12, color: '#ef4444' }}>
-              {detail.error}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+function fmtGap(ms: number): string {
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} min`
+  return `${(ms / 3_600_000).toFixed(1)}h`
 }
+
+type PanelState = {
+  mode: 'mcp-debug'
+  detail: McpRequestDetail
+} | {
+  mode: 'mcp-sources'
+  sources: McpSourceInfo[]
+  detail: McpRequestDetail
+} | null
 
 export function McpAuditPage() {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
-
-  const selectedRequestId = searchParams.get('request')
 
   const [items, setItems] = useState<McpRequestItem[]>([])
   const [total, setTotal] = useState(0)
@@ -161,6 +74,8 @@ export function McpAuditPage() {
   const tenantWrapRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [panel, setPanel] = useState<PanelState>(null)
+  const [panelLoading, setPanelLoading] = useState(false)
   const pageSize = 50
 
   useEffect(() => {
@@ -209,161 +124,236 @@ export function McpAuditPage() {
 
   useEffect(() => { load() }, [load])
 
-  if (selectedRequestId) {
-    return (
-      <RequestDetail
-        requestId={selectedRequestId}
-        onBack={() => setSearchParams({}, { replace: true })}
-      />
-    )
-  }
+  const openDetail = useCallback(async (requestId: string) => {
+    setPanelLoading(true)
+    try {
+      const detail = await getMcpRequestDetail(requestId)
+      setPanel({ mode: 'mcp-debug', detail })
+      setSearchParams({ request: requestId }, { replace: true })
+    } catch {
+      /* silently ignore */
+    }
+    setPanelLoading(false)
+  }, [setSearchParams])
+
+  useEffect(() => {
+    const rid = searchParams.get('request')
+    if (rid && !panel) {
+      openDetail(rid)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleClose = useCallback(() => {
+    setPanel(null)
+    setSearchParams({}, { replace: true })
+  }, [setSearchParams])
+
+  const handleSwitchToSources = useCallback(() => {
+    if (panel?.mode === 'mcp-debug' && panel.detail.sources?.length) {
+      setPanel({ mode: 'mcp-sources', sources: panel.detail.sources, detail: panel.detail })
+    }
+  }, [panel])
+
+  const handleRowClick = useCallback((r: McpRequestItem) => {
+    openDetail(r.request_id)
+  }, [openDetail])
 
   const totalPages = Math.ceil(total / pageSize)
 
+  const tableRows: (McpRequestItem | { type: 'gap'; gap_ms: number })[] = []
+  for (let i = 0; i < items.length; i++) {
+    tableRows.push(items[i])
+    if (i < items.length - 1) {
+      const curr = items[i]
+      const next = items[i + 1]
+      if (curr.key_prefix === next.key_prefix) {
+        const gap = new Date(curr.created_at).getTime() - new Date(next.created_at).getTime()
+        if (gap > GAP_THRESHOLD_MS) {
+          tableRows.push({ type: 'gap', gap_ms: gap })
+        }
+      }
+    }
+  }
+
+  const panelContent = panel?.mode === 'mcp-debug'
+    ? { mode: 'mcp-debug' as const, detail: panel.detail }
+    : panel?.mode === 'mcp-sources'
+      ? { mode: 'mcp-sources' as const, sources: panel.sources }
+      : null
+
   return (
-    <div className="chat-audit-page">
-      <div className="admin-page-header">
-        <h1><Plug size={20} /> {t('admin.mcp.title')}</h1>
-        <p>{t('admin.mcp.requestsCount', { count: total })}</p>
-      </div>
-
-      <div className="chat-audit-toolbar chat-audit-toolbar--filters">
-        <div className="logs-chips" role="group" aria-label="Time range">
-          <Clock size={13} className="logs-chips__icon" />
-          {TIME_RANGES.map(r => (
-            <button
-              key={r.value}
-              className={`logs-chip${timeRange === r.value ? ' logs-chip--active' : ''}`}
-              onClick={() => { setTimeRange(r.value); setPage(1) }}
-            >
-              {r.label}
-            </button>
-          ))}
+    <div className={`chat-audit-page${panel ? ' audit-detail-layout' : ''}`}>
+      <div className={panel ? 'main-area' : ''}>
+        <div className="admin-page-header">
+          <h1><Plug size={20} /> {t('admin.mcp.title')}</h1>
+          <p>{t('admin.mcp.requestsCount', { count: total })}</p>
         </div>
 
-        <div className="chat-audit-mode-chips">
-          {TOOLS.map(tool => (
-            <button
-              key={tool}
-              className={`chat-audit-mode-chip${toolFilter === tool ? ' chat-audit-mode-chip--active' : ''}`}
-              onClick={() => { setToolFilter(tool); setPage(1) }}
-            >
-              {tool || t('admin.mcp.allTools')}
-            </button>
-          ))}
-        </div>
-
-        <div className="logs-tenant-combo" ref={tenantWrapRef}>
-          {tenantFilter ? (
-            <div className="logs-tenant-chip">
-              <User size={12} />
-              <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
-              <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
-            </div>
-          ) : (
-            <>
-              <User size={13} className="logs-tenant-combo__icon" />
-              <input
-                className="logs-tenant-input"
-                placeholder="User..."
-                value={tenantQuery}
-                onChange={e => setTenantQuery(e.target.value)}
-                onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
-              />
-              {tenantQuery && (
-                <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
-              )}
-            </>
-          )}
-          {tenantDropdownOpen && tenantOptions.length > 0 && (
-            <div className="logs-tenant-dropdown">
-              {tenantOptions.map(opt => (
-                <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
-                  <span className="logs-tenant-dropdown__name">{opt.name}</span>
-                  <span className="logs-tenant-dropdown__email">{opt.email}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <span className="logs-count">{total} requests</span>
-      </div>
-
-      {error && <div className="chat-audit-error"><AlertTriangle size={14} /> {error}</div>}
-
-      {loading ? (
-        <div className="admin-loading">{t('admin.common.loading')}</div>
-      ) : items.length === 0 ? (
-        <div className="admin-empty">{t('admin.mcp.noRequests')}</div>
-      ) : (
-        <>
-          <div className="admin-table-wrapper">
-            <div className="admin-table-scroll">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>User</th>
-                    <th>Tool</th>
-                    <th>Query</th>
-                    <th>Results</th>
-                    <th>Duration</th>
-                    <th>Resolve pr.</th>
-                    <th>Resolve cm.</th>
-                    <th>Resolve model</th>
-                    <th>Resolve ms</th>
-                    <th>Tokens</th>
-                    <th>Charge</th>
-                    <th>Status</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map(r => (
-                    <tr
-                      key={r.id}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => setSearchParams({ request: r.request_id })}
-                    >
-                      <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{fmtTime(r.created_at)}</td>
-                      <td style={{ fontSize: 12 }}>
-                        {r.tenant_email || '—'}
-                        {r.key_prefix && <div style={{ color: 'var(--text-muted)', fontSize: 11 }}><code>{r.key_prefix}…</code></div>}
-                      </td>
-                      <td><span className="badge badge--blue">{r.tool_name.replace('_', ' ')}</span></td>
-                      <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{r.query_text || '—'}</td>
-                      <td>{r.result_count}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtMs(r.duration_ms)}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.resolve_prompt_tokens ?? 0).toLocaleString()}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.resolve_completion_tokens ?? 0).toLocaleString()}</td>
-                      <td style={{ fontSize: 11, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.resolve_model || ''}>{r.resolve_model || '—'}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtMs(r.resolve_ms)}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.query_tokens + r.response_tokens + r.embedding_tokens + (r.rerank_total_tokens || 0) + (r.resolve_prompt_tokens || 0) + (r.resolve_completion_tokens || 0)).toLocaleString()}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtUsd(r.charge_usd)}</td>
-                      <td>
-                        {r.status === 'error'
-                          ? <span className="badge badge--red">error</span>
-                          : <span className="badge badge--green">ok</span>}
-                      </td>
-                      <td><ChevronRight size={14} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        <div className="chat-audit-toolbar chat-audit-toolbar--filters">
+          <div className="logs-chips" role="group" aria-label="Time range">
+            <Clock size={13} className="logs-chips__icon" />
+            {TIME_RANGES.map(r => (
+              <button
+                key={r.value}
+                className={`logs-chip${timeRange === r.value ? ' logs-chip--active' : ''}`}
+                onClick={() => { setTimeRange(r.value); setPage(1) }}
+              >
+                {r.label}
+              </button>
+            ))}
           </div>
 
-          {totalPages > 1 && (
-            <div className="admin-pagination">
-              <span>{t('admin.common.page', { page, total: totalPages })}</span>
-              <div className="admin-pagination-buttons">
-                <button className="admin-btn admin-btn--sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t('admin.common.prev')}</button>
-                <button className="admin-btn admin-btn--sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t('admin.common.next')}</button>
+          <div className="chat-audit-mode-chips">
+            {TOOLS.map(tool => (
+              <button
+                key={tool}
+                className={`chat-audit-mode-chip${toolFilter === tool ? ' chat-audit-mode-chip--active' : ''}`}
+                onClick={() => { setToolFilter(tool); setPage(1) }}
+              >
+                {tool || t('admin.mcp.allTools')}
+              </button>
+            ))}
+          </div>
+
+          <div className="logs-tenant-combo" ref={tenantWrapRef}>
+            {tenantFilter ? (
+              <div className="logs-tenant-chip">
+                <User size={12} />
+                <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
+                <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
+              </div>
+            ) : (
+              <>
+                <User size={13} className="logs-tenant-combo__icon" />
+                <input
+                  className="logs-tenant-input"
+                  placeholder="User..."
+                  value={tenantQuery}
+                  onChange={e => setTenantQuery(e.target.value)}
+                  onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
+                />
+                {tenantQuery && (
+                  <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
+                )}
+              </>
+            )}
+            {tenantDropdownOpen && tenantOptions.length > 0 && (
+              <div className="logs-tenant-dropdown">
+                {tenantOptions.map(opt => (
+                  <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
+                    <span className="logs-tenant-dropdown__name">{opt.name}</span>
+                    <span className="logs-tenant-dropdown__email">{opt.email}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <span className="logs-count">{total} requests</span>
+        </div>
+
+        {error && <div className="chat-audit-error"><AlertTriangle size={14} /> {error}</div>}
+
+        {loading ? (
+          <div className="admin-loading">{t('admin.common.loading')}</div>
+        ) : items.length === 0 ? (
+          <div className="admin-empty">{t('admin.mcp.noRequests')}</div>
+        ) : (
+          <>
+            <div className="admin-table-wrapper">
+              <div className="admin-table-scroll">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>User</th>
+                      <th>Tool</th>
+                      <th>Query</th>
+                      <th>Results</th>
+                      <th>Duration</th>
+                      <th>Tokens</th>
+                      <th>Charge</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRows.map((row, idx) => {
+                      if ('type' in row && row.type === 'gap') {
+                        return (
+                          <tr key={`gap-${idx}`} className="mcp-time-gap-row">
+                            <td colSpan={10}>
+                              <div className="mcp-time-gap">
+                                <span className="mcp-time-gap__line" />
+                                <span className="mcp-time-gap__label">{fmtGap(row.gap_ms)}</span>
+                                <span className="mcp-time-gap__line" />
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      }
+                      const r = row as McpRequestItem
+                      const isSelected = panel?.mode === 'mcp-debug' && panel.detail.request_id === r.request_id
+                        || panel?.mode === 'mcp-sources' && panel.detail.request_id === r.request_id
+                      return (
+                        <tr
+                          key={r.id}
+                          style={{ cursor: 'pointer' }}
+                          className={isSelected ? 'admin-table-row--selected' : ''}
+                          onClick={() => handleRowClick(r)}
+                        >
+                          <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{fmtTime(r.created_at)}</td>
+                          <td style={{ fontSize: 12 }}>
+                            {r.tenant_email || '—'}
+                            {r.key_prefix && <div style={{ color: 'var(--text-muted)', fontSize: 11 }}><code>{r.key_prefix}…</code></div>}
+                          </td>
+                          <td><span className="badge badge--blue">{r.tool_name.replace('_', ' ')}</span></td>
+                          <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{r.query_text || '—'}</td>
+                          <td>{r.result_count}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtMs(r.duration_ms)}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{(r.query_tokens + r.response_tokens + r.embedding_tokens + (r.rerank_total_tokens || 0) + (r.resolve_prompt_tokens || 0) + (r.resolve_completion_tokens || 0)).toLocaleString()}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmtUsd(r.charge_usd)}</td>
+                          <td>
+                            {r.status === 'error'
+                              ? <span className="badge badge--red">error</span>
+                              : <span className="badge badge--green">ok</span>}
+                          </td>
+                          <td><Bug size={14} style={{ opacity: 0.4 }} /></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
-        </>
+
+            {totalPages > 1 && (
+              <div className="admin-pagination">
+                <span>{t('admin.common.page', { page, total: totalPages })}</span>
+                <div className="admin-pagination-buttons">
+                  <button className="admin-btn admin-btn--sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t('admin.common.prev')}</button>
+                  <button className="admin-btn admin-btn--sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t('admin.common.next')}</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {panelLoading && (
+          <div style={{ position: 'fixed', top: '50%', right: panel ? '15%' : '50%', transform: 'translate(50%, -50%)', zIndex: 100 }}>
+            <div className="admin-loading" style={{ background: 'var(--bg)', padding: '12px 24px', borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)' }}>
+              {t('admin.common.loading')}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {panelContent && (
+        <RightPanel
+          content={panelContent}
+          onClose={handleClose}
+          onSwitchToSources={handleSwitchToSources}
+        />
       )}
     </div>
   )

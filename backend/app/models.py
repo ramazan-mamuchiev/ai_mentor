@@ -883,6 +883,8 @@ class McpRequestLog(Base):
     resolve_model: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolve_ms: Mapped[float] = mapped_column(Float, default=0)
 
+    sources: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
     cogs_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
     charge_usd: Mapped[Decimal] = mapped_column(Numeric(12, 8), default=Decimal("0"))
 

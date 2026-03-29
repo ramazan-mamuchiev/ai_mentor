@@ -323,6 +323,7 @@ class McpRequestDetail(McpRequestItem):
     client_ip: str | None
     user_agent: str | None
     error: str | None
+    sources: list[dict] | None = None
 
 class McpRequestListResponse(BaseModel):
     items: list[McpRequestItem]

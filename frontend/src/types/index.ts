@@ -453,3 +453,15 @@ export interface FirmwareVersionInfo {
   id: number
   version: string
 }
+
+export interface McpSourceInfo {
+  product_name: string
+  doc_title: string
+  heading_path: string
+  doc_type?: string
+  firmware_version?: string
+  similarity: number
+  rerank_score?: number | null
+  document_id?: number | null
+  content_preview?: string
+}

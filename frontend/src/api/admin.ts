@@ -518,6 +518,7 @@ export interface McpRequestDetail extends McpRequestItem {
   client_ip: string | null
   user_agent: string | null
   error: string | null
+  sources: import('../types').McpSourceInfo[] | null
 }
 
 export interface McpRequestListResponse {

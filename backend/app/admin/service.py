@@ -1738,6 +1738,7 @@ async def get_mcp_request_detail(session: AsyncSession, request_id: str) -> dict
         "search_ms": round(float(row["search_ms"]), 1),
         "rerank_ms": round(float(row["rerank_ms"]), 1),
         "resolve_ms": round(float(row["resolve_ms"]), 1) if row["resolve_ms"] is not None else None,
+        "sources": row["sources"],
         "cogs_usd": str(row["cogs_usd"]),
         "charge_usd": str(row["charge_usd"]),
         "client_ip": row["client_ip"],

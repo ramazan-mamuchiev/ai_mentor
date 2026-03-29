@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bug, FileSearch, Share2, X } from 'lucide-react'
+import { Bug, FileSearch, Share2, X, Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { DebugInfo, SourceInfo } from '../types'
+import type { DebugInfo, SourceInfo, McpSourceInfo } from '../types'
+import type { McpRequestDetail } from '../api/admin'
 import { SourceCard } from './SourceCard'
 import { MarkdownPreviewModal } from './MarkdownPreviewModal'
 import { ShareModal } from './ShareModal'
@@ -58,13 +59,24 @@ interface DebugContent {
   debug: DebugInfo
 }
 
-type PanelContent = SourcesContent | DebugContent
+interface McpDebugPanelMode {
+  mode: 'mcp-debug'
+  detail: McpRequestDetail
+}
+
+interface McpSourcesPanelMode {
+  mode: 'mcp-sources'
+  sources: McpSourceInfo[]
+}
+
+type PanelContent = SourcesContent | DebugContent | McpDebugPanelMode | McpSourcesPanelMode
 
 interface Props {
   content: PanelContent
   sessionId?: string
   messageId?: number
   onClose: () => void
+  onSwitchToSources?: () => void
 }
 
 export function DebugPanelContent({ debug }: { debug: DebugInfo }) {
@@ -315,7 +327,127 @@ export function DebugPanelContent({ debug }: { debug: DebugInfo }) {
   )
 }
 
-export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
+function fmtMs(ms: number | null | undefined): string {
+  if (ms == null) return '—'
+  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`
+}
+
+function fmtUsd(v: string | null | undefined): string {
+  if (v == null) return '—'
+  const n = parseFloat(v)
+  return isNaN(n) ? v : `$${n.toFixed(6)}`
+}
+
+export function McpDebugPanelContent({ detail, onSwitchToSources }: { detail: McpRequestDetail; onSwitchToSources?: () => void }) {
+  const { t } = useTranslation()
+  const resolveTotal = (detail.resolve_prompt_tokens ?? 0) + (detail.resolve_completion_tokens ?? 0)
+  const rerankTotal = (detail.rerank_total_tokens ?? 0)
+  const totalTokens = detail.query_tokens + detail.response_tokens + detail.embedding_tokens
+    + rerankTotal + resolveTotal
+
+  return (
+    <div className="debug-grid right-panel-debug">
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.query')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.toolName')}</span><code>{detail.tool_name}</code></div>
+        {detail.query_text && <div className="debug-row debug-row-wide"><span>{t('debug.mcp.queryText')}</span><code className="debug-query-value">{detail.query_text}</code></div>}
+        {detail.product_filter && <div className="debug-row"><span>{t('debug.mcp.productFilter')}</span><code>{detail.product_filter}</code></div>}
+        {detail.version_filter && <div className="debug-row"><span>{t('debug.mcp.versionFilter')}</span><code>{detail.version_filter}</code></div>}
+        {detail.doc_type_filter && <div className="debug-row"><span>{t('debug.mcp.docTypeFilter')}</span><code>{detail.doc_type_filter}</code></div>}
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.results')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.resultCount')}</span><code>{fmt(detail.result_count)}</code></div>
+        <div className="debug-row"><span>{t('debug.mcp.topSimilarity')}</span><code>{fmtPct(detail.top_similarity)}</code></div>
+        <div className="debug-row"><span>{t('debug.mcp.responseLength')}</span><code>{fmt(detail.response_length)} chars</code></div>
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.timing')}</div>
+        <div className="debug-row debug-row-total"><span>{t('debug.mcp.totalDuration')}</span><code>{fmtMs(detail.duration_ms)}</code></div>
+        {(detail.embed_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.mcp.embedMs')}</span><code>{fmtMs(detail.embed_ms)}</code></div>}
+        {(detail.search_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.mcp.searchMs')}</span><code>{fmtMs(detail.search_ms)}</code></div>}
+        {(detail.rerank_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.mcp.rerankMs')}</span><code>{fmtMs(detail.rerank_ms)}</code></div>}
+        {(detail.resolve_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.mcp.resolveMs')}</span><code>{fmtMs(detail.resolve_ms)}</code></div>}
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.tokens')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.queryTokens')}</span><code>{fmt(detail.query_tokens)}</code></div>
+        <div className="debug-row"><span>{t('debug.mcp.responseTokens')}</span><code>{fmt(detail.response_tokens)}</code></div>
+        {detail.embedding_tokens > 0 && <div className="debug-row"><span>{t('debug.mcp.embeddingTokens')}</span><code>{fmt(detail.embedding_tokens)}</code></div>}
+        {rerankTotal > 0 && (
+          <>
+            <div className="debug-row"><span>{t('debug.mcp.rerankPrompt')}</span><code>{fmt(detail.rerank_prompt_tokens)}</code></div>
+            <div className="debug-row"><span>{t('debug.mcp.rerankCompletion')}</span><code>{fmt(detail.rerank_completion_tokens)}</code></div>
+            <div className="debug-row"><span>{t('debug.mcp.rerankTotal')}</span><code>{fmt(detail.rerank_total_tokens)}</code></div>
+            {detail.rerank_model && <div className="debug-row debug-row-config"><span>{t('debug.mcp.rerankModel')}</span><code>{detail.rerank_model}</code></div>}
+          </>
+        )}
+        {resolveTotal > 0 && (
+          <>
+            <div className="debug-row"><span>{t('debug.mcp.resolvePrompt')}</span><code>{fmt(detail.resolve_prompt_tokens)}</code></div>
+            <div className="debug-row"><span>{t('debug.mcp.resolveCompletion')}</span><code>{fmt(detail.resolve_completion_tokens)}</code></div>
+            {detail.resolve_model && <div className="debug-row debug-row-config"><span>{t('debug.mcp.resolveModel')}</span><code>{detail.resolve_model}</code></div>}
+          </>
+        )}
+        <div className="debug-row debug-row-total"><span>{t('debug.mcp.totalTokens')}</span><code>{fmt(totalTokens)}</code></div>
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.cost')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.cogs')}</span><code>{fmtUsd(detail.cogs_usd)}</code></div>
+        <div className="debug-row debug-row-total"><span>{t('debug.mcp.charge')}</span><code>{fmtUsd(detail.charge_usd)}</code></div>
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.client')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.requestId')}</span><code style={{ fontSize: 10 }}>{detail.request_id}</code></div>
+        {detail.client_ip && <div className="debug-row"><span>{t('debug.mcp.clientIp')}</span><code>{detail.client_ip}</code></div>}
+        {detail.user_agent && <div className="debug-row debug-row-wide"><span>{t('debug.mcp.userAgent')}</span><code className="debug-query-value" style={{ fontSize: 10 }}>{detail.user_agent}</code></div>}
+        {detail.key_prefix && <div className="debug-row"><span>{t('debug.mcp.keyPrefix')}</span><code>{detail.key_prefix}</code></div>}
+      </div>
+
+      {detail.error && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.mcp.error')}</div>
+          <div className="debug-row debug-row-wide">
+            <span>{t('debug.status')}</span>
+            <code className="debug-error-badge">{detail.error}</code>
+          </div>
+        </div>
+      )}
+
+      {detail.sources && detail.sources.length > 0 && onSwitchToSources && (
+        <div className="debug-section">
+          <button
+            className="mcp-sources-button"
+            onClick={onSwitchToSources}
+          >
+            <FileSearch size={14} />
+            {t('debug.mcp.viewSources', { count: detail.sources.length })}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function mcpSourceToSourceInfo(s: McpSourceInfo): SourceInfo {
+  return {
+    document_id: s.document_id,
+    doc_title: s.doc_title,
+    heading_path: s.heading_path,
+    similarity: s.similarity,
+    content_preview: s.content_preview ?? '',
+    product_name: s.product_name,
+    firmware_version: s.firmware_version ?? '',
+    doc_type: s.doc_type,
+  }
+}
+
+export function RightPanel({ content, sessionId, messageId, onClose, onSwitchToSources }: Props) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
@@ -356,10 +488,16 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
   const panelStyle = isMobile ? undefined : { width: widthPercent, minWidth: widthPercent }
 
   const isSourcesMode = content.mode === 'sources'
+  const isMcpDebug = content.mode === 'mcp-debug'
+  const isMcpSources = content.mode === 'mcp-sources'
   const title = isSourcesMode
     ? t('chat.sourcesPanel.title', { count: content.sources.length })
-    : t('chat.debugPanel.title')
-  const Icon = isSourcesMode ? FileSearch : Bug
+    : isMcpSources
+      ? t('chat.sourcesPanel.title', { count: content.sources.length })
+      : isMcpDebug
+        ? t('debug.mcp.panelTitle')
+        : t('chat.debugPanel.title')
+  const Icon = (isSourcesMode || isMcpSources) ? FileSearch : isMcpDebug ? Database : Bug
 
   return (
     <>
@@ -391,7 +529,7 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
             </div>
           </div>
           <div className="sources-panel-header-actions">
-            {!isSourcesMode && messageId != null && (
+            {!isSourcesMode && !isMcpDebug && !isMcpSources && messageId != null && (
               <button
                 className="sources-panel-share"
                 onClick={() => setShareModal(true)}
@@ -410,6 +548,17 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
               <SourceCard
                 key={i}
                 source={s}
+                index={i + 1}
+                onPreview={(id, title) => setPreviewTarget({ id, title })}
+              />
+            ))
+          ) : isMcpDebug ? (
+            <McpDebugPanelContent detail={content.detail} onSwitchToSources={onSwitchToSources} />
+          ) : isMcpSources ? (
+            content.sources.map((s, i) => (
+              <SourceCard
+                key={i}
+                source={mcpSourceToSourceInfo(s)}
                 index={i + 1}
                 onPreview={(id, title) => setPreviewTarget({ id, title })}
               />

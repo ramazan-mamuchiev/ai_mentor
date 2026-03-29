@@ -152,6 +152,7 @@ async def _save_mcp_request_log(
     cogs_usd: Decimal = Decimal("0"),
     charge_usd: Decimal = Decimal("0"),
     error: str | None = None,
+    sources: list | None = None,
 ) -> None:
     """Persist a detailed MCP request log record (fire-and-forget)."""
     meta = metadata or {}
@@ -180,6 +181,7 @@ async def _save_mcp_request_log(
                 resolve_completion_tokens=meta.get("resolve_completion_tokens", 0),
                 resolve_model=meta.get("resolve_model"),
                 resolve_ms=meta.get("resolve_ms", 0.0),
+                sources=sources,
                 duration_ms=duration_ms,
                 embed_ms=meta.get("embed_ms", 0.0),
                 search_ms=meta.get("search_ms", 0.0),
@@ -334,6 +336,20 @@ async def tool_search_documentation(
     )
 
     cogs, charge = _calc_mcp_costs(metadata)
+    sources_list = [
+        {
+            "product_name": r.get("product_name"),
+            "doc_title": r.get("doc_title"),
+            "heading_path": r.get("heading_path"),
+            "doc_type": r.get("doc_type"),
+            "firmware_version": r.get("firmware_version"),
+            "similarity": round(r.get("similarity", 0), 4),
+            "rerank_score": round(r.get("rerank_score", 0), 4) if r.get("rerank_score") is not None else None,
+            "document_id": r.get("document_id"),
+            "content_preview": (r.get("content") or "")[:200],
+        }
+        for r in results
+    ] if results else None
     await _save_mcp_request_log(
         request_id=request_id,
         tool_name="search_documentation",
@@ -350,6 +366,7 @@ async def tool_search_documentation(
         duration_ms=duration_ms,
         cogs_usd=cogs,
         charge_usd=charge,
+        sources=sources_list,
     )
 
     return response_text
@@ -486,6 +503,20 @@ async def tool_get_api_endpoint(
     )
 
     cogs, charge = _calc_mcp_costs(metadata)
+    sources_list = [
+        {
+            "product_name": r.get("product_name"),
+            "doc_title": r.get("doc_title"),
+            "heading_path": r.get("heading_path"),
+            "doc_type": r.get("doc_type"),
+            "firmware_version": r.get("firmware_version"),
+            "similarity": round(r.get("similarity", 0), 4),
+            "rerank_score": round(r.get("rerank_score", 0), 4) if r.get("rerank_score") is not None else None,
+            "document_id": r.get("document_id"),
+            "content_preview": (r.get("content") or "")[:200],
+        }
+        for r in results
+    ] if results else None
     await _save_mcp_request_log(
         request_id=request_id,
         tool_name="get_api_endpoint",
@@ -500,6 +531,7 @@ async def tool_get_api_endpoint(
         duration_ms=duration_ms,
         cogs_usd=cogs,
         charge_usd=charge,
+        sources=sources_list,
     )
 
     return response_text

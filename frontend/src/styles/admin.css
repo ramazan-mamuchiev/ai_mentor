@@ -2420,3 +2420,67 @@
   opacity: 0.3;
   font-style: italic;
 }
+
+/* --- MCP audit: time gap separator --- */
+
+.mcp-time-gap-row {
+  pointer-events: none;
+}
+
+.mcp-time-gap-row td {
+  padding: 0 !important;
+  border: none !important;
+}
+
+.mcp-time-gap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.mcp-time-gap__line {
+  flex: 1;
+  height: 1px;
+  background: var(--border, #e0e0e0);
+  opacity: 0.5;
+}
+
+.mcp-time-gap__label {
+  font-size: 10px;
+  color: var(--text-muted, #999);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+}
+
+.admin-table-row--selected {
+  background: var(--surface-hover, rgba(128, 128, 128, 0.08)) !important;
+}
+
+.admin-table-row--selected td {
+  background: inherit !important;
+}
+
+/* --- MCP debug panel: sources button --- */
+
+.mcp-sources-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--accent, #2563eb);
+  border-radius: var(--radius, 6px);
+  background: transparent;
+  color: var(--accent, #2563eb);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+  justify-content: center;
+}
+
+.mcp-sources-button:hover {
+  background: var(--accent, #2563eb);
+  color: #fff;
+}

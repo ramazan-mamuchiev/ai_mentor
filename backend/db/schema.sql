@@ -634,6 +634,9 @@ ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_completion_tokens I
 ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_model TEXT;
 ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS resolve_ms FLOAT NOT NULL DEFAULT 0;
 
+-- Sources for RAG tool calls (search results metadata)
+ALTER TABLE mcp_request_log ADD COLUMN IF NOT EXISTS sources JSONB;
+
 -- Product search keys for LLM-based product resolution
 CREATE TABLE IF NOT EXISTS product_search_keys (
     id SERIAL PRIMARY KEY,
