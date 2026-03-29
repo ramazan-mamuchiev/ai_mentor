@@ -388,11 +388,17 @@ async def search_endpoint(
 
     sql = text(f"""
         SELECT
+            c.document_id,
             c.content,
+            c.parent_content,
             c.heading_path,
             c.heading_level,
+            c.token_count,
+            c.doc_type,
+            c.entities,
             d.title AS doc_title,
             p.name AS product_name,
+            p.manufacturer,
             fw.version AS firmware_version
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
@@ -418,10 +424,17 @@ async def search_endpoint(
         )
         return [
             {
+                "document_id": row["document_id"],
                 "content": row["content"],
+                "parent_content": row["parent_content"],
                 "heading_path": row["heading_path"],
+                "heading_level": row["heading_level"],
+                "token_count": row["token_count"],
+                "doc_type": row["doc_type"] or "other",
+                "entities": row["entities"] or {},
                 "doc_title": row["doc_title"],
                 "product_name": row["product_name"],
+                "manufacturer": row["manufacturer"],
                 "firmware_version": row["firmware_version"],
                 "match_type": "exact",
             }

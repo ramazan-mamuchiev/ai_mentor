@@ -93,6 +93,8 @@ class Settings(BaseSettings):
 
     rag_max_context_tokens_per_source: int = 3000
 
+    mcp_default_limit: int = 10
+
     model_max_input_tokens: int = 1_000_000
 
     ocr_enabled: bool = True

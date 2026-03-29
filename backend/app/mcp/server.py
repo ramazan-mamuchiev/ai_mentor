@@ -1,5 +1,6 @@
 """MCP tools for Lexiro: semantic search over product documentation for writing integration code."""
 
+import hashlib
 import logging
 import time
 from uuid import uuid4
@@ -14,6 +15,58 @@ from app.models import SearchAnalytics
 from app.search.service import search_documents, search_endpoint
 
 logger = logging.getLogger(__name__)
+
+
+def _format_mcp_body(chunk: dict, seen_parents: set[str]) -> str:
+    """Return the best available text for an MCP result.
+
+    Prefers parent_content (full section) over chunk content.
+    Deduplicates repeated parent sections and caps length to avoid
+    blowing up the Cursor context window.
+    """
+    max_chars = settings.rag_max_context_tokens_per_source * 4
+
+    parent = chunk.get("parent_content")
+    if parent:
+        parent_key = hashlib.sha256(parent.encode("utf-8")).hexdigest()
+        if parent_key in seen_parents:
+            return chunk["content"]
+        seen_parents.add(parent_key)
+        if len(parent) > max_chars:
+            snippet = chunk["content"][:100]
+            pos = parent.find(snippet)
+            if pos >= 0:
+                start = max(0, pos - max_chars // 3)
+                return parent[start : start + max_chars] + "\n..."
+            return parent[:max_chars] + "\n..."
+        return parent
+    return chunk["content"]
+
+
+def _format_mcp_meta(index: int, r: dict) -> str:
+    """Build a structured metadata header for one MCP search result."""
+    doc_type = r.get("doc_type", "other")
+    type_tag = f" [{doc_type}]" if doc_type and doc_type != "other" else ""
+
+    entities = r.get("entities") or {}
+    entity_line = ""
+    if entities:
+        flat = []
+        for vals in entities.values():
+            if isinstance(vals, list):
+                flat.extend(str(v) for v in vals if v)
+        if flat:
+            entity_line = f"\nEntities: {', '.join(flat[:15])}"
+
+    sim_info = f"similarity: {r.get('similarity', 0)}"
+    if "rerank_score" in r:
+        sim_info += f", rerank: {r['rerank_score']}"
+
+    return (
+        f"[{index}] {r['product_name']} | {r.get('firmware_version', '')} | "
+        f"{r['doc_title']} > {r['heading_path']}{type_tag}"
+        f"{entity_line}\n({sim_info})"
+    )
 
 
 def _embedding_model_name() -> str:
@@ -57,7 +110,8 @@ async def tool_search_documentation(
     query: str,
     product: str | None = None,
     version: str | None = None,
-    limit: int = 5,
+    doc_type: str | None = None,
+    limit: int | None = None,
 ) -> str:
     """Search Lexiro knowledge base for product integration documentation.
 
@@ -81,8 +135,12 @@ async def tool_search_documentation(
         product: Filter by product name. Use list_products first to see available products.
             Examples: "HikCentral", "Axxon One", "DS-2CD2347G2-LU"
         version: Filter by firmware or API version. Examples: "V2.6.1", "5.0"
-        limit: Number of results (1-20, default 5). Use higher values for broad queries.
+        doc_type: Filter by documentation type.
+            Examples: "api_reference", "guide", "example", "configuration", "protocol"
+        limit: Number of results (1-20, default 10). Use higher values for broad queries.
     """
+    if limit is None:
+        limit = settings.mcp_default_limit
     limit = max(1, min(limit, 20))
     request_id = str(uuid4())
     logger.debug(
@@ -92,8 +150,14 @@ async def tool_search_documentation(
 
     t0 = time.perf_counter()
     async with async_session() as session:
-        results = await search_documents(session, query, product=product, version=version, limit=limit)
+        results = await search_documents(
+            session, query, product=product, version=version,
+            doc_type=doc_type, limit=limit,
+        )
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    min_sim = settings.rag_min_similarity
+    results = [r for r in results if r.get("similarity", 0) >= min_sim]
 
     result_count = len(results)
     top_similarity = results[0]["similarity"] if results else 0.0
@@ -126,10 +190,12 @@ async def tool_search_documentation(
     if not results:
         response_text = "No results found. Try a different query or check available products with list_products."
     else:
+        seen_parents: set[str] = set()
         parts: list[str] = []
         for i, r in enumerate(results, 1):
-            meta = f"[{i}] {r['product_name']} | {r['firmware_version']} | {r['doc_title']} > {r['heading_path']} (similarity: {r['similarity']})"
-            parts.append(f"{meta}\n\n{r['content']}")
+            meta = _format_mcp_meta(i, r)
+            body = _format_mcp_body(r, seen_parents)
+            parts.append(f"{meta}\n\n{body}")
         response_text = "\n\n---\n\n".join(parts)
 
     response_tokens = sum(r.get("token_count", 0) for r in results)
@@ -219,11 +285,14 @@ async def tool_get_api_endpoint(
     if not results:
         response_text = f"No documentation found for endpoint '{endpoint}'. Try search_documentation with a broader query."
     else:
+        seen_parents: set[str] = set()
         parts: list[str] = []
-        for r in results:
+        for i, r in enumerate(results, 1):
             match_type = r.get("match_type", "vector")
-            meta = f"{r['product_name']} | {r['firmware_version']} | {r['doc_title']} > {r['heading_path']} ({match_type} match)"
-            parts.append(f"{meta}\n\n{r['content']}")
+            meta = _format_mcp_meta(i, r)
+            meta += f" [{match_type} match]"
+            body = _format_mcp_body(r, seen_parents)
+            parts.append(f"{meta}\n\n{body}")
         response_text = "\n\n---\n\n".join(parts)
 
     response_tokens = sum(r.get("token_count", 0) for r in results)
