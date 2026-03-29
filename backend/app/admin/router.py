@@ -319,6 +319,7 @@ async def list_mcp_requests(
     tenant_id: uuid.UUID | None = None,
     api_key_id: uuid.UUID | None = None,
     tool_name: str | None = None,
+    status: str | None = None,
     search: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -331,7 +332,7 @@ async def list_mcp_requests(
         session, page=page, page_size=page_size,
         tenant_id=str(tenant_id) if tenant_id else None,
         api_key_id=str(api_key_id) if api_key_id else None,
-        tool_name=tool_name, search=search, date_from=df, date_to=dto,
+        tool_name=tool_name, status=status, search=search, date_from=df, date_to=dto,
     )
     return McpRequestListResponse(items=items, total=total, page=page, page_size=page_size)
 

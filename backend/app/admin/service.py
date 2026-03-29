@@ -1646,12 +1646,16 @@ async def list_mcp_requests(
     tenant_id: str | None = None,
     api_key_id: str | None = None,
     tool_name: str | None = None,
+    status: str | None = None,
     search: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
 ) -> tuple[list[dict], int]:
     where = ["1=1"]
     params: dict = {}
+    if status:
+        where.append("m.status = :status")
+        params["status"] = status
     if tenant_id:
         where.append("m.tenant_id = :tenant_id")
         params["tenant_id"] = tenant_id

@@ -123,6 +123,7 @@ export function McpAuditPage() {
   const [page, setPage] = useState(1)
   const [timeRange, setTimeRange] = useState('')
   const [toolFilter, setToolFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'ok' | 'error'>('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -151,6 +152,7 @@ export function McpAuditPage() {
         page, page_size: pageSize,
         tenant_id: tenantFilter?.id,
         tool_name: toolFilter || undefined,
+        status: statusFilter || undefined,
         search: debouncedSearch || undefined,
         date_from: start,
         date_to: end,
@@ -161,7 +163,7 @@ export function McpAuditPage() {
       setError(err instanceof Error ? err.message : 'Failed to load')
     }
     setLoading(false)
-  }, [page, tenantFilter, toolFilter, timeRange, debouncedSearch])
+  }, [page, tenantFilter, toolFilter, statusFilter, timeRange, debouncedSearch])
 
   useEffect(() => { load() }, [load])
 
@@ -277,16 +279,20 @@ export function McpAuditPage() {
           <div className="logs-toolbar__row">
             <div className="logs-level-chips" role="group" aria-label="Status">
               <button
-                className={`logs-level-chip logs-level-chip--all${!statusCounts ? '' : ' logs-level-chip--active'}`}
-                disabled
-                style={{ opacity: 1, cursor: 'default' }}
+                className={`logs-level-chip logs-level-chip--all${statusFilter === '' ? ' logs-level-chip--active' : ''}`}
+                onClick={() => { setStatusFilter(''); setPage(1) }}
+              >
+                All
+              </button>
+              <button
+                className={`logs-level-chip logs-level-chip--info${statusFilter === 'ok' ? ' logs-level-chip--active' : ''}`}
+                onClick={() => { setStatusFilter('ok'); setPage(1) }}
               >
                 OK <span className="logs-level-chip__count">{statusCounts.ok}</span>
               </button>
               <button
-                className="logs-level-chip logs-level-chip--error"
-                disabled
-                style={{ opacity: 1, cursor: 'default' }}
+                className={`logs-level-chip logs-level-chip--error${statusFilter === 'error' ? ' logs-level-chip--active' : ''}`}
+                onClick={() => { setStatusFilter('error'); setPage(1) }}
               >
                 ERROR <span className="logs-level-chip__count">{statusCounts.error}</span>
               </button>

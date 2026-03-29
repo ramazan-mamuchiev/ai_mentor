@@ -559,6 +559,7 @@ export async function listMcpRequests(params: {
   page_size?: number
   tenant_id?: string
   tool_name?: string
+  status?: string
   search?: string
   date_from?: string
   date_to?: string
@@ -568,6 +569,7 @@ export async function listMcpRequests(params: {
   if (params.page_size) sp.set('page_size', String(params.page_size))
   if (params.tenant_id) sp.set('tenant_id', params.tenant_id)
   if (params.tool_name) sp.set('tool_name', params.tool_name)
+  if (params.status) sp.set('status', params.status)
   if (params.search) sp.set('search', params.search)
   if (params.date_from) sp.set('date_from', params.date_from)
   if (params.date_to) sp.set('date_to', params.date_to)
