@@ -1988,6 +1988,38 @@
     margin-left: 0;
     width: 100%;
   }
+
+  /* MCP audit mobile */
+  .mcp-audit-tools-row {
+    gap: 4px;
+  }
+
+  .mcp-audit-tools-row .chat-audit-mode-chip {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .mcp-table-container {
+    margin: 0 -12px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .mcp-audit-table thead th,
+  .mcp-audit-table tbody td {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .mcp-td-query {
+    max-width: 140px;
+  }
+
+  .mcp-action-btn {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 
@@ -2439,25 +2471,13 @@
   font-style: italic;
 }
 
-/* --- MCP audit: filters layout --- */
+/* --- MCP audit: tool chips row --- */
 
-.mcp-audit-filters {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.mcp-audit-tools-chips {
+.mcp-audit-tools-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.mcp-audit-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  margin-bottom: 12px;
 }
 
 /* --- MCP audit: table container --- */

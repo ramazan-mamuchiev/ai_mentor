@@ -488,11 +488,7 @@ export function RightPanel({ content, sessionId, messageId, onClose, onSwitchToS
         : t('chat.debugPanel.title')
   const Icon = (isSourcesMode || isMcpSources) ? FileSearch : isMcpDebug ? Database : Bug
 
-  const mcpSubtitle = isMcpDebug
-    ? `${content.detail.tool_name} · ${sessionId?.slice(0, 8) ?? ''}`
-    : isMcpSources
-      ? sessionId?.slice(0, 8) ?? ''
-      : null
+  const mcpSubtitle = (isMcpDebug || isMcpSources) ? (sessionId ?? null) : null
 
   return (
     <>

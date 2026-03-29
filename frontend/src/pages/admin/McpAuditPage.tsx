@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Plug, X, AlertTriangle, Clock, User, Bug, FileSearch,
+  Plug, X, AlertTriangle, Clock, User, Bug, FileSearch, Search,
 } from 'lucide-react'
 import {
   listMcpRequests, getMcpRequestDetail, searchTenants,
@@ -66,6 +66,9 @@ export function McpAuditPage() {
   const [page, setPage] = useState(1)
   const [timeRange, setTimeRange] = useState('')
   const [toolFilter, setToolFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [tenantFilter, setTenantFilter] = useState<TenantSearchResult | null>(null)
   const [tenantQuery, setTenantQuery] = useState('')
   const [tenantOptions, setTenantOptions] = useState<TenantSearchResult[]>([])
@@ -77,6 +80,15 @@ export function McpAuditPage() {
   const [panel, setPanel] = useState<PanelState>(null)
   const [panelLoading, setPanelLoading] = useState(false)
   const pageSize = 50
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current) }
+  }, [search])
 
   useEffect(() => {
     if (tenantDebounceRef.current) clearTimeout(tenantDebounceRef.current)
@@ -111,6 +123,7 @@ export function McpAuditPage() {
         page, page_size: pageSize,
         tenant_id: tenantFilter?.id,
         tool_name: toolFilter || undefined,
+        search: debouncedSearch || undefined,
         date_from: start,
         date_to: end,
       })
@@ -120,7 +133,7 @@ export function McpAuditPage() {
       setError(err instanceof Error ? err.message : 'Failed to load')
     }
     setLoading(false)
-  }, [page, tenantFilter, toolFilter, timeRange])
+  }, [page, tenantFilter, toolFilter, timeRange, debouncedSearch])
 
   useEffect(() => { load() }, [load])
 
@@ -180,6 +193,10 @@ export function McpAuditPage() {
       ? { mode: 'mcp-sources' as const, sources: panel.sources }
       : null
 
+  const panelSessionId = panelDetail
+    ? `${panelDetail.tool_name} · ${panelDetail.request_id.slice(0, 8)}`
+    : undefined
+
   const COL_COUNT = 10
 
   return (
@@ -190,7 +207,27 @@ export function McpAuditPage() {
           <p>{t('admin.mcp.requestsCount', { count: total })}</p>
         </div>
 
-        <div className="mcp-audit-filters">
+        {/* Row 1: Search bar + count */}
+        <div className="chat-audit-toolbar">
+          <div className="chat-audit-search-wrap">
+            <Search size={14} className="chat-audit-search-wrap__icon" />
+            <input
+              className="chat-audit-search"
+              placeholder={t('admin.mcp.filterByQuery')}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button className="chat-audit-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <span className="logs-count">{total} requests</span>
+        </div>
+
+        {/* Row 2: Time range + User filter */}
+        <div className="chat-audit-toolbar chat-audit-toolbar--filters">
           <div className="logs-chips" role="group" aria-label="Time range">
             <Clock size={13} className="logs-chips__icon" />
             {TIME_RANGES.map(r => (
@@ -204,55 +241,52 @@ export function McpAuditPage() {
             ))}
           </div>
 
-          <div className="mcp-audit-tools-chips">
-            {TOOLS.map(tool => (
-              <button
-                key={tool}
-                className={`chat-audit-mode-chip${toolFilter === tool ? ' chat-audit-mode-chip--active' : ''}`}
-                onClick={() => { setToolFilter(tool); setPage(1) }}
-              >
-                {tool || t('admin.mcp.allTools')}
-              </button>
-            ))}
+          <div className="logs-tenant-combo" ref={tenantWrapRef}>
+            {tenantFilter ? (
+              <div className="logs-tenant-chip">
+                <User size={12} />
+                <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
+                <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
+              </div>
+            ) : (
+              <>
+                <User size={13} className="logs-tenant-combo__icon" />
+                <input
+                  className="logs-tenant-input"
+                  placeholder="User..."
+                  value={tenantQuery}
+                  onChange={e => setTenantQuery(e.target.value)}
+                  onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
+                />
+                {tenantQuery && (
+                  <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
+                )}
+              </>
+            )}
+            {tenantDropdownOpen && tenantOptions.length > 0 && (
+              <div className="logs-tenant-dropdown">
+                {tenantOptions.map(opt => (
+                  <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
+                    <span className="logs-tenant-dropdown__name">{opt.name}</span>
+                    <span className="logs-tenant-dropdown__email">{opt.email}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
 
-          <div className="mcp-audit-row">
-            <div className="logs-tenant-combo" ref={tenantWrapRef}>
-              {tenantFilter ? (
-                <div className="logs-tenant-chip">
-                  <User size={12} />
-                  <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
-                  <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
-                </div>
-              ) : (
-                <>
-                  <User size={13} className="logs-tenant-combo__icon" />
-                  <input
-                    className="logs-tenant-input"
-                    placeholder="User..."
-                    value={tenantQuery}
-                    onChange={e => setTenantQuery(e.target.value)}
-                    onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
-                  />
-                  {tenantQuery && (
-                    <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
-                  )}
-                </>
-              )}
-              {tenantDropdownOpen && tenantOptions.length > 0 && (
-                <div className="logs-tenant-dropdown">
-                  {tenantOptions.map(opt => (
-                    <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
-                      <span className="logs-tenant-dropdown__name">{opt.name}</span>
-                      <span className="logs-tenant-dropdown__email">{opt.email}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <span className="logs-count">{total} requests</span>
-          </div>
+        {/* Row 3: Tool chips */}
+        <div className="mcp-audit-tools-row">
+          {TOOLS.map(tool => (
+            <button
+              key={tool}
+              className={`chat-audit-mode-chip${toolFilter === tool ? ' chat-audit-mode-chip--active' : ''}`}
+              onClick={() => { setToolFilter(tool); setPage(1) }}
+            >
+              {tool || t('admin.mcp.allTools')}
+            </button>
+          ))}
         </div>
 
         {error && <div className="chat-audit-error"><AlertTriangle size={14} /> {error}</div>}
@@ -364,8 +398,7 @@ export function McpAuditPage() {
       {panelContent && panelDetail && (
         <RightPanel
           content={panelContent}
-          sessionId={panelDetail.request_id}
-          messageId={undefined}
+          sessionId={panelSessionId}
           onClose={handleClose}
           onSwitchToSources={handleSwitchToSources}
         />
