@@ -93,7 +93,7 @@ class Settings(BaseSettings):
     ocr_lang_detect_model: str = "gemini-2.5-flash"
     ocr_vision_model: str = "gemini-2.5-flash"
 
-    document_stale_timeout_sec: int = 3600
+    document_stale_timeout_sec: int = 900
 
     # --- Site crawler ---
     site_crawl_max_depth: int = 5

@@ -10,7 +10,7 @@ async function doRefresh(): Promise<void> {
   if (!res.ok) throw new Error('refresh failed')
 }
 
-async function refreshOnce(): Promise<void> {
+export async function refreshOnce(): Promise<void> {
   if (!refreshPromise) {
     refreshPromise = doRefresh().finally(() => { refreshPromise = null })
   }

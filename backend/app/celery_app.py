@@ -83,7 +83,7 @@ celery.conf.update(
         },
         "rescue-orphaned-documents": {
             "task": "rescue_orphaned_documents",
-            "schedule": 300.0,
+            "schedule": 120.0,
         },
     },
 )
@@ -2183,10 +2183,13 @@ def check_stale_reindex_jobs_task(self):
 
 @celery.task(name="check_stale_documents", bind=True)
 def check_stale_documents_task(self):
-    """Periodic task: reset documents stuck in 'processing' for too long."""
+    """Periodic task: reset documents stuck in 'processing' for too long
+    and immediately re-dispatch them (single-step recovery)."""
     from datetime import datetime, timezone, timedelta
     from sqlalchemy import select, func as sa_func
     from app.models import Document
+
+    _SKIP_FORMATS = {"site", "confluence", "url"}
 
     engine = _get_sync_engine()
     threshold = datetime.now(timezone.utc) - timedelta(
@@ -2204,19 +2207,27 @@ def check_stale_documents_task(self):
             )
         ).scalars().all()
 
+        rescued = 0
         for doc in stale_docs:
             started = doc.processing_started_at or doc.uploaded_at
-            doc.status = "pending"
             doc.error_message = None
             doc.progress_percent = 0
             doc.progress_stage = ""
+            if doc.format in _SKIP_FORMATS:
+                doc.status = "pending"
+            else:
+                doc.status = "pending"
+                task = ingest_document_task.delay(doc.id)
+                doc.celery_task_id = task.id
+                rescued += 1
             logger.warning(
-                "Document auto-reset from processing to pending for re-queue",
+                "Stale document reset and re-queued",
                 extra={
                     "event": "document_stale_reset",
                     "document_id": doc.id,
                     "title": doc.title,
                     "processing_started_at": str(started),
+                    "re_queued": doc.format not in _SKIP_FORMATS,
                 },
             )
 
@@ -2224,32 +2235,38 @@ def check_stale_documents_task(self):
             session.commit()
             logger.info(
                 "Stale documents reset",
-                extra={"count": len(stale_docs)},
+                extra={"count": len(stale_docs), "re_queued": rescued},
             )
 
 
 @celery.task(name="rescue_orphaned_documents", bind=True)
 def rescue_orphaned_documents_task(self):
-    """Periodic task: re-queue pending documents whose Celery tasks were lost.
+    """Periodic task: re-queue documents whose Celery tasks were lost.
 
-    Finds documents stuck in 'pending' for over 10 minutes (meaning their
-    Celery task likely disappeared due to a restart or crash) and re-dispatches
-    ingest_document_task for each. Processes up to 200 per run to avoid
-    overloading the queue.
+    Covers two cases:
+    1. 'pending' documents older than 5 minutes (task never started or lost).
+    2. 'processing' documents whose celery_task_id is no longer known to
+       Redis (worker restarted mid-task) and have been stuck for > 5 min.
+
+    Processes up to 200 per run to avoid overloading the queue.
     """
+    from celery.result import AsyncResult
     from datetime import datetime, timezone, timedelta
-    from sqlalchemy import select
+    from sqlalchemy import select, func as sa_func
     from app.models import Document
 
     _SKIP_FORMATS = {"site", "confluence", "url"}
-    _THRESHOLD_MINUTES = 10
+    _THRESHOLD_MINUTES = 5
     _BATCH_LIMIT = 200
+    _LOST_STATES = {"PENDING", "REVOKED"}
 
     engine = _get_sync_engine()
     threshold = datetime.now(timezone.utc) - timedelta(minutes=_THRESHOLD_MINUTES)
 
+    rescued_count = 0
+
     with Session(engine) as session:
-        orphans = session.execute(
+        pending_orphans = session.execute(
             select(Document).where(
                 Document.status == "pending",
                 Document.uploaded_at < threshold,
@@ -2257,18 +2274,60 @@ def rescue_orphaned_documents_task(self):
             ).limit(_BATCH_LIMIT)
         ).scalars().all()
 
-        if not orphans:
+        effective_started = sa_func.coalesce(
+            Document.processing_started_at, Document.uploaded_at,
+        )
+        processing_candidates = session.execute(
+            select(Document).where(
+                Document.status == "processing",
+                effective_started < threshold,
+                Document.format.notin_(_SKIP_FORMATS),
+            ).limit(_BATCH_LIMIT)
+        ).scalars().all()
+
+        processing_orphans = []
+        for doc in processing_candidates:
+            if not doc.celery_task_id:
+                processing_orphans.append(doc)
+                continue
+            result = AsyncResult(doc.celery_task_id, app=celery)
+            if result.state in _LOST_STATES:
+                processing_orphans.append(doc)
+
+        all_orphans = pending_orphans + processing_orphans
+        if not all_orphans:
             return
 
-        for doc in orphans:
+        for doc in all_orphans:
+            prev_status = doc.status
+            doc.status = "pending"
+            doc.progress_percent = 0
+            doc.progress_stage = ""
+            doc.error_message = None
             task = ingest_document_task.delay(doc.id)
             doc.celery_task_id = task.id
+            rescued_count += 1
+            logger.info(
+                "Rescued orphaned document",
+                extra={
+                    "event": "rescue_orphaned_document",
+                    "document_id": doc.id,
+                    "title": doc.title,
+                    "prev_status": prev_status,
+                    "new_task_id": task.id,
+                },
+            )
 
         session.commit()
 
     logger.info(
-        "Rescued orphaned pending documents",
-        extra={"event": "rescue_orphaned_documents", "count": len(orphans)},
+        "Rescued orphaned documents",
+        extra={
+            "event": "rescue_orphaned_documents",
+            "count": rescued_count,
+            "from_pending": len(pending_orphans),
+            "from_processing": len(processing_orphans),
+        },
     )
 
 

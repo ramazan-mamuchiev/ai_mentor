@@ -68,7 +68,7 @@ async def login(body: LoginRequest, response: Response, session: AsyncSession = 
     tenant = await authenticate_tenant(body.email, body.password, session)
     access, refresh = await create_token_pair(tenant.id, session)
     _set_tokens(response, access, refresh)
-    return TokenResponse(access_token=access)
+    return TokenResponse(access_token=access, expires_in=settings.jwt_access_token_minutes * 60)
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -78,7 +78,7 @@ async def refresh(request: Request, response: Response, session: AsyncSession = 
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "No refresh token")
     access, new_refresh, _ = await rotate_refresh_token(raw_refresh, session)
     _set_tokens(response, access, new_refresh)
-    return TokenResponse(access_token=access)
+    return TokenResponse(access_token=access, expires_in=settings.jwt_access_token_minutes * 60)
 
 
 @router.post("/logout", status_code=204)

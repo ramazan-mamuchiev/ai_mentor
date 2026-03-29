@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiFetch, refreshOnce } from './client'
 import type { ChatSession, SessionDetail, SSEEvent } from '../types'
 
 export async function createSession(params?: {
@@ -58,12 +58,25 @@ export async function* streamMessage(
   content: string,
   signal?: AbortSignal,
 ): AsyncGenerator<SSEEvent> {
-  const res = await fetch(`/api/v1/chat/sessions/${sessionId}/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-    signal,
-  })
+  const doRequest = () =>
+    fetch(`/api/v1/chat/sessions/${sessionId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+      signal,
+    })
+
+  let res = await doRequest()
+
+  if (res.status === 401) {
+    try {
+      await refreshOnce()
+      res = await doRequest()
+    } catch {
+      window.location.href = '/login'
+      throw new Error('Session expired')
+    }
+  }
 
   if (!res.ok) {
     const body = await res.text()
