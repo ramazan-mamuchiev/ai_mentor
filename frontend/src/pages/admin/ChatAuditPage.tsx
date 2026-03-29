@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft, MessageSquare, Search, X, AlertTriangle, ChevronRight, Clock,
-  FileSearch, Bug, ChevronDown,
+  FileSearch, Bug, ChevronDown, Copy, Check,
 } from 'lucide-react'
 import {
   listChatSessionsAdmin, getChatSessionAdmin, searchMessagesAdmin,
@@ -36,8 +36,16 @@ function ChatSessionRow({ item, search, onClick }: {
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const title = item.title || t('admin.chats.untitled')
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(JSON.stringify(item, null, 2))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   const handleClick = () => {
     if (window.getSelection()?.toString()) return
@@ -75,6 +83,9 @@ function ChatSessionRow({ item, search, onClick }: {
         {item.total_duration_ms > 0 && (
           <span className="log-row__meta-pill">{fmtDuration(item.total_duration_ms)}</span>
         )}
+        <button className="log-row__copy" onClick={handleCopy} title="Copy JSON">
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+        </button>
       </div>
       {expanded && (
         <div className="log-row__details">
