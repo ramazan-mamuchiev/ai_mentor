@@ -314,9 +314,19 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
         if parent:
             parent_key = hashlib.sha256(parent.encode("utf-8")).hexdigest()
             if parent_key in seen_parents:
-                continue
-            seen_parents.add(parent_key)
-            body = _clean_md(parent)
+                body = _clean_md(chunk["content"])
+            else:
+                seen_parents.add(parent_key)
+                body = _clean_md(parent)
+                max_chars = settings.rag_max_context_tokens_per_source * 4
+                if len(body) > max_chars:
+                    chunk_text = _clean_md(chunk["content"])
+                    pos = body.find(chunk_text[:100])
+                    if pos >= 0:
+                        start = max(0, pos - max_chars // 3)
+                        body = body[start:start + max_chars] + "\n..."
+                    else:
+                        body = body[:max_chars] + "\n..."
         else:
             body = _clean_md(chunk["content"])
 
@@ -1131,9 +1141,11 @@ async def build_rag_prompt(
     chunks_before_trim = len(chunks)
     trimmed: list[dict] = []
     used_budget = 0
+    per_source_cap = settings.rag_max_context_tokens_per_source
     for chunk in chunks:
         parent = chunk.get("parent_content")
         est = _estimate_tokens(parent) if parent else chunk.get("token_count", 0) or _estimate_tokens(chunk.get("content", ""))
+        est = min(est, per_source_cap)
         if used_budget + est > context_budget:
             break
         trimmed.append(chunk)

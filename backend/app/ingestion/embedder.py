@@ -5,6 +5,8 @@ Gemini models use task_type to distinguish queries from documents:
   - "RETRIEVAL_DOCUMENT" for document passages being indexed
 """
 
+import hashlib
+import json
 import logging
 import time
 from typing import TYPE_CHECKING, Callable
@@ -142,7 +144,48 @@ def embed_texts(
     return combined.tolist(), total_api_tokens
 
 
+_sync_redis = None
+
+
+def _get_sync_redis():
+    global _sync_redis
+    if _sync_redis is None:
+        import redis as redis_lib
+        _sync_redis = redis_lib.from_url(settings.redis_url, socket_connect_timeout=2, decode_responses=True)
+    return _sync_redis
+
+
+def _embedding_cache_key(text: str) -> str:
+    h = hashlib.sha256(text.encode()).hexdigest()
+    return f"emb:q:{settings.embedding_model_gemini}:{settings.embedding_dims}:{h}"
+
+
 def embed_query(text: str) -> tuple[list[float], int]:
-    """Embed a single query string for search. Returns (vector, api_tokens)."""
+    """Embed a single query string for search. Returns (vector, api_tokens).
+
+    When embedding_cache_enabled, caches query vectors in Redis to avoid
+    repeated Gemini API calls for the same query text.
+    """
+    if settings.embedding_cache_enabled:
+        try:
+            r = _get_sync_redis()
+            key = _embedding_cache_key(text)
+            cached = r.get(key)
+            if cached:
+                logger.debug("Embedding cache hit", extra={"key": key[:60]})
+                return json.loads(cached), 0
+        except Exception:
+            logger.debug("Embedding cache read failed", exc_info=True)
+
     results, api_tokens = embed_texts([text], is_query=True)
-    return results[0], api_tokens
+    vec = results[0]
+
+    if settings.embedding_cache_enabled:
+        try:
+            r = _get_sync_redis()
+            key = _embedding_cache_key(text)
+            r.setex(key, settings.embedding_cache_ttl_hours * 3600, json.dumps(vec))
+        except Exception:
+            logger.debug("Embedding cache write failed", exc_info=True)
+
+    return vec, api_tokens

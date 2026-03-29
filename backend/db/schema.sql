@@ -157,11 +157,11 @@ BEGIN
         END LOOP;
     END IF;
 
-    NEW.tsv := to_tsvector('simple',
-        COALESCE(NEW.heading_path, '') || ' ' ||
-        COALESCE(NEW.doc_type, '') || ' ' ||
-        entity_text || ' ' ||
-        COALESCE(NEW.content_clean, NEW.content, ''));
+    NEW.tsv :=
+        setweight(to_tsvector('simple', COALESCE(NEW.heading_path, '')), 'A') ||
+        setweight(to_tsvector('simple', entity_text), 'B') ||
+        setweight(to_tsvector('simple', COALESCE(NEW.doc_type, '')), 'B') ||
+        setweight(to_tsvector('simple', COALESCE(NEW.content_clean, NEW.content, '')), 'C');
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -170,11 +170,11 @@ DROP TRIGGER IF EXISTS trg_chunks_tsv ON chunks;
 CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path, doc_type, entities ON chunks
     FOR EACH ROW EXECUTE FUNCTION chunks_tsv_trigger();
 
--- Backfill existing rows that lack tsv (using 'simple' config for multilingual support)
-UPDATE chunks SET tsv = to_tsvector('simple',
-    COALESCE(heading_path, '') || ' ' ||
-    COALESCE(doc_type, '') || ' ' ||
-    COALESCE(content_clean, content, ''))
+-- Backfill existing rows that lack tsv (using 'simple' config with setweight for multilingual support)
+UPDATE chunks SET tsv =
+    setweight(to_tsvector('simple', COALESCE(heading_path, '')), 'A') ||
+    setweight(to_tsvector('simple', COALESCE(doc_type, '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(content_clean, content, '')), 'C')
 WHERE tsv IS NULL;
 
 -- GIN index for full-text search
