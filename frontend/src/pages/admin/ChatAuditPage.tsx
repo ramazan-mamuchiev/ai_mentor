@@ -83,7 +83,7 @@ function ChatSessionRow({ item, search, onClick }: {
         {item.total_duration_ms > 0 && (
           <span className="log-row__meta-pill">{fmtDuration(item.total_duration_ms)}</span>
         )}
-        <button className="log-row__copy" onClick={handleCopy} title="Copy JSON">
+        <button className="log-row__copy" onClick={handleCopy} title={t('admin.chats.copyJson')}>
           {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
@@ -97,7 +97,7 @@ function ChatSessionRow({ item, search, onClick }: {
           ))}
           <div className="log-row__actions">
             <button className="admin-btn admin-btn--sm" onClick={e => { e.stopPropagation(); onClick() }}>
-              <ChevronRight size={12} /> {t('admin.chats.openSession', { defaultValue: 'Open session' })}
+              <ChevronRight size={12} /> {t('admin.chats.openSession')}
             </button>
           </div>
         </div>
@@ -322,7 +322,7 @@ function SessionListView() {
         setMsgResults([])
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load')
+      setError(err instanceof Error ? err.message : t('admin.chats.failedToLoad'))
     }
     setLoading(false)
   }, [page, debouncedSearch, activeTenantId, isMessageSearch, timeRange])
@@ -413,7 +413,7 @@ function SessionListView() {
               onChange={e => setSearch(e.target.value)}
             />
             {search && (
-              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
+              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label={t('admin.logs.clear')}>
                 <X size={14} />
               </button>
             )}
@@ -462,23 +462,23 @@ function SessionListView() {
             </button>
           </div>
           <div className="logs-summary-inline">
-            <span className="logs-count">{total} {t('admin.chats.sessionsLabel', { defaultValue: 'sessions' })}</span>
+            <span className="logs-count">{t('admin.chats.sessionsCount', { count: total })}</span>
             {items.length > 0 && !isMessageSearch && (
               <>
                 <span className="logs-summary__metric">
-                  <span className="logs-summary__label">msg</span>
+                  <span className="logs-summary__label">{t('admin.chats.summaryMsg')}</span>
                   <span className="logs-summary__value">{chatSummary.messages.toLocaleString()}</span>
                 </span>
                 <span className="logs-summary__metric">
-                  <span className="logs-summary__label">tokens</span>
+                  <span className="logs-summary__label">{t('admin.chats.summaryTokens')}</span>
                   <span className="logs-summary__value">{chatSummary.tokens.toLocaleString()}</span>
                 </span>
                 <span className="logs-summary__metric">
-                  <span className="logs-summary__label">charge</span>
+                  <span className="logs-summary__label">{t('admin.chats.summaryCharge')}</span>
                   <span className="logs-summary__value">{fmtUsd(chatSummary.charge)}</span>
                 </span>
                 <span className="logs-summary__metric">
-                  <span className="logs-summary__label">duration</span>
+                  <span className="logs-summary__label">{t('admin.chats.summaryDuration')}</span>
                   <span className="logs-summary__value">{fmtDuration(chatSummary.durationMs)}</span>
                 </span>
               </>

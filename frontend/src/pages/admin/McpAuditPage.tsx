@@ -29,6 +29,7 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
   onDebug: () => void
   onSources: () => void
 }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -78,8 +79,8 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
         <span className="log-row__meta-pill">{tokens.toLocaleString()} tok</span>
         <span className="log-row__meta-pill">{fmtUsd(item.charge_usd)}</span>
         <span className="log-row__meta-pill">{fmtMs(item.duration_ms)}</span>
-        {item.status === 'error' && <span className="badge badge--red">error</span>}
-        <button className="log-row__copy" onClick={handleCopy} title="Copy JSON">
+        {item.status === 'error' && <span className="badge badge--red">{t('admin.mcp.error')}</span>}
+        <button className="log-row__copy" onClick={handleCopy} title={t('admin.mcp.copyJson')}>
           {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
@@ -93,10 +94,10 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
           ))}
           <div className="log-row__actions">
             <button className="admin-btn admin-btn--sm" onClick={e => { e.stopPropagation(); onDebug() }}>
-              <Bug size={12} /> Debug
+              <Bug size={12} /> {t('admin.mcp.debug')}
             </button>
             <button className="admin-btn admin-btn--sm" onClick={e => { e.stopPropagation(); onSources() }}>
-              <FileSearch size={12} /> Sources
+              <FileSearch size={12} /> {t('admin.mcp.sources')}
             </button>
           </div>
         </div>
@@ -165,10 +166,10 @@ export function McpAuditPage() {
       setItems(res.items)
       setTotal(res.total)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load')
+      setError(err instanceof Error ? err.message : t('admin.mcp.failedToLoad'))
     }
     setLoading(false)
-  }, [page, tenantFilter, toolFilter, statusFilter, timeRange, debouncedSearch])
+  }, [page, tenantFilter, toolFilter, statusFilter, timeRange, debouncedSearch, t])
 
   useEffect(() => { load() }, [load])
 
@@ -317,7 +318,7 @@ export function McpAuditPage() {
                 onChange={e => setSearch(e.target.value)}
               />
             {search && (
-              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
+              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label={t('admin.logs.clear')}>
                 <X size={14} />
               </button>
             )}
@@ -356,35 +357,35 @@ export function McpAuditPage() {
                 className={`logs-level-chip logs-level-chip--all${statusFilter === '' ? ' logs-level-chip--active' : ''}`}
                 onClick={() => { setStatusFilter(''); setPage(1) }}
               >
-                All
+                {t('admin.mcp.statusAll')}
               </button>
               <button
                 className={`logs-level-chip logs-level-chip--ok${statusFilter === 'ok' ? ' logs-level-chip--active' : ''}`}
                 onClick={() => { setStatusFilter('ok'); setPage(1) }}
               >
-                OK <span className="logs-level-chip__count">{statusCounts.ok}</span>
+                {t('admin.mcp.statusOk')} <span className="logs-level-chip__count">{statusCounts.ok}</span>
               </button>
               <button
                 className={`logs-level-chip logs-level-chip--error${statusFilter === 'error' ? ' logs-level-chip--active' : ''}`}
                 onClick={() => { setStatusFilter('error'); setPage(1) }}
               >
-                ERROR <span className="logs-level-chip__count">{statusCounts.error}</span>
+                {t('admin.mcp.statusError')} <span className="logs-level-chip__count">{statusCounts.error}</span>
               </button>
             </div>
             <div className="logs-summary-inline">
-              <span className="logs-count">{total} requests</span>
+              <span className="logs-count">{t('admin.mcp.requestsCount', { count: total })}</span>
               {items.length > 0 && (
                 <>
                   <span className="logs-summary__metric">
-                    <span className="logs-summary__label">tokens</span>
+                    <span className="logs-summary__label">{t('admin.mcp.summaryTokens')}</span>
                     <span className="logs-summary__value">{summary.tokens.toLocaleString()}</span>
                   </span>
                   <span className="logs-summary__metric">
-                    <span className="logs-summary__label">charge</span>
+                    <span className="logs-summary__label">{t('admin.mcp.summaryCharge')}</span>
                     <span className="logs-summary__value">{fmtUsd(summary.charge)}</span>
                   </span>
                   <span className="logs-summary__metric">
-                    <span className="logs-summary__label">duration</span>
+                    <span className="logs-summary__label">{t('admin.mcp.summaryDuration')}</span>
                     <span className="logs-summary__value">{fmtMs(summary.durationMs)}</span>
                   </span>
                 </>
