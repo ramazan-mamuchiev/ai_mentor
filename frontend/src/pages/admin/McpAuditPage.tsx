@@ -371,27 +371,27 @@ export function McpAuditPage() {
                 ERROR <span className="logs-level-chip__count">{statusCounts.error}</span>
               </button>
             </div>
-            <span className="logs-count">{total} requests</span>
+            <div className="logs-summary-inline">
+              <span className="logs-count">{total} requests</span>
+              {items.length > 0 && (
+                <>
+                  <span className="logs-summary__metric">
+                    <span className="logs-summary__label">tokens</span>
+                    <span className="logs-summary__value">{summary.tokens.toLocaleString()}</span>
+                  </span>
+                  <span className="logs-summary__metric">
+                    <span className="logs-summary__label">charge</span>
+                    <span className="logs-summary__value">{fmtUsd(summary.charge)}</span>
+                  </span>
+                  <span className="logs-summary__metric">
+                    <span className="logs-summary__label">duration</span>
+                    <span className="logs-summary__value">{fmtMs(summary.durationMs)}</span>
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
-
-        {items.length > 0 && (
-          <div className="logs-summary">
-            <span className="logs-summary__count">{items.length} requests</span>
-            <span className="logs-summary__metric">
-              <span className="logs-summary__label">tokens</span>
-              <span className="logs-summary__value">{summary.tokens.toLocaleString()}</span>
-            </span>
-            <span className="logs-summary__metric">
-              <span className="logs-summary__label">charge</span>
-              <span className="logs-summary__value">{fmtUsd(summary.charge)}</span>
-            </span>
-            <span className="logs-summary__metric">
-              <span className="logs-summary__label">duration</span>
-              <span className="logs-summary__value">{fmtMs(summary.durationMs)}</span>
-            </span>
-          </div>
-        )}
 
         {error && <div className="chat-audit-error"><AlertTriangle size={14} /> {error}</div>}
 

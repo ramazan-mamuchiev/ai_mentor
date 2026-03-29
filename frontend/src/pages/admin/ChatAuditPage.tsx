@@ -461,31 +461,31 @@ function SessionListView() {
               {t('admin.chats.content')}
             </button>
           </div>
-          <span className="logs-count">{total} {t('admin.chats.sessionsLabel', { defaultValue: 'sessions' })}</span>
+          <div className="logs-summary-inline">
+            <span className="logs-count">{total} {t('admin.chats.sessionsLabel', { defaultValue: 'sessions' })}</span>
+            {items.length > 0 && !isMessageSearch && (
+              <>
+                <span className="logs-summary__metric">
+                  <span className="logs-summary__label">msg</span>
+                  <span className="logs-summary__value">{chatSummary.messages.toLocaleString()}</span>
+                </span>
+                <span className="logs-summary__metric">
+                  <span className="logs-summary__label">tokens</span>
+                  <span className="logs-summary__value">{chatSummary.tokens.toLocaleString()}</span>
+                </span>
+                <span className="logs-summary__metric">
+                  <span className="logs-summary__label">charge</span>
+                  <span className="logs-summary__value">{fmtUsd(chatSummary.charge)}</span>
+                </span>
+                <span className="logs-summary__metric">
+                  <span className="logs-summary__label">duration</span>
+                  <span className="logs-summary__value">{fmtDuration(chatSummary.durationMs)}</span>
+                </span>
+              </>
+            )}
+          </div>
         </div>
       </div>
-
-      {items.length > 0 && !isMessageSearch && (
-        <div className="logs-summary">
-          <span className="logs-summary__count">{items.length} sessions</span>
-          <span className="logs-summary__metric">
-            <span className="logs-summary__label">msg</span>
-            <span className="logs-summary__value">{chatSummary.messages.toLocaleString()}</span>
-          </span>
-          <span className="logs-summary__metric">
-            <span className="logs-summary__label">tokens</span>
-            <span className="logs-summary__value">{chatSummary.tokens.toLocaleString()}</span>
-          </span>
-          <span className="logs-summary__metric">
-            <span className="logs-summary__label">charge</span>
-            <span className="logs-summary__value">{fmtUsd(chatSummary.charge)}</span>
-          </span>
-          <span className="logs-summary__metric">
-            <span className="logs-summary__label">duration</span>
-            <span className="logs-summary__value">{fmtDuration(chatSummary.durationMs)}</span>
-          </span>
-        </div>
-      )}
 
       {error && (
         <div className="chat-audit-error">

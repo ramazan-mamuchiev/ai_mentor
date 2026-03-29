@@ -914,57 +914,52 @@
   font-family: var(--font-mono);
 }
 
-/* ── Summary bar (aggregation row between toolbar and data) ── */
-.logs-summary {
+/* ── Inline summary metrics (inside toolbar row) ── */
+.logs-summary-inline {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
-  font-size: 11px;
+  margin-left: auto;
   font-family: var(--font-mono);
-  color: var(--text-muted);
+  font-size: 11px;
   flex-wrap: wrap;
-}
-
-.logs-summary__count {
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-right: auto;
+  justify-content: flex-end;
 }
 
 .logs-summary__metric {
   display: inline-flex;
   align-items: baseline;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: 3px;
+  padding: 1px 7px;
   border-radius: 10px;
-  background: var(--bg);
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   white-space: nowrap;
+  font-size: 11px;
 }
 
 .logs-summary__label {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
 }
 
 .logs-summary__value {
-  color: var(--text);
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
 @media (max-width: 767px) {
-  .logs-summary {
-    padding: 4px 10px;
+  .logs-summary-inline {
     gap: 4px;
   }
   .logs-summary__metric {
-    padding: 1px 6px;
+    padding: 1px 5px;
     font-size: 10px;
+  }
+  .logs-summary__label {
+    font-size: 8px;
   }
 }
 
