@@ -47,6 +47,7 @@ celery.conf.update(
         "cleanup_expired_uploads": {"queue": "monitoring"},
         "check_stale_reindex_jobs": {"queue": "monitoring"},
         "check_stale_documents": {"queue": "monitoring"},
+        "rescue_orphaned_documents": {"queue": "monitoring"},
         "ensure_usage_partitions": {"queue": "monitoring"},
         "cleanup_expired_shares": {"queue": "monitoring"},
         "s3_health_probe": {"queue": "monitoring"},
@@ -79,6 +80,10 @@ celery.conf.update(
         "check-stale-documents": {
             "task": "check_stale_documents",
             "schedule": 120.0,
+        },
+        "rescue-orphaned-documents": {
+            "task": "rescue_orphaned_documents",
+            "schedule": 300.0,
         },
     },
 )
@@ -1923,15 +1928,12 @@ def check_stale_documents_task(self):
 
         for doc in stale_docs:
             started = doc.processing_started_at or doc.uploaded_at
-            doc.status = "error"
-            doc.error_message = (
-                f"Auto-reset: document stuck in 'processing' since {started}. "
-                f"Exceeded stale timeout of {settings.document_stale_timeout_sec}s."
-            )
+            doc.status = "pending"
+            doc.error_message = None
             doc.progress_percent = 0
             doc.progress_stage = ""
             logger.warning(
-                "Document auto-reset from processing to error",
+                "Document auto-reset from processing to pending for re-queue",
                 extra={
                     "event": "document_stale_reset",
                     "document_id": doc.id,
@@ -1946,6 +1948,50 @@ def check_stale_documents_task(self):
                 "Stale documents reset",
                 extra={"count": len(stale_docs)},
             )
+
+
+@celery.task(name="rescue_orphaned_documents", bind=True)
+def rescue_orphaned_documents_task(self):
+    """Periodic task: re-queue pending documents whose Celery tasks were lost.
+
+    Finds documents stuck in 'pending' for over 10 minutes (meaning their
+    Celery task likely disappeared due to a restart or crash) and re-dispatches
+    ingest_document_task for each. Processes up to 200 per run to avoid
+    overloading the queue.
+    """
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select
+    from app.models import Document
+
+    _SKIP_FORMATS = {"site", "confluence", "url"}
+    _THRESHOLD_MINUTES = 10
+    _BATCH_LIMIT = 200
+
+    engine = _get_sync_engine()
+    threshold = datetime.now(timezone.utc) - timedelta(minutes=_THRESHOLD_MINUTES)
+
+    with Session(engine) as session:
+        orphans = session.execute(
+            select(Document).where(
+                Document.status == "pending",
+                Document.uploaded_at < threshold,
+                Document.format.notin_(_SKIP_FORMATS),
+            ).limit(_BATCH_LIMIT)
+        ).scalars().all()
+
+        if not orphans:
+            return
+
+        for doc in orphans:
+            task = ingest_document_task.delay(doc.id)
+            doc.celery_task_id = task.id
+
+        session.commit()
+
+    logger.info(
+        "Rescued orphaned pending documents",
+        extra={"event": "rescue_orphaned_documents", "count": len(orphans)},
+    )
 
 
 @celery.task(name="queue_status_snapshot", bind=True)
