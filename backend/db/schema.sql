@@ -170,11 +170,12 @@ DROP TRIGGER IF EXISTS trg_chunks_tsv ON chunks;
 CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path, doc_type, entities ON chunks
     FOR EACH ROW EXECUTE FUNCTION chunks_tsv_trigger();
 
--- Backfill existing rows (using 'simple' config for multilingual support)
+-- Backfill existing rows that lack tsv (using 'simple' config for multilingual support)
 UPDATE chunks SET tsv = to_tsvector('simple',
     COALESCE(heading_path, '') || ' ' ||
     COALESCE(doc_type, '') || ' ' ||
-    COALESCE(content_clean, content, ''));
+    COALESCE(content_clean, content, ''))
+WHERE tsv IS NULL;
 
 -- GIN index for full-text search
 CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON chunks USING gin(tsv);
