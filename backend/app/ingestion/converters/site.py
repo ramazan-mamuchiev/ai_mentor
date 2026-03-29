@@ -21,10 +21,12 @@ from typing import Callable, Awaitable
 from urllib.parse import urlparse
 
 import httpx
+from markdownify import markdownify as md_convert
 
 logger = logging.getLogger(__name__)
 
 _FETCH_TIMEOUT = 30
+_ANTI_BOT_KEYWORDS = {"cloudflare", "anti-bot", "blocked", "captcha", "challenge"}
 
 DOWNLOADABLE_EXTENSIONS = {
     ".pdf", ".wsdl", ".yaml", ".yml", ".proto", ".md", ".txt",
@@ -118,6 +120,53 @@ def _download_file(url: str, timeout: int = _FETCH_TIMEOUT) -> str | None:
         return None
 
 
+def _is_anti_bot_error(error_message: str | None) -> bool:
+    """Check if Crawl4AI error looks like a false-positive anti-bot block."""
+    if not error_message:
+        return False
+    msg = error_message.lower()
+    return any(kw in msg for kw in _ANTI_BOT_KEYWORDS)
+
+
+def _httpx_fetch_as_markdown(url: str, timeout: int = _FETCH_TIMEOUT) -> tuple[str, str]:
+    """Fetch a page via httpx and convert HTML to markdown.
+
+    Returns (title, markdown_text). Both empty on failure.
+    """
+    try:
+        with httpx.Client(timeout=timeout, verify=False, follow_redirects=True) as client:
+            resp = client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                              "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Lexiro/1.0",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            })
+            resp.raise_for_status()
+
+        content_type = resp.headers.get("content-type", "")
+        if "html" not in content_type and "xml" not in content_type:
+            return "", ""
+
+        html = resp.text
+        if not html or len(html.strip()) < 100:
+            return "", ""
+
+        title = ""
+        title_match = re.search(r"<title[^>]*>([^<]+)</title>", html, re.IGNORECASE)
+        if title_match:
+            title = title_match.group(1).strip()
+
+        markdown_text = md_convert(html, strip=["script", "style", "nav", "footer", "header"])
+        markdown_text = re.sub(r"\n{3,}", "\n\n", markdown_text).strip()
+
+        return title, markdown_text
+    except Exception as exc:
+        logger.warning("httpx fallback fetch failed", extra={
+            "url": url[:300], "error": str(exc)[:200],
+        })
+        return "", ""
+
+
 async def crawl_site(
     url: str,
     max_depth: int = 5,
@@ -206,27 +255,51 @@ async def crawl_site(
                     strategy.cancel()
                     break
 
-                if not page_result.success:
-                    result.errors.append(
-                        f"Failed: {page_result.url} — {page_result.error_message or 'unknown'}"
-                    )
-                    continue
-
                 depth = 0
                 if page_result.metadata and isinstance(page_result.metadata, dict):
                     depth = page_result.metadata.get("depth", 0)
 
-                md = page_result.markdown
-                if hasattr(md, "fit_markdown") and md.fit_markdown:
-                    md_text = md.fit_markdown
-                elif hasattr(md, "raw_markdown"):
-                    md_text = md.raw_markdown
-                else:
-                    md_text = str(md) if md else ""
-
                 title = ""
-                if page_result.metadata and isinstance(page_result.metadata, dict):
-                    title = page_result.metadata.get("title", "")
+                md_text = ""
+
+                if not page_result.success:
+                    if _is_anti_bot_error(page_result.error_message):
+                        logger.info("Anti-bot block detected, trying httpx fallback", extra={
+                            "url": page_result.url,
+                            "original_error": (page_result.error_message or "")[:200],
+                        })
+                        fb_title, fb_md = await asyncio.to_thread(
+                            _httpx_fetch_as_markdown, page_result.url,
+                        )
+                        if fb_md:
+                            title = fb_title
+                            md_text = fb_md
+                            logger.info("httpx fallback succeeded", extra={
+                                "url": page_result.url,
+                                "md_length": len(fb_md),
+                            })
+                        else:
+                            result.errors.append(
+                                f"Failed: {page_result.url} — {page_result.error_message or 'unknown'} "
+                                f"(httpx fallback also failed)"
+                            )
+                            continue
+                    else:
+                        result.errors.append(
+                            f"Failed: {page_result.url} — {page_result.error_message or 'unknown'}"
+                        )
+                        continue
+                else:
+                    md = page_result.markdown
+                    if hasattr(md, "fit_markdown") and md.fit_markdown:
+                        md_text = md.fit_markdown
+                    elif hasattr(md, "raw_markdown"):
+                        md_text = md.raw_markdown
+                    else:
+                        md_text = str(md) if md else ""
+
+                    if page_result.metadata and isinstance(page_result.metadata, dict):
+                        title = page_result.metadata.get("title", "")
 
                 if md_text and md_text.strip() and page_callback:
                     page = CrawledPage(
