@@ -9,6 +9,16 @@
   overflow-y: auto;
 }
 
+.admin-main:has(> .docs-page--with-panel) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.admin-main > .docs-page--with-panel > .docs-page-main {
+  padding: 24px 32px;
+  overflow-y: auto;
+}
+
 /* Admin nav — variant 3: full replacement */
 .sidebar-nav--admin {
   flex: 1;
