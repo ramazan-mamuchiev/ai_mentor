@@ -71,9 +71,7 @@ function ChatSessionRow({ item, search, onClick }: {
         {item.total_tokens > 0 && (
           <span className="log-row__meta-pill">{item.total_tokens.toLocaleString()} tok</span>
         )}
-        {parseFloat(item.total_charge_usd) > 0 && (
-          <span className="log-row__meta-pill">{fmtUsd(item.total_charge_usd)}</span>
-        )}
+        <span className="log-row__meta-pill">{fmtUsd(item.total_charge_usd)}</span>
         {item.total_duration_ms > 0 && (
           <span className="log-row__meta-pill">{fmtDuration(item.total_duration_ms)}</span>
         )}
