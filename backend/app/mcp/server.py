@@ -968,3 +968,375 @@ async def tool_get_code_examples(
     )
 
     return response_text
+
+
+async def tool_list_documents(
+    product: str,
+    doc_type: str | None = None,
+) -> str:
+    """List all documents indexed for a specific product.
+
+    Use this to see what documentation is available before searching. Returns a compact
+    list with document IDs, titles, chunk counts, and doc types — much lighter than
+    get_document_outline for products with many documents.
+
+    The returned document IDs can be used with get_section and get_document_outline
+    (with document_title filter) to drill into specific documents.
+
+    Args:
+        product: Product name. Examples: "HikCentral", "Axxon One", "Elsys-SDK"
+        doc_type: Optional filter by documentation type.
+            Examples: "api_reference", "guide", "user_guide", "example", "configuration"
+    """
+    request_id = str(uuid4())
+    logger.debug("MCP list_documents called", extra={"product": product, "doc_type": doc_type, "request_id": request_id})
+
+    t0 = time.perf_counter()
+    async with async_session() as session:
+        product_id, resolved_name = await resolve_product(session, product)
+
+        if product_id is None:
+            return f"No product matching '{product}' found. Use list_products to see available products."
+
+        where_clauses = ["d.status = 'ready'", "d.product_id = :product_id"]
+        params: dict = {"product_id": product_id}
+
+        if doc_type:
+            where_clauses.append("c.doc_type = :doc_type")
+            params["doc_type"] = doc_type
+
+        where_sql = " AND ".join(where_clauses)
+
+        sql = text(f"""
+            SELECT
+                d.id AS document_id,
+                d.title,
+                d.format,
+                d.total_chunks,
+                fw.version AS firmware_version,
+                COUNT(c.id) AS chunk_count,
+                COALESCE(
+                    STRING_AGG(DISTINCT c.doc_type, ', ')
+                    FILTER (WHERE c.doc_type IS NOT NULL AND c.doc_type != 'other'),
+                    'other'
+                ) AS doc_types
+            FROM documents d
+            JOIN firmware_versions fw ON d.firmware_version_id = fw.id
+            LEFT JOIN chunks c ON c.document_id = d.id
+            WHERE {where_sql}
+            GROUP BY d.id, d.title, d.format, d.total_chunks, fw.version
+            ORDER BY d.title
+        """)
+
+        result = await session.execute(sql, params)
+        rows = result.mappings().all()
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    result_count = len(rows)
+    logger.info(
+        "MCP list_documents completed",
+        extra={"tool": "list_documents", "result_count": result_count, "duration_ms": duration_ms, "request_id": request_id},
+    )
+
+    if not rows:
+        filter_hint = f" with doc_type='{doc_type}'" if doc_type else ""
+        response_text = f"No documents found for '{resolved_name}'{filter_hint}."
+    else:
+        parts: list[str] = []
+        for row in rows:
+            types = row["doc_types"]
+            type_tag = f" [{types}]" if types and types != "other" else ""
+            parts.append(
+                f"- [doc_id: {row['document_id']}] {row['title']}"
+                f" (v{row['firmware_version']}, {row['chunk_count']} chunks){type_tag}"
+            )
+        response_text = f"Documents for {resolved_name} ({result_count}):\n" + "\n".join(parts)
+
+    await _save_search_analytics(
+        source="mcp", tool_name="list_documents", query=product,
+        duration_ms=duration_ms, result_count=result_count, product_filter=product,
+        tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
+    )
+    await write_usage_log(
+        channel="mcp", action="list_documents", request_id=request_id,
+        query_text=product, query_tokens=0, result_count=result_count,
+        response_length=len(response_text), duration_ms=duration_ms,
+        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
+    )
+    await _save_mcp_request_log(
+        request_id=request_id, tool_name="list_documents",
+        query_text=product, product_filter=product, result_count=result_count,
+        response_length=len(response_text), duration_ms=duration_ms,
+        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+    )
+
+    return response_text
+
+
+async def tool_grep_docs(
+    pattern: str,
+    product: str | None = None,
+    document_id: int | None = None,
+    include_context: bool = True,
+) -> str:
+    """Exact text search across documentation content (case-insensitive substring match).
+
+    Use this instead of search_documentation when you need to find exact strings that
+    semantic search handles poorly: IP addresses, error codes, parameter names, specific
+    URLs, configuration keys, protocol commands, hex values, etc.
+
+    Args:
+        pattern: The exact text to search for (case-insensitive).
+            Examples: "192.168.1", "error 0x8004", "Content-Type: application/xml",
+            "/ISAPI/", "doControl", "rtsp://", "Basic realm="
+        product: Optional product filter. Examples: "HikCentral", "Axxon One"
+        document_id: Optional document ID to limit search to a specific document.
+        include_context: If true, returns surrounding heading path and more content.
+            Set to false for compact output when expecting many matches. Default: true.
+    """
+    request_id = str(uuid4())
+    logger.debug(
+        "MCP grep_docs called",
+        extra={"pattern": pattern, "product": product, "document_id": document_id, "request_id": request_id},
+    )
+
+    t0 = time.perf_counter()
+    async with async_session() as session:
+        where_clauses = [
+            "d.status = 'ready'",
+            "c.content ILIKE '%' || :pattern || '%'",
+        ]
+        params: dict = {"pattern": pattern}
+
+        if document_id is not None:
+            where_clauses.append("c.document_id = :doc_id")
+            params["doc_id"] = document_id
+        elif product:
+            product_id, _ = await resolve_product(session, product)
+            if product_id:
+                where_clauses.append("d.product_id = :product_id")
+                params["product_id"] = product_id
+
+        where_sql = " AND ".join(where_clauses)
+
+        if include_context:
+            select_cols = """
+                c.document_id,
+                c.content,
+                c.heading_path,
+                c.heading_level,
+                c.doc_type,
+                d.title AS doc_title,
+                p.name AS product_name,
+                fw.version AS firmware_version
+            """
+        else:
+            select_cols = """
+                c.document_id,
+                c.heading_path,
+                d.title AS doc_title,
+                p.name AS product_name
+            """
+
+        sql = text(f"""
+            SELECT {select_cols}
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.id
+            JOIN products p ON d.product_id = p.id
+            JOIN firmware_versions fw ON d.firmware_version_id = fw.id
+            WHERE {where_sql}
+            ORDER BY p.name, d.title, c.chunk_index
+            LIMIT 30
+        """)
+
+        result = await session.execute(sql, params)
+        rows = result.mappings().all()
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    result_count = len(rows)
+    logger.info(
+        "MCP grep_docs completed",
+        extra={"tool": "grep_docs", "result_count": result_count, "duration_ms": duration_ms, "request_id": request_id},
+    )
+
+    if not rows:
+        response_text = f"No matches for '{pattern}'."
+        if not product:
+            response_text += " Try narrowing with a product filter."
+    elif include_context:
+        parts: list[str] = []
+        for i, row in enumerate(rows, 1):
+            content = row["content"]
+            lower_content = content.lower()
+            lower_pattern = pattern.lower()
+            pos = lower_content.find(lower_pattern)
+            if pos >= 0:
+                start = max(0, pos - 120)
+                end = min(len(content), pos + len(pattern) + 120)
+                snippet = content[start:end]
+                if start > 0:
+                    snippet = "..." + snippet
+                if end < len(content):
+                    snippet = snippet + "..."
+            else:
+                snippet = content[:250] + ("..." if len(content) > 250 else "")
+
+            type_tag = f" [{row['doc_type']}]" if row.get("doc_type") and row["doc_type"] != "other" else ""
+            meta = (
+                f"[{i}] {row['product_name']} | {row['firmware_version']} | "
+                f"{row['doc_title']} > {row['heading_path']}{type_tag}"
+            )
+            parts.append(f"{meta}\n{snippet}")
+        response_text = f"Found {result_count} matches for '{pattern}':\n\n" + "\n\n---\n\n".join(parts)
+    else:
+        parts = []
+        for row in rows:
+            parts.append(f"- {row['product_name']} | {row['doc_title']} > {row['heading_path']} (doc_id: {row['document_id']})")
+        response_text = f"Found {result_count} matches for '{pattern}':\n" + "\n".join(parts)
+
+    response_tokens = max(1, len(response_text) // 4)
+    query_tokens = max(1, len(pattern) // 4)
+
+    await _save_search_analytics(
+        source="mcp", tool_name="grep_docs", query=pattern,
+        duration_ms=duration_ms, result_count=result_count, product_filter=product,
+        tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
+    )
+    await write_usage_log(
+        channel="mcp", action="grep_docs", request_id=request_id,
+        query_text=pattern, query_tokens=query_tokens, result_count=result_count,
+        response_tokens=response_tokens, response_length=len(response_text),
+        duration_ms=duration_ms, product_filter=product,
+        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
+    )
+    await _save_mcp_request_log(
+        request_id=request_id, tool_name="grep_docs",
+        query_text=pattern, product_filter=product, result_count=result_count,
+        response_length=len(response_text), query_tokens=query_tokens,
+        response_tokens=response_tokens, duration_ms=duration_ms,
+        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+    )
+
+    return response_text
+
+
+async def tool_get_product_info(
+    product: str,
+) -> str:
+    """Get a detailed summary about a specific product in the Lexiro knowledge base.
+
+    Returns: manufacturer, category, available firmware/API versions, document count,
+    total chunks, doc types breakdown, and top-level documentation topics.
+
+    Use this as a first step before searching, to understand what documentation is
+    available and how it's organized.
+
+    Args:
+        product: Product name. Examples: "HikCentral", "Axxon One", "Elsys-SDK"
+    """
+    request_id = str(uuid4())
+    logger.debug("MCP get_product_info called", extra={"product": product, "request_id": request_id})
+
+    t0 = time.perf_counter()
+    async with async_session() as session:
+        product_id, resolved_name = await resolve_product(session, product)
+
+        if product_id is None:
+            return f"No product matching '{product}' found. Use list_products to see available products."
+
+        info_sql = text("""
+            SELECT
+                p.name,
+                p.manufacturer,
+                p.category,
+                COALESCE(STRING_AGG(DISTINCT fw.version, ', ' ORDER BY fw.version), '') AS versions,
+                COUNT(DISTINCT d.id) FILTER (WHERE d.status = 'ready') AS doc_count,
+                COUNT(c.id) FILTER (WHERE d.status = 'ready') AS chunk_count,
+                COALESCE(
+                    STRING_AGG(DISTINCT c.doc_type, ', ')
+                    FILTER (WHERE c.doc_type IS NOT NULL AND c.doc_type != 'other' AND d.status = 'ready'),
+                    ''
+                ) AS doc_types
+            FROM products p
+            LEFT JOIN firmware_versions fw ON fw.product_id = p.id
+            LEFT JOIN documents d ON d.product_id = p.id
+            LEFT JOIN chunks c ON c.document_id = d.id
+            WHERE p.id = :pid
+            GROUP BY p.id, p.name, p.manufacturer, p.category
+        """)
+        info_row = (await session.execute(info_sql, {"pid": product_id})).mappings().first()
+
+        topics_sql = text("""
+            SELECT
+                c.doc_type,
+                COUNT(*) AS cnt
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.id
+            WHERE d.product_id = :pid AND d.status = 'ready'
+              AND c.doc_type IS NOT NULL AND c.doc_type != 'other'
+            GROUP BY c.doc_type
+            ORDER BY cnt DESC
+        """)
+        type_rows = (await session.execute(topics_sql, {"pid": product_id})).mappings().all()
+
+        headings_sql = text("""
+            SELECT DISTINCT c.heading_path
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.id
+            WHERE d.product_id = :pid AND d.status = 'ready'
+              AND c.heading_level = 1
+            ORDER BY c.heading_path
+            LIMIT 30
+        """)
+        heading_rows = (await session.execute(headings_sql, {"pid": product_id})).mappings().all()
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    logger.info("MCP get_product_info completed", extra={"tool": "get_product_info", "duration_ms": duration_ms, "request_id": request_id})
+
+    if not info_row:
+        return f"No data found for product ID {product_id}."
+
+    r = info_row
+    lines: list[str] = [
+        f"# {r['name']}",
+        f"- Manufacturer: {r['manufacturer'] or 'N/A'}",
+        f"- Category: {r['category'] or 'N/A'}",
+        f"- Versions: {r['versions'] or 'N/A'}",
+        f"- Documents: {r['doc_count']}",
+        f"- Chunks: {r['chunk_count']}",
+    ]
+
+    if type_rows:
+        lines.append("\n## Documentation types")
+        for tr in type_rows:
+            lines.append(f"- {tr['doc_type']}: {tr['cnt']} chunks")
+
+    if heading_rows:
+        lines.append("\n## Top-level topics")
+        for hr in heading_rows:
+            lines.append(f"- {hr['heading_path']}")
+
+    response_text = "\n".join(lines)
+
+    await _save_search_analytics(
+        source="mcp", tool_name="get_product_info", query=product,
+        duration_ms=duration_ms, result_count=1, product_filter=product,
+        tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
+    )
+    await write_usage_log(
+        channel="mcp", action="get_product_info", request_id=request_id,
+        query_text=product, query_tokens=0, result_count=1,
+        response_length=len(response_text), duration_ms=duration_ms,
+        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+        tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
+    )
+    await _save_mcp_request_log(
+        request_id=request_id, tool_name="get_product_info",
+        query_text=product, product_filter=product, result_count=1,
+        response_length=len(response_text), duration_ms=duration_ms,
+        cogs_usd=Decimal("0"), charge_usd=Decimal("0"),
+    )
+
+    return response_text
