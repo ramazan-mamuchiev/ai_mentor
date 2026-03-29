@@ -901,6 +901,12 @@
   border-color: var(--log-debug);
 }
 
+.logs-level-chip--ok.logs-level-chip--active {
+  background: #16a34a20;
+  color: var(--log-ok);
+  border-color: var(--log-ok);
+}
+
 .logs-count {
   margin-left: auto;
   font-size: 11px;

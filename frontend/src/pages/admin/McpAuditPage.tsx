@@ -349,7 +349,7 @@ export function McpAuditPage() {
                 All
               </button>
               <button
-                className={`logs-level-chip logs-level-chip--info${statusFilter === 'ok' ? ' logs-level-chip--active' : ''}`}
+                className={`logs-level-chip logs-level-chip--ok${statusFilter === 'ok' ? ' logs-level-chip--active' : ''}`}
                 onClick={() => { setStatusFilter('ok'); setPage(1) }}
               >
                 OK <span className="logs-level-chip__count">{statusCounts.ok}</span>
