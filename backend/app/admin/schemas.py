@@ -297,6 +297,7 @@ class McpRequestItem(BaseModel):
     query_tokens: int
     response_tokens: int
     embedding_tokens: int
+    rerank_total_tokens: int = 0
     charge_usd: str
     status: str
 
@@ -335,6 +336,7 @@ class McpStats(BaseModel):
     total_query_tokens: int
     total_response_tokens: int
     total_embedding_tokens: int
+    total_rerank_tokens: int = 0
     total_charge_usd: str
     avg_duration_ms: float | None
     error_count: int

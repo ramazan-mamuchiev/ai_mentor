@@ -1683,6 +1683,7 @@ async def list_mcp_requests(
             "query_tokens": r["query_tokens"],
             "response_tokens": r["response_tokens"],
             "embedding_tokens": r["embedding_tokens"],
+            "rerank_total_tokens": r["rerank_total_tokens"],
             "charge_usd": str(r["charge_usd"]),
             "status": r["status"],
         }
@@ -1748,6 +1749,7 @@ async def get_mcp_stats(session: AsyncSession, days: int = 30) -> dict:
             COALESCE(SUM(query_tokens), 0) AS q_tokens,
             COALESCE(SUM(response_tokens), 0) AS r_tokens,
             COALESCE(SUM(embedding_tokens), 0) AS e_tokens,
+            COALESCE(SUM(rerank_total_tokens), 0) AS rr_tokens,
             COALESCE(SUM(charge_usd), 0) AS charge,
             AVG(duration_ms) AS avg_dur,
             COUNT(*) FILTER (WHERE status = 'error') AS errors
@@ -1760,7 +1762,7 @@ async def get_mcp_stats(session: AsyncSession, days: int = 30) -> dict:
     daily = (await session.execute(text("""
         SELECT DATE(created_at) AS d,
             COUNT(*) AS cnt,
-            COALESCE(SUM(query_tokens + response_tokens + embedding_tokens), 0) AS tokens,
+            COALESCE(SUM(query_tokens + response_tokens + embedding_tokens + rerank_total_tokens), 0) AS tokens,
             COALESCE(SUM(charge_usd), 0) AS charge,
             COUNT(*) FILTER (WHERE status = 'error') AS errors
         FROM mcp_request_log
@@ -1797,6 +1799,7 @@ async def get_mcp_stats(session: AsyncSession, days: int = 30) -> dict:
         "total_query_tokens": int(totals["q_tokens"]),
         "total_response_tokens": int(totals["r_tokens"]),
         "total_embedding_tokens": int(totals["e_tokens"]),
+        "total_rerank_tokens": int(totals["rr_tokens"]),
         "total_charge_usd": f"{float(totals['charge']):.8f}",
         "avg_duration_ms": round(float(totals["avg_dur"]), 1) if totals["avg_dur"] else None,
         "error_count": int(totals["errors"]),

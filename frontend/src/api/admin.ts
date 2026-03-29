@@ -491,6 +491,7 @@ export interface McpRequestItem {
   query_tokens: number
   response_tokens: number
   embedding_tokens: number
+  rerank_total_tokens: number
   charge_usd: string
   status: string
 }
@@ -533,6 +534,7 @@ export interface McpStats {
   total_query_tokens: number
   total_response_tokens: number
   total_embedding_tokens: number
+  total_rerank_tokens: number
   total_charge_usd: string
   avg_duration_ms: number | null
   error_count: number

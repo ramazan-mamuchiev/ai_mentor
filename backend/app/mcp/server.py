@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from sqlalchemy import text
 
+from app.billing.pricing import calculate_mcp_charge, calculate_mcp_cogs
 from app.billing.usage_writer import write_usage_log
 from app.config import settings
 from app.database import async_session
@@ -77,6 +78,18 @@ def _format_mcp_meta(index: int, r: dict) -> str:
 
 def _embedding_model_name() -> str:
     return settings.embedding_model_gemini
+
+
+def _calc_mcp_costs(metadata: dict) -> tuple[Decimal, Decimal]:
+    """Calculate real COGS and charge for an MCP request from search metadata."""
+    emb_model = settings.embedding_model_gemini
+    emb_tokens = metadata.get("embedding_api_tokens", 0)
+    rerank_model = metadata.get("rerank_model", "") or ""
+    rerank_pt = metadata.get("rerank_prompt_tokens", 0)
+    rerank_ct = metadata.get("rerank_completion_tokens", 0)
+    cogs = calculate_mcp_cogs(emb_model, emb_tokens, rerank_model, rerank_pt, rerank_ct)
+    charge = calculate_mcp_charge(emb_model, emb_tokens, rerank_model, rerank_pt, rerank_ct)
+    return cogs, charge
 
 
 async def _save_search_analytics(
@@ -286,6 +299,7 @@ async def tool_search_documentation(
         api_key_id=current_api_key_id.get(),
     )
 
+    cogs, charge = _calc_mcp_costs(metadata)
     await _save_mcp_request_log(
         request_id=request_id,
         tool_name="search_documentation",
@@ -300,6 +314,8 @@ async def tool_search_documentation(
         response_tokens=response_tokens,
         metadata=metadata,
         duration_ms=duration_ms,
+        cogs_usd=cogs,
+        charge_usd=charge,
     )
 
     return response_text
@@ -412,6 +428,7 @@ async def tool_get_api_endpoint(
         api_key_id=current_api_key_id.get(),
     )
 
+    cogs, charge = _calc_mcp_costs(metadata)
     await _save_mcp_request_log(
         request_id=request_id,
         tool_name="get_api_endpoint",
@@ -424,6 +441,8 @@ async def tool_get_api_endpoint(
         response_tokens=response_tokens,
         metadata=metadata,
         duration_ms=duration_ms,
+        cogs_usd=cogs,
+        charge_usd=charge,
     )
 
     return response_text
