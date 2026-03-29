@@ -21,8 +21,6 @@ const TIME_RANGES = [
 
 const TOOLS = ['', 'search_documentation', 'get_api_endpoint', 'list_products'] as const
 
-const GAP_THRESHOLD_MS = 5 * 60 * 1000
-
 function timeRangeToISO(range: string): { start?: string; end?: string } {
   if (!range) return {}
   const now = Date.now()
@@ -41,12 +39,6 @@ function fmtTime(iso: string) {
 
 function fmtMs(v: number | null | undefined) { return v != null ? `${Math.round(v)}ms` : '—' }
 function fmtUsd(v: string) { return `$${parseFloat(v).toFixed(6)}` }
-
-function fmtGap(ms: number): string {
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} min`
-  return `${(ms / 3_600_000).toFixed(1)}h`
-}
 
 type PanelState = {
   mode: 'mcp-debug'
@@ -171,21 +163,6 @@ export function McpAuditPage() {
 
   const totalPages = Math.ceil(total / pageSize)
 
-  const tableRows: (McpRequestItem | { type: 'gap'; gap_ms: number })[] = []
-  for (let i = 0; i < items.length; i++) {
-    tableRows.push(items[i])
-    if (i < items.length - 1) {
-      const curr = items[i]
-      const next = items[i + 1]
-      if (curr.key_prefix === next.key_prefix) {
-        const gap = new Date(curr.created_at).getTime() - new Date(next.created_at).getTime()
-        if (gap > GAP_THRESHOLD_MS) {
-          tableRows.push({ type: 'gap', gap_ms: gap })
-        }
-      }
-    }
-  }
-
   const panelDetail = panel?.detail ?? null
   const panelContent = panel?.mode === 'mcp-debug'
     ? { mode: 'mcp-debug' as const, detail: panel.detail }
@@ -197,8 +174,6 @@ export function McpAuditPage() {
     ? `${panelDetail.tool_name} · ${panelDetail.request_id.slice(0, 8)}`
     : undefined
 
-  const COL_COUNT = 10
-
   return (
     <div className={`docs-page${panel ? ' docs-page--with-panel' : ''}`}>
       <div className="docs-page-main">
@@ -207,86 +182,87 @@ export function McpAuditPage() {
           <p>{t('admin.mcp.requestsCount', { count: total })}</p>
         </div>
 
-        {/* Row 1: Search bar + count */}
-        <div className="chat-audit-toolbar">
-          <div className="chat-audit-search-wrap">
-            <Search size={14} className="chat-audit-search-wrap__icon" />
-            <input
-              className="chat-audit-search"
-              placeholder={t('admin.mcp.filterByQuery')}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
-              <button className="chat-audit-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          <span className="logs-count">{total} requests</span>
-        </div>
+        <div className="logs-toolbar">
+          {/* Row 1: Time + User + Search */}
+          <div className="logs-toolbar__row">
+            <div className="logs-chips" role="group" aria-label="Time range">
+              <Clock size={13} className="logs-chips__icon" />
+              {TIME_RANGES.map(r => (
+                <button
+                  key={r.value}
+                  className={`logs-chip${timeRange === r.value ? ' logs-chip--active' : ''}`}
+                  onClick={() => { setTimeRange(r.value); setPage(1) }}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Row 2: Time range + User filter */}
-        <div className="chat-audit-toolbar chat-audit-toolbar--filters">
-          <div className="logs-chips" role="group" aria-label="Time range">
-            <Clock size={13} className="logs-chips__icon" />
-            {TIME_RANGES.map(r => (
-              <button
-                key={r.value}
-                className={`logs-chip${timeRange === r.value ? ' logs-chip--active' : ''}`}
-                onClick={() => { setTimeRange(r.value); setPage(1) }}
-              >
-                {r.label}
-              </button>
-            ))}
+            <div className="logs-tenant-combo" ref={tenantWrapRef}>
+              {tenantFilter ? (
+                <div className="logs-tenant-chip">
+                  <User size={12} />
+                  <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
+                  <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
+                </div>
+              ) : (
+                <>
+                  <User size={13} className="logs-tenant-combo__icon" />
+                  <input
+                    className="logs-tenant-input"
+                    placeholder="User..."
+                    value={tenantQuery}
+                    onChange={e => setTenantQuery(e.target.value)}
+                    onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
+                  />
+                  {tenantQuery && (
+                    <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
+                  )}
+                </>
+              )}
+              {tenantDropdownOpen && tenantOptions.length > 0 && (
+                <div className="logs-tenant-dropdown">
+                  {tenantOptions.map(opt => (
+                    <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
+                      <span className="logs-tenant-dropdown__name">{opt.name}</span>
+                      <span className="logs-tenant-dropdown__email">{opt.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="logs-search-wrap">
+              <Search size={14} className="logs-search-wrap__icon" />
+              <input
+                className="logs-search"
+                placeholder={t('admin.mcp.filterByQuery')}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && (
+                <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="logs-tenant-combo" ref={tenantWrapRef}>
-            {tenantFilter ? (
-              <div className="logs-tenant-chip">
-                <User size={12} />
-                <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
-                <button className="logs-tenant-chip__clear" onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}><X size={12} /></button>
-              </div>
-            ) : (
-              <>
-                <User size={13} className="logs-tenant-combo__icon" />
-                <input
-                  className="logs-tenant-input"
-                  placeholder="User..."
-                  value={tenantQuery}
-                  onChange={e => setTenantQuery(e.target.value)}
-                  onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
-                />
-                {tenantQuery && (
-                  <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}><X size={12} /></button>
-                )}
-              </>
-            )}
-            {tenantDropdownOpen && tenantOptions.length > 0 && (
-              <div className="logs-tenant-dropdown">
-                {tenantOptions.map(opt => (
-                  <button key={opt.id} className="logs-tenant-dropdown__item" onClick={() => { setTenantFilter(opt); setTenantQuery(''); setTenantDropdownOpen(false); setPage(1) }}>
-                    <span className="logs-tenant-dropdown__name">{opt.name}</span>
-                    <span className="logs-tenant-dropdown__email">{opt.email}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+          {/* Row 2: Tool chips + count */}
+          <div className="logs-toolbar__row">
+            <div className="logs-level-chips" role="group" aria-label="Tools">
+              {TOOLS.map(tool => (
+                <button
+                  key={tool}
+                  className={`logs-level-chip logs-level-chip--all${toolFilter === tool ? ' logs-level-chip--active' : ''}`}
+                  onClick={() => { setToolFilter(tool); setPage(1) }}
+                >
+                  {tool || t('admin.mcp.allTools')}
+                </button>
+              ))}
+            </div>
+            <span className="logs-count">{total} requests</span>
           </div>
-        </div>
-
-        {/* Row 3: Tool chips */}
-        <div className="mcp-audit-tools-row">
-          {TOOLS.map(tool => (
-            <button
-              key={tool}
-              className={`chat-audit-mode-chip${toolFilter === tool ? ' chat-audit-mode-chip--active' : ''}`}
-              onClick={() => { setToolFilter(tool); setPage(1) }}
-            >
-              {tool || t('admin.mcp.allTools')}
-            </button>
-          ))}
         </div>
 
         {error && <div className="chat-audit-error"><AlertTriangle size={14} /> {error}</div>}
@@ -314,21 +290,7 @@ export function McpAuditPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tableRows.map((row, idx) => {
-                    if ('type' in row && row.type === 'gap') {
-                      return (
-                        <tr key={`gap-${idx}`} className="mcp-time-gap-row">
-                          <td colSpan={COL_COUNT}>
-                            <div className="mcp-time-gap">
-                              <span className="mcp-time-gap__line" />
-                              <span className="mcp-time-gap__label">{fmtGap(row.gap_ms)}</span>
-                              <span className="mcp-time-gap__line" />
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    }
-                    const r = row as McpRequestItem
+                  {items.map(r => {
                     const isSelected = panelDetail?.request_id === r.request_id
                     return (
                       <tr

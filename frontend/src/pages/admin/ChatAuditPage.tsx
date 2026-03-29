@@ -304,113 +304,114 @@ function SessionListView() {
         <p>{t('admin.chats.sessionsCount', { count: total })}{activeTenantId ? t('admin.chats.filteredByTenant') : ''}</p>
       </div>
 
-      {/* Toolbar row 1: search + mode */}
-      <div className="chat-audit-toolbar">
-        <div className="chat-audit-search-wrap">
-          <Search size={14} className="chat-audit-search-wrap__icon" />
-          <input
-            className="chat-audit-search"
-            placeholder={searchMode === 'messages'
-              ? t('admin.chats.searchMsgPlaceholder')
-              : t('admin.chats.filterByTitle')}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          {search && (
-            <button className="chat-audit-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
-              <X size={14} />
-            </button>
-          )}
-        </div>
-        <div className="chat-audit-mode-chips">
-          <button
-            className={`chat-audit-mode-chip${searchMode === 'sessions' ? ' chat-audit-mode-chip--active' : ''}`}
-            onClick={() => { setSearchMode('sessions'); setMsgResults([]) }}
-          >
-            {t('admin.chats.sessionTitle')}
-          </button>
-          <button
-            className={`chat-audit-mode-chip${searchMode === 'messages' ? ' chat-audit-mode-chip--active' : ''}`}
-            onClick={() => setSearchMode('messages')}
-          >
-            {t('admin.chats.content')}
-          </button>
-        </div>
-      </div>
-
-      {/* Toolbar row 2: time range + tenant filter */}
-      <div className="chat-audit-toolbar chat-audit-toolbar--filters">
-        <div className="logs-chips" role="group" aria-label="Time range">
-          <Clock size={13} className="logs-chips__icon" />
-          {TIME_RANGES.map(r => (
-            <button
-              key={r.value}
-              className={`logs-chip${timeRange === r.value ? ' logs-chip--active' : ''}`}
-              onClick={() => { setTimeRange(r.value); setPage(1) }}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tenant autocomplete combo — same as Logs */}
-        <div className="logs-tenant-combo" ref={tenantWrapRef}>
-          {tenantFilter ? (
-            <div className="logs-tenant-chip">
-              <User size={12} />
-              <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
+      <div className="logs-toolbar">
+        {/* Row 1: Time + User + Search */}
+        <div className="logs-toolbar__row">
+          <div className="logs-chips" role="group" aria-label="Time range">
+            <Clock size={13} className="logs-chips__icon" />
+            {TIME_RANGES.map(r => (
               <button
-                className="logs-tenant-chip__clear"
-                onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}
-                aria-label="Clear"
+                key={r.value}
+                className={`logs-chip${timeRange === r.value ? ' logs-chip--active' : ''}`}
+                onClick={() => { setTimeRange(r.value); setPage(1) }}
               >
-                <X size={12} />
+                {r.label}
               </button>
-            </div>
-          ) : (
-            <>
-              <User size={13} className="logs-tenant-combo__icon" />
-              <input
-                className="logs-tenant-input"
-                placeholder={t('admin.logs.tenantPlaceholder', { defaultValue: 'User...' })}
-                value={tenantQuery}
-                onChange={e => setTenantQuery(e.target.value)}
-                onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
-              />
-              {tenantQuery && (
-                <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}>
+            ))}
+          </div>
+
+          <div className="logs-tenant-combo" ref={tenantWrapRef}>
+            {tenantFilter ? (
+              <div className="logs-tenant-chip">
+                <User size={12} />
+                <span className="logs-tenant-chip__name">{tenantFilter.name}</span>
+                <button
+                  className="logs-tenant-chip__clear"
+                  onClick={() => { setTenantFilter(null); setTenantQuery(''); setPage(1) }}
+                  aria-label="Clear"
+                >
                   <X size={12} />
                 </button>
-              )}
-            </>
-          )}
-          {tenantDropdownOpen && tenantOptions.length > 0 && (
-            <div className="logs-tenant-dropdown">
-              {tenantOptions.map(opt => (
-                <button
-                  key={opt.id}
-                  className="logs-tenant-dropdown__item"
-                  onClick={() => {
-                    setTenantFilter(opt)
-                    setTenantQuery('')
-                    setTenantDropdownOpen(false)
-                    setPage(1)
-                  }}
-                >
-                  <span className="logs-tenant-dropdown__name">{opt.name}</span>
-                  <span className="logs-tenant-dropdown__email">{opt.email}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {tenantDropdownOpen && tenantQuery && tenantOptions.length === 0 && (
-            <div className="logs-tenant-dropdown">
-              <div className="logs-tenant-dropdown__empty">{t('admin.logs.noTenantsFound', { defaultValue: 'No users found' })}</div>
-            </div>
-          )}
+              </div>
+            ) : (
+              <>
+                <User size={13} className="logs-tenant-combo__icon" />
+                <input
+                  className="logs-tenant-input"
+                  placeholder={t('admin.logs.tenantPlaceholder', { defaultValue: 'User...' })}
+                  value={tenantQuery}
+                  onChange={e => setTenantQuery(e.target.value)}
+                  onFocus={() => { if (tenantOptions.length) setTenantDropdownOpen(true) }}
+                />
+                {tenantQuery && (
+                  <button className="logs-tenant-combo__clear" onClick={() => { setTenantQuery(''); setTenantOptions([]); setTenantDropdownOpen(false) }}>
+                    <X size={12} />
+                  </button>
+                )}
+              </>
+            )}
+            {tenantDropdownOpen && tenantOptions.length > 0 && (
+              <div className="logs-tenant-dropdown">
+                {tenantOptions.map(opt => (
+                  <button
+                    key={opt.id}
+                    className="logs-tenant-dropdown__item"
+                    onClick={() => {
+                      setTenantFilter(opt)
+                      setTenantQuery('')
+                      setTenantDropdownOpen(false)
+                      setPage(1)
+                    }}
+                  >
+                    <span className="logs-tenant-dropdown__name">{opt.name}</span>
+                    <span className="logs-tenant-dropdown__email">{opt.email}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {tenantDropdownOpen && tenantQuery && tenantOptions.length === 0 && (
+              <div className="logs-tenant-dropdown">
+                <div className="logs-tenant-dropdown__empty">{t('admin.logs.noTenantsFound', { defaultValue: 'No users found' })}</div>
+              </div>
+            )}
+          </div>
+
+          <div className="logs-search-wrap">
+            <Search size={14} className="logs-search-wrap__icon" />
+            <input
+              className="logs-search"
+              placeholder={searchMode === 'messages'
+                ? t('admin.chats.searchMsgPlaceholder')
+                : t('admin.chats.filterByTitle')}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button className="logs-search-wrap__clear" onClick={() => setSearch('')} aria-label="Clear">
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
 
-        <span className="logs-count">{total} {t('admin.chats.sessionsLabel', { defaultValue: 'sessions' })}</span>
+        {/* Row 2: Search mode chips + count */}
+        <div className="logs-toolbar__row">
+          <div className="logs-level-chips" role="group" aria-label="Search mode">
+            <button
+              className={`logs-level-chip logs-level-chip--all${searchMode === 'sessions' ? ' logs-level-chip--active' : ''}`}
+              onClick={() => { setSearchMode('sessions'); setMsgResults([]) }}
+            >
+              {t('admin.chats.sessionTitle')}
+            </button>
+            <button
+              className={`logs-level-chip logs-level-chip--all${searchMode === 'messages' ? ' logs-level-chip--active' : ''}`}
+              onClick={() => setSearchMode('messages')}
+            >
+              {t('admin.chats.content')}
+            </button>
+          </div>
+          <span className="logs-count">{total} {t('admin.chats.sessionsLabel', { defaultValue: 'sessions' })}</span>
+        </div>
       </div>
 
       {/* Error */}
