@@ -54,6 +54,7 @@ export function LandingPage() {
 
   const [headerHidden, setHeaderHidden] = useState(false)
   const scrollRef = useRef({ lastY: 0, anchor: 0, direction: 'up' as 'up' | 'down' })
+  const landingRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const HIDE_AFTER = 60
@@ -91,6 +92,23 @@ export function LandingPage() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  useEffect(() => {
+    const root = landingRef.current
+    if (!root) return
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible')
+          }
+        })
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    )
+    root.querySelectorAll('.landing-reveal, .landing-reveal-card').forEach(el => observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
+
   const toggleLang = () => {
     const next = i18n.language === 'ru' ? 'en' : 'ru'
     i18n.changeLanguage(next)
@@ -115,7 +133,7 @@ export function LandingPage() {
   }, [scrollTo])
 
   return (
-    <div className="landing">
+    <div className="landing" ref={landingRef}>
       {/* Header */}
       <header className={`landing-header${headerHidden ? ' landing-header-hidden' : ''}`}>
         <a
@@ -261,7 +279,7 @@ channels = r.json()["VideoInputChannelList"]`}</code></pre>
       </section>
 
       {/* Elevator Pitch */}
-      <section className="landing-elevator-section">
+      <section className="landing-elevator-section landing-reveal">
         <div className="landing-elevator">
           <span className="landing-elevator-label">
             <Rocket size={14} />
@@ -273,13 +291,17 @@ channels = r.json()["VideoInputChannelList"]`}</code></pre>
 
       {/* Problems Today */}
       <section className="landing-section" id="problems">
-        <h2 className="landing-section-title">{t('landing.problems.title')}</h2>
+        <h2 className="landing-section-title landing-reveal">{t('landing.problems.title')}</h2>
         <div className="landing-cards">
           {PROBLEM_KEYS.map((key, i) => {
             const Icon = PROBLEM_ICONS[i]
             return (
-              <div className="landing-card" key={key}>
-                <div className="landing-card-icon">
+              <div
+                className="landing-card landing-card--warning landing-reveal-card"
+                key={key}
+                style={{ transitionDelay: `${i * 100}ms` }}
+              >
+                <div className="landing-card-icon landing-card-icon--warning">
                   <Icon size={22} />
                 </div>
                 <h3>{t(`landing.problems.${key}.title`)}</h3>
@@ -292,13 +314,17 @@ channels = r.json()["VideoInputChannelList"]`}</code></pre>
 
       {/* Goals */}
       <section className="landing-section" id="goals">
-        <h2 className="landing-section-title">{t('landing.goals.title')}</h2>
+        <h2 className="landing-section-title landing-reveal">{t('landing.goals.title')}</h2>
         <div className="landing-cards landing-cards-3">
           {GOAL_KEYS.map((key, i) => {
             const Icon = GOAL_ICONS[i]
             return (
-              <div className="landing-card" key={key}>
-                <div className="landing-card-icon">
+              <div
+                className="landing-card landing-card--success landing-reveal-card"
+                key={key}
+                style={{ transitionDelay: `${i * 100}ms` }}
+              >
+                <div className="landing-card-icon landing-card-icon--success">
                   <Icon size={22} />
                 </div>
                 <h3>{t(`landing.goals.${key}.title`)}</h3>
@@ -310,7 +336,7 @@ channels = r.json()["VideoInputChannelList"]`}</code></pre>
       </section>
 
       {/* How It Works */}
-      <section className="landing-section" id="how-it-works">
+      <section className="landing-section landing-reveal" id="how-it-works">
         <h2 className="landing-section-title">{t('landing.howItWorks.title')}</h2>
         <p className="landing-section-text">{t('landing.howItWorks.subtitle')}</p>
 
@@ -345,7 +371,7 @@ channels = r.json()["VideoInputChannelList"]`}</code></pre>
       </section>
 
       {/* Metrics */}
-      <section className="landing-metrics">
+      <section className="landing-metrics landing-reveal">
         <div className="landing-metrics-grid">
           <div className="landing-metric">
             <Wrench size={20} className="landing-metric-icon" />
@@ -371,7 +397,7 @@ channels = r.json()["VideoInputChannelList"]`}</code></pre>
       </section>
 
       {/* Closing CTA */}
-      <section className="landing-closing-cta">
+      <section className="landing-closing-cta landing-reveal">
         <h2>{t('landing.closingCta.title')}</h2>
         <p>{t('landing.closingCta.text')}</p>
         <Link to="/app" className="landing-btn-primary landing-closing-cta-btn">
