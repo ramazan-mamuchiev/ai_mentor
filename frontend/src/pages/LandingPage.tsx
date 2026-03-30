@@ -25,6 +25,10 @@ import {
   MessageSquare,
   FileCode,
   CheckCircle2,
+  Wrench,
+  FileText,
+  Timer,
+  Globe,
 } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
 import { useRotatingSlogan } from '../hooks/useRotatingSlogan'
@@ -340,12 +344,78 @@ channels = r.json()["VideoInputChannelList"]`}</code></pre>
         </div>
       </section>
 
+      {/* Metrics */}
+      <section className="landing-metrics">
+        <div className="landing-metrics-grid">
+          <div className="landing-metric">
+            <Wrench size={20} className="landing-metric-icon" />
+            <span className="landing-metric-value">9</span>
+            <span className="landing-metric-label">{t('landing.metrics.mcpTools')}</span>
+          </div>
+          <div className="landing-metric">
+            <FileText size={20} className="landing-metric-icon" />
+            <span className="landing-metric-value">12+</span>
+            <span className="landing-metric-label">{t('landing.metrics.formats')}</span>
+          </div>
+          <div className="landing-metric">
+            <Timer size={20} className="landing-metric-icon" />
+            <span className="landing-metric-value">&lt;3s</span>
+            <span className="landing-metric-label">{t('landing.metrics.responseTime')}</span>
+          </div>
+          <div className="landing-metric">
+            <Globe size={20} className="landing-metric-icon" />
+            <span className="landing-metric-value">30+</span>
+            <span className="landing-metric-label">{t('landing.metrics.languages')}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Closing CTA */}
+      <section className="landing-closing-cta">
+        <h2>{t('landing.closingCta.title')}</h2>
+        <p>{t('landing.closingCta.text')}</p>
+        <Link to="/app" className="landing-btn-primary landing-closing-cta-btn">
+          {t('landing.hero.cta')}
+          <ArrowRight size={16} />
+        </Link>
+      </section>
+
       {/* Footer */}
       <footer className="landing-footer">
-        {t('landing.footer.copyright')} · {t('landing.footer.by')}{' '}
-        <a href={AUTHOR_LINKEDIN} target="_blank" rel="noopener noreferrer">
-          {t('landing.footer.author')}
-        </a>
+        <div className="landing-footer-grid">
+          <div className="landing-footer-brand">
+            <div className="landing-footer-logo">
+              <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
+              <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+              <span>Lexiro</span>
+            </div>
+            <p className="landing-footer-tagline">{t('landing.footer.tagline')}</p>
+          </div>
+          <div className="landing-footer-col">
+            <h4>{t('landing.footer.product')}</h4>
+            <Link to="/app">{t('landing.footer.webChat')}</Link>
+            <Link to="/kb">{t('landing.nav.kb')}</Link>
+          </div>
+          <div className="landing-footer-col">
+            <h4>{t('landing.footer.resources')}</h4>
+            <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
+              {t('landing.nav.howItWorks')}
+            </a>
+            <Link to="/kb">{t('landing.footer.docs')}</Link>
+          </div>
+          <div className="landing-footer-col">
+            <h4>{t('landing.footer.company')}</h4>
+            <a href={AUTHOR_LINKEDIN} target="_blank" rel="noopener noreferrer">
+              LinkedIn
+            </a>
+          </div>
+        </div>
+        <div className="landing-footer-bottom">
+          {t('landing.footer.copyright')} · {t('landing.footer.by')}{' '}
+          <a href={AUTHOR_LINKEDIN} target="_blank" rel="noopener noreferrer">
+            {t('landing.footer.author')}
+          </a>
+        </div>
       </footer>
     </div>
   )
