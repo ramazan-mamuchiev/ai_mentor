@@ -97,6 +97,10 @@ function LogRow({ entry, search, defaultExpanded, showService }: {
       </div>
       {expanded && (
         <div className="log-row__details">
+          <div className="log-row__field">
+            <span className="log-row__key">timestamp</span>
+            <span className="log-row__value">{formatTimestamp(entry.timestamp)}</span>
+          </div>
           {extraKeys.map(([k, v]) => (
             <div className="log-row__field" key={k}>
               <span className="log-row__key">{k}</span>

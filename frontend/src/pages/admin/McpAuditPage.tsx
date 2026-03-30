@@ -65,6 +65,7 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
     ['resolve_ms', fmtMs(item.resolve_ms)],
     ['cogs', fmtUsd(item.cogs_usd)],
     ['charge', fmtUsd(item.charge_usd)],
+    ['created', fmtTs(item.created_at)],
   ]
 
   return (
