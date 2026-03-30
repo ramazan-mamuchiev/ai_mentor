@@ -62,6 +62,7 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
     ['resolve_tokens', ((item.resolve_prompt_tokens || 0) + (item.resolve_completion_tokens || 0)).toLocaleString()],
     ['resolve_model', item.resolve_model || '—'],
     ['resolve_ms', fmtMs(item.resolve_ms)],
+    ['cogs', fmtUsd(item.cogs_usd)],
     ['charge', fmtUsd(item.charge_usd)],
   ]
 
@@ -77,7 +78,8 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
         </span>
         <span className="log-row__summary">{highlightSearch(summary, search)}</span>
         <span className="log-row__meta-pill">{tokens.toLocaleString()} tok</span>
-        <span className="log-row__meta-pill">{fmtUsd(item.charge_usd)}</span>
+        <span className="log-row__meta-pill" title="COGS">{fmtUsd(item.cogs_usd)}</span>
+        <span className="log-row__meta-pill" title="Charge">{fmtUsd(item.charge_usd)}</span>
         <span className="log-row__meta-pill">{fmtMs(item.duration_ms)}</span>
         {item.status === 'error' && <span className="badge badge--red">{t('admin.mcp.error')}</span>}
         <button className="log-row__copy" onClick={handleCopy} title={t('admin.mcp.copyJson')}>
@@ -198,7 +200,7 @@ export function McpAuditPage() {
       if (format === 'json') {
         downloadBlob(exportItemsJSON(items), `${base}.json`, 'application/json')
       } else {
-        const cols = ['created_at', 'tool_name', 'query_text', 'result_count', 'top_similarity', 'duration_ms', 'charge_usd', 'status', 'tenant_email', 'request_id']
+        const cols = ['created_at', 'tool_name', 'query_text', 'result_count', 'top_similarity', 'duration_ms', 'cogs_usd', 'charge_usd', 'status', 'tenant_email', 'request_id']
         downloadBlob(exportItemsCSV(items as unknown as Record<string, unknown>[], cols), `${base}.csv`, 'text/csv')
       }
     } finally {
@@ -260,13 +262,14 @@ export function McpAuditPage() {
   }, [items])
 
   const summary = useMemo(() => {
-    let tokens = 0, charge = 0, durationMs = 0
+    let tokens = 0, cogs = 0, charge = 0, durationMs = 0
     for (const i of items) {
       tokens += totalTokens(i)
+      cogs += parseFloat(i.cogs_usd) || 0
       charge += parseFloat(i.charge_usd) || 0
       durationMs += i.duration_ms || 0
     }
-    return { tokens, charge, durationMs }
+    return { tokens, cogs, charge, durationMs }
   }, [items])
 
   return (
@@ -379,6 +382,10 @@ export function McpAuditPage() {
                   <span className="logs-summary__metric">
                     <span className="logs-summary__label">{t('admin.mcp.summaryTokens')}</span>
                     <span className="logs-summary__value">{summary.tokens.toLocaleString()}</span>
+                  </span>
+                  <span className="logs-summary__metric">
+                    <span className="logs-summary__label">{t('admin.mcp.summaryCogs')}</span>
+                    <span className="logs-summary__value">{fmtUsd(summary.cogs)}</span>
                   </span>
                   <span className="logs-summary__metric">
                     <span className="logs-summary__label">{t('admin.mcp.summaryCharge')}</span>

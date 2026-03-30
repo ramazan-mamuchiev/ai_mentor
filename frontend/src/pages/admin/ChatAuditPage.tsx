@@ -59,6 +59,7 @@ function ChatSessionRow({ item, search, onClick }: {
     ['messages', String(item.messages_count)],
     ['total_tokens', item.total_tokens.toLocaleString()],
     ['duration', fmtDuration(item.total_duration_ms)],
+    ['cogs', fmtUsd(item.total_cogs_usd)],
     ['charge', fmtUsd(item.total_charge_usd)],
     ['created', fmtTsShort(item.created_at)],
     ['updated', fmtTsShort(item.updated_at)],
@@ -79,7 +80,8 @@ function ChatSessionRow({ item, search, onClick }: {
         {item.total_tokens > 0 && (
           <span className="log-row__meta-pill">{item.total_tokens.toLocaleString()} tok</span>
         )}
-        <span className="log-row__meta-pill">{fmtUsd(item.total_charge_usd)}</span>
+        <span className="log-row__meta-pill" title="COGS">{fmtUsd(item.total_cogs_usd)}</span>
+        <span className="log-row__meta-pill" title="Charge">{fmtUsd(item.total_charge_usd)}</span>
         {item.total_duration_ms > 0 && (
           <span className="log-row__meta-pill">{fmtDuration(item.total_duration_ms)}</span>
         )}
@@ -354,7 +356,7 @@ function SessionListView() {
       if (format === 'json') {
         downloadBlob(exportItemsJSON(items), `${base}.json`, 'application/json')
       } else {
-        const cols = ['id', 'tenant_email', 'title', 'messages_count', 'total_tokens', 'total_duration_ms', 'total_charge_usd', 'created_at', 'updated_at']
+        const cols = ['id', 'tenant_email', 'title', 'messages_count', 'total_tokens', 'total_duration_ms', 'total_cogs_usd', 'total_charge_usd', 'created_at', 'updated_at']
         downloadBlob(exportItemsCSV(items as unknown as Record<string, unknown>[], cols), `${base}.csv`, 'text/csv')
       }
     } finally {
@@ -365,14 +367,15 @@ function SessionListView() {
   const totalPages = Math.ceil(total / pageSize)
 
   const chatSummary = useMemo(() => {
-    let messages = 0, tokens = 0, charge = 0, durationMs = 0
+    let messages = 0, tokens = 0, cogs = 0, charge = 0, durationMs = 0
     for (const i of items) {
       messages += i.messages_count
       tokens += i.total_tokens
+      cogs += parseFloat(i.total_cogs_usd) || 0
       charge += parseFloat(i.total_charge_usd) || 0
       durationMs += i.total_duration_ms
     }
-    return { messages, tokens, charge, durationMs }
+    return { messages, tokens, cogs, charge, durationMs }
   }, [items])
 
   return (
@@ -472,6 +475,10 @@ function SessionListView() {
                 <span className="logs-summary__metric">
                   <span className="logs-summary__label">{t('admin.chats.summaryTokens')}</span>
                   <span className="logs-summary__value">{chatSummary.tokens.toLocaleString()}</span>
+                </span>
+                <span className="logs-summary__metric">
+                  <span className="logs-summary__label">{t('admin.chats.summaryCogs')}</span>
+                  <span className="logs-summary__value">{fmtUsd(chatSummary.cogs)}</span>
                 </span>
                 <span className="logs-summary__metric">
                   <span className="logs-summary__label">{t('admin.chats.summaryCharge')}</span>

@@ -319,6 +319,7 @@ async def list_chat_sessions_admin(
     charge_subq = (
         select(
             UsageLog.chat_session_id,
+            func.coalesce(func.sum(UsageLog.cogs_usd), 0).label("total_cogs"),
             func.coalesce(func.sum(UsageLog.charge_usd), 0).label("total_charge"),
         )
         .where(UsageLog.chat_session_id.isnot(None))
@@ -333,13 +334,14 @@ async def list_chat_sessions_admin(
             func.count(func.distinct(ChatMessage.id)).label("messages_count"),
             func.coalesce(func.sum(ChatMessageAnalytics.llm_total_tokens), 0).label("total_tokens"),
             func.coalesce(func.sum(ChatMessageAnalytics.total_ms), 0).label("total_duration_ms"),
+            func.coalesce(charge_subq.c.total_cogs, 0).label("total_cogs_usd"),
             func.coalesce(charge_subq.c.total_charge, 0).label("total_charge_usd"),
         )
         .outerjoin(Tenant, ChatSession.tenant_id == Tenant.id)
         .outerjoin(ChatMessage, ChatMessage.session_id == ChatSession.id)
         .outerjoin(ChatMessageAnalytics, ChatMessageAnalytics.session_id == ChatSession.id)
         .outerjoin(charge_subq, charge_subq.c.chat_session_id == ChatSession.id)
-        .group_by(ChatSession.id, Tenant.email, charge_subq.c.total_charge)
+        .group_by(ChatSession.id, Tenant.email, charge_subq.c.total_cogs, charge_subq.c.total_charge)
     )
     count_q = select(func.count()).select_from(ChatSession)
 
@@ -376,6 +378,7 @@ async def list_chat_sessions_admin(
             "messages_count": row.messages_count,
             "total_tokens": int(row.total_tokens),
             "total_duration_ms": float(row.total_duration_ms),
+            "total_cogs_usd": str(row.total_cogs_usd),
             "total_charge_usd": str(row.total_charge_usd),
             "created_at": cs.created_at, "updated_at": cs.updated_at,
         })
@@ -1742,6 +1745,7 @@ async def list_mcp_requests(
             "resolve_completion_tokens": r["resolve_completion_tokens"],
             "resolve_model": r["resolve_model"],
             "resolve_ms": round(float(r["resolve_ms"]), 1) if r["resolve_ms"] is not None else None,
+            "cogs_usd": str(r["cogs_usd"]),
             "charge_usd": str(r["charge_usd"]),
             "status": r["status"],
         }

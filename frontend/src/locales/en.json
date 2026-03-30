@@ -953,6 +953,7 @@
   "admin.chats.failedToLoad": "Failed to load",
   "admin.chats.summaryMsg": "msg",
   "admin.chats.summaryTokens": "tokens",
+  "admin.chats.summaryCogs": "cogs",
   "admin.chats.summaryCharge": "charge",
   "admin.chats.summaryDuration": "duration",
 
@@ -1132,6 +1133,7 @@
   "admin.mcp.copyJson": "Copy JSON",
   "admin.mcp.failedToLoad": "Failed to load",
   "admin.mcp.summaryTokens": "tokens",
+  "admin.mcp.summaryCogs": "cogs",
   "admin.mcp.summaryCharge": "charge",
   "admin.mcp.summaryDuration": "duration",
 

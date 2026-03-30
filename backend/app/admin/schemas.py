@@ -91,6 +91,7 @@ class AdminChatSessionItem(BaseModel):
     messages_count: int = 0
     total_tokens: int = 0
     total_duration_ms: float = 0
+    total_cogs_usd: str = "0"
     total_charge_usd: str = "0"
     created_at: datetime
     updated_at: datetime
@@ -312,6 +313,7 @@ class McpRequestItem(BaseModel):
     resolve_completion_tokens: int = 0
     resolve_model: str | None = None
     resolve_ms: float | None = None
+    cogs_usd: str = "0"
     charge_usd: str
     status: str
 

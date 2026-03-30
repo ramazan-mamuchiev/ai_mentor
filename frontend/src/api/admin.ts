@@ -187,6 +187,7 @@ export interface AdminChatSessionItem {
   messages_count: number
   total_tokens: number
   total_duration_ms: number
+  total_cogs_usd: string
   total_charge_usd: string
   created_at: string
   updated_at: string
@@ -506,6 +507,7 @@ export interface McpRequestItem {
   resolve_completion_tokens: number
   resolve_model: string | null
   resolve_ms: number | null
+  cogs_usd: string
   charge_usd: string
   status: string
 }

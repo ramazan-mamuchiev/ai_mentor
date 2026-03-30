@@ -993,6 +993,7 @@
   "admin.chats.failedToLoad": "Не удалось загрузить",
   "admin.chats.summaryMsg": "сообщ",
   "admin.chats.summaryTokens": "токены",
+  "admin.chats.summaryCogs": "себест",
   "admin.chats.summaryCharge": "стоимость",
   "admin.chats.summaryDuration": "время",
 
@@ -1172,6 +1173,7 @@
   "admin.mcp.copyJson": "Скопировать JSON",
   "admin.mcp.failedToLoad": "Не удалось загрузить",
   "admin.mcp.summaryTokens": "токены",
+  "admin.mcp.summaryCogs": "себест",
   "admin.mcp.summaryCharge": "стоимость",
   "admin.mcp.summaryDuration": "время",
 
