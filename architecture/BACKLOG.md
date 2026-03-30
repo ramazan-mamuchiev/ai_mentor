@@ -52,3 +52,83 @@ When a user registers via email/password, `email_verified` is set to `false` but
 - Consider rate-limiting the resend endpoint (max 3 per hour)
 
 ---
+
+## 2. Landing Page: Interactive Demo / Video
+
+| | |
+|---|---|
+| **Priority** | Medium |
+| **Status** | Not started |
+| **Complexity** | High (~8-12 hours) |
+| **Dependencies** | Decision: screencast vs public sandbox |
+
+### Problem
+
+The landing page hero section has a static CSS mockup of the chat interface. Best-in-class SaaS landings (Cursor, Vercel, Mintlify) show live demos, interactive playgrounds, or embedded video walkthroughs. A static mockup shows what the product looks like, but doesn't convey the experience.
+
+### Options
+
+**Option A: Embedded screencast (quick win)**
+- Record a 30-60s GIF/WebM of a real chat session (question → streaming response → code block → sources)
+- Embed as `<video autoplay muted loop>` inside the hero mockup frame
+- Pros: fast to implement, realistic; Cons: not interactive, gets stale
+
+**Option B: Public sandbox / guest mode**
+- Allow unauthenticated users to try the chat with a limited set of pre-indexed docs (e.g. 1-2 products)
+- CTA button changes from "Get Started" → "Try it now" and leads to `/demo` with a guest session
+- Requires: guest tenant, rate limiting, read-only mode, session TTL
+- Pros: highest conversion impact; Cons: complex, security considerations
+
+**Option C: Typed animation in mockup**
+- Animate the mockup: typing effect for the question, streaming text for the answer, code block fading in
+- Pure CSS/JS, no backend changes
+- Pros: medium effort, engaging; Cons: still not real interaction
+
+### Recommendation
+
+Start with **Option C** (animated mockup) as a quick improvement, then invest in **Option B** (public sandbox) as a larger feature.
+
+---
+
+## 3. Landing Page: CTA Leads to Login, Not Demo
+
+| | |
+|---|---|
+| **Priority** | Medium |
+| **Status** | Not started |
+| **Complexity** | Medium (~4-6 hours) |
+| **Dependencies** | Item 2 (demo/sandbox decision) |
+
+### Problem
+
+The "Get Started" / "Начать" button leads to `/app`, which requires authentication. This is a high barrier for a first-time visitor who hasn't yet decided to commit. Best practice: offer a frictionless first experience — a live demo, a video, or at least a product tour — before asking for signup.
+
+### Implementation plan
+
+- If public sandbox (Item 2, Option B) is implemented, change primary CTA to link to `/demo`
+- If not, add a secondary CTA "Watch demo" linking to an embedded video or a scroll-to-mockup anchor
+- Keep "Get Started" as a secondary button for users ready to sign up
+
+---
+
+## 4. Landing Page: Technical/Business View Toggle for "How It Works"
+
+| | |
+|---|---|
+| **Priority** | Low |
+| **Status** | Not started |
+| **Complexity** | Medium (~3-4 hours) |
+| **Dependencies** | Localization keys for business descriptions |
+
+### Problem
+
+The "How It Works" section shows code blocks at every step — great for developers, but may alienate managers, CTOs, or business stakeholders. Competitive landing pages often offer dual perspectives.
+
+### Implementation plan
+
+1. Add a toggle switch at the top of the section: "Developer" / "Business" (default: Developer)
+2. In "Business" mode, replace code blocks with benefit-oriented bullet points (e.g. "Documents are automatically parsed and indexed — no manual tagging needed")
+3. Store preference in localStorage
+4. Add localization keys for business-mode descriptions
+
+---
