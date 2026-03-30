@@ -194,7 +194,7 @@ function DocActions({
   onDelete,
 }: {
   doc: DocumentListItem
-  onDebug: (d: DocumentListItem) => void
+  onDebug?: (d: DocumentListItem) => void
   onPreview: (d: DocumentListItem) => void
   onDownload: (d: DocumentListItem) => void
   onReingest?: (d: DocumentListItem) => void
@@ -263,7 +263,7 @@ function DocActions({
       </button>
       {open && createPortal(
         <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: pos.left }}>
-          {doc.status === 'ready' && (
+          {doc.status === 'ready' && onDebug && (
             <button className="docs-actions-dropdown-item" onClick={() => { onDebug(doc); setOpen(false) }}>
               <Bug size={15} />
               {t('docs.actions.debug')}
@@ -312,6 +312,7 @@ const DEFAULT_COLUMN_ORDER = ['title', 'format', 'status', 'size', 'chunks', 'pr
 
 export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, productId, headerSlot }: Props) {
   const { t } = useTranslation()
+  const canDebug = usePermission('debug')
   const canDelete = usePermission('documents.delete')
   const canReindex = usePermission('documents.reindex')
   const canSync = usePermission('documents.sync')
@@ -596,7 +597,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       cell: ({ row }) => (
         <DocActions
           doc={row.original}
-          onDebug={openDebug}
+          onDebug={canDebug ? openDebug : undefined}
           onPreview={setPreviewTarget}
           onDownload={handleDownload}
           onReingest={canReindex ? setReingestTarget : undefined}
@@ -605,7 +606,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         />
       ),
     },
-  ], [t, handleDownload, openDebug, canDelete, canReindex, canSync])
+  ], [t, handleDownload, openDebug, canDebug, canDelete, canReindex, canSync])
 
   const {
     table,
@@ -804,7 +805,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                 <span>{formatDateCompact(doc.uploaded_at)}</span>
               </div>
               <div className="docs-card-actions">
-                {doc.status === 'ready' && (
+                {doc.status === 'ready' && canDebug && (
                   <button
                     className="docs-action-btn"
                     onClick={() => openDebug(doc)}

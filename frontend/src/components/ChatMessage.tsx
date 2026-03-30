@@ -246,10 +246,10 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               </>
             )}
             <div className="message-footer-actions">
-              {debug && (
+              {debug && onShowDebug && (
                 <button
                   className="message-action-btn debug-toggle"
-                  onClick={() => onShowDebug?.(debug, debug.session_id, debug.message_id)}
+                  onClick={() => onShowDebug(debug, debug.session_id, debug.message_id)}
                 >
                   <Bug size={14} />
                 </button>

@@ -6,6 +6,7 @@ import type { ChatMessage as ChatMessageType } from '../types'
 import { getSuggestions } from '../api/products'
 import { useRotatingSlogan } from '../hooks/useRotatingSlogan'
 import { useRotatingLexiroChip } from '../hooks/useRotatingLexiroChip'
+import { usePermission } from '../auth/usePermission'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
@@ -56,6 +57,7 @@ export function ChatWindow({
   onUnlockProduct,
   sessionId,
 }: Props) {
+  const canDebug = usePermission('debug')
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
@@ -240,7 +242,7 @@ export function ChatWindow({
                   message={msg}
                   onRetry={msg.error_code && idx === messages.length - 1 ? onRetry : undefined}
                   onShowSources={handleShowSources}
-                  onShowDebug={handleShowDebug}
+                  onShowDebug={canDebug ? handleShowDebug : undefined}
                   onEditMessage={msg.role === 'user' ? handleEditMessage : undefined}
                   onShareMessage={handleShareMessage}
                 />
@@ -259,7 +261,7 @@ export function ChatWindow({
                   streamingSources={streamingSources}
                   streamingStage={streamingStage}
                   onShowSources={handleShowSources}
-                  onShowDebug={handleShowDebug}
+                  onShowDebug={canDebug ? handleShowDebug : undefined}
                 />
               )}
               <div ref={bottomRef} />

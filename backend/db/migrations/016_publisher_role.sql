@@ -25,7 +25,8 @@ VALUES (
         "analytics": true,
         "settings": true,
         "admin": false,
-        "mcp": true
+        "mcp": true,
+        "debug": true
       },
       "limits": {
         "max_documents": 500,
@@ -46,7 +47,7 @@ UPDATE roles
 SET permissions = permissions
     || jsonb_build_object('features',
         (permissions->'features')
-            || '{"documents.reindex": true, "documents.sync": true}'::jsonb
+            || '{"documents.reindex": true, "documents.sync": true, "debug": true}'::jsonb
        )
 WHERE slug = 'admin';
 
@@ -55,6 +56,6 @@ UPDATE roles
 SET permissions = permissions
     || jsonb_build_object('features',
         (permissions->'features')
-            || '{"documents.upload": false, "documents.delete": false, "documents.reindex": false, "documents.sync": false}'::jsonb
+            || '{"documents.upload": false, "documents.delete": false, "documents.reindex": false, "documents.sync": false, "debug": false}'::jsonb
        )
 WHERE slug = 'user';

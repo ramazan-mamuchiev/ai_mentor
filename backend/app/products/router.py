@@ -652,7 +652,7 @@ async def cancel_product_ingestion(product_id: int):
     }
 
 
-@router.get("/{product_id}/debug", response_model=ProductDebugInfo)
+@router.get("/{product_id}/debug", response_model=ProductDebugInfo, dependencies=[Depends(require_permission("debug"))])
 async def get_product_debug(product_id: int):
     """Get aggregated debug/analytics info for all documents of a product."""
     async with async_session() as session:

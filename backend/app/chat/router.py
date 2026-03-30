@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
 from app.auth.dependencies import get_current_tenant
+from app.auth.permissions import has_permission
 from app.billing.usage_writer import write_usage_log
 from app.chat.rag import build_rag_prompt, summarize_history
 from app.chat.schemas import (
@@ -404,6 +405,9 @@ async def send_message(
             raise HTTPException(status_code=404, detail="Session not found")
         session_id = chat_session.id
 
+    _perms_effective = getattr(request.state, "permissions", {})
+    _can_debug = has_permission(_perms_effective, "debug")
+
     async def event_stream() -> AsyncGenerator[str, None]:
         t0 = time.perf_counter()
         token_count = 0
@@ -566,7 +570,8 @@ async def send_message(
                         "query_tokens", "context_tokens", "history_tokens", "system_prompt_tokens",
                     )},
                 }
-                yield f"data: {json.dumps({'type': 'debug_partial', 'debug': debug_partial})}\n\n"
+                if _can_debug:
+                    yield f"data: {json.dumps({'type': 'debug_partial', 'debug': debug_partial})}\n\n"
 
                 effective_reasoning = rag_debug.get("reasoning_effort")
 
@@ -732,7 +737,10 @@ async def send_message(
                     **rag_debug,
                 }
 
-                yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'request_id': request_id, 'product_filter': chat_session.product_filter, 'product_filter_source': chat_session.product_filter_source, 'version_filter': chat_session.version_filter, 'auto_product': rag_debug.get('auto_product'), 'debug': debug_info})}\n\n"
+                done_payload = {'type': 'done', 'message_id': assistant_msg.id, 'duration_ms': duration_ms, 'request_id': request_id, 'product_filter': chat_session.product_filter, 'product_filter_source': chat_session.product_filter_source, 'version_filter': chat_session.version_filter, 'auto_product': rag_debug.get('auto_product')}
+                if _can_debug:
+                    done_payload['debug'] = debug_info
+                yield f"data: {json.dumps(done_payload)}\n\n"
 
                 analytics = ChatMessageAnalytics(
                     message_id=assistant_msg.id,

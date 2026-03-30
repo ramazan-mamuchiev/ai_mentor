@@ -678,7 +678,7 @@ async def get_document_status(document_id: int):
     return await get_document(document_id)
 
 
-@router.get("/{document_id}/debug", response_model=DocumentDebugInfo)
+@router.get("/{document_id}/debug", response_model=DocumentDebugInfo, dependencies=[Depends(require_permission("debug"))])
 async def get_document_debug(document_id: int):
     """Get detailed debug/analytics info for a document (indexing timings, token stats, RAG usage)."""
     async with async_session() as session:

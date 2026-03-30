@@ -704,6 +704,12 @@
   "analytics.docs.ocrPrompt": "Prompt токены",
   "analytics.docs.ocrCompletion": "Completion токены",
   "analytics.docs.ocrTotalTokens": "Всего токенов",
+  "analytics.docs.embeddingTokens": "Embedding токены",
+  "analytics.docs.extractTokens": "Извлечение метаданных",
+  "analytics.docs.productKeysTokens": "Ключи продукта",
+  "analytics.docs.ingestionCost": "Стоимость индексации",
+  "analytics.docs.ingestionBreakdown": "Затраты на индексацию",
+  "analytics.docs.ingestionTotal": "Итого индексация",
 
   "analytics.search.totalSearches": "Всего поисков",
   "analytics.search.avgSimilarity": "Сред. сходство",
@@ -732,6 +738,9 @@
   "analytics.costs.byChannel": "По каналам",
   "analytics.costs.ocrCost": "OCR расходы",
   "analytics.costs.ocrTokens": "токенов OCR",
+  "analytics.costs.ingestionCost": "Индексация",
+  "analytics.costs.ingestionBreakdown": "Затраты на индексацию",
+  "analytics.costs.ingestionTotal": "Итого индексация",
 
   "settings.title": "Настройки",
   "settings.description": "API-ключи, управление командой, биллинг и настройки интеграции.",

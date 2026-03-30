@@ -5,8 +5,10 @@ import uuid as _uuid
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
+
+from app.auth.dependencies import require_permission
 
 from app.database import async_session
 from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Document, Product, SharedLink
@@ -178,7 +180,7 @@ async def share_message(message_id: int, request: Request):
 # ── Debug share endpoints ──
 
 
-@router.post("/share/debug/message/{message_id}", response_model=SharedLinkResponse, status_code=201)
+@router.post("/share/debug/message/{message_id}", response_model=SharedLinkResponse, status_code=201, dependencies=[Depends(require_permission("debug"))])
 async def share_debug_message(message_id: int, request: Request):
     """Create a public snapshot of chat message debug info."""
     async with async_session() as db:
@@ -224,7 +226,7 @@ async def share_debug_message(message_id: int, request: Request):
         return _link_response(link, request)
 
 
-@router.post("/share/debug/document/{document_id}", response_model=SharedLinkResponse, status_code=201)
+@router.post("/share/debug/document/{document_id}", response_model=SharedLinkResponse, status_code=201, dependencies=[Depends(require_permission("debug"))])
 async def share_debug_document(document_id: int, request: Request):
     """Create a public snapshot of document debug info."""
     from app.documents.router import get_document_debug, get_document_usage_stats
@@ -275,6 +277,7 @@ async def share_debug_document(document_id: int, request: Request):
     "/share/debug/product/{product_id}",
     response_model=SharedLinkResponse,
     status_code=201,
+    dependencies=[Depends(require_permission("debug"))],
 )
 async def share_debug_product(product_id: int, request: Request):
     """Create a public snapshot of product debug info."""

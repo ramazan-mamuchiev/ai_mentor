@@ -431,9 +431,7 @@ function CostsTab({ days, t }: { days: number; t: any }) {
         <StatCard label={t('analytics.costs.total')} value={fmtUsd(data.total_charge_usd)} variant="accent" />
         <StatCard label={t('analytics.costs.forecast')} value={fmtUsd(data.forecast_month_usd)} />
         <StatCard label={t('analytics.costs.perDay')} value={fmtUsd(data.avg_per_day)} />
-        {data.ocr_total_tokens > 0 && (
-          <StatCard label={t('analytics.costs.ocrCost')} value={fmtUsd(data.ocr_cost_usd)} sub={`${data.ocr_total_tokens.toLocaleString()} ${t('analytics.costs.ocrTokens')}`} />
-        )}
+        <StatCard label={t('analytics.costs.ingestionCost')} value={fmtUsd(data.ingestion_cost_usd)} />
       </div>
 
       <div style={{ margin: '16px 0' }}>
@@ -446,7 +444,7 @@ function CostsTab({ days, t }: { days: number; t: any }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div>
           <h2 className="admin-section-title">{t('analytics.costs.byModel')}</h2>
-          {(data.by_model.length > 0 || data.ocr_total_tokens > 0) ? (
+          {data.by_model.length > 0 ? (
             <div className="admin-detail-card" style={{ padding: 16 }}>
               {data.by_model.map((m, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
@@ -454,12 +452,6 @@ function CostsTab({ days, t }: { days: number; t: any }) {
                   <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtUsd(m.total_charge_usd)} · {m.request_count} req</span>
                 </div>
               ))}
-              {data.ocr_total_tokens > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                  <span><span className="badge badge--blue">gemini-2.5-flash</span> <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>OCR</span></span>
-                  <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtUsd(data.ocr_cost_usd)} · {data.ocr_total_tokens.toLocaleString()} tok</span>
-                </div>
-              )}
             </div>
           ) : <div className="admin-empty">{t('analytics.noData')}</div>}
         </div>
@@ -476,6 +468,25 @@ function CostsTab({ days, t }: { days: number; t: any }) {
             </div>
           ) : <div className="admin-empty">{t('analytics.noData')}</div>}
         </div>
+      </div>
+
+      {data.ingestion_breakdown.some(b => b.tokens > 0) && (
+        <div style={{ margin: '16px 0' }}>
+          <h2 className="admin-section-title">{t('analytics.costs.ingestionBreakdown')}</h2>
+          <div className="admin-detail-card" style={{ padding: 16, maxWidth: 520 }}>
+            {data.ingestion_breakdown.filter(b => b.tokens > 0).map((b, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                <span className="badge badge--gray">{b.type}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtUsd(b.cost_usd)} · {b.tokens.toLocaleString()} tok</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', fontWeight: 600 }}>
+              <span>{t('analytics.costs.ingestionTotal')}</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtUsd(data.ingestion_cost_usd)}</span>
+            </div>
+          </div>
+        </div>
+      )
       </div>
     </>
   )

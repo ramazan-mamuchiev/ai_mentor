@@ -147,7 +147,7 @@ function ProductActions({
   onDelete?: (p: ProductListItem) => void
   onReingest?: (p: ProductListItem) => void
   onSync?: (p: ProductListItem) => void
-  onDebug: (p: ProductListItem) => void
+  onDebug?: (p: ProductListItem) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -207,10 +207,12 @@ function ProductActions({
       </button>
       {open && createPortal(
         <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: pos.left }}>
-          <button className="docs-actions-dropdown-item" onClick={() => { onDebug(p); setOpen(false) }}>
-            <Bug size={15} />
-            {t('products.actions.debug')}
-          </button>
+          {onDebug && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onDebug(p); setOpen(false) }}>
+              <Bug size={15} />
+              {t('products.actions.debug')}
+            </button>
+          )}
           {onReingest && (
             <button className="docs-actions-dropdown-item" onClick={() => { onReingest(p); setOpen(false) }}>
               <RefreshCw size={15} />
@@ -247,6 +249,7 @@ const DEFAULT_COLUMN_ORDER = ['name', 'category', 'documents', 'format', 'status
 export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const canDebug = usePermission('debug')
   const canEdit = usePermission('products.edit')
   const canDelete = usePermission('products.delete')
   const canReindex = usePermission('documents.reindex')
@@ -481,10 +484,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       cell: ({ row }) => {
         const p = row.original
-        return <ProductActions product={p} onEdit={canEdit ? setEditTarget : undefined} onDelete={canDelete ? setDeleteTarget : undefined} onReingest={canReindex ? setReingestTarget : undefined} onSync={canSync ? setSyncTarget : undefined} onDebug={openDebug} />
+        return <ProductActions product={p} onEdit={canEdit ? setEditTarget : undefined} onDelete={canDelete ? setDeleteTarget : undefined} onReingest={canReindex ? setReingestTarget : undefined} onSync={canSync ? setSyncTarget : undefined} onDebug={canDebug ? openDebug : undefined} />
       },
     },
-  ], [t, navigate, openDebug, canEdit, canDelete, canReindex, canSync])
+  ], [t, navigate, openDebug, canDebug, canEdit, canDelete, canReindex, canSync])
 
   const {
     table,
@@ -694,9 +697,11 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                     <Pencil size={16} />
                   </button>
                 )}
-                <button className="docs-action-btn" onClick={() => openDebug(p)}>
-                  <Bug size={16} />
-                </button>
+                {canDebug && (
+                  <button className="docs-action-btn" onClick={() => openDebug(p)}>
+                    <Bug size={16} />
+                  </button>
+                )}
                 {canReindex && (
                   <button className="docs-action-btn" onClick={() => setReingestTarget(p)}>
                     <RefreshCw size={16} />
