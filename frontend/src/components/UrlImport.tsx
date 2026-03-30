@@ -211,9 +211,9 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                       <input
                         type="number"
                         value={maxDepth}
-                        onChange={e => setMaxDepth(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                        onChange={e => setMaxDepth(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
                         min={1}
-                        max={10}
+                        max={200}
                       />
                     </label>
                     <label>
@@ -221,9 +221,9 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                       <input
                         type="number"
                         value={maxPages}
-                        onChange={e => setMaxPages(Math.max(1, Math.min(5000, Number(e.target.value) || 1)))}
+                        onChange={e => setMaxPages(Math.max(1, Math.min(50000, Number(e.target.value) || 1)))}
                         min={1}
-                        max={5000}
+                        max={50000}
                       />
                     </label>
                   </div>

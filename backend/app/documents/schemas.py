@@ -99,8 +99,8 @@ class SiteIngestRequest(BaseModel):
     product_name: str
     firmware_version: str = "1.0"
     manufacturer: str = ""
-    max_depth: int = Field(default=5, ge=1, le=10)
-    max_pages: int = Field(default=500, ge=1, le=5000)
+    max_depth: int = Field(default=5, ge=1, le=200)
+    max_pages: int = Field(default=500, ge=1, le=50000)
     download_resources: bool = True
 
     @field_validator("url")
