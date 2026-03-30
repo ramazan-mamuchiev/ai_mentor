@@ -79,6 +79,14 @@ export function KBArticlePage() {
     if (!el) return
 
     const handler = (e: MouseEvent) => {
+      const link = (e.target as HTMLElement).closest('a[href^="/app/kb/"]') as HTMLAnchorElement | null
+      if (link) {
+        e.preventDefault()
+        e.stopPropagation()
+        navigate(link.getAttribute('href')!)
+        return
+      }
+
       const stage = (e.target as HTMLElement).closest('.stage') as HTMLElement | null
       if (!stage) return
       const details = stage.querySelector('.stage-details') as HTMLElement | null

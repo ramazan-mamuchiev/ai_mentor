@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { BookOpen, Database, Search, FileText, Code, Settings, HelpCircle, MessageSquare, Tag } from 'lucide-react'
+import { BookOpen, Database, Search, FileText, Code, Settings, HelpCircle, MessageSquare, Server, Tag } from 'lucide-react'
 
 interface Article {
   slug: string
@@ -21,6 +21,7 @@ const ICON_MAP: Record<string, typeof Database> = {
   HelpCircle,
   BookOpen,
   MessageSquare,
+  Server,
 }
 
 export function KBPage() {

@@ -28,5 +28,20 @@
       "ru": "Полный путь вопроса: от ввода до стриминга ответа. 11 этапов — переформулировка, классификация, гибридный поиск (vector + BM25 + RRF), LLM-реранкинг и генерация через Gemini Pro."
     },
     "languages": ["en", "ru"]
+  },
+  {
+    "slug": "mcp-server",
+    "icon": "Server",
+    "tags": ["mcp", "architecture", "ide", "tools"],
+    "createdAt": "2026-03-30",
+    "title": {
+      "en": "Lexiro MCP Server",
+      "ru": "Lexiro MCP Server"
+    },
+    "description": {
+      "en": "Documentation for 50+ products right in your IDE. 9 tools, one API key, zero context switching. Architecture, tools catalog, search pipeline, and comparison with Ask Chat.",
+      "ru": "Документация 50+ продуктов прямо в IDE. 9 инструментов, один API-ключ, ноль переключений. Архитектура, каталог инструментов, поисковый pipeline и сравнение с Ask Chat."
+    },
+    "languages": ["en", "ru"]
   }
 ]
