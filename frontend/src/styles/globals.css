@@ -443,33 +443,6 @@ button {
   font-family: var(--font-sans);
 }
 
-.kb-table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: auto;
-  overscroll-behavior-x: contain;
-  margin: 16px 0;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  position: relative;
-}
-
-.kb-table-wrap > table {
-  margin: 0;
-  border: none;
-  border-radius: 0;
-}
-
-@media (max-width: 768px) {
-  .kb-table-wrap table th {
-    padding: 8px 10px;
-    font-size: 0.68rem;
-  }
-  .kb-table-wrap table td {
-    padding: 8px 10px;
-    font-size: 0.8rem;
-  }
-}
 
 .kb-viewer-content .stage-chevron {
   width: 20px;
