@@ -115,6 +115,7 @@ export function KBArticlePage() {
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
+    el.scrollTop = 0
 
     const stages = el.querySelectorAll<HTMLElement>('.stage')
     stages.forEach((s, i) => {
