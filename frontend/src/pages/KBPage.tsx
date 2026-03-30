@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { BookOpen, Database, Search, FileText, Code, Settings, HelpCircle, MessageSquare, Server, Tag } from 'lucide-react'
+import { BookOpen, Database, Search, FileText, Code, Settings, HelpCircle, MessageSquare, Server } from 'lucide-react'
 
 interface Article {
   slug: string
@@ -93,7 +93,7 @@ export function KBPage() {
                     <span className="kb-card-date">{article.createdAt}</span>
                     <div className="kb-card-tags">
                       {article.tags.map(tag => (
-                        <span key={tag} className="kb-tag"><Tag size={10} /> {tag}</span>
+                        <span key={tag} className="kb-tag">{tag}</span>
                       ))}
                     </div>
                   </div>

@@ -20,8 +20,8 @@
     "tags": ["architecture", "rag", "gemini", "search"],
     "createdAt": "2026-03-30",
     "title": {
-      "en": "Ask Chat Pipeline",
-      "ru": "Ask Chat Pipeline"
+      "en": "Web Chat Pipeline",
+      "ru": "Web Chat Pipeline"
     },
     "description": {
       "en": "Full query path: from user input to SSE-streamed response. 11 stages including query rewrite, classification, hybrid search (vector + BM25 + RRF), LLM reranking, and Gemini Pro generation.",
@@ -39,8 +39,8 @@
       "ru": "Lexiro MCP Server"
     },
     "description": {
-      "en": "Documentation for 50+ products right in your IDE. 9 tools, one API key, zero context switching. Architecture, tools catalog, search pipeline, and comparison with Ask Chat.",
-      "ru": "Документация 50+ продуктов прямо в IDE. 9 инструментов, один API-ключ, ноль переключений. Архитектура, каталог инструментов, поисковый pipeline и сравнение с Ask Chat."
+      "en": "All your product documentation right in your IDE. 9 tools, one API key, zero context switching. Architecture, tools catalog, search pipeline, and comparison with Web Chat.",
+      "ru": "Вся документация ваших продуктов прямо в IDE. 9 инструментов, один API-ключ, ноль переключений. Архитектура, каталог инструментов, поисковый pipeline и сравнение с Web Chat."
     },
     "languages": ["en", "ru"]
   }

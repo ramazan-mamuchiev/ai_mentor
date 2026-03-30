@@ -1211,7 +1211,7 @@
   "category.protocols": "Protocols & Standards",
 
   "kb.title": "Knowledge Base",
-  "kb.description": "Architecture diagrams and technical articles",
+  "kb.description": "Learn how the system works: architecture, processing and search pipelines",
   "kb.search": "Search articles...",
   "kb.loading": "Loading...",
   "kb.empty": "No articles yet",
