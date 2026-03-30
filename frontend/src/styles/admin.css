@@ -1013,18 +1013,18 @@
 
 .log-row__header {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   gap: 8px;
   padding: 4px 12px;
   cursor: pointer;
 }
 
 .log-row__expand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  align-self: center;
   color: var(--text-muted);
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .log-row--expanded .log-row__expand {
