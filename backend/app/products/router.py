@@ -2,11 +2,12 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case, delete, func, select
 
 from fastapi import Query as QueryParam
 
+from app.auth.dependencies import require_permission
 from app.config import settings
 from app.database import async_session
 from app.models import (
@@ -366,7 +367,7 @@ async def update_product(product_id: int, body: ProductUpdate):
         return await _product_detail(session, product)
 
 
-@router.delete("/{product_id}")
+@router.delete("/{product_id}", dependencies=[Depends(require_permission("products.delete"))])
 async def delete_product(product_id: int):
     """Delete a product and all its documents (cascade)."""
     from app.s3 import delete_file
@@ -400,7 +401,7 @@ _PLACEHOLDER_FORMATS = {"site", "confluence", "url", "github"}
 _SAFE_STATUSES = ["ready", "error"]
 
 
-@router.post("/{product_id}/reingest", status_code=202)
+@router.post("/{product_id}/reingest", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def reingest_product(product_id: int):
     """Re-index all saved documents of a product (re-chunk + re-embed).
 
@@ -455,7 +456,7 @@ async def reingest_product(product_id: int):
     }
 
 
-@router.post("/{product_id}/sync", status_code=202)
+@router.post("/{product_id}/sync", status_code=202, dependencies=[Depends(require_permission("documents.sync"))])
 async def sync_product(product_id: int):
     """Sync product: re-crawl all linked sources and re-index file documents.
 

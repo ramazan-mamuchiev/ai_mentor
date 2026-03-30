@@ -2,7 +2,17 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
-import { getTenant, patchTenant, type TenantDetail } from '../../api/admin'
+import {
+  getTenant,
+  patchTenant,
+  listRoles,
+  getTenantRoles,
+  assignTenantRole,
+  unassignTenantRole,
+  type TenantDetail,
+  type RoleListItem,
+  type TenantRoleItem,
+} from '../../api/admin'
 import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 
@@ -15,6 +25,10 @@ export function TenantDetailPage() {
   const [loading, setLoading] = useState(true)
   const [showBlockConfirm, setShowBlockConfirm] = useState(false)
 
+  const [allRoles, setAllRoles] = useState<RoleListItem[]>([])
+  const [tenantRoles, setTenantRoles] = useState<TenantRoleItem[]>([])
+  const [rolesLoading, setRolesLoading] = useState(false)
+
   const isSelf = id === user?.id
 
   useEffect(() => {
@@ -26,11 +40,37 @@ export function TenantDetailPage() {
       .finally(() => setLoading(false))
   }, [id])
 
+  useEffect(() => {
+    if (!id) return
+    setRolesLoading(true)
+    Promise.all([listRoles(), getTenantRoles(id)])
+      .then(([roles, assigned]) => {
+        setAllRoles(roles)
+        setTenantRoles(assigned)
+      })
+      .catch(() => {})
+      .finally(() => setRolesLoading(false))
+  }, [id])
+
   const handlePatch = async (data: { role?: string; tier?: string; is_active?: boolean }) => {
     if (!id) return
     try {
       const updated = await patchTenant(id, data)
       setTenant(updated)
+    } catch { /* ignore */ }
+  }
+
+  const handleToggleRole = async (role: RoleListItem) => {
+    if (!id) return
+    const isAssigned = tenantRoles.some(tr => tr.role_id === role.id)
+    try {
+      if (isAssigned) {
+        await unassignTenantRole(id, role.id)
+        setTenantRoles(prev => prev.filter(tr => tr.role_id !== role.id))
+      } else {
+        const assigned = await assignTenantRole(id, role.id)
+        setTenantRoles(prev => [...prev, assigned])
+      }
     } catch { /* ignore */ }
   }
 
@@ -49,6 +89,8 @@ export function TenantDetailPage() {
 
   if (loading) return <div className="admin-loading">{t('admin.tenantDetail.loading')}</div>
   if (!tenant) return <div className="admin-empty">{t('admin.tenantDetail.notFound')}</div>
+
+  const assignedRoleIds = new Set(tenantRoles.map(tr => tr.role_id))
 
   return (
     <div>
@@ -75,16 +117,28 @@ export function TenantDetailPage() {
           <h3>{t('admin.tenantDetail.access')}</h3>
           <dl>
             <div className="admin-detail-row">
-              <dt>{t('admin.tenantDetail.role')}</dt>
+              <dt>{t('admin.tenantDetail.roles')}</dt>
               <dd>
-                <select
-                  className="admin-select"
-                  value={tenant.role}
-                  onChange={e => handlePatch({ role: e.target.value })}
-                >
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
+                {rolesLoading ? '…' : (
+                  <div className="admin-role-checkboxes">
+                    {allRoles.map(role => {
+                      const isBase = role.slug === 'user'
+                      const checked = assignedRoleIds.has(role.id)
+                      return (
+                        <label key={role.id} className="admin-role-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={isBase}
+                            onChange={() => handleToggleRole(role)}
+                          />
+                          <span>{role.name}</span>
+                          {isBase && <span className="admin-role-tag">{t('admin.tenantDetail.rolesBase')}</span>}
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
               </dd>
             </div>
             <div className="admin-detail-row">

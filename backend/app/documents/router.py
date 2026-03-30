@@ -8,7 +8,7 @@ import time
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy import func, select
 
-from app.auth.dependencies import get_current_tenant
+from app.auth.dependencies import get_current_tenant, require_permission
 from app.database import async_session
 from app.documents.schemas import (
     ArchiveFileResult,
@@ -41,7 +41,7 @@ ALLOWED_EXTENSIONS = {".md", ".json", ".yaml", ".yml", ".pdf", ".proto", ".txt",
 MAX_UPLOAD_BYTES = settings.max_upload_size_mb * 1024 * 1024
 
 
-@router.post("/ingest", response_model=IngestResponse)
+@router.post("/ingest", response_model=IngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
 async def ingest_document(
     request: Request,
     file: UploadFile = File(...),
@@ -174,7 +174,7 @@ async def ingest_document(
         )
 
 
-@router.post("/ingest-url", response_model=UrlIngestResponse)
+@router.post("/ingest-url", response_model=UrlIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
 async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
     """Import documentation from a web URL.
 
@@ -262,7 +262,7 @@ async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = 
             raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
 
 
-@router.post("/ingest-site", response_model=UrlIngestResponse)
+@router.post("/ingest-site", response_model=UrlIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
 async def ingest_site(request: Request, body: SiteIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
     """Crawl an entire website and ingest all pages + downloadable files.
 
@@ -340,7 +340,7 @@ async def ingest_site(request: Request, body: SiteIngestRequest, tenant: Tenant 
             raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
 
 
-@router.post("/ingest-github", response_model=UrlIngestResponse)
+@router.post("/ingest-github", response_model=UrlIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
 async def ingest_github(request: Request, body: GitHubIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
     """Import documentation files from a public GitHub repository.
 
@@ -429,7 +429,7 @@ from app.documents.archive import (
 MAX_ARCHIVE_BYTES = settings.max_archive_size_mb * 1024 * 1024
 
 
-@router.post("/ingest-archive", response_model=ArchiveIngestResponse)
+@router.post("/ingest-archive", response_model=ArchiveIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
 async def ingest_archive(
     request: Request,
     file: UploadFile = File(...),
@@ -980,7 +980,7 @@ async def cancel_document(document_id: int):
     return {"document_id": document_id, "status": "cancelled", "message": "Ingestion cancelled"}
 
 
-@router.delete("/{document_id}", response_model=DeleteResponse)
+@router.delete("/{document_id}", response_model=DeleteResponse, dependencies=[Depends(require_permission("documents.delete"))])
 async def delete_document(document_id: int):
     """Delete a document and all its chunks. Also removes the file from S3."""
     async with async_session() as session:
@@ -1011,7 +1011,7 @@ async def delete_document(document_id: int):
         )
 
 
-@router.post("/{document_id}/reingest", status_code=202)
+@router.post("/{document_id}/reingest", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def reingest_single_document(
     document_id: int,
     reindex_only: bool = False,
@@ -1210,7 +1210,7 @@ async def get_queue_stats():
     }
 
 
-@router.post("/requeue-pending", status_code=202)
+@router.post("/requeue-pending", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def requeue_pending_documents():
     """Re-queue ingestion for all documents with status 'pending'.
 
@@ -1233,7 +1233,7 @@ async def requeue_pending_documents():
     return {"status": "accepted", "documents_queued": queued}
 
 
-@router.post("/reindex", status_code=202)
+@router.post("/reindex", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def reindex_all_documents():
     """Re-embed all chunks using the current embedding model.
 
@@ -1291,7 +1291,7 @@ async def reindex_all_documents():
     }
 
 
-@router.post("/reingest", status_code=202)
+@router.post("/reingest", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def reingest_documents(
     product_name: str = Form(default=""),
     format_filter: str = Form(default=""),

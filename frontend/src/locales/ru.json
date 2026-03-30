@@ -942,6 +942,8 @@
   "admin.tenantDetail.updated": "Обновлён",
   "admin.tenantDetail.access": "Доступ",
   "admin.tenantDetail.role": "Роль",
+  "admin.tenantDetail.roles": "Роли",
+  "admin.tenantDetail.rolesBase": "базовая",
   "admin.tenantDetail.tier": "Тариф",
   "admin.tenantDetail.status": "Статус",
   "admin.tenantDetail.apiKeys": "API ключи",

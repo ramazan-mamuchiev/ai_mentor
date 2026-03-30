@@ -110,6 +110,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
+  const hasProductContext = !!productContext
   const isValid = url.trim().length > 0 && productName.trim().length > 0
 
   return (
@@ -245,6 +246,8 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                   value={productName}
                   onChange={e => setProductSel(prev => ({ ...prev, productName: e.target.value, isExisting: false, productId: undefined }))}
                   placeholder={t('upload.productPlaceholder')}
+                  readOnly={hasProductContext}
+                  className={hasProductContext ? 'input-readonly' : ''}
                 />
               </label>
 
@@ -256,8 +259,8 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                     value={manufacturer}
                     onChange={e => setProductSel(prev => ({ ...prev, manufacturer: e.target.value }))}
                     placeholder={t('upload.manufacturerPlaceholder')}
-                    readOnly={productSel.isExisting}
-                    className={productSel.isExisting ? 'input-readonly' : ''}
+                    readOnly={hasProductContext || productSel.isExisting}
+                    className={hasProductContext || productSel.isExisting ? 'input-readonly' : ''}
                   />
                 </label>
                 <label>
@@ -267,8 +270,8 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                     value={firmwareVersion}
                     onChange={e => setProductSel(prev => ({ ...prev, firmwareVersion: e.target.value }))}
                     placeholder={t('upload.versionPlaceholder')}
-                    readOnly={productSel.isExisting}
-                    className={productSel.isExisting ? 'input-readonly' : ''}
+                    readOnly={hasProductContext || productSel.isExisting}
+                    className={hasProductContext || productSel.isExisting ? 'input-readonly' : ''}
                   />
                 </label>
               </div>

@@ -380,6 +380,8 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                       onChange={e => setProductSel(prev => ({ ...prev, productName: e.target.value, isExisting: false, productId: undefined }))}
                       placeholder={t('upload.productPlaceholder')}
                       autoFocus={!hasProductContext}
+                      readOnly={hasProductContext}
+                      className={hasProductContext ? 'input-readonly' : ''}
                     />
                   </label>
                   <div className="file-upload-row">
@@ -390,8 +392,8 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                         value={manufacturer}
                         onChange={e => setProductSel(prev => ({ ...prev, manufacturer: e.target.value }))}
                         placeholder={t('upload.manufacturerPlaceholder')}
-                        readOnly={productSel.isExisting}
-                        className={productSel.isExisting ? 'input-readonly' : ''}
+                        readOnly={hasProductContext || productSel.isExisting}
+                        className={hasProductContext || productSel.isExisting ? 'input-readonly' : ''}
                         autoFocus={hasProductContext}
                       />
                     </label>
@@ -402,8 +404,8 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                         value={firmwareVersion}
                         onChange={e => setProductSel(prev => ({ ...prev, firmwareVersion: e.target.value }))}
                         placeholder={t('upload.versionPlaceholder')}
-                        readOnly={productSel.isExisting}
-                        className={productSel.isExisting ? 'input-readonly' : ''}
+                        readOnly={hasProductContext || productSel.isExisting}
+                        className={hasProductContext || productSel.isExisting ? 'input-readonly' : ''}
                       />
                     </label>
                   </div>

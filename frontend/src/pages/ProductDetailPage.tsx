@@ -8,7 +8,7 @@ import type { ProductDetail } from '../types'
 import type { ProductContext } from '../components/FileUpload'
 
 interface ProductDetailPageProps {
-  onUploadClick: (ctx?: ProductContext) => void
+  onUploadClick?: (ctx?: ProductContext) => void
   onUrlImportClick?: (ctx?: ProductContext) => void
 }
 
@@ -38,7 +38,7 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
   )
 
   const handleUploadClick = useCallback(() => {
-    onUploadClick(productCtx)
+    onUploadClick?.(productCtx)
   }, [onUploadClick, productCtx])
 
   const handleUrlImportClick = useCallback(() => {
@@ -79,8 +79,8 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
 
   return (
     <DocumentsPage
-      onUploadClick={handleUploadClick}
-      onUrlImportClick={handleUrlImportClick}
+      onUploadClick={onUploadClick ? handleUploadClick : undefined}
+      onUrlImportClick={onUrlImportClick ? handleUrlImportClick : undefined}
       productId={product.id}
       headerSlot={productHeader}
     />

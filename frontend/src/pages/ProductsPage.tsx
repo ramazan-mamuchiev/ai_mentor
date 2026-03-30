@@ -25,6 +25,7 @@ import { ProductEditDialog } from '../components/ProductEditDialog'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { ProductListItem, DocumentStatusValue } from '../types'
+import { usePermission } from '../auth/usePermission'
 
 const POLL_INTERVAL = 2000
 const STORAGE_KEY = 'lexiro-products-table'
@@ -143,9 +144,9 @@ function ProductActions({
 }: {
   product: ProductListItem
   onEdit: (p: ProductListItem) => void
-  onDelete: (p: ProductListItem) => void
-  onReingest: (p: ProductListItem) => void
-  onSync: (p: ProductListItem) => void
+  onDelete?: (p: ProductListItem) => void
+  onReingest?: (p: ProductListItem) => void
+  onSync?: (p: ProductListItem) => void
   onDebug: (p: ProductListItem) => void
 }) {
   const { t } = useTranslation()
@@ -208,18 +209,24 @@ function ProductActions({
             <Bug size={15} />
             {t('products.actions.debug')}
           </button>
-          <button className="docs-actions-dropdown-item" onClick={() => { onReingest(p); setOpen(false) }}>
-            <RefreshCw size={15} />
-            {t('products.actions.reindex')}
-          </button>
-          <button className="docs-actions-dropdown-item" onClick={() => { onSync(p); setOpen(false) }}>
-            <CloudDownload size={15} />
-            {t('products.actions.sync')}
-          </button>
-          <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(p); setOpen(false) }}>
-            <Trash2 size={15} />
-            {t('products.actions.delete')}
-          </button>
+          {onReingest && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onReingest(p); setOpen(false) }}>
+              <RefreshCw size={15} />
+              {t('products.actions.reindex')}
+            </button>
+          )}
+          {onSync && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onSync(p); setOpen(false) }}>
+              <CloudDownload size={15} />
+              {t('products.actions.sync')}
+            </button>
+          )}
+          {onDelete && (
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(p); setOpen(false) }}>
+              <Trash2 size={15} />
+              {t('products.actions.delete')}
+            </button>
+          )}
         </div>,
         document.body
       )}
@@ -238,6 +245,9 @@ const DEFAULT_COLUMN_ORDER = ['name', 'category', 'documents', 'format', 'status
 export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const canDelete = usePermission('products.delete')
+  const canReindex = usePermission('documents.reindex')
+  const canSync = usePermission('documents.sync')
   const [products, setProducts] = useState<ProductListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [globalFilter, setGlobalFilter] = useState('')
@@ -468,10 +478,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       cell: ({ row }) => {
         const p = row.original
-        return <ProductActions product={p} onEdit={setEditTarget} onDelete={setDeleteTarget} onReingest={setReingestTarget} onSync={setSyncTarget} onDebug={openDebug} />
+        return <ProductActions product={p} onEdit={setEditTarget} onDelete={canDelete ? setDeleteTarget : undefined} onReingest={canReindex ? setReingestTarget : undefined} onSync={canSync ? setSyncTarget : undefined} onDebug={openDebug} />
       },
     },
-  ], [t, navigate, openDebug])
+  ], [t, navigate, openDebug, canDelete, canReindex, canSync])
 
   const {
     table,
@@ -682,15 +692,21 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                 <button className="docs-action-btn" onClick={() => openDebug(p)}>
                   <Bug size={16} />
                 </button>
-                <button className="docs-action-btn" onClick={() => setReingestTarget(p)}>
-                  <RefreshCw size={16} />
-                </button>
-                <button className="docs-action-btn" onClick={() => setSyncTarget(p)}>
-                  <CloudDownload size={16} />
-                </button>
-                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)}>
-                  <Trash2 size={16} />
-                </button>
+                {canReindex && (
+                  <button className="docs-action-btn" onClick={() => setReingestTarget(p)}>
+                    <RefreshCw size={16} />
+                  </button>
+                )}
+                {canSync && (
+                  <button className="docs-action-btn" onClick={() => setSyncTarget(p)}>
+                    <CloudDownload size={16} />
+                  </button>
+                )}
+                {canDelete && (
+                  <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)}>
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </div>
           ))

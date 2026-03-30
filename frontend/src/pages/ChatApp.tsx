@@ -10,6 +10,7 @@ import { useChat } from '../hooks/useChat'
 import { useTheme } from '../hooks/useTheme'
 import type { ChatSession } from '../types'
 import { OnboardingChecklist } from '../components/OnboardingChecklist'
+import { usePermission } from '../auth/usePermission'
 import { DocumentsPage } from './DocumentsPage'
 import { ProductsPage } from './ProductsPage'
 import { ProductDetailPage } from './ProductDetailPage'
@@ -54,6 +55,7 @@ export function ChatApp() {
   const [showUrlImport, setShowUrlImport] = useState(false)
   const [docsRefreshKey, setDocsRefreshKey] = useState(0)
   const productContextRef = useRef<ProductContext | undefined>(undefined)
+  const canUpload = usePermission('documents.upload')
 
   const activeSession = sessions.find(s => s.id === activeSessionId) ?? null
 
@@ -278,12 +280,12 @@ export function ChatApp() {
     >
       <Routes>
         <Route index element={chatContent} />
-        <Route path="documents" element={<DocumentsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
-        <Route path="products" element={<ProductsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
+        <Route path="documents" element={<DocumentsPage onUploadClick={canUpload ? () => { productContextRef.current = undefined; setShowUpload(true) } : undefined} onUrlImportClick={canUpload ? () => { productContextRef.current = undefined; setShowUrlImport(true) } : undefined} refreshKey={docsRefreshKey} />} />
+        <Route path="products" element={<ProductsPage onUploadClick={canUpload ? () => { productContextRef.current = undefined; setShowUpload(true) } : undefined} onUrlImportClick={canUpload ? () => { productContextRef.current = undefined; setShowUrlImport(true) } : undefined} refreshKey={docsRefreshKey} />} />
         <Route path="products/:slug" element={
           <ProductDetailPage
-            onUploadClick={(ctx) => { productContextRef.current = ctx; setShowUpload(true) }}
-            onUrlImportClick={(ctx) => { productContextRef.current = ctx; setShowUrlImport(true) }}
+            onUploadClick={canUpload ? (ctx) => { productContextRef.current = ctx; setShowUpload(true) } : undefined}
+            onUrlImportClick={canUpload ? (ctx) => { productContextRef.current = ctx; setShowUrlImport(true) } : undefined}
           />
         } />
         <Route path="analytics" element={<AnalyticsPage />} />

@@ -2376,4 +2376,37 @@
   font-style: italic;
 }
 
+/* Role checkboxes */
+.admin-role-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
+.admin-role-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.admin-role-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.admin-role-checkbox input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.admin-role-tag {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-hover, rgba(128, 128, 128, 0.1));
+  color: var(--text-secondary);
+  margin-left: 4px;
+}

@@ -889,6 +889,8 @@
   "admin.tenantDetail.updated": "Updated",
   "admin.tenantDetail.access": "Access",
   "admin.tenantDetail.role": "Role",
+  "admin.tenantDetail.roles": "Roles",
+  "admin.tenantDetail.rolesBase": "base",
   "admin.tenantDetail.tier": "Tier",
   "admin.tenantDetail.status": "Status",
   "admin.tenantDetail.apiKeys": "API Keys",

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
 import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
+import { usePermission } from '../auth/usePermission'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
 import { DocsRightPanel } from '../components/DocsRightPanel'
@@ -196,9 +197,9 @@ function DocActions({
   onDebug: (d: DocumentListItem) => void
   onPreview: (d: DocumentListItem) => void
   onDownload: (d: DocumentListItem) => void
-  onReingest: (d: DocumentListItem) => void
-  onSync: (d: DocumentListItem) => void
-  onDelete: (d: DocumentListItem) => void
+  onReingest?: (d: DocumentListItem) => void
+  onSync?: (d: DocumentListItem) => void
+  onDelete?: (d: DocumentListItem) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -274,22 +275,24 @@ function DocActions({
               {t('docs.actions.download')}
             </button>
           )}
-          {canAct && !isPlaceholder && (
+          {canAct && !isPlaceholder && onReingest && (
             <button className="docs-actions-dropdown-item" onClick={() => { onReingest(doc); setOpen(false) }}>
               <RefreshCw size={15} />
               {t('docs.actions.reindex')}
             </button>
           )}
-          {canAct && isLinked && (
+          {canAct && isLinked && onSync && (
             <button className="docs-actions-dropdown-item" onClick={() => { onSync(doc); setOpen(false) }}>
               <CloudDownload size={15} />
               {t('docs.actions.sync')}
             </button>
           )}
-          <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
-            <Trash2 size={15} />
-            {t('docs.actions.delete')}
-          </button>
+          {onDelete && (
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
+              <Trash2 size={15} />
+              {t('docs.actions.delete')}
+            </button>
+          )}
         </div>,
         document.body
       )}
@@ -298,7 +301,7 @@ function DocActions({
 }
 
 interface Props {
-  onUploadClick: () => void
+  onUploadClick?: () => void
   onUrlImportClick?: () => void
   refreshKey?: number
   productId?: number
@@ -309,6 +312,9 @@ const DEFAULT_COLUMN_ORDER = ['title', 'format', 'status', 'size', 'chunks', 'pr
 
 export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, productId, headerSlot }: Props) {
   const { t } = useTranslation()
+  const canDelete = usePermission('documents.delete')
+  const canReindex = usePermission('documents.reindex')
+  const canSync = usePermission('documents.sync')
   const [documents, setDocuments] = useState<DocumentListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null)
@@ -593,13 +599,13 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onDebug={openDebug}
           onPreview={setPreviewTarget}
           onDownload={handleDownload}
-          onReingest={setReingestTarget}
-          onSync={setSyncTarget}
-          onDelete={setDeleteTarget}
+          onReingest={canReindex ? setReingestTarget : undefined}
+          onSync={canSync ? setSyncTarget : undefined}
+          onDelete={canDelete ? setDeleteTarget : undefined}
         />
       ),
     },
-  ], [t, handleDownload, openDebug])
+  ], [t, handleDownload, openDebug, canDelete, canReindex, canSync])
 
   const {
     table,
@@ -646,10 +652,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           <FileText size={48} className="docs-empty-icon" />
           <h2>{t('docs.empty.title')}</h2>
           <p>{t('docs.empty.description')}</p>
-          <button className="docs-upload-btn" onClick={onUploadClick}>
-            <Upload size={16} />
-            <span>{t('docs.empty.cta')}</span>
-          </button>
+          {onUploadClick && (
+            <button className="docs-upload-btn" onClick={onUploadClick}>
+              <Upload size={16} />
+              <span>{t('docs.empty.cta')}</span>
+            </button>
+          )}
         </div>
       </div>
     )
@@ -687,10 +695,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               <span>{t('urlImport.button')}</span>
             </button>
           )}
-          <button className="docs-upload-btn" onClick={onUploadClick}>
-            <Upload size={16} />
-            <span>{t('docs.upload')}</span>
-          </button>
+          {onUploadClick && (
+            <button className="docs-upload-btn" onClick={onUploadClick}>
+              <Upload size={16} />
+              <span>{t('docs.upload')}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -812,19 +822,21 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                     <Download size={16} />
                   </button>
                 )}
-                {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && !_PLACEHOLDER_FORMATS.has(doc.format) && (
+                {canReindex && (doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && !_PLACEHOLDER_FORMATS.has(doc.format) && (
                   <button className="docs-action-btn" onClick={() => setReingestTarget(doc)}>
                     <RefreshCw size={16} />
                   </button>
                 )}
-                {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && isLinkedDoc(doc) && (
+                {canSync && (doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && isLinkedDoc(doc) && (
                   <button className="docs-action-btn" onClick={() => setSyncTarget(doc)}>
                     <CloudDownload size={16} />
                   </button>
                 )}
-                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)}>
-                  <Trash2 size={16} />
-                </button>
+                {canDelete && (
+                  <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)}>
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </div>
           )})}
