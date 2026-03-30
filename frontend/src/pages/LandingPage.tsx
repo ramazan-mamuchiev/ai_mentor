@@ -131,6 +131,7 @@ export function LandingPage() {
           <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
             {t('landing.nav.howItWorks')}
           </a>
+          <Link to="/kb">{t('landing.nav.kb')}</Link>
         </nav>
 
         <div className="landing-header-actions">
@@ -166,6 +167,9 @@ export function LandingPage() {
           <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
             {t('landing.nav.howItWorks')}
           </a>
+          <Link to="/kb" onClick={() => setMobileMenuOpen(false)}>
+            {t('landing.nav.kb')}
+          </Link>
         </nav>
         <div className="landing-mobile-divider" />
         <Link
