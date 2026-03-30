@@ -283,12 +283,12 @@
 }
 
 .session-context-menu-item.danger {
-  color: #ef4444;
+  color: var(--error);
 }
 
 .session-context-menu-item.danger:hover {
-  background: rgba(239, 68, 68, 0.08);
-  color: #dc2626;
+  background: var(--error-light);
+  color: var(--error);
 }
 
 .session-context-menu-divider {
@@ -498,14 +498,14 @@
 }
 
 .message.user .message-content {
-  background: #3b82f6;
+  background: var(--user-bubble);
   color: #fff;
   border-radius: 18px 18px 4px 18px;
   word-break: break-word;
 }
 
 [data-theme="dark"] .message.user .message-content {
-  background: #60a5fa;
+  background: var(--accent);
 }
 
 .message.assistant .message-content {
@@ -526,22 +526,13 @@
 }
 
 .message-source-banner--web {
-  background: rgba(59, 130, 246, 0.08);
-  border-left: 3px solid #3b82f6;
-}
-
-[data-theme="dark"] .message-source-banner--web {
-  background: rgba(96, 165, 250, 0.1);
-  border-left-color: #60a5fa;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-left: 3px solid var(--accent);
 }
 
 .message-source-banner svg {
   flex-shrink: 0;
-  color: #3b82f6;
-}
-
-[data-theme="dark"] .message-source-banner svg {
-  color: #60a5fa;
+  color: var(--accent);
 }
 
 .message-content p {
@@ -574,24 +565,15 @@
 .message-content h4, .message-content h5, .message-content h6 { font-size: 1em; }
 
 .message-content a {
-  color: #3b82f6;
+  color: var(--accent);
   text-decoration: underline;
-  text-decoration-color: rgba(59, 130, 246, 0.3);
+  text-decoration-color: color-mix(in srgb, var(--accent) 30%, transparent);
   text-underline-offset: 2px;
   transition: text-decoration-color 0.15s;
 }
 
 .message-content a:hover {
-  text-decoration-color: #3b82f6;
-}
-
-[data-theme="dark"] .message-content a {
-  color: #60a5fa;
-  text-decoration-color: rgba(96, 165, 250, 0.3);
-}
-
-[data-theme="dark"] .message-content a:hover {
-  text-decoration-color: #60a5fa;
+  text-decoration-color: var(--accent);
 }
 
 .message-footer {
@@ -614,10 +596,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 4px 8px;
-  color: #e53e3e;
-}
-[data-theme="dark"] .message-error {
-  color: #fc8181;
+  color: var(--error);
 }
 .message-error svg:first-child {
   flex-shrink: 0;
@@ -669,8 +648,8 @@
 }
 
 [data-theme="dark"] .debug-stopped-badge {
-  background: rgba(255, 193, 7, 0.15);
-  color: #ffc107;
+  background: var(--warning-light);
+  color: var(--warning);
 }
 
 .debug-warning-badge {
@@ -683,8 +662,8 @@
 }
 
 [data-theme="dark"] .debug-warning-badge {
-  background: rgba(255, 193, 7, 0.15);
-  color: #ffc107;
+  background: var(--warning-light);
+  color: var(--warning);
 }
 
 .debug-error-badge {
@@ -706,8 +685,8 @@
 }
 
 [data-theme="dark"] .debug-error-badge {
-  background: rgba(220, 53, 69, 0.15);
-  color: #ff6b6b;
+  background: var(--error-light);
+  color: var(--error);
 }
 
 .debug-status-row {
@@ -1400,9 +1379,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: #1e293b;
+  background: var(--code-header-bg);
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--code-header-text);
 }
 
 .code-block-actions {
@@ -1418,7 +1397,7 @@
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--code-header-text);
   transition: color 0.15s, background 0.15s;
 }
 
@@ -1890,7 +1869,7 @@
 }
 
 .file-upload-remove:hover {
-  color: #e53e3e;
+  color: var(--error);
 }
 
 .file-upload-fields {
@@ -2020,7 +1999,7 @@
 }
 
 .file-upload-paused-label {
-  color: #d69e2e;
+  color: var(--warning);
   font-weight: 500;
 }
 
@@ -2050,12 +2029,12 @@
 }
 
 .file-upload-btn-danger {
-  border-color: #e53e3e;
-  color: #e53e3e;
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .file-upload-btn-danger:hover {
-  background: #e53e3e;
+  background: var(--error);
   color: white;
 }
 
@@ -2082,12 +2061,12 @@
 }
 
 .file-upload-success svg {
-  color: #38a169;
+  color: var(--success);
   flex-shrink: 0;
 }
 
 .file-upload-error svg {
-  color: #e53e3e;
+  color: var(--error);
   flex-shrink: 0;
 }
 
@@ -2210,11 +2189,11 @@
 }
 
 .file-upload-progress-item--completed .file-upload-progress-item-header svg {
-  color: #38a169;
+  color: var(--success);
 }
 
 .file-upload-progress-item--error .file-upload-progress-item-header svg {
-  color: #e53e3e;
+  color: var(--error);
 }
 
 .file-upload-progress-item--uploading .file-upload-progress-item-header svg,
@@ -2238,7 +2217,7 @@
 
 .file-upload-item-error {
   font-size: 11px;
-  color: #e53e3e;
+  color: var(--error);
   display: block;
   margin-top: 2px;
 }
@@ -2275,7 +2254,7 @@
 }
 
 .file-upload-done-summary svg {
-  color: #38a169;
+  color: var(--success);
   flex-shrink: 0;
 }
 
@@ -3258,7 +3237,7 @@
 }
 
 .shared-message.user .shared-message-body {
-  background: #3b82f6;
+  background: var(--user-bubble);
   color: #fff;
   border-radius: 18px 18px 4px 18px;
   padding: 10px 16px;
@@ -3267,7 +3246,7 @@
 }
 
 [data-theme="dark"] .shared-message.user .shared-message-body {
-  background: #60a5fa;
+  background: var(--accent);
 }
 
 .shared-message.assistant .shared-message-body {

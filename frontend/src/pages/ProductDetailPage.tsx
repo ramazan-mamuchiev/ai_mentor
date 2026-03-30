@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
-import { getProduct } from '../api/products'
+import { getProductBySlug } from '../api/products'
 import { DocumentsPage } from './DocumentsPage'
 import type { ProductDetail } from '../types'
 import type { ProductContext } from '../components/FileUpload'
@@ -14,19 +14,19 @@ interface ProductDetailPageProps {
 
 export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDetailPageProps) {
   const { t } = useTranslation()
-  const { productId } = useParams<{ productId: string }>()
+  const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!productId) return
+    if (!slug) return
     setLoading(true)
-    getProduct(Number(productId))
+    getProductBySlug(slug)
       .then(setProduct)
       .catch(() => navigate('/app/products'))
       .finally(() => setLoading(false))
-  }, [productId, navigate])
+  }, [slug, navigate])
 
   const productCtx = useMemo<ProductContext | undefined>(() =>
     product ? {

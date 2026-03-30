@@ -18,6 +18,7 @@ class FirmwareVersionInfo(BaseModel):
 class ProductListItem(BaseModel):
     id: int
     name: str
+    slug: str = ""
     manufacturer: str = ""
     category: str = ""
     created_at: datetime
@@ -79,6 +80,7 @@ class ProductSuggestion(BaseModel):
 class ProductDetail(BaseModel):
     id: int
     name: str
+    slug: str = ""
     manufacturer: str = ""
     category: str = ""
     created_at: datetime

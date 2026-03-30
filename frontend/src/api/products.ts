@@ -9,6 +9,10 @@ export async function getProduct(productId: number): Promise<ProductDetail> {
   return apiFetch<ProductDetail>(`/products/${productId}`)
 }
 
+export async function getProductBySlug(slug: string): Promise<ProductDetail> {
+  return apiFetch<ProductDetail>(`/products/by-slug/${encodeURIComponent(slug)}`)
+}
+
 export async function updateProduct(
   productId: number,
   data: { name?: string; manufacturer?: string; category?: string; version?: string; firmware_version_id?: number | null },

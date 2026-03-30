@@ -316,6 +316,7 @@ export interface FormatCount {
 export interface ProductListItem {
   id: number
   name: string
+  slug: string
   manufacturer: string
   category: string
   created_at: string
@@ -341,6 +342,7 @@ export interface ProductListItem {
 export interface ProductDetail {
   id: number
   name: string
+  slug: string
   manufacturer: string
   category: string
   created_at: string

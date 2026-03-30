@@ -410,7 +410,12 @@ def ingest_archive_task(
             sa_select(Product).where(Product.name == product_name)
         ).scalar_one_or_none()
         if product_row is None:
-            product_row = Product(name=product_name, manufacturer=manufacturer, tenant_id=archive_tenant_id)
+            from app.products.utils import make_product_slug
+            product_row = Product(
+                name=product_name, manufacturer=manufacturer,
+                slug=make_product_slug(manufacturer, product_name),
+                tenant_id=archive_tenant_id,
+            )
             session.add(product_row)
             session.flush()
 
@@ -560,9 +565,11 @@ def ingest_archive_from_s3_task(
             sa_select(Product).where(Product.name == product_name)
         ).scalar_one_or_none()
         if product_row is None:
+            from app.products.utils import make_product_slug
             product_row = Product(
                 name=product_name,
                 manufacturer=manufacturer,
+                slug=make_product_slug(manufacturer, product_name),
                 tenant_id=_tenant_id,
             )
             session.add(product_row)

@@ -141,6 +141,7 @@ class Product(Base):
     manufacturer: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(Text, default="")
+    slug: Mapped[str] = mapped_column(Text, unique=True, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

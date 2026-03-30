@@ -370,7 +370,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         <div
           className="docs-name-cell"
           style={{ cursor: 'pointer' }}
-          onClick={() => navigate(`/app/products/${row.original.id}`)}
+          onClick={() => navigate(`/app/products/${row.original.slug}`)}
         >
           <span className="docs-name">{row.original.display_name || row.original.name}</span>
           {row.original.manufacturer && (
@@ -650,7 +650,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
             <div
               className="docs-card"
               key={p.firmware_version_id ? `${p.id}-${p.firmware_version_id}` : p.id}
-              onClick={() => navigate(`/app/products/${p.id}`)}
+              onClick={() => navigate(`/app/products/${p.slug}`)}
               style={{ cursor: 'pointer' }}
             >
               <div className="docs-card-header">

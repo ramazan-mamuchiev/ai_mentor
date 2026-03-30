@@ -31,6 +31,7 @@ from app.products.schemas import (
     ProductUsageStats,
     SuggestionChip,
 )
+from app.products.utils import make_product_slug
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,7 @@ async def list_products():
             select(
                 Product.id,
                 Product.name,
+                Product.slug,
                 Product.manufacturer,
                 Product.category,
                 Product.created_at,
@@ -265,6 +267,7 @@ async def list_products():
             items.append(ProductListItem(
                 id=p.id,
                 name=p.name,
+                slug=p.slug,
                 manufacturer=p.manufacturer,
                 category=p.category,
                 created_at=p.created_at,
@@ -298,27 +301,43 @@ async def list_products():
         return items
 
 
+async def _product_detail(session, product: Product) -> ProductDetail:
+    fw_result = await session.execute(
+        select(FirmwareVersion.version)
+        .where(FirmwareVersion.product_id == product.id)
+        .order_by(FirmwareVersion.version)
+    )
+    versions = [row[0] for row in fw_result.all()]
+    return ProductDetail(
+        id=product.id,
+        name=product.name,
+        slug=product.slug,
+        manufacturer=product.manufacturer,
+        category=product.category,
+        created_at=product.created_at,
+        firmware_versions=versions,
+    )
+
+
+@router.get("/by-slug/{slug}", response_model=ProductDetail)
+async def get_product_by_slug(slug: str):
+    """Get product details by URL slug."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Product).where(Product.slug == slug)
+        )
+        product = result.scalar_one_or_none()
+        if product is None:
+            raise HTTPException(status_code=404, detail="Product not found")
+        return await _product_detail(session, product)
+
+
 @router.get("/{product_id}", response_model=ProductDetail)
 async def get_product(product_id: int):
     """Get product details including firmware versions."""
     async with async_session() as session:
         product = await _get_product(session, product_id)
-
-        fw_result = await session.execute(
-            select(FirmwareVersion.version)
-            .where(FirmwareVersion.product_id == product.id)
-            .order_by(FirmwareVersion.version)
-        )
-        versions = [row[0] for row in fw_result.all()]
-
-        return ProductDetail(
-            id=product.id,
-            name=product.name,
-            manufacturer=product.manufacturer,
-            category=product.category,
-            created_at=product.created_at,
-            firmware_versions=versions,
-        )
+        return await _product_detail(session, product)
 
 
 @router.patch("/{product_id}", response_model=ProductDetail)
@@ -334,6 +353,9 @@ async def update_product(product_id: int, body: ProductUpdate):
         if body.category is not None:
             product.category = body.category
 
+        if body.name is not None or body.manufacturer is not None:
+            product.slug = make_product_slug(product.manufacturer, product.name)
+
         if body.version is not None and body.firmware_version_id is not None:
             fw = await session.get(FirmwareVersion, body.firmware_version_id)
             if fw and fw.product_id == product.id:
@@ -341,22 +363,7 @@ async def update_product(product_id: int, body: ProductUpdate):
 
         await session.commit()
         await session.refresh(product)
-
-        fw_result = await session.execute(
-            select(FirmwareVersion.version)
-            .where(FirmwareVersion.product_id == product.id)
-            .order_by(FirmwareVersion.version)
-        )
-        versions = [row[0] for row in fw_result.all()]
-
-        return ProductDetail(
-            id=product.id,
-            name=product.name,
-            manufacturer=product.manufacturer,
-            category=product.category,
-            created_at=product.created_at,
-            firmware_versions=versions,
-        )
+        return await _product_detail(session, product)
 
 
 @router.delete("/{product_id}")

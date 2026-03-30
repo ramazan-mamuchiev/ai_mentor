@@ -1235,10 +1235,13 @@ async def _get_or_create_product(session: AsyncSession, name: str, manufacturer:
     if product:
         return product
 
+    from app.products.utils import make_product_slug
+
     product = Product(
         name=name,
         manufacturer=manufacturer,
         model=name,
+        slug=make_product_slug(manufacturer, name),
         tenant_id=tenant_id,
     )
     session.add(product)
