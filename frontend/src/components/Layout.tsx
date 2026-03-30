@@ -52,7 +52,7 @@ function loadCollapsed(): boolean {
 const NAV_ITEMS = [
   { path: '/app', icon: MessageSquare, labelKey: 'nav.chat' },
   { path: '/app/products', icon: Box, labelKey: 'nav.products' },
-  { path: '/app/kb', icon: BookOpen, labelKey: 'nav.kb' },
+  { path: '/kb', icon: BookOpen, labelKey: 'nav.kb' },
   { path: '/app/analytics', icon: BarChart3, labelKey: 'nav.analytics' },
   { path: '/app/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const

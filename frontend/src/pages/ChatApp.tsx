@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { createSession, deleteSession, getSession, listSessions, updateSession } from '../api/chat'
 import { ChatWindow } from '../components/ChatWindow'
 import { FileUpload, type ProductContext } from '../components/FileUpload'
@@ -15,8 +15,10 @@ import { ProductsPage } from './ProductsPage'
 import { ProductDetailPage } from './ProductDetailPage'
 import { AnalyticsPage } from './AnalyticsPage'
 import { SettingsPage } from './SettingsPage'
-import { KBPage } from './KBPage'
-import { KBArticlePage } from './KBArticlePage'
+function NavigateToKB() {
+  const { '*': rest } = useParams()
+  return <Navigate to={`/kb/${rest || ''}`} replace />
+}
 
 export function ChatApp() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -278,7 +280,7 @@ export function ChatApp() {
         <Route index element={chatContent} />
         <Route path="documents" element={<DocumentsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
         <Route path="products" element={<ProductsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
-        <Route path="products/:productId" element={
+        <Route path="products/:slug" element={
           <ProductDetailPage
             onUploadClick={(ctx) => { productContextRef.current = ctx; setShowUpload(true) }}
             onUrlImportClick={(ctx) => { productContextRef.current = ctx; setShowUrlImport(true) }}
@@ -286,8 +288,8 @@ export function ChatApp() {
         } />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="kb" element={<KBPage />} />
-        <Route path="kb/:slug" element={<KBArticlePage />} />
+        <Route path="kb" element={<Navigate to="/kb" replace />} />
+        <Route path="kb/*" element={<NavigateToKB />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
       {showUpload && (

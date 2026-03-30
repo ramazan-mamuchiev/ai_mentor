@@ -461,3 +461,107 @@ button {
   color: var(--text-muted);
   font-size: 0.95rem;
 }
+
+/* ── Public KB Layout (guest header) ── */
+
+.public-kb-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--bg);
+}
+
+.public-kb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 56px;
+  min-height: 56px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.public-kb-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.public-kb-logo {
+  width: 28px;
+  height: 28px;
+}
+
+.public-kb-brand {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.public-kb-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.public-kb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.public-kb-btn:hover {
+  background: var(--bg-hover);
+}
+
+.public-kb-btn--primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.public-kb-btn--primary:hover {
+  filter: brightness(1.1);
+  background: var(--accent);
+}
+
+.public-kb-main {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 600px) {
+  .public-kb-header {
+    padding: 0 12px;
+    height: 48px;
+    min-height: 48px;
+  }
+
+  .public-kb-brand {
+    font-size: 0.95rem;
+  }
+
+  .public-kb-btn span {
+    display: none;
+  }
+
+  .public-kb-btn {
+    padding: 6px 8px;
+  }
+
+  .public-kb-btn--primary span {
+    display: inline;
+  }
+}

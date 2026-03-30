@@ -6,6 +6,9 @@ import { RegisterPage } from './pages/RegisterPage'
 import { LoginPage } from './pages/LoginPage'
 import { ChatApp } from './pages/ChatApp'
 import { SharedView } from './pages/SharedView'
+import { KBShell } from './pages/KBShell'
+import { KBPage } from './pages/KBPage'
+import { KBArticlePage } from './pages/KBArticlePage'
 import type { ReactNode } from 'react'
 
 const AdminApp = lazy(() => import('./pages/admin/AdminApp'))
@@ -39,6 +42,10 @@ function AppRoutes() {
       <Route path="/s/:token" element={<SharedView />} />
       <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
       <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+      <Route path="/kb" element={<KBShell />}>
+        <Route index element={<KBPage />} />
+        <Route path=":slug" element={<KBArticlePage />} />
+      </Route>
       <Route path="/app/admin/*" element={
         <AdminRoute>
           <Suspense fallback={<div className="auth-loading" />}>

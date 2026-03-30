@@ -83,7 +83,7 @@ export function KBPage() {
               <button
                 key={article.slug}
                 className="kb-card"
-                onClick={() => navigate(`/app/kb/${article.slug}`)}
+                onClick={() => navigate(`/kb/${article.slug}`)}
               >
                 <div className="kb-card-icon"><Icon size={24} /></div>
                 <div className="kb-card-body">

@@ -79,7 +79,7 @@ export function KBArticlePage() {
     if (!el) return
 
     const handler = (e: MouseEvent) => {
-      const link = (e.target as HTMLElement).closest('a[href^="/app/kb/"]') as HTMLAnchorElement | null
+      const link = (e.target as HTMLElement).closest('a[href^="/kb/"]') as HTMLAnchorElement | null
       if (link) {
         e.preventDefault()
         e.stopPropagation()
@@ -137,7 +137,7 @@ export function KBArticlePage() {
     return (
       <div className="kb-viewer-error">
         <p>{t('kb.notFound')}</p>
-        <button className="btn" onClick={() => navigate('/app/kb')}>
+        <button className="btn" onClick={() => navigate('/kb')}>
           <ArrowLeft size={16} /> {t('kb.backToCatalog')}
         </button>
       </div>
@@ -147,7 +147,7 @@ export function KBArticlePage() {
   return (
     <div className={`kb-viewer${fullscreen ? ' kb-viewer--fullscreen' : ''}`}>
       <div className="kb-viewer-toolbar">
-        <button className="btn" onClick={() => navigate('/app/kb')}>
+        <button className="btn" onClick={() => navigate('/kb')}>
           <ArrowLeft size={16} /> {t('kb.backToCatalog')}
         </button>
         <h2>{meta.title[lang] || meta.title.en}</h2>

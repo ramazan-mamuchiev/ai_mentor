@@ -1218,5 +1218,6 @@
   "kb.noResults": "No articles found",
   "kb.notFound": "Article not found",
   "kb.backToCatalog": "Back to catalog",
-  "kb.openInNewTab": "Open in new tab"
+  "kb.openInNewTab": "Open in new tab",
+  "kb.signIn": "Sign in"
 }

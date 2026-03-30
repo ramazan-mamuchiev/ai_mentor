@@ -1264,5 +1264,6 @@
   "kb.noResults": "Статьи не найдены",
   "kb.notFound": "Статья не найдена",
   "kb.backToCatalog": "Назад к каталогу",
-  "kb.openInNewTab": "Открыть в новой вкладке"
+  "kb.openInNewTab": "Открыть в новой вкладке",
+  "kb.signIn": "Войти"
 }
