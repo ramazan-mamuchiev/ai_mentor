@@ -55,6 +55,7 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
     ['results', String(item.result_count)],
     ['top_similarity', item.top_similarity > 0 ? item.top_similarity.toFixed(4) : '—'],
     ['duration', fmtMs(item.duration_ms)],
+    ['total_tokens', tokens.toLocaleString()],
     ['query_tokens', item.query_tokens.toLocaleString()],
     ['response_tokens', item.response_tokens.toLocaleString()],
     ['embedding_tokens', item.embedding_tokens.toLocaleString()],

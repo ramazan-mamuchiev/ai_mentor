@@ -216,6 +216,8 @@ function DocActions({
     }
   }, [open])
 
+  const isLinked = ['site', 'confluence', 'github', 'url'].includes(doc.format)
+
   const handleToggle = useCallback(() => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
@@ -263,7 +265,7 @@ function DocActions({
           {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
             <button className="docs-actions-dropdown-item" onClick={() => { onReingest(doc); setOpen(false) }}>
               <RefreshCw size={15} />
-              {t('docs.actions.reindex')}
+              {isLinked ? t('docs.actions.refreshSource') : t('docs.actions.reindex')}
             </button>
           )}
           <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
@@ -347,6 +349,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
 
   const handleReingestConfirm = useCallback(async () => {
     if (!reingestTarget) return
+    const isLinkedTarget = ['site', 'confluence', 'github', 'url'].includes(reingestTarget.format)
     try {
       await reingestDocument(reingestTarget.id)
       setDocuments(prev =>
@@ -354,7 +357,8 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       )
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)
-      alert(`${t('docs.reingest.error')}: ${detail}`)
+      const errorKey = isLinkedTarget ? 'docs.refreshSource.error' : 'docs.reingest.error'
+      alert(`${t(errorKey)}: ${detail}`)
     }
     finally { setReingestTarget(null) }
   }, [reingestTarget, t])
@@ -790,18 +794,22 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         />
       )}
 
-      {reingestTarget && (
-        <ConfirmDialog
-          title={t('docs.reingest.title')}
-          message={t('docs.reingest.message')}
-          details={`${reingestTarget.title} (${reingestTarget.original_filename}, ${formatBytes(reingestTarget.file_size_bytes)})`}
-          confirmLabel={t('docs.reingest.confirm')}
-          cancelLabel={t('docs.reingest.cancel')}
-          variant="default"
-          onConfirm={handleReingestConfirm}
-          onCancel={() => setReingestTarget(null)}
-        />
-      )}
+      {reingestTarget && (() => {
+        const isLinkedTarget = ['site', 'confluence', 'github', 'url'].includes(reingestTarget.format)
+        const prefix = isLinkedTarget ? 'docs.refreshSource' : 'docs.reingest'
+        return (
+          <ConfirmDialog
+            title={t(`${prefix}.title`)}
+            message={t(`${prefix}.message`)}
+            details={`${reingestTarget.title} (${reingestTarget.original_filename}, ${formatBytes(reingestTarget.file_size_bytes)})`}
+            confirmLabel={t(`${prefix}.confirm`)}
+            cancelLabel={t(`${prefix}.cancel`)}
+            variant="default"
+            onConfirm={handleReingestConfirm}
+            onCancel={() => setReingestTarget(null)}
+          />
+        )
+      })()}
 
       {cancelTarget && (
         <ConfirmDialog

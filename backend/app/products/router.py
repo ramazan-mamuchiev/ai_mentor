@@ -377,34 +377,90 @@ async def delete_product(product_id: int):
 async def reingest_product(product_id: int):
     """Re-run full ingestion for all documents of a product.
 
-    Only requeues file-based documents (ready/error). Placeholder documents
-    (site, confluence, url) are skipped — use their own reingest endpoints.
+    Placeholder documents (site, confluence, url, github) are re-crawled:
+    child documents are deleted and the appropriate crawl task is dispatched.
+    File-based documents are re-indexed via ingest_document_task.
     """
     from app.celery_app import ingest_document_task
+    from app.s3 import delete_file
 
-    _PLACEHOLDER_FORMATS = {"site", "confluence", "url"}
+    _PLACEHOLDER_FORMATS = {"site", "confluence", "url", "github"}
+    _REINDEX_STATUSES = ["ready", "error", "pending", "processing"]
+
+    placeholder_ids: list[int] = []
+    file_doc_ids: list[int] = []
 
     async with async_session() as session:
         product = await _get_product(session, product_id)
 
-        docs_result = await session.execute(
+        # --- Placeholder documents: re-crawl from source ---
+        ph_result = await session.execute(
             select(Document).where(
                 Document.product_id == product_id,
-                Document.status.in_(["ready", "error", "pending", "processing"]),
+                Document.status.in_(_REINDEX_STATUSES),
+                Document.format.in_(_PLACEHOLDER_FORMATS),
+            )
+        )
+        placeholders = ph_result.scalars().all()
+
+        for ph in placeholders:
+            if not ph.source_path:
+                continue
+
+            children = (await session.execute(
+                select(Document).where(
+                    Document.source_container == ph.source_path,
+                    Document.id != ph.id,
+                )
+            )).scalars().all()
+            for child in children:
+                child_chunks = (await session.execute(
+                    select(Chunk).where(Chunk.document_id == child.id)
+                )).scalars().all()
+                for ch in child_chunks:
+                    await session.delete(ch)
+                if child.s3_key:
+                    try:
+                        delete_file(child.s3_key)
+                    except Exception:
+                        pass
+                await session.delete(child)
+
+            ph_chunks = (await session.execute(
+                select(Chunk).where(Chunk.document_id == ph.id)
+            )).scalars().all()
+            for ch in ph_chunks:
+                await session.delete(ch)
+
+            ph.status = "pending"
+            ph.total_chunks = 0
+            ph.total_tokens = 0
+            ph.file_size_bytes = 0
+            ph.error_message = None
+            ph.progress_percent = 0
+            ph.progress_stage = "queued"
+            ph.title = ph.source_path[:200]
+            if ph.format == "site":
+                ph.crawl_checkpoint = None
+            placeholder_ids.append(ph.id)
+
+        # --- File-based documents: re-index ---
+        file_result = await session.execute(
+            select(Document).where(
+                Document.product_id == product_id,
+                Document.status.in_(_REINDEX_STATUSES),
                 Document.format.notin_(_PLACEHOLDER_FORMATS),
             )
         )
-        docs = docs_result.scalars().all()
-        if not docs:
-            raise HTTPException(status_code=400, detail="No documents to reingest")
+        file_docs = file_result.scalars().all()
+        file_doc_ids = [doc.id for doc in file_docs]
 
-        doc_ids = [doc.id for doc in docs]
+        if file_doc_ids:
+            await session.execute(
+                delete(Chunk).where(Chunk.document_id.in_(file_doc_ids))
+            )
 
-        await session.execute(
-            delete(Chunk).where(Chunk.document_id.in_(doc_ids))
-        )
-
-        for doc in docs:
+        for doc in file_docs:
             doc.status = "pending"
             doc.total_chunks = 0
             doc.error_message = None
@@ -413,18 +469,52 @@ async def reingest_product(product_id: int):
 
         await session.commit()
 
-    for doc_id in doc_ids:
+        if not placeholder_ids and not file_doc_ids:
+            raise HTTPException(status_code=400, detail="No documents to reingest")
+
+        # Dispatch placeholder crawl tasks (must read format after commit)
+        for ph in placeholders:
+            if ph.id not in placeholder_ids:
+                continue
+            if ph.format == "site":
+                from app.celery_app import ingest_site_task
+                ingest_site_task.delay(document_id=ph.id)
+            elif ph.format == "github":
+                from app.celery_app import ingest_github_task
+                from app.ingestion.converters.github import parse_github_url
+                _branch = "main"
+                try:
+                    _, _, url_branch = parse_github_url(ph.source_path)
+                    if url_branch:
+                        _branch = url_branch
+                except ValueError:
+                    pass
+                ingest_github_task.delay(document_id=ph.id, branch=_branch)
+            elif ph.format == "confluence":
+                from app.celery_app import ingest_confluence_task
+                ingest_confluence_task.delay(document_id=ph.id)
+            elif ph.format == "url":
+                from app.celery_app import ingest_single_url_task
+                ingest_single_url_task.delay(document_id=ph.id)
+
+    for doc_id in file_doc_ids:
         ingest_document_task.delay(doc_id)
 
     logger.info(
         "Product reingest queued",
-        extra={"product_id": product_id, "product_name": product.name, "documents_queued": len(doc_ids)},
+        extra={
+            "product_id": product_id,
+            "product_name": product.name,
+            "documents_queued": len(file_doc_ids),
+            "placeholders_queued": len(placeholder_ids),
+        },
     )
     return {
         "product_id": product_id,
         "product_name": product.name,
         "status": "accepted",
-        "documents_queued": len(doc_ids),
+        "documents_queued": len(file_doc_ids),
+        "placeholders_queued": len(placeholder_ids),
     }
 
 
