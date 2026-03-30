@@ -205,6 +205,9 @@ button {
   padding: 40px 32px;
   max-width: 860px;
   margin: 0 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
 }
 
 .kb-header {
@@ -405,6 +408,7 @@ button {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
 .kb-viewer--fullscreen {
@@ -448,6 +452,10 @@ button {
 .kb-viewer-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
   background: var(--bg-secondary);
   color: var(--text);
   font-family: var(--font-sans);
