@@ -413,6 +413,12 @@ button {
   font-family: var(--font-sans);
 }
 
+.kb-viewer-content .stage-chevron {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
 .kb-viewer-loading,
 .kb-viewer-error {
   display: flex;
