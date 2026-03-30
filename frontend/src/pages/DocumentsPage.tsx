@@ -589,12 +589,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       enableGrouping: false,
       sortingFn: 'datetime',
     },
-    ...((canDebug || canReindex || canSync || canDelete) ? [{
+    {
       id: 'actions',
       header: () => t('docs.table.actions'),
       enableSorting: false,
       enableGrouping: false,
-      cell: ({ row }: { row: { original: DocumentListItem } }) => (
+      cell: ({ row }) => (
         <DocActions
           doc={row.original}
           onDebug={canDebug ? openDebug : undefined}
@@ -605,7 +605,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onDelete={canDelete ? setDeleteTarget : undefined}
         />
       ),
-    }] : []),
+    },
   ], [t, handleDownload, openDebug, canDebug, canDelete, canReindex, canSync])
 
   const {
