@@ -13,5 +13,20 @@
       "ru": "Полный путь документа: от загрузки до готовности к семантическому поиску. 9 этапов — конвертация, чанкинг, эмбеддинг через Gemini, индексирование в pgvector."
     },
     "languages": ["en", "ru"]
+  },
+  {
+    "slug": "ask-pipeline",
+    "icon": "MessageSquare",
+    "tags": ["architecture", "rag", "gemini", "search"],
+    "createdAt": "2026-03-30",
+    "title": {
+      "en": "Ask Chat Pipeline",
+      "ru": "Ask Chat Pipeline"
+    },
+    "description": {
+      "en": "Full query path: from user input to SSE-streamed response. 11 stages including query rewrite, classification, hybrid search (vector + BM25 + RRF), LLM reranking, and Gemini Pro generation.",
+      "ru": "Полный путь вопроса: от ввода до стриминга ответа. 11 этапов — переформулировка, классификация, гибридный поиск (vector + BM25 + RRF), LLM-реранкинг и генерация через Gemini Pro."
+    },
+    "languages": ["en", "ru"]
   }
 ]
