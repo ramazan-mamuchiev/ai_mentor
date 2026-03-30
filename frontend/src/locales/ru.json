@@ -377,6 +377,7 @@
   "nav.products": "Продукты",
   "nav.analytics": "Аналитика",
   "nav.settings": "Настройки",
+  "nav.kb": "База знаний",
   "nav.admin": "Админка",
 
   "docs.title": "Документы",
@@ -1240,5 +1241,15 @@
   "filters.tags": "Теги",
   "filters.showMore": "Показать ещё {{count}}",
   "filters.showLess": "Свернуть",
-  "filters.clearAll": "Сбросить все"
+  "filters.clearAll": "Сбросить все",
+
+  "kb.title": "База знаний",
+  "kb.description": "Архитектурные диаграммы и технические статьи",
+  "kb.search": "Поиск статей...",
+  "kb.loading": "Загрузка...",
+  "kb.empty": "Статей пока нет",
+  "kb.noResults": "Статьи не найдены",
+  "kb.notFound": "Статья не найдена",
+  "kb.backToCatalog": "Назад к каталогу",
+  "kb.openInNewTab": "Открыть в новой вкладке"
 }

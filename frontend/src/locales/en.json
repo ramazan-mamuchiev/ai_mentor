@@ -360,6 +360,7 @@
   "nav.products": "Products",
   "nav.analytics": "Analytics",
   "nav.settings": "Settings",
+  "nav.kb": "Knowledge Base",
   "nav.admin": "Admin",
 
   "docs.title": "Documents",
@@ -1207,5 +1208,15 @@
   "category.alarm_intrusion": "Alarm & Intrusion",
   "category.building_automation": "Building Automation",
   "category.software": "Software & VMS",
-  "category.protocols": "Protocols & Standards"
+  "category.protocols": "Protocols & Standards",
+
+  "kb.title": "Knowledge Base",
+  "kb.description": "Architecture diagrams and technical articles",
+  "kb.search": "Search articles...",
+  "kb.loading": "Loading...",
+  "kb.empty": "No articles yet",
+  "kb.noResults": "No articles found",
+  "kb.notFound": "Article not found",
+  "kb.backToCatalog": "Back to catalog",
+  "kb.openInNewTab": "Open in new tab"
 }

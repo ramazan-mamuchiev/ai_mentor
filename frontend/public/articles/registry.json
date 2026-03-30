@@ -1,0 +1,17 @@
+[
+  {
+    "slug": "indexing-pipeline",
+    "icon": "Database",
+    "tags": ["architecture", "rag", "gemini"],
+    "createdAt": "2026-03-30",
+    "title": {
+      "en": "Document Indexing Pipeline",
+      "ru": "Pipeline индексации документов"
+    },
+    "description": {
+      "en": "Full document path: from upload to semantic search readiness. 9 stages including conversion, chunking, embedding via Gemini, and HNSW indexing in pgvector.",
+      "ru": "Полный путь документа: от загрузки до готовности к семантическому поиску. 9 этапов — конвертация, чанкинг, эмбеддинг через Gemini, индексирование в pgvector."
+    },
+    "languages": ["en", "ru"]
+  }
+]

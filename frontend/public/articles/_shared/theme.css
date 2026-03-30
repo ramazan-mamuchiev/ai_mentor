@@ -1,0 +1,91 @@
+/* Lexiro article theme — synced with product CSS variables.
+   Include this in every standalone article HTML for consistent theming. */
+
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: 'Outfit', var(--font-sans);
+
+  --accent: #2563eb;
+  --accent2: #7c3aed;
+  --accent3: #db2777;
+  --gradient: linear-gradient(135deg, #2563eb, #7c3aed, #db2777);
+
+  --bg: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --surface: #f8fafc;
+  --surface2: #f1f5f9;
+  --surface-hover: #e2e8f0;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  /* Article-specific semantic colors */
+  --gemini: #059669;
+  --gemini-glow: rgba(5,150,105,0.12);
+  --celery: #d97706;
+  --celery-glow: rgba(217,119,6,0.1);
+  --pgvector: #dc2626;
+  --pgvector-glow: rgba(220,38,38,0.1);
+  --s3: #2563eb;
+  --lib: #64748b;
+  --arrow: #cbd5e1;
+  --accent-glow: rgba(37,99,235,0.12);
+}
+
+[data-theme='dark'] {
+  --bg: #0b0f19;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1e293b;
+  --surface: #1e293b;
+  --surface2: #1c2030;
+  --surface-hover: #334155;
+  --border: #334155;
+  --text: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #60a5fa;
+  --gradient: linear-gradient(135deg, #77B8FD, #FEA5D0);
+
+  --gemini: #34d399;
+  --gemini-glow: rgba(52,211,153,0.15);
+  --celery: #fbbf24;
+  --celery-glow: rgba(251,191,36,0.12);
+  --pgvector: #f87171;
+  --pgvector-glow: rgba(248,113,113,0.15);
+  --s3: #60a5fa;
+  --lib: #94a3b8;
+  --arrow: #475569;
+  --accent-glow: rgba(96,165,250,0.15);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-display);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

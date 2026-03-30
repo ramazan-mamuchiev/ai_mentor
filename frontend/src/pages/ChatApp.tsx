@@ -15,6 +15,8 @@ import { ProductsPage } from './ProductsPage'
 import { ProductDetailPage } from './ProductDetailPage'
 import { AnalyticsPage } from './AnalyticsPage'
 import { SettingsPage } from './SettingsPage'
+import { KBPage } from './KBPage'
+import { KBArticlePage } from './KBArticlePage'
 
 export function ChatApp() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -284,6 +286,8 @@ export function ChatApp() {
         } />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="kb" element={<KBPage />} />
+        <Route path="kb/:slug" element={<KBArticlePage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
       {showUpload && (
