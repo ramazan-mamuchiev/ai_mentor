@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const INTERVAL_MS = 6000
+const INTERVAL_MS = 8000
 const FADE_MS = 400
 
 export function useRotatingSlogan() {

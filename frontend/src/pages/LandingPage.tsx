@@ -22,6 +22,11 @@ import {
   Sun,
   Moon,
   Rocket,
+  MessageSquare,
+  Bot,
+  User,
+  FileCode,
+  CheckCircle2,
 } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
 import { useRotatingSlogan } from '../hooks/useRotatingSlogan'
@@ -206,10 +211,57 @@ export function LandingPage() {
             <ArrowRight size={16} />
           </Link>
         </div>
+
+        {/* Product mockup */}
+        <div className="hero-mockup">
+          <div className="hero-mockup-window">
+            <div className="hero-mockup-titlebar">
+              <div className="hero-mockup-dots">
+                <span /><span /><span />
+              </div>
+              <span className="hero-mockup-url">lexiro.io</span>
+            </div>
+            <div className="hero-mockup-body">
+              <aside className="hero-mockup-sidebar">
+                <div className="hero-mockup-sidebar-logo">
+                  <img src="/logo-on-light.svg" alt="" className="logo-light" />
+                  <img src="/logo-on-dark.svg" alt="" className="logo-dark" />
+                  <span>Lexiro</span>
+                </div>
+                <div className="hero-mockup-sidebar-nav">
+                  <div className="hero-mockup-nav-item active"><MessageSquare size={14} /> {t('nav.chat')}</div>
+                  <div className="hero-mockup-nav-item"><FileCode size={14} /> {t('nav.products')}</div>
+                </div>
+              </aside>
+              <div className="hero-mockup-chat">
+                <div className="hero-mockup-msg hero-mockup-msg--user">
+                  <div className="hero-mockup-avatar hero-mockup-avatar--user"><User size={14} /></div>
+                  <div className="hero-mockup-bubble">{t('landing.mockup.question')}</div>
+                </div>
+                <div className="hero-mockup-msg hero-mockup-msg--ai">
+                  <div className="hero-mockup-avatar hero-mockup-avatar--ai"><Bot size={14} /></div>
+                  <div className="hero-mockup-bubble">
+                    <p>{t('landing.mockup.answer')}</p>
+                    <pre className="hero-mockup-code"><code>{`import requests
+from requests.auth import HTTPDigestAuth
+
+url = f"http://{host}/ISAPI/System/Video/inputs/channels"
+r = requests.get(url, auth=HTTPDigestAuth(user, pwd))
+channels = r.json()["VideoInputChannelList"]`}</code></pre>
+                    <div className="hero-mockup-sources">
+                      <CheckCircle2 size={12} />
+                      <span>{t('landing.mockup.sources')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Elevator Pitch */}
-      <section className="landing-section">
+      <section className="landing-elevator-section">
         <div className="landing-elevator">
           <span className="landing-elevator-label">
             <Rocket size={14} />
@@ -217,12 +269,6 @@ export function LandingPage() {
           </span>
           <p dangerouslySetInnerHTML={{ __html: t('landing.elevator.text') }} />
         </div>
-      </section>
-
-      {/* Why This Matters */}
-      <section className="landing-section" id="why">
-        <h2 className="landing-section-title">{t('landing.why.title')}</h2>
-        <p className="landing-section-text">{t('landing.why.text')}</p>
       </section>
 
       {/* Problems Today */}
