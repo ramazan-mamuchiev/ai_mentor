@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, LayoutDashboard, MessageSquare, FileText, Search, Plug, DollarSign } from 'lucide-react'
 import {
   getUsageSummary, getUserChatStats, getUserDocStats, getUserSearchStats, getUserMcpStats, getUserCostStats,
   type UsageSummaryResponse, type UserChatStats as ChatStatsT,
@@ -491,6 +491,15 @@ export function AnalyticsPage() {
     costs: t('analytics.tabs.costs'),
   }
 
+  const tabIcons: Record<Tab, React.ReactNode> = {
+    overview: <LayoutDashboard size={14} />,
+    chat: <MessageSquare size={14} />,
+    documents: <FileText size={14} />,
+    search: <Search size={14} />,
+    mcp: <Plug size={14} />,
+    costs: <DollarSign size={14} />,
+  }
+
   return (
     <div className="analytics-page">
       <div className="admin-page-header">
@@ -505,8 +514,10 @@ export function AnalyticsPage() {
               key={tab}
               className={`stats-tab${activeTab === tab ? ' stats-tab--active' : ''}`}
               onClick={() => setTab(tab)}
+              title={tabLabels[tab]}
             >
-              {tabLabels[tab]}
+              {tabIcons[tab]}
+              <span className="stats-tab__label">{tabLabels[tab]}</span>
             </button>
           ))}
         </div>
