@@ -486,8 +486,7 @@ function CostsTab({ days, t }: { days: number; t: any }) {
             </div>
           </div>
         </div>
-      )
-      </div>
+      )}
     </>
   )
 }
