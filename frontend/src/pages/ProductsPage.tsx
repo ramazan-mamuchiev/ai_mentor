@@ -62,7 +62,7 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
       : 'products.status.reindexing'
     return (
       <span className="docs-status docs-status--processing">
-        <Loader2 size={14} className="animate-spin" />
+        <Loader2 size={14} className="spin-icon" />
         {t(labelKey)}
       </span>
     )
