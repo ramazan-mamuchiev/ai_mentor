@@ -1043,7 +1043,6 @@
   text-transform: uppercase;
   font-size: 10px;
   flex-shrink: 0;
-  min-width: 44px;
   letter-spacing: 0.03em;
 }
 
@@ -1106,22 +1105,22 @@
 /* Expanded details */
 .log-row__details {
   padding: 4px 12px 8px 35px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 8px;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .log-row__field {
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  line-height: 1.5;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
 }
 
 .log-row__key {
   color: var(--log-key);
   white-space: nowrap;
-  min-width: 120px;
 }
 
 .log-row__key::after {
@@ -1147,6 +1146,7 @@
 
 /* Full query/title text in expanded details */
 .log-row__query-text {
+  grid-column: 1 / -1;
   margin-top: 4px;
   padding: 6px 0;
   border-top: 1px solid var(--border);
@@ -1163,6 +1163,7 @@
 
 /* Expanded row actions */
 .log-row__actions {
+  grid-column: 1 / -1;
   display: flex;
   gap: 8px;
   padding: 6px 0 2px;
@@ -1882,7 +1883,6 @@
   }
 
   .log-row__key {
-    min-width: 80px;
     font-size: 10px;
   }
 
