@@ -374,36 +374,36 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
 
   const handleReingestConfirm = useCallback(async () => {
     if (!reingestTarget) return
+    const id = reingestTarget.id
+    setReingestTarget(null)
+    _setDocPending(id)
     try {
-      await reingestDocument(reingestTarget.id, true)
-      _setDocPending(reingestTarget.id)
+      await reingestDocument(id, true)
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)
       if (detail.includes('409') || detail.includes('already being processed')) {
         alert(t('docs.conflict'))
-        _setDocPending(reingestTarget.id)
       } else {
         alert(`${t('docs.reingest.error')}: ${detail}`)
       }
     }
-    finally { setReingestTarget(null) }
   }, [reingestTarget, t, _setDocPending])
 
   const handleSyncConfirm = useCallback(async () => {
     if (!syncTarget) return
+    const id = syncTarget.id
+    setSyncTarget(null)
+    _setDocPending(id)
     try {
-      await reingestDocument(syncTarget.id, false)
-      _setDocPending(syncTarget.id)
+      await reingestDocument(id, false)
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)
       if (detail.includes('409') || detail.includes('already being processed')) {
         alert(t('docs.conflict'))
-        _setDocPending(syncTarget.id)
       } else {
         alert(`${t('docs.sync.error')}: ${detail}`)
       }
     }
-    finally { setSyncTarget(null) }
   }, [syncTarget, t, _setDocPending])
 
   const handleCancelConfirm = useCallback(async () => {

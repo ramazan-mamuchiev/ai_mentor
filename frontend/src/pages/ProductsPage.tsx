@@ -273,20 +273,22 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
 
   const handleReingestConfirm = useCallback(async () => {
     if (!reingestTarget) return
+    const id = reingestTarget.id
+    setReingestTarget(null)
     try {
-      await reingestProduct(reingestTarget.id)
-      fetchProducts()
+      await reingestProduct(id)
     } catch { /* ignore */ }
-    finally { setReingestTarget(null) }
+    finally { fetchProducts() }
   }, [reingestTarget, fetchProducts])
 
   const handleSyncConfirm = useCallback(async () => {
     if (!syncTarget) return
+    const id = syncTarget.id
+    setSyncTarget(null)
     try {
-      await syncProduct(syncTarget.id)
-      fetchProducts()
+      await syncProduct(id)
     } catch { /* ignore */ }
-    finally { setSyncTarget(null) }
+    finally { fetchProducts() }
   }, [syncTarget, fetchProducts])
 
   const handleCancelConfirm = useCallback(async () => {
