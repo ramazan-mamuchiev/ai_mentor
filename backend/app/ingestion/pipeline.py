@@ -31,6 +31,71 @@ class IngestionCancelled(Exception):
     """Raised when a document's ingestion is cancelled mid-flight."""
 
 
+def _write_ingestion_usage(document: "Document") -> None:
+    """Write usage_log records for all LLM calls made during document ingestion."""
+    import uuid
+    from app.billing.usage_writer import write_usage_log_sync
+    from app.billing.pricing import (
+        calculate_llm_cogs, calculate_llm_charge,
+        calculate_embedding_cogs, calculate_embedding_charge,
+    )
+
+    tid = str(document.tenant_id) if document.tenant_id else None
+    req_id = f"ingest-{document.id}-{uuid.uuid4().hex[:8]}"
+
+    if document.ocr_prompt_tokens or document.ocr_completion_tokens:
+        model = document.ocr_model or _settings.ocr_vision_model
+        write_usage_log_sync(
+            "ingestion", "ocr", req_id,
+            llm_provider="google", llm_model=model,
+            prompt_tokens=document.ocr_prompt_tokens,
+            completion_tokens=document.ocr_completion_tokens,
+            duration_ms=document.ocr_ms or 0,
+            cogs_usd=calculate_llm_cogs(model, document.ocr_prompt_tokens, document.ocr_completion_tokens),
+            charge_usd=calculate_llm_charge(model, document.ocr_prompt_tokens, document.ocr_completion_tokens),
+            tenant_id=tid,
+        )
+
+    if document.extract_prompt_tokens or document.extract_completion_tokens:
+        model = _settings.metadata_extraction_model
+        write_usage_log_sync(
+            "ingestion", "extract_metadata", req_id,
+            llm_provider="google", llm_model=model,
+            prompt_tokens=document.extract_prompt_tokens,
+            completion_tokens=document.extract_completion_tokens,
+            duration_ms=document.extract_ms or 0,
+            cogs_usd=calculate_llm_cogs(model, document.extract_prompt_tokens, document.extract_completion_tokens),
+            charge_usd=calculate_llm_charge(model, document.extract_prompt_tokens, document.extract_completion_tokens),
+            tenant_id=tid,
+        )
+
+    if document.embedding_tokens:
+        emb_model = document.embedding_model or _settings.embedding_model_gemini
+        write_usage_log_sync(
+            "ingestion", "embedding", req_id,
+            llm_provider="google", llm_model=emb_model,
+            prompt_tokens=document.embedding_tokens,
+            completion_tokens=0,
+            duration_ms=document.embed_ms or 0,
+            cogs_usd=calculate_embedding_cogs(emb_model, document.embedding_tokens),
+            charge_usd=calculate_embedding_charge(emb_model, document.embedding_tokens),
+            tenant_id=tid,
+        )
+
+    if document.product_keys_prompt_tokens or document.product_keys_completion_tokens:
+        model = _settings.product_resolve_model
+        write_usage_log_sync(
+            "ingestion", "product_keys", req_id,
+            llm_provider="google", llm_model=model,
+            prompt_tokens=document.product_keys_prompt_tokens,
+            completion_tokens=document.product_keys_completion_tokens,
+            duration_ms=document.product_keys_ms or 0,
+            cogs_usd=calculate_llm_cogs(model, document.product_keys_prompt_tokens, document.product_keys_completion_tokens),
+            charge_usd=calculate_llm_charge(model, document.product_keys_prompt_tokens, document.product_keys_completion_tokens),
+            tenant_id=tid,
+        )
+
+
 def _save_doc_chunk_keys_sync(session, product_id: int, document_id: int, chunk_meta_dicts: list[dict]) -> int:
     """Extract entity keys from chunk metadata and save per-document (sync).
 
@@ -1189,6 +1254,8 @@ def ingest_from_bytes(
             document.error_message = f"OCR failed: {convert_metadata['ocr_error']}"
 
         session.commit()
+
+        _write_ingestion_usage(document)
 
         logger.info(
             "Worker ingestion completed",

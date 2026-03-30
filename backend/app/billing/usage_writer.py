@@ -1,5 +1,6 @@
 """Async fire-and-forget writer for the usage_log billing audit table."""
 
+import asyncio
 import logging
 from decimal import Decimal
 
@@ -125,3 +126,21 @@ async def write_usage_log(
         )
     except Exception:
         logger.warning("Failed to write usage_log", exc_info=True)
+
+
+def write_usage_log_sync(
+    channel: str,
+    action: str,
+    request_id: str,
+    **kwargs,
+) -> None:
+    """Synchronous wrapper for Celery workers and other sync contexts."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        loop.create_task(write_usage_log(channel, action, request_id, **kwargs))
+    else:
+        asyncio.run(write_usage_log(channel, action, request_id, **kwargs))

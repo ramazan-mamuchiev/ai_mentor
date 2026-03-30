@@ -171,6 +171,10 @@ class UserDocStats(BaseModel):
     ocr_completion_tokens: int = 0
     ocr_total_tokens: int = 0
     ocr_documents: int = 0
+    embedding_tokens: int = 0
+    extract_tokens: int = 0
+    product_keys_tokens: int = 0
+    ingestion_cost_usd: str = "0"
     formats: list[dict] = []
     products: list[dict] = []
     uploads_daily: list[dict] = []
@@ -199,6 +203,8 @@ class UserCostStats(BaseModel):
     forecast_month_usd: str = "0"
     ocr_total_tokens: int = 0
     ocr_cost_usd: str = "0"
+    ingestion_cost_usd: str = "0"
+    ingestion_breakdown: list[dict] = []
     daily: list[dict] = []
     by_model: list[dict] = []
     by_channel: list[dict] = []

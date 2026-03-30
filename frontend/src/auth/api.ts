@@ -220,6 +220,10 @@ export interface UserDocStats {
   ocr_completion_tokens: number
   ocr_total_tokens: number
   ocr_documents: number
+  embedding_tokens: number
+  extract_tokens: number
+  product_keys_tokens: number
+  ingestion_cost_usd: string
   formats: Array<{ format: string; count: number; pct: number }>
   products: Array<{ name: string; count: number }>
   uploads_daily: Array<{ date: string; count: number }>
@@ -251,6 +255,8 @@ export interface UserCostStats {
   forecast_month_usd: string
   ocr_total_tokens: number
   ocr_cost_usd: string
+  ingestion_cost_usd: string
+  ingestion_breakdown: Array<{ type: string; tokens: number; cost_usd: string }>
   daily: Array<{ date: string; charge_usd: string; requests: number }>
   by_model: Array<{ model: string; provider: string; total_charge_usd: string; total_tokens: number; request_count: number }>
   by_channel: Array<{ channel: string; total_charge_usd: string; request_count: number }>

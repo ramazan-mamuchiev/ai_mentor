@@ -219,30 +219,40 @@ function DocumentsTab({ days, t }: { days: number; t: any }) {
         <StatCard label={t('analytics.docs.totalChunks')} value={data.total_chunks.toLocaleString()} />
         <StatCard label={t('analytics.docs.pending')} value={data.documents_pending} variant={data.documents_pending > 0 ? 'warning' : undefined} />
         <StatCard label={t('analytics.docs.errors')} value={data.documents_error} variant={data.documents_error > 0 ? 'warning' : undefined} />
-        {data.ocr_total_tokens > 0 && (
-          <StatCard label={t('analytics.docs.ocrTokens')} value={data.ocr_total_tokens.toLocaleString()} sub={`${data.ocr_documents} ${t('analytics.docs.ocrDocs')}`} />
-        )}
+        <StatCard label={t('analytics.docs.ingestionCost')} value={fmtUsd(data.ingestion_cost_usd)} variant="accent" />
       </div>
 
-      {data.ocr_total_tokens > 0 && (
+      {(data.embedding_tokens > 0 || data.extract_tokens > 0 || data.ocr_total_tokens > 0 || data.product_keys_tokens > 0) && (
         <div style={{ margin: '16px 0' }}>
-          <h2 className="admin-section-title">{t('analytics.docs.ocrBreakdown')}</h2>
-          <div className="admin-detail-card" style={{ padding: 16, maxWidth: 480 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-              <span>{t('analytics.docs.ocrModel')}</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>gemini-2.5-flash</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-              <span>{t('analytics.docs.ocrPrompt')}</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>{data.ocr_prompt_tokens.toLocaleString()} tok</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-              <span>{t('analytics.docs.ocrCompletion')}</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>{data.ocr_completion_tokens.toLocaleString()} tok</span>
-            </div>
+          <h2 className="admin-section-title">{t('analytics.docs.ingestionBreakdown')}</h2>
+          <div className="admin-detail-card" style={{ padding: 16, maxWidth: 520 }}>
+            {data.embedding_tokens > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                <span>{t('analytics.docs.embeddingTokens')}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{data.embedding_tokens.toLocaleString()} tok</span>
+              </div>
+            )}
+            {data.extract_tokens > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                <span>{t('analytics.docs.extractTokens')}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{data.extract_tokens.toLocaleString()} tok</span>
+              </div>
+            )}
+            {data.ocr_total_tokens > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                <span>{t('analytics.docs.ocrTokens')} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({data.ocr_documents} {t('analytics.docs.ocrDocs')})</span></span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{data.ocr_total_tokens.toLocaleString()} tok</span>
+              </div>
+            )}
+            {data.product_keys_tokens > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                <span>{t('analytics.docs.productKeysTokens')}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{data.product_keys_tokens.toLocaleString()} tok</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', fontWeight: 600 }}>
-              <span>{t('analytics.docs.ocrTotalTokens')}</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>{data.ocr_total_tokens.toLocaleString()} tok</span>
+              <span>{t('analytics.docs.ingestionTotal')}</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtUsd(data.ingestion_cost_usd)}</span>
             </div>
           </div>
         </div>

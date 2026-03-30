@@ -443,6 +443,10 @@ async def user_doc_stats(
     since = datetime.now(timezone.utc) - timedelta(days=days)
     tid = tenant.id
 
+    from decimal import Decimal
+    from app.billing.pricing import calculate_llm_charge, calculate_embedding_charge
+    from app.config import settings
+
     totals = (await session.execute(text(
         "SELECT COUNT(*) AS total, "
         "COUNT(*) FILTER (WHERE status = 'ready') AS indexed, "
@@ -452,7 +456,12 @@ async def user_doc_stats(
         "COALESCE(SUM(file_size_bytes),0) AS size_bytes, "
         "COALESCE(SUM(ocr_prompt_tokens),0) AS ocr_prompt, "
         "COALESCE(SUM(ocr_completion_tokens),0) AS ocr_completion, "
-        "COUNT(*) FILTER (WHERE ocr_prompt_tokens > 0 OR ocr_completion_tokens > 0) AS ocr_docs "
+        "COUNT(*) FILTER (WHERE ocr_prompt_tokens > 0 OR ocr_completion_tokens > 0) AS ocr_docs, "
+        "COALESCE(SUM(embedding_tokens),0) AS embed_tok, "
+        "COALESCE(SUM(extract_prompt_tokens),0) AS extract_prompt, "
+        "COALESCE(SUM(extract_completion_tokens),0) AS extract_completion, "
+        "COALESCE(SUM(product_keys_prompt_tokens),0) AS pk_prompt, "
+        "COALESCE(SUM(product_keys_completion_tokens),0) AS pk_completion "
         "FROM documents WHERE tenant_id = :tid"
     ), {"tid": tid})).mappings().one()
 
@@ -475,6 +484,19 @@ async def user_doc_stats(
 
     ocr_prompt = int(totals["ocr_prompt"])
     ocr_completion = int(totals["ocr_completion"])
+    embed_tok = int(totals["embed_tok"])
+    extract_prompt = int(totals["extract_prompt"])
+    extract_completion = int(totals["extract_completion"])
+    extract_tok = extract_prompt + extract_completion
+    pk_prompt = int(totals["pk_prompt"])
+    pk_completion = int(totals["pk_completion"])
+    pk_tok = pk_prompt + pk_completion
+
+    ocr_cost = calculate_llm_charge(settings.ocr_vision_model, ocr_prompt, ocr_completion)
+    extract_cost = calculate_llm_charge(settings.metadata_extraction_model, extract_prompt, extract_completion)
+    embed_cost = calculate_embedding_charge(settings.embedding_model_gemini, embed_tok)
+    pk_cost = calculate_llm_charge(settings.product_resolve_model, pk_prompt, pk_completion)
+    ingestion_total = ocr_cost + extract_cost + embed_cost + pk_cost
 
     return UserDocStats(
         total_documents=int(totals["total"]),
@@ -487,6 +509,10 @@ async def user_doc_stats(
         ocr_completion_tokens=ocr_completion,
         ocr_total_tokens=ocr_prompt + ocr_completion,
         ocr_documents=int(totals["ocr_docs"]),
+        embedding_tokens=embed_tok,
+        extract_tokens=extract_tok,
+        product_keys_tokens=pk_tok,
+        ingestion_cost_usd=str(ingestion_total),
         formats=[{"format": r["format"], "count": int(r["cnt"]), "pct": round(int(r["cnt"]) / fmt_total * 100, 1)} for r in fmt_rows],
         products=[{"name": r["name"], "count": int(r["cnt"])} for r in prod_rows],
         uploads_daily=[{"date": str(r["d"]), "count": int(r["cnt"])} for r in uploads],
@@ -623,17 +649,40 @@ async def user_cost_stats(
     avg_per_day = total_charge / days if days > 0 else Decimal("0")
     forecast = avg_per_day * 30
 
-    ocr_totals = (await session.execute(text(
+    ingest_totals = (await session.execute(text(
         "SELECT COALESCE(SUM(ocr_prompt_tokens),0) AS ocr_prompt, "
-        "COALESCE(SUM(ocr_completion_tokens),0) AS ocr_completion "
+        "COALESCE(SUM(ocr_completion_tokens),0) AS ocr_completion, "
+        "COALESCE(SUM(embedding_tokens),0) AS embed_tok, "
+        "COALESCE(SUM(extract_prompt_tokens),0) AS extract_prompt, "
+        "COALESCE(SUM(extract_completion_tokens),0) AS extract_completion, "
+        "COALESCE(SUM(product_keys_prompt_tokens),0) AS pk_prompt, "
+        "COALESCE(SUM(product_keys_completion_tokens),0) AS pk_completion "
         "FROM documents WHERE tenant_id = :tid AND uploaded_at >= :since"
     ), {"tid": tid, "since": since})).mappings().one()
-    ocr_prompt = int(ocr_totals["ocr_prompt"])
-    ocr_completion = int(ocr_totals["ocr_completion"])
+    ocr_prompt = int(ingest_totals["ocr_prompt"])
+    ocr_completion = int(ingest_totals["ocr_completion"])
     ocr_total_tokens = ocr_prompt + ocr_completion
 
-    from app.billing.pricing import calculate_llm_charge
+    from app.billing.pricing import calculate_llm_charge, calculate_embedding_charge
     ocr_cost = calculate_llm_charge(settings.ocr_vision_model, ocr_prompt, ocr_completion)
+
+    embed_tok = int(ingest_totals["embed_tok"])
+    extract_prompt = int(ingest_totals["extract_prompt"])
+    extract_completion = int(ingest_totals["extract_completion"])
+    pk_prompt = int(ingest_totals["pk_prompt"])
+    pk_completion = int(ingest_totals["pk_completion"])
+
+    extract_cost = calculate_llm_charge(settings.metadata_extraction_model, extract_prompt, extract_completion)
+    embed_cost = calculate_embedding_charge(settings.embedding_model_gemini, embed_tok)
+    pk_cost = calculate_llm_charge(settings.product_resolve_model, pk_prompt, pk_completion)
+    ingestion_total = ocr_cost + extract_cost + embed_cost + pk_cost
+
+    ingestion_breakdown = [
+        {"type": "ocr", "tokens": ocr_total_tokens, "cost_usd": str(ocr_cost)},
+        {"type": "extract_metadata", "tokens": extract_prompt + extract_completion, "cost_usd": str(extract_cost)},
+        {"type": "embedding", "tokens": embed_tok, "cost_usd": str(embed_cost)},
+        {"type": "product_keys", "tokens": pk_prompt + pk_completion, "cost_usd": str(pk_cost)},
+    ]
 
     daily = (await session.execute(text(
         "SELECT DATE(created_at) AS d, COALESCE(SUM(charge_usd),0) AS charge, COUNT(*) AS cnt "
@@ -660,6 +709,8 @@ async def user_cost_stats(
         forecast_month_usd=str(round(forecast, 8)),
         ocr_total_tokens=ocr_total_tokens,
         ocr_cost_usd=str(ocr_cost),
+        ingestion_cost_usd=str(ingestion_total),
+        ingestion_breakdown=ingestion_breakdown,
         daily=[{"date": str(r["d"]), "charge_usd": str(r["charge"]), "requests": int(r["cnt"])} for r in daily],
         by_model=[{"model": r["model"], "provider": r["provider"], "total_charge_usd": str(r["charge"]),
                    "total_tokens": int(r["tokens"]), "request_count": int(r["cnt"])} for r in by_model],

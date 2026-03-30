@@ -50,11 +50,11 @@ SET permissions = permissions
        )
 WHERE slug = 'admin';
 
--- Add new permission keys (false) to user role for consistency
+-- Restrict document management for user role
 UPDATE roles
 SET permissions = permissions
     || jsonb_build_object('features',
         (permissions->'features')
-            || '{"documents.reindex": false, "documents.sync": false}'::jsonb
+            || '{"documents.upload": false, "documents.delete": false, "documents.reindex": false, "documents.sync": false}'::jsonb
        )
 WHERE slug = 'user';
