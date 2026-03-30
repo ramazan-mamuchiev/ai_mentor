@@ -163,6 +163,13 @@ function OverflowCell({ children, className }: { children: React.ReactNode; clas
   )
 }
 
+const _PLACEHOLDER_FORMATS = new Set(['site', 'confluence', 'github', 'url'])
+
+function isLinkedDoc(doc: DocumentListItem): boolean {
+  return _PLACEHOLDER_FORMATS.has(doc.format)
+    || (!!doc.source_path && doc.source_path.startsWith('http'))
+}
+
 const docGlobalFilter: FilterFn<DocumentListItem> = (row, _columnId, filterValue) => {
   const q = String(filterValue).toLowerCase()
   if (!q) return true
@@ -216,7 +223,7 @@ function DocActions({
     }
   }, [open])
 
-  const isLinked = ['site', 'confluence', 'github', 'url'].includes(doc.format)
+  const isLinked = isLinkedDoc(doc)
 
   const handleToggle = useCallback(() => {
     if (!open && btnRef.current) {
@@ -349,7 +356,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
 
   const handleReingestConfirm = useCallback(async () => {
     if (!reingestTarget) return
-    const isLinkedTarget = ['site', 'confluence', 'github', 'url'].includes(reingestTarget.format)
+    const isLinkedTarget = isLinkedDoc(reingestTarget)
     try {
       await reingestDocument(reingestTarget.id)
       setDocuments(prev =>
@@ -795,7 +802,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       )}
 
       {reingestTarget && (() => {
-        const isLinkedTarget = ['site', 'confluence', 'github', 'url'].includes(reingestTarget.format)
+        const isLinkedTarget = isLinkedDoc(reingestTarget)
         const prefix = isLinkedTarget ? 'docs.refreshSource' : 'docs.reingest'
         return (
           <ConfirmDialog
