@@ -1146,6 +1146,22 @@
   flex-shrink: 0;
 }
 
+/* Full query/title text in expanded details */
+.log-row__query-text {
+  margin-top: 4px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.log-row__query-text p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Expanded row actions */
 .log-row__actions {
   display: flex;

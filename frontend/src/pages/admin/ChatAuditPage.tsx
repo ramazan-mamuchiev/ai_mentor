@@ -97,6 +97,12 @@ function ChatSessionRow({ item, search, onClick }: {
               <span className="log-row__value">{v}</span>
             </div>
           ))}
+          {title && (
+            <div className="log-row__query-text">
+              <span className="log-row__key">title</span>
+              <p>{title}</p>
+            </div>
+          )}
           <div className="log-row__actions">
             <button className="admin-btn admin-btn--sm" onClick={e => { e.stopPropagation(); onClick() }}>
               <ChevronRight size={12} /> {t('admin.chats.openSession')}

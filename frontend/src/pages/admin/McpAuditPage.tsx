@@ -94,6 +94,12 @@ function McpRow({ item, search, isSelected, onDebug, onSources }: {
               <span className="log-row__value">{v}</span>
             </div>
           ))}
+          {summary !== '—' && (
+            <div className="log-row__query-text">
+              <span className="log-row__key">query</span>
+              <p>{summary}</p>
+            </div>
+          )}
           <div className="log-row__actions">
             <button className="admin-btn admin-btn--sm" onClick={e => { e.stopPropagation(); onDebug() }}>
               <Bug size={12} /> {t('admin.mcp.debug')}
