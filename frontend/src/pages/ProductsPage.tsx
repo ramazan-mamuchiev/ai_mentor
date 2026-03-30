@@ -477,16 +477,16 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       sortingFn: 'datetime',
     },
-    {
+    ...((canEdit || canDebug || canDelete || canReindex || canSync) ? [{
       id: 'actions',
       header: () => t('products.table.actions'),
       enableSorting: false,
       enableGrouping: false,
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: ProductListItem } }) => {
         const p = row.original
         return <ProductActions product={p} onEdit={canEdit ? setEditTarget : undefined} onDelete={canDelete ? setDeleteTarget : undefined} onReingest={canReindex ? setReingestTarget : undefined} onSync={canSync ? setSyncTarget : undefined} onDebug={canDebug ? openDebug : undefined} />
       },
-    },
+    }] : []),
   ], [t, navigate, openDebug, canDebug, canEdit, canDelete, canReindex, canSync])
 
   const {
@@ -691,33 +691,35 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                   ))}
                 </div>
               )}
-              <div className="docs-card-actions" onClick={e => e.stopPropagation()}>
-                {canEdit && (
-                  <button className="docs-action-btn" onClick={() => setEditTarget(p)}>
-                    <Pencil size={16} />
-                  </button>
-                )}
-                {canDebug && (
-                  <button className="docs-action-btn" onClick={() => openDebug(p)}>
-                    <Bug size={16} />
-                  </button>
-                )}
-                {canReindex && (
-                  <button className="docs-action-btn" onClick={() => setReingestTarget(p)}>
-                    <RefreshCw size={16} />
-                  </button>
-                )}
-                {canSync && (
-                  <button className="docs-action-btn" onClick={() => setSyncTarget(p)}>
-                    <CloudDownload size={16} />
-                  </button>
-                )}
-                {canDelete && (
-                  <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)}>
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
+              {(canEdit || canDebug || canReindex || canSync || canDelete) && (
+                <div className="docs-card-actions" onClick={e => e.stopPropagation()}>
+                  {canEdit && (
+                    <button className="docs-action-btn" onClick={() => setEditTarget(p)}>
+                      <Pencil size={16} />
+                    </button>
+                  )}
+                  {canDebug && (
+                    <button className="docs-action-btn" onClick={() => openDebug(p)}>
+                      <Bug size={16} />
+                    </button>
+                  )}
+                  {canReindex && (
+                    <button className="docs-action-btn" onClick={() => setReingestTarget(p)}>
+                      <RefreshCw size={16} />
+                    </button>
+                  )}
+                  {canSync && (
+                    <button className="docs-action-btn" onClick={() => setSyncTarget(p)}>
+                      <CloudDownload size={16} />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)}>
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))
         }
