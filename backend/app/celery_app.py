@@ -856,9 +856,9 @@ def ingest_single_url_task(self, document_id: int):
             return {"status": "error", "error": str(exc), "url": url}
 
 
-@celery.task(name="ingest_confluence", bind=True, max_retries=1, default_retry_delay=60,
-             soft_time_limit=3600, time_limit=3900)
-def ingest_confluence_task(self, document_id: int):
+@celery.task(name="ingest_confluence", bind=True, max_retries=10, default_retry_delay=10,
+             soft_time_limit=14400, time_limit=14700)
+def ingest_confluence_task(self, document_id: int, max_pages: int | None = None, max_depth: int | None = None):
     """Background task: crawl Confluence page tree and ingest each page.
 
     Receives the placeholder Document id (created by the API endpoint).
@@ -1064,8 +1064,14 @@ def ingest_confluence_task(self, document_id: int):
         except Exception:
             pass
 
+    _eff_max_pages = max_pages or settings.confluence_crawl_max_pages or settings.crawl_max_pages
+    _eff_max_depth = max_depth or settings.confluence_crawl_max_depth or settings.crawl_max_depth
+    _eff_max_seconds = settings.confluence_crawl_max_seconds or settings.crawl_max_seconds
+
     _crawl_kwargs = dict(
-        max_pages=500,
+        max_pages=_eff_max_pages,
+        max_depth=_eff_max_depth,
+        max_seconds=_eff_max_seconds,
         page_callback=_on_page,
         checkpoint_callback=_on_checkpoint,
     )
@@ -1090,20 +1096,13 @@ def ingest_confluence_task(self, document_id: int):
         with Session(engine) as session:
             placeholder = session.get(Document, document_id)
             if placeholder:
-                placeholder.status = "error"
-                placeholder.error_message = (
-                    f"Crawl exceeded soft time limit (60 min). "
-                    f"Processed {dispatched} pages before timeout."
-                )
-                placeholder.progress_stage = ""
+                placeholder.progress_stage = f"timeout, resuming... ({dispatched} pages so far)"
                 session.commit()
-        logger.error("ingest_confluence_task soft time limit exceeded", extra={
-            "url": url, "document_id": document_id, "dispatched": dispatched,
+        logger.warning("Confluence crawl hit Celery time limit — resuming from checkpoint", extra={
+            "url": url, "document_id": document_id,
+            "dispatched": dispatched, "retry": self.request.retries + 1,
         })
-        return {
-            "status": "error", "error": "soft_time_limit",
-            "url": url, "document_id": document_id, "dispatched": dispatched,
-        }
+        raise self.retry(countdown=10)
 
     except Exception as exc:
         from app.ingestion.converters.confluence import ConfluenceAuthError
@@ -1237,9 +1236,9 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
     _CHECKPOINT_VERSION = 1
     _CHECKPOINT_TTL = timedelta(hours=24)
 
-    _max_depth = max_depth or settings.site_crawl_max_depth
-    _max_pages = max_pages or settings.site_crawl_max_pages
-    _max_seconds_cfg = settings.site_crawl_max_seconds
+    _max_depth = max_depth or settings.site_crawl_max_depth or settings.crawl_max_depth
+    _max_pages = max_pages or settings.site_crawl_max_pages or settings.crawl_max_pages
+    _max_seconds_cfg = settings.site_crawl_max_seconds or settings.crawl_max_seconds
 
     _soft_limit = (self.request.timelimit or (None, None))[0] or 7200
     _deadline_seconds = int(_soft_limit * 0.85)
@@ -1526,36 +1525,35 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
                 loop.close()
 
     except SoftTimeLimitExceeded:
-        with Session(engine) as session:
-            placeholder = session.get(Document, document_id)
-            if placeholder:
-                total = dispatched + files_dispatched
-                if total > 0:
-                    placeholder.status = "ready"
-                    placeholder.progress_stage = "done"
-                    placeholder.error_message = (
-                        f"Crawl stopped by time limit ({_soft_limit // 3600}h). "
-                        f"Processed {total} items. Site may have more pages — "
-                        f"re-run to continue from checkpoint."
-                    )
-                else:
-                    placeholder.status = "error"
-                    placeholder.progress_stage = ""
-                    placeholder.error_message = (
-                        f"Crawl exceeded time limit ({_soft_limit // 3600}h) "
-                        f"without processing any items."
-                    )
-                placeholder.progress_percent = 100
-                session.commit()
-        logger.error("ingest_site_task soft time limit exceeded", extra={
-            "url": url, "document_id": document_id,
-            "dispatched": dispatched, "files_dispatched": files_dispatched,
-        })
-        return {
-            "status": "error", "error": "soft_time_limit",
-            "url": url, "document_id": document_id,
-            "dispatched": dispatched, "files_dispatched": files_dispatched,
-        }
+        _save_progress()
+        total = dispatched + files_dispatched
+        if self.request.retries < self.max_retries:
+            with Session(engine) as session:
+                ph = session.get(Document, document_id)
+                if ph:
+                    ph.progress_stage = f"timeout, resuming... ({total} items so far)"
+                    session.commit()
+            logger.warning("Site crawl hit Celery time limit — resuming from checkpoint", extra={
+                "url": url, "document_id": document_id,
+                "dispatched": dispatched, "files_dispatched": files_dispatched,
+                "retry": self.request.retries + 1,
+            })
+            raise self.retry(countdown=10)
+        else:
+            with Session(engine) as session:
+                ph = session.get(Document, document_id)
+                if ph:
+                    if total > 0:
+                        ph.status = "ready"
+                        ph.progress_stage = "done"
+                        ph.error_message = f"Crawl stopped after max retries. Processed {total} items."
+                    else:
+                        ph.status = "error"
+                        ph.progress_stage = ""
+                        ph.error_message = "Crawl exceeded all retry attempts without results."
+                    ph.progress_percent = 100
+                    session.commit()
+            return {"status": "error", "error": "max_retries_exhausted"}
 
     except Exception as exc:
         with Session(engine) as session:
@@ -1657,8 +1655,8 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
     }
 
 
-@celery.task(name="ingest_github", bind=True, max_retries=2, default_retry_delay=30,
-             soft_time_limit=3600, time_limit=3660)
+@celery.task(name="ingest_github", bind=True, max_retries=10, default_retry_delay=10,
+             soft_time_limit=7200, time_limit=7500)
 def ingest_github_task(self, document_id: int, branch: str = "main"):
     """Background task: import files from a public GitHub repository.
 
@@ -1668,15 +1666,21 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
       2. Creates a child Document in the DB (status='pending')
       3. Uploads content to S3
       4. Dispatches ``ingest_document_task`` for that child
+
+    Supports crash recovery via crawl_checkpoint (set of processed paths).
     """
     import asyncio
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     from app.models import Document
     from app.ingestion.converters.github import crawl_github, parse_github_url, GitHubFile
     from app.s3 import upload_file
 
+    _CHECKPOINT_VERSION = 1
+    _CHECKPOINT_TTL = timedelta(hours=24)
+
     t0 = time.perf_counter()
     engine = _get_sync_engine()
+    _processed_paths: set[str] = set()
 
     with Session(engine) as session:
         placeholder = session.get(Document, document_id)
@@ -1719,8 +1723,39 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
     skipped = 0
     errors = 0
 
+    with Session(engine) as session:
+        placeholder = session.get(Document, document_id)
+        ckpt = placeholder.crawl_checkpoint if placeholder else None
+        if ckpt and isinstance(ckpt, dict):
+            try:
+                if ckpt.get("version") != _CHECKPOINT_VERSION:
+                    raise ValueError(f"unknown checkpoint version: {ckpt.get('version')}")
+                saved_at = datetime.fromisoformat(ckpt["saved_at"])
+                age = datetime.now(timezone.utc) - saved_at
+                if age > _CHECKPOINT_TTL:
+                    raise ValueError(f"checkpoint too old: {age}")
+                _processed_paths.update(ckpt.get("processed_paths", []))
+                dispatched = ckpt.get("dispatched", 0)
+                skipped = ckpt.get("skipped", 0)
+                errors = ckpt.get("errors", 0)
+                logger.info("Resuming GitHub import from checkpoint", extra={
+                    "document_id": document_id,
+                    "processed_files": len(_processed_paths),
+                    "checkpoint_age_sec": round(age.total_seconds()),
+                    "dispatched": dispatched,
+                })
+            except Exception as ckpt_err:
+                logger.warning("Discarding invalid/stale GitHub checkpoint — starting fresh", extra={
+                    "document_id": document_id,
+                    "reason": str(ckpt_err)[:300],
+                })
+                _processed_paths.clear()
+
     def _on_file(gh_file: GitHubFile) -> None:
         nonlocal dispatched, skipped, errors
+
+        if gh_file.path in _processed_paths:
+            return
 
         try:
             if not gh_file.local_path or not os.path.isfile(gh_file.local_path):
@@ -1784,8 +1819,11 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
 
                 dispatched += 1
 
+            _processed_paths.add(gh_file.path)
+
         except Exception as exc:
             errors += 1
+            _processed_paths.add(gh_file.path)
             logger.warning("Failed to persist GitHub file — skipping", extra={
                 "path": gh_file.path,
                 "error_type": type(exc).__name__,
@@ -1802,13 +1840,23 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
             with Session(engine) as s:
                 ph = s.get(Document, document_id)
                 if ph:
-                    total = dispatched + skipped
                     ph.progress_stage = f"importing ({dispatched} files queued, {skipped} skipped)"
                     if errors:
                         ph.progress_stage += f", {errors} errors"
+                    if len(_processed_paths) % 10 == 0:
+                        ph.crawl_checkpoint = {
+                            "version": _CHECKPOINT_VERSION,
+                            "saved_at": datetime.now(timezone.utc).isoformat(),
+                            "processed_paths": list(_processed_paths),
+                            "dispatched": dispatched,
+                            "skipped": skipped,
+                            "errors": errors,
+                        }
                     s.commit()
         except Exception:
             pass
+
+    _eff_max_files = settings.github_max_files or settings.crawl_max_pages
 
     try:
         try:
@@ -1819,7 +1867,7 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
                     repo=repo,
                     branch=effective_branch,
                     token=settings.github_api_token,
-                    max_files=settings.github_max_files,
+                    max_files=_eff_max_files,
                     max_file_size_mb=settings.github_max_file_size_mb,
                     file_callback=_on_file,
                 )
@@ -1833,7 +1881,7 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
                         repo=repo,
                         branch=effective_branch,
                         token=settings.github_api_token,
-                        max_files=settings.github_max_files,
+                        max_files=_eff_max_files,
                         max_file_size_mb=settings.github_max_file_size_mb,
                         file_callback=_on_file,
                     )
@@ -1845,20 +1893,21 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
         with Session(engine) as session:
             ph = session.get(Document, document_id)
             if ph:
-                if dispatched > 0:
-                    ph.status = "ready"
-                    ph.progress_stage = "done"
-                    ph.error_message = (
-                        f"GitHub import stopped by time limit. "
-                        f"Processed {dispatched} files before timeout."
-                    )
-                else:
-                    ph.status = "error"
-                    ph.progress_stage = ""
-                    ph.error_message = "GitHub import exceeded time limit without processing any files."
-                ph.progress_percent = 100
+                ph.crawl_checkpoint = {
+                    "version": _CHECKPOINT_VERSION,
+                    "saved_at": datetime.now(timezone.utc).isoformat(),
+                    "processed_paths": list(_processed_paths),
+                    "dispatched": dispatched,
+                    "skipped": skipped,
+                    "errors": errors,
+                }
+                ph.progress_stage = f"timeout, resuming... ({dispatched} files so far)"
                 session.commit()
-        return {"status": "error", "error": "soft_time_limit", "document_id": document_id}
+        logger.warning("GitHub import hit Celery time limit — resuming from checkpoint", extra={
+            "url": url, "document_id": document_id,
+            "dispatched": dispatched, "retry": self.request.retries + 1,
+        })
+        raise self.retry(countdown=10)
 
     except Exception as exc:
         with Session(engine) as session:
@@ -1882,6 +1931,7 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
             ph.progress_percent = 100
             ph.ingest_duration_ms = duration_ms
             ph.total_chunks = dispatched
+            ph.crawl_checkpoint = None
             ph.title = f"{owner}/{repo} ({crawl_result.files_downloaded} files)"
 
             if dispatched == 0:

@@ -64,6 +64,8 @@ export interface UrlIngestRequest {
   product_name: string
   firmware_version?: string
   manufacturer?: string
+  max_pages?: number
+  max_depth?: number
 }
 
 export interface UrlIngestResponse {

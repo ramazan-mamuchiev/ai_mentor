@@ -106,14 +106,23 @@ class Settings(BaseSettings):
 
     document_stale_timeout_sec: int = 900
 
-    # --- Site crawler ---
-    site_crawl_max_depth: int = 5
-    site_crawl_max_pages: int = 1000
-    site_crawl_max_seconds: int = 3600
+    # --- Crawl defaults (shared across Confluence / Site / GitHub) ---
+    crawl_max_pages: int = 10000
+    crawl_max_depth: int = 100
+    crawl_max_seconds: int = 7200
+
+    # --- Per-type overrides (0 = use shared default above) ---
+    confluence_crawl_max_pages: int = 0
+    confluence_crawl_max_depth: int = 0
+    confluence_crawl_max_seconds: int = 0
+
+    site_crawl_max_pages: int = 0
+    site_crawl_max_depth: int = 0
+    site_crawl_max_seconds: int = 0
 
     # --- GitHub importer ---
     github_api_token: str = ""
-    github_max_files: int = 500
+    github_max_files: int = 0
     github_max_file_size_mb: int = 10
 
     # --- Auth ---

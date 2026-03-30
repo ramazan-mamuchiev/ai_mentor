@@ -227,7 +227,11 @@ async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = 
         try:
             if is_confluence:
                 from app.celery_app import ingest_confluence_task
-                task = ingest_confluence_task.delay(document_id=placeholder.id)
+                task = ingest_confluence_task.delay(
+                    document_id=placeholder.id,
+                    max_pages=body.max_pages,
+                    max_depth=body.max_depth,
+                )
             else:
                 from app.celery_app import ingest_single_url_task
                 task = ingest_single_url_task.delay(document_id=placeholder.id)

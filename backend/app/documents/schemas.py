@@ -88,6 +88,8 @@ class UrlIngestRequest(BaseModel):
     product_name: str
     firmware_version: str = "1.0"
     manufacturer: str = ""
+    max_pages: int | None = None
+    max_depth: int | None = None
 
     model_config = {"from_attributes": True}
 

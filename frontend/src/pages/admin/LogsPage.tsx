@@ -95,7 +95,7 @@ function LogRow({ entry, search, defaultExpanded, showService }: {
           {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
-      {expanded && extraKeys.length > 0 && (
+      {expanded && (
         <div className="log-row__details">
           {extraKeys.map(([k, v]) => (
             <div className="log-row__field" key={k}>
@@ -103,6 +103,10 @@ function LogRow({ entry, search, defaultExpanded, showService }: {
               <span className="log-row__value">{highlightSearch(String(v), search)}</span>
             </div>
           ))}
+          <div className="log-row__query-text">
+            <span className="log-row__key">message</span>
+            <p>{String(summary)}</p>
+          </div>
         </div>
       )}
     </div>
