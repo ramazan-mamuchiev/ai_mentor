@@ -373,19 +373,74 @@ async def delete_product(product_id: int):
         }
 
 
+_PLACEHOLDER_FORMATS = {"site", "confluence", "url", "github"}
+_SAFE_STATUSES = ["ready", "error"]
+
+
 @router.post("/{product_id}/reingest", status_code=202)
 async def reingest_product(product_id: int):
-    """Re-run full ingestion for all documents of a product.
+    """Re-index all saved documents of a product (re-chunk + re-embed).
 
-    Placeholder documents (site, confluence, url, github) are re-crawled:
-    child documents are deleted and the appropriate crawl task is dispatched.
-    File-based documents are re-indexed via ingest_document_task.
+    Only touches documents with saved content (excludes placeholder formats).
+    Skips documents already in pending/processing to avoid race conditions.
+    """
+    from app.celery_app import ingest_document_task
+
+    async with async_session() as session:
+        product = await _get_product(session, product_id)
+
+        docs_result = await session.execute(
+            select(Document).where(
+                Document.product_id == product_id,
+                Document.status.in_(_SAFE_STATUSES),
+                Document.format.notin_(_PLACEHOLDER_FORMATS),
+            )
+        )
+        docs = docs_result.scalars().all()
+        if not docs:
+            raise HTTPException(status_code=400, detail="No documents to reingest")
+
+        doc_ids = [doc.id for doc in docs]
+
+        await session.execute(
+            delete(Chunk).where(Chunk.document_id.in_(doc_ids))
+        )
+
+        for doc in docs:
+            doc.status = "pending"
+            doc.total_chunks = 0
+            doc.error_message = None
+            doc.progress_percent = 0
+            doc.progress_stage = "queued"
+
+        await session.commit()
+
+    for doc_id in doc_ids:
+        ingest_document_task.delay(doc_id)
+
+    logger.info(
+        "Product reingest queued",
+        extra={"product_id": product_id, "product_name": product.name, "documents_queued": len(doc_ids)},
+    )
+    return {
+        "product_id": product_id,
+        "product_name": product.name,
+        "status": "accepted",
+        "documents_queued": len(doc_ids),
+    }
+
+
+@router.post("/{product_id}/sync", status_code=202)
+async def sync_product(product_id: int):
+    """Sync product: re-crawl all linked sources and re-index file documents.
+
+    For placeholder documents (site, confluence, url, github): deletes child
+    documents and dispatches the appropriate crawl task.
+    For file-based documents: re-indexes via ingest_document_task.
+    Skips documents already in pending/processing to avoid race conditions.
     """
     from app.celery_app import ingest_document_task
     from app.s3 import delete_file
-
-    _PLACEHOLDER_FORMATS = {"site", "confluence", "url", "github"}
-    _REINDEX_STATUSES = ["ready", "error", "pending", "processing"]
 
     placeholder_ids: list[int] = []
     file_doc_ids: list[int] = []
@@ -397,7 +452,7 @@ async def reingest_product(product_id: int):
         ph_result = await session.execute(
             select(Document).where(
                 Document.product_id == product_id,
-                Document.status.in_(_REINDEX_STATUSES),
+                Document.status.in_(_SAFE_STATUSES),
                 Document.format.in_(_PLACEHOLDER_FORMATS),
             )
         )
@@ -448,7 +503,7 @@ async def reingest_product(product_id: int):
         file_result = await session.execute(
             select(Document).where(
                 Document.product_id == product_id,
-                Document.status.in_(_REINDEX_STATUSES),
+                Document.status.in_(_SAFE_STATUSES),
                 Document.format.notin_(_PLACEHOLDER_FORMATS),
             )
         )
@@ -470,9 +525,8 @@ async def reingest_product(product_id: int):
         await session.commit()
 
         if not placeholder_ids and not file_doc_ids:
-            raise HTTPException(status_code=400, detail="No documents to reingest")
+            raise HTTPException(status_code=400, detail="No documents to sync")
 
-        # Dispatch placeholder crawl tasks (must read format after commit)
         for ph in placeholders:
             if ph.id not in placeholder_ids:
                 continue
@@ -501,7 +555,7 @@ async def reingest_product(product_id: int):
         ingest_document_task.delay(doc_id)
 
     logger.info(
-        "Product reingest queued",
+        "Product sync queued",
         extra={
             "product_id": product_id,
             "product_name": product.name,

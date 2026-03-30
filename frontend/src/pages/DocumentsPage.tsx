@@ -7,6 +7,7 @@ import {
   Globe,
   Download,
   RefreshCw,
+  CloudDownload,
   Trash2,
   Clock,
   Loader2,
@@ -188,6 +189,7 @@ function DocActions({
   onPreview,
   onDownload,
   onReingest,
+  onSync,
   onDelete,
 }: {
   doc: DocumentListItem
@@ -195,6 +197,7 @@ function DocActions({
   onPreview: (d: DocumentListItem) => void
   onDownload: (d: DocumentListItem) => void
   onReingest: (d: DocumentListItem) => void
+  onSync: (d: DocumentListItem) => void
   onDelete: (d: DocumentListItem) => void
 }) {
   const { t } = useTranslation()
@@ -224,6 +227,8 @@ function DocActions({
   }, [open])
 
   const isLinked = isLinkedDoc(doc)
+  const isPlaceholder = _PLACEHOLDER_FORMATS.has(doc.format)
+  const canAct = doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled'
 
   const handleToggle = useCallback(() => {
     if (!open && btnRef.current) {
@@ -269,10 +274,16 @@ function DocActions({
               {t('docs.actions.download')}
             </button>
           )}
-          {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
+          {canAct && !isPlaceholder && (
             <button className="docs-actions-dropdown-item" onClick={() => { onReingest(doc); setOpen(false) }}>
               <RefreshCw size={15} />
-              {isLinked ? t('docs.actions.refreshSource') : t('docs.actions.reindex')}
+              {t('docs.actions.reindex')}
+            </button>
+          )}
+          {canAct && isLinked && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onSync(doc); setOpen(false) }}>
+              <CloudDownload size={15} />
+              {t('docs.actions.sync')}
             </button>
           )}
           <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
@@ -302,6 +313,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<DocumentListItem | null>(null)
+  const [syncTarget, setSyncTarget] = useState<DocumentListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<DocumentListItem | null>(null)
   const [previewTarget, setPreviewTarget] = useState<DocumentListItem | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
@@ -354,21 +366,45 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     finally { setDeleteTarget(null) }
   }, [deleteTarget])
 
+  const _setDocPending = useCallback((docId: number) => {
+    setDocuments(prev =>
+      prev.map(d => d.id === docId ? { ...d, status: 'pending' as const, error_message: null, total_chunks: 0, progress_percent: 0, progress_stage: '' } : d)
+    )
+  }, [])
+
   const handleReingestConfirm = useCallback(async () => {
     if (!reingestTarget) return
-    const isLinkedTarget = isLinkedDoc(reingestTarget)
     try {
-      await reingestDocument(reingestTarget.id)
-      setDocuments(prev =>
-        prev.map(d => d.id === reingestTarget.id ? { ...d, status: 'pending' as const, error_message: null, total_chunks: 0, progress_percent: 0, progress_stage: '' } : d)
-      )
+      await reingestDocument(reingestTarget.id, true)
+      _setDocPending(reingestTarget.id)
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)
-      const errorKey = isLinkedTarget ? 'docs.refreshSource.error' : 'docs.reingest.error'
-      alert(`${t(errorKey)}: ${detail}`)
+      if (detail.includes('409') || detail.includes('already being processed')) {
+        alert(t('docs.conflict'))
+        _setDocPending(reingestTarget.id)
+      } else {
+        alert(`${t('docs.reingest.error')}: ${detail}`)
+      }
     }
     finally { setReingestTarget(null) }
-  }, [reingestTarget, t])
+  }, [reingestTarget, t, _setDocPending])
+
+  const handleSyncConfirm = useCallback(async () => {
+    if (!syncTarget) return
+    try {
+      await reingestDocument(syncTarget.id, false)
+      _setDocPending(syncTarget.id)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      if (detail.includes('409') || detail.includes('already being processed')) {
+        alert(t('docs.conflict'))
+        _setDocPending(syncTarget.id)
+      } else {
+        alert(`${t('docs.sync.error')}: ${detail}`)
+      }
+    }
+    finally { setSyncTarget(null) }
+  }, [syncTarget, t, _setDocPending])
 
   const handleCancelConfirm = useCallback(async () => {
     if (!cancelTarget) return
@@ -558,6 +594,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onPreview={setPreviewTarget}
           onDownload={handleDownload}
           onReingest={setReingestTarget}
+          onSync={setSyncTarget}
           onDelete={setDeleteTarget}
         />
       ),
@@ -775,9 +812,14 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                     <Download size={16} />
                   </button>
                 )}
-                {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
+                {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && !_PLACEHOLDER_FORMATS.has(doc.format) && (
                   <button className="docs-action-btn" onClick={() => setReingestTarget(doc)}>
                     <RefreshCw size={16} />
+                  </button>
+                )}
+                {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && isLinkedDoc(doc) && (
+                  <button className="docs-action-btn" onClick={() => setSyncTarget(doc)}>
+                    <CloudDownload size={16} />
                   </button>
                 )}
                 <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)}>
@@ -801,22 +843,31 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         />
       )}
 
-      {reingestTarget && (() => {
-        const isLinkedTarget = isLinkedDoc(reingestTarget)
-        const prefix = isLinkedTarget ? 'docs.refreshSource' : 'docs.reingest'
-        return (
-          <ConfirmDialog
-            title={t(`${prefix}.title`)}
-            message={t(`${prefix}.message`)}
-            details={`${reingestTarget.title} (${reingestTarget.original_filename}, ${formatBytes(reingestTarget.file_size_bytes)})`}
-            confirmLabel={t(`${prefix}.confirm`)}
-            cancelLabel={t(`${prefix}.cancel`)}
-            variant="default"
-            onConfirm={handleReingestConfirm}
-            onCancel={() => setReingestTarget(null)}
-          />
-        )
-      })()}
+      {reingestTarget && (
+        <ConfirmDialog
+          title={t('docs.reingest.title')}
+          message={t('docs.reingest.message')}
+          details={`${reingestTarget.title} (${reingestTarget.original_filename}, ${formatBytes(reingestTarget.file_size_bytes)})`}
+          confirmLabel={t('docs.reingest.confirm')}
+          cancelLabel={t('docs.reingest.cancel')}
+          variant="default"
+          onConfirm={handleReingestConfirm}
+          onCancel={() => setReingestTarget(null)}
+        />
+      )}
+
+      {syncTarget && (
+        <ConfirmDialog
+          title={t('docs.sync.title')}
+          message={t('docs.sync.message')}
+          details={`${syncTarget.title} (${syncTarget.original_filename}, ${formatBytes(syncTarget.file_size_bytes)})`}
+          confirmLabel={t('docs.sync.confirm')}
+          cancelLabel={t('docs.sync.cancel')}
+          variant="default"
+          onConfirm={handleSyncConfirm}
+          onCancel={() => setSyncTarget(null)}
+        />
+      )}
 
       {cancelTarget && (
         <ConfirmDialog

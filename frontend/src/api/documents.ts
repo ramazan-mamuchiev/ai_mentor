@@ -51,8 +51,9 @@ export async function deleteDocument(id: number): Promise<void> {
   return apiFetch<void>(`/documents/${id}`, { method: 'DELETE' })
 }
 
-export async function reingestDocument(id: number): Promise<{ document_id: number; status: string; task_id: string }> {
-  return apiFetch(`/documents/${id}/reingest`, { method: 'POST' })
+export async function reingestDocument(id: number, reindexOnly = false): Promise<{ document_id: number; status: string; task_id: string }> {
+  const params = reindexOnly ? '?reindex_only=true' : ''
+  return apiFetch(`/documents/${id}/reingest${params}`, { method: 'POST' })
 }
 
 export async function cancelDocument(id: number): Promise<void> {

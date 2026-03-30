@@ -12,12 +12,13 @@ import {
   X,
   Bug,
   RefreshCw,
+  CloudDownload,
   Pencil,
   Trash2,
   MoreHorizontal,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
-import { listProducts, deleteProduct, reingestProduct, cancelProductIngestion } from '../api/products'
+import { listProducts, deleteProduct, reingestProduct, syncProduct, cancelProductIngestion } from '../api/products'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DocsRightPanel } from '../components/DocsRightPanel'
 import { ProductEditDialog } from '../components/ProductEditDialog'
@@ -125,12 +126,14 @@ function ProductActions({
   onEdit,
   onDelete,
   onReingest,
+  onSync,
   onDebug,
 }: {
   product: ProductListItem
   onEdit: (p: ProductListItem) => void
   onDelete: (p: ProductListItem) => void
   onReingest: (p: ProductListItem) => void
+  onSync: (p: ProductListItem) => void
   onDebug: (p: ProductListItem) => void
 }) {
   const { t } = useTranslation()
@@ -197,6 +200,10 @@ function ProductActions({
             <RefreshCw size={15} />
             {t('products.actions.reindex')}
           </button>
+          <button className="docs-actions-dropdown-item" onClick={() => { onSync(p); setOpen(false) }}>
+            <CloudDownload size={15} />
+            {t('products.actions.sync')}
+          </button>
           <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(p); setOpen(false) }}>
             <Trash2 size={15} />
             {t('products.actions.delete')}
@@ -225,6 +232,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const [deleteTarget, setDeleteTarget] = useState<ProductListItem | null>(null)
   const [editTarget, setEditTarget] = useState<ProductListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<ProductListItem | null>(null)
+  const [syncTarget, setSyncTarget] = useState<ProductListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<ProductListItem | null>(null)
   const [debugPanel, setDebugPanel] = useState<ProductListItem | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
@@ -271,6 +279,15 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     } catch { /* ignore */ }
     finally { setReingestTarget(null) }
   }, [reingestTarget, fetchProducts])
+
+  const handleSyncConfirm = useCallback(async () => {
+    if (!syncTarget) return
+    try {
+      await syncProduct(syncTarget.id)
+      fetchProducts()
+    } catch { /* ignore */ }
+    finally { setSyncTarget(null) }
+  }, [syncTarget, fetchProducts])
 
   const handleCancelConfirm = useCallback(async () => {
     if (!cancelTarget) return
@@ -437,7 +454,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       cell: ({ row }) => {
         const p = row.original
-        return <ProductActions product={p} onEdit={setEditTarget} onDelete={setDeleteTarget} onReingest={setReingestTarget} onDebug={openDebug} />
+        return <ProductActions product={p} onEdit={setEditTarget} onDelete={setDeleteTarget} onReingest={setReingestTarget} onSync={setSyncTarget} onDebug={openDebug} />
       },
     },
   ], [t, navigate, openDebug])
@@ -654,6 +671,9 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                 <button className="docs-action-btn" onClick={() => setReingestTarget(p)}>
                   <RefreshCw size={16} />
                 </button>
+                <button className="docs-action-btn" onClick={() => setSyncTarget(p)}>
+                  <CloudDownload size={16} />
+                </button>
                 <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(p)}>
                   <Trash2 size={16} />
                 </button>
@@ -696,6 +716,19 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           variant="default"
           onConfirm={handleReingestConfirm}
           onCancel={() => setReingestTarget(null)}
+        />
+      )}
+
+      {syncTarget && (
+        <ConfirmDialog
+          title={t('products.sync.title')}
+          message={t('products.sync.message')}
+          details={`${syncTarget.name} (${syncTarget.total_documents} documents)`}
+          confirmLabel={t('products.sync.confirm')}
+          cancelLabel={t('products.delete.cancel')}
+          variant="default"
+          onConfirm={handleSyncConfirm}
+          onCancel={() => setSyncTarget(null)}
         />
       )}
 

@@ -27,6 +27,10 @@ export async function reingestProduct(productId: number): Promise<{ product_id: 
   return apiFetch(`/products/${productId}/reingest`, { method: 'POST' })
 }
 
+export async function syncProduct(productId: number): Promise<{ product_id: number; status: string; documents_queued: number; placeholders_queued: number }> {
+  return apiFetch(`/products/${productId}/sync`, { method: 'POST' })
+}
+
 export async function cancelProductIngestion(productId: number): Promise<void> {
   return apiFetch<void>(`/products/${productId}/cancel-ingestion`, { method: 'POST' })
 }

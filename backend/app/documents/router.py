@@ -1012,23 +1012,72 @@ async def delete_document(document_id: int):
 
 
 @router.post("/{document_id}/reingest", status_code=202)
-async def reingest_single_document(document_id: int):
-    """Re-run full ingestion for a single document.
+async def reingest_single_document(
+    document_id: int,
+    reindex_only: bool = False,
+):
+    """Re-run ingestion for a single document.
 
-    For file-based documents: resets to 'pending', clears chunks, re-queues
-    the ingestion task (the original file in S3 is preserved).
+    reindex_only=False (default / "sync"): for linked documents re-crawls
+    from source; for file-based documents re-indexes from stored S3 file.
 
-    For URL/Confluence documents: deletes all child documents produced by
-    the previous crawl, resets the placeholder, and re-queues the
-    appropriate Celery task.
+    reindex_only=True ("reindex"): always re-indexes from the stored S3
+    file without going to the external source. Returns 400 for placeholder
+    documents that have no stored content.
     """
     from app.celery_app import ingest_document_task
 
+    _PLACEHOLDER_FORMATS = {"site", "confluence", "url", "github"}
+
     async with async_session() as session:
-        doc = await session.get(Document, document_id)
+        doc = (await session.execute(
+            select(Document).where(Document.id == document_id).with_for_update()
+        )).scalar_one_or_none()
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
+        if doc.status in ("pending", "processing"):
+            raise HTTPException(status_code=409, detail="Document is already being processed")
+
+        is_placeholder = doc.format in _PLACEHOLDER_FORMATS
+
+        if reindex_only:
+            if is_placeholder:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Placeholder document has no stored content — use sync instead",
+                )
+            if not doc.s3_key:
+                raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
+
+            chunks = (await session.execute(
+                select(Chunk).where(Chunk.document_id == doc.id)
+            )).scalars().all()
+            for chunk in chunks:
+                await session.delete(chunk)
+
+            doc.status = "pending"
+            doc.total_chunks = 0
+            doc.error_message = None
+            doc.progress_percent = 0
+            doc.progress_stage = "queued"
+            await session.flush()
+
+            task = ingest_document_task.delay(document_id)
+            doc.celery_task_id = task.id
+            await session.commit()
+
+            logger.info("Single document reindex queued", extra={
+                "document_id": document_id, "task_id": task.id, "format": doc.format,
+            })
+            return {
+                "document_id": document_id,
+                "status": "pending",
+                "task_id": task.id,
+                "message": "Document queued for reindexing",
+            }
+
+        # --- Full sync: re-crawl from source for linked, re-index for files ---
         is_confluence = doc.format == "confluence"
         is_url = doc.format == "url"
         is_github = doc.format == "github"
@@ -1129,7 +1178,7 @@ async def reingest_single_document(document_id: int):
         doc.celery_task_id = task.id
         await session.commit()
 
-    logger.info("Single document reingest queued", extra={
+    logger.info("Single document sync queued", extra={
         "document_id": document_id, "task_id": task.id,
         "format": doc.format,
     })
@@ -1137,7 +1186,7 @@ async def reingest_single_document(document_id: int):
         "document_id": document_id,
         "status": "pending",
         "task_id": task.id,
-        "message": "Document queued for reingestion",
+        "message": "Document queued for sync",
     }
 
 
