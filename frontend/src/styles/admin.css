@@ -1815,6 +1815,32 @@
     font-size: 18px;
   }
 
+  .stats-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .stats-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .stats-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .stats-tab {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .stats-period {
+    justify-content: flex-start;
+  }
+
   .admin-page-header p {
     font-size: 12px;
   }
