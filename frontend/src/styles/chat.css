@@ -1979,6 +1979,12 @@
   .file-upload-dropzone {
     margin: 16px 20px 0;
   }
+
+  .file-upload-fields input,
+  .file-upload-fields select,
+  .file-upload-fields textarea {
+    font-size: 16px; /* prevents iOS Safari auto-zoom on focus */
+  }
 }
 
 .file-upload-progress {
