@@ -23,8 +23,6 @@ import {
   Moon,
   Rocket,
   MessageSquare,
-  Bot,
-  User,
   FileCode,
   CheckCircle2,
 } from 'lucide-react'
@@ -235,11 +233,9 @@ export function LandingPage() {
               </aside>
               <div className="hero-mockup-chat">
                 <div className="hero-mockup-msg hero-mockup-msg--user">
-                  <div className="hero-mockup-avatar hero-mockup-avatar--user"><User size={14} /></div>
                   <div className="hero-mockup-bubble">{t('landing.mockup.question')}</div>
                 </div>
                 <div className="hero-mockup-msg hero-mockup-msg--ai">
-                  <div className="hero-mockup-avatar hero-mockup-avatar--ai"><Bot size={14} /></div>
                   <div className="hero-mockup-bubble">
                     <p>{t('landing.mockup.answer')}</p>
                     <pre className="hero-mockup-code"><code>{`import requests

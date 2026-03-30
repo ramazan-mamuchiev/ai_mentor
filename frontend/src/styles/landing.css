@@ -470,49 +470,35 @@
 
 .hero-mockup-msg {
   display: flex;
-  gap: 10px;
   align-items: flex-start;
 }
 
-.hero-mockup-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.hero-mockup-avatar--user {
-  background: rgba(37, 99, 235, 0.1);
-  color: var(--accent);
-}
-
-.hero-mockup-avatar--ai {
-  background: var(--gradient);
-  color: #fff;
+.hero-mockup-msg--user {
+  justify-content: flex-end;
 }
 
 .hero-mockup-bubble {
-  flex: 1;
   min-width: 0;
 }
 
 .hero-mockup-msg--user .hero-mockup-bubble {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text);
+  color: #fff;
   padding: 8px 14px;
-  background: rgba(37, 99, 235, 0.06);
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  border-radius: 10px;
-  display: inline-block;
+  background: #3b82f6;
+  border-radius: 18px 18px 4px 18px;
+  max-width: 85%;
 }
 
 [data-theme='dark'] .hero-mockup-msg--user .hero-mockup-bubble {
-  background: rgba(96, 165, 250, 0.08);
-  border-color: rgba(96, 165, 250, 0.15);
+  background: #60a5fa;
+}
+
+.hero-mockup-msg--ai .hero-mockup-bubble {
+  background: var(--bg-tertiary);
+  border-radius: 18px 18px 18px 4px;
+  padding: 10px 16px;
 }
 
 .hero-mockup-msg--ai .hero-mockup-bubble p {
