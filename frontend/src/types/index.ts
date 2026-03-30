@@ -335,6 +335,7 @@ export interface ProductListItem {
   indexed_at: string | null
   progress_percent: number
   progress_detail: string
+  sync_status: 'idle' | 'syncing' | 'reindexing'
 }
 
 export interface ProductDetail {

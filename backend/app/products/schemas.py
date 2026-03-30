@@ -45,6 +45,8 @@ class ProductListItem(BaseModel):
     progress_percent: int = 0
     progress_detail: str = ""
 
+    sync_status: str = "idle"
+
     model_config = {"from_attributes": True}
 
 

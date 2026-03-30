@@ -188,6 +188,7 @@ async def list_products():
                 Product.manufacturer,
                 Product.category,
                 Product.created_at,
+                Product.sync_status,
                 FirmwareVersion.id.label("firmware_version_id"),
                 FirmwareVersion.version.label("version"),
                 func.coalesce(agg.c.total_documents, 0).label("total_documents"),
@@ -227,6 +228,7 @@ async def list_products():
                 FormatCount(format=row.format, count=row.cnt)
             )
 
+        reset_product_ids: list[int] = []
         items = []
         for p in rows:
             total = p.total_documents
@@ -255,6 +257,11 @@ async def list_products():
 
             fmt_key = (p.id, p.firmware_version_id)
 
+            sync_st = p.sync_status
+            if sync_st != "idle" and pending == 0 and processing == 0:
+                sync_st = "idle"
+                reset_product_ids.append(p.id)
+
             items.append(ProductListItem(
                 id=p.id,
                 name=p.name,
@@ -277,7 +284,16 @@ async def list_products():
                 indexed_at=p.indexed_at,
                 progress_percent=progress_pct,
                 progress_detail=progress_detail,
+                sync_status=sync_st,
             ))
+
+        if reset_product_ids:
+            await session.execute(
+                Product.__table__.update()
+                .where(Product.id.in_(reset_product_ids))
+                .values(sync_status="idle")
+            )
+            await session.commit()
 
         return items
 
@@ -400,6 +416,8 @@ async def reingest_product(product_id: int):
         if not docs:
             raise HTTPException(status_code=400, detail="No documents to reingest")
 
+        product.sync_status = "reindexing"
+
         doc_ids = [doc.id for doc in docs]
 
         await session.execute(
@@ -447,6 +465,7 @@ async def sync_product(product_id: int):
 
     async with async_session() as session:
         product = await _get_product(session, product_id)
+        product.sync_status = "syncing"
 
         # --- Placeholder documents: re-crawl from source ---
         ph_result = await session.execute(

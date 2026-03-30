@@ -629,6 +629,8 @@
   "products.sync.title": "Синхронизация продукта",
   "products.sync.message": "Все ссылочные источники (Confluence, Web, GitHub) будут заново загружены. Файловые документы будут переиндексированы.",
   "products.sync.confirm": "Синхронизировать",
+  "products.status.syncing": "Синхронизация…",
+  "products.status.reindexing": "Переиндексация…",
   "products.actions.cancelIngestion": "Остановить индексирование",
   "products.cancelIngestion.title": "Остановить индексирование",
   "products.cancelIngestion.message": "Индексирование всех ожидающих и обрабатываемых документов этого продукта будет остановлено.",

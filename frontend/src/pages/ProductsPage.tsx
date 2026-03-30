@@ -56,6 +56,18 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
   const status = getProductStatus(product)
   const total = product.total_documents
 
+  if (product.sync_status && product.sync_status !== 'idle') {
+    const labelKey = product.sync_status === 'syncing'
+      ? 'products.status.syncing'
+      : 'products.status.reindexing'
+    return (
+      <span className="docs-status docs-status--processing">
+        <Loader2 size={14} className="animate-spin" />
+        {t(labelKey)}
+      </span>
+    )
+  }
+
   const allReady = total > 0 && product.ready_documents === total
 
   if (allReady) {
@@ -255,7 +267,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   }, [refreshKey, fetchProducts])
 
   useEffect(() => {
-    const hasPending = products.some(p => p.pending_documents > 0 || p.processing_documents > 0)
+    const hasPending = products.some(p => p.pending_documents > 0 || p.processing_documents > 0 || (p.sync_status && p.sync_status !== 'idle'))
     if (hasPending) {
       pollRef.current = setInterval(fetchProducts, POLL_INTERVAL)
     }

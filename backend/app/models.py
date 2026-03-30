@@ -144,6 +144,7 @@ class Product(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    sync_status: Mapped[str] = mapped_column(Text, default="idle")
 
     firmware_versions: Mapped[list["FirmwareVersion"]] = relationship(
         back_populates="product", cascade="all, delete-orphan"
