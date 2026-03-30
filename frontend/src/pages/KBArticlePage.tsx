@@ -115,6 +115,15 @@ export function KBArticlePage() {
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
+
+    el.querySelectorAll<HTMLTableElement>('table').forEach(table => {
+      if (table.parentElement?.classList.contains('kb-table-wrap')) return
+      const wrap = document.createElement('div')
+      wrap.className = 'kb-table-wrap'
+      table.parentNode!.insertBefore(wrap, table)
+      wrap.appendChild(table)
+    })
+
     const stages = el.querySelectorAll<HTMLElement>('.stage')
     stages.forEach((s, i) => {
       s.style.opacity = '0'
