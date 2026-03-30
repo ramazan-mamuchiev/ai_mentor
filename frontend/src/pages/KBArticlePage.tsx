@@ -79,8 +79,26 @@ export function KBArticlePage() {
     if (!el) return
 
     const handler = (e: MouseEvent) => {
-      const stage = (e.target as HTMLElement).closest('.stage')
-      if (stage) stage.classList.toggle('open')
+      const stage = (e.target as HTMLElement).closest('.stage') as HTMLElement | null
+      if (!stage) return
+      const details = stage.querySelector('.stage-details') as HTMLElement | null
+      if (!details) return
+
+      if (stage.classList.contains('open')) {
+        details.style.maxHeight = details.scrollHeight + 'px'
+        requestAnimationFrame(() => {
+          details.style.maxHeight = '0'
+        })
+        stage.classList.remove('open')
+      } else {
+        stage.classList.add('open')
+        details.style.maxHeight = details.scrollHeight + 'px'
+        const onEnd = () => {
+          details.style.maxHeight = 'none'
+          details.removeEventListener('transitionend', onEnd)
+        }
+        details.addEventListener('transitionend', onEnd)
+      }
     }
     el.addEventListener('click', handler)
     return () => el.removeEventListener('click', handler)
