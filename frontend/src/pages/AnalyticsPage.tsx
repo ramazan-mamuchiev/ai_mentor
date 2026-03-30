@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { BarChart3, LayoutDashboard, MessageSquare, FileText, Search, Plug, DollarSign } from 'lucide-react'
@@ -8,9 +8,10 @@ import {
   type UserDocStats as DocStatsT, type UserSearchStats as SearchStatsT,
   type UserMcpStats as McpStatsT, type UserCostStats as CostStatsT,
 } from '../auth/api'
+import { usePermission } from '../auth/usePermission'
 
-const TABS = ['overview', 'chat', 'documents', 'search', 'mcp', 'costs'] as const
-type Tab = typeof TABS[number]
+const ALL_TABS = ['overview', 'chat', 'documents', 'search', 'mcp', 'costs'] as const
+type Tab = typeof ALL_TABS[number]
 
 function SimpleBar({ data, labelKey, valueKey, label }: {
   data: Array<Record<string, any>>; labelKey: string; valueKey: string; label: string
@@ -413,7 +414,7 @@ function McpTab({ days, t }: { days: number; t: any }) {
 }
 
 /* ───── Tab: Costs ───── */
-function CostsTab({ days, t }: { days: number; t: any }) {
+function CostsTab({ days, t, canPublish }: { days: number; t: any; canPublish?: boolean }) {
   const [data, setData] = useState<CostStatsT | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -431,7 +432,7 @@ function CostsTab({ days, t }: { days: number; t: any }) {
         <StatCard label={t('analytics.costs.total')} value={fmtUsd(data.total_charge_usd)} variant="accent" />
         <StatCard label={t('analytics.costs.forecast')} value={fmtUsd(data.forecast_month_usd)} />
         <StatCard label={t('analytics.costs.perDay')} value={fmtUsd(data.avg_per_day)} />
-        <StatCard label={t('analytics.costs.ingestionCost')} value={fmtUsd(data.ingestion_cost_usd)} />
+        {canPublish && <StatCard label={t('analytics.costs.ingestionCost')} value={fmtUsd(data.ingestion_cost_usd)} />}
       </div>
 
       <div style={{ margin: '16px 0' }}>
@@ -470,7 +471,7 @@ function CostsTab({ days, t }: { days: number; t: any }) {
         </div>
       </div>
 
-      {data.ingestion_breakdown.some(b => b.tokens > 0) && (
+      {canPublish && data.ingestion_breakdown.some(b => b.tokens > 0) && (
         <div style={{ margin: '16px 0' }}>
           <h2 className="admin-section-title">{t('analytics.costs.ingestionBreakdown')}</h2>
           <div className="admin-detail-card" style={{ padding: 16, maxWidth: 520 }}>
@@ -495,8 +496,14 @@ function CostsTab({ days, t }: { days: number; t: any }) {
 export function AnalyticsPage() {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = (searchParams.get('tab') as Tab) || 'overview'
   const [days, setDays] = useState(30)
+  const canPublish = usePermission('documents.upload')
+
+  const tabs = useMemo<Tab[]>(
+    () => canPublish ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'documents'),
+    [canPublish],
+  )
+  const activeTab = (searchParams.get('tab') as Tab) || 'overview'
 
   const setTab = useCallback((tab: Tab) => {
     setSearchParams({ tab }, { replace: true })
@@ -529,7 +536,7 @@ export function AnalyticsPage() {
 
       <div className="stats-toolbar">
         <div className="stats-tabs">
-          {TABS.map(tab => (
+          {tabs.map(tab => (
             <button
               key={tab}
               className={`stats-tab${activeTab === tab ? ' stats-tab--active' : ''}`}
@@ -558,10 +565,10 @@ export function AnalyticsPage() {
       <div className="stats-content">
         {activeTab === 'overview' && <OverviewTab days={days} t={t} />}
         {activeTab === 'chat' && <ChatTab days={days} t={t} />}
-        {activeTab === 'documents' && <DocumentsTab days={days} t={t} />}
+        {activeTab === 'documents' && canPublish && <DocumentsTab days={days} t={t} />}
         {activeTab === 'search' && <SearchTab days={days} t={t} />}
         {activeTab === 'mcp' && <McpTab days={days} t={t} />}
-        {activeTab === 'costs' && <CostsTab days={days} t={t} />}
+        {activeTab === 'costs' && <CostsTab days={days} t={t} canPublish={canPublish} />}
       </div>
     </div>
   )
