@@ -341,7 +341,7 @@ async def get_product(product_id: int):
         return await _product_detail(session, product)
 
 
-@router.patch("/{product_id}", response_model=ProductDetail)
+@router.patch("/{product_id}", response_model=ProductDetail, dependencies=[Depends(require_permission("products.edit"))])
 async def update_product(product_id: int, body: ProductUpdate):
     """Update product properties."""
     async with async_session() as session:

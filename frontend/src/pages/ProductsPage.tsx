@@ -143,7 +143,7 @@ function ProductActions({
   onDebug,
 }: {
   product: ProductListItem
-  onEdit: (p: ProductListItem) => void
+  onEdit?: (p: ProductListItem) => void
   onDelete?: (p: ProductListItem) => void
   onReingest?: (p: ProductListItem) => void
   onSync?: (p: ProductListItem) => void
@@ -189,13 +189,15 @@ function ProductActions({
 
   return (
     <div className="docs-actions">
-      <button
-        className="docs-action-btn"
-        onClick={() => onEdit(p)}
-        aria-label={t('products.actions.edit')}
-      >
-        <Pencil size={16} />
-      </button>
+      {onEdit && (
+        <button
+          className="docs-action-btn"
+          onClick={() => onEdit(p)}
+          aria-label={t('products.actions.edit')}
+        >
+          <Pencil size={16} />
+        </button>
+      )}
       <button
         ref={btnRef}
         className="docs-action-btn"
@@ -245,6 +247,7 @@ const DEFAULT_COLUMN_ORDER = ['name', 'category', 'documents', 'format', 'status
 export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const canEdit = usePermission('products.edit')
   const canDelete = usePermission('products.delete')
   const canReindex = usePermission('documents.reindex')
   const canSync = usePermission('documents.sync')
@@ -478,10 +481,10 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       cell: ({ row }) => {
         const p = row.original
-        return <ProductActions product={p} onEdit={setEditTarget} onDelete={canDelete ? setDeleteTarget : undefined} onReingest={canReindex ? setReingestTarget : undefined} onSync={canSync ? setSyncTarget : undefined} onDebug={openDebug} />
+        return <ProductActions product={p} onEdit={canEdit ? setEditTarget : undefined} onDelete={canDelete ? setDeleteTarget : undefined} onReingest={canReindex ? setReingestTarget : undefined} onSync={canSync ? setSyncTarget : undefined} onDebug={openDebug} />
       },
     },
-  ], [t, navigate, openDebug, canDelete, canReindex, canSync])
+  ], [t, navigate, openDebug, canEdit, canDelete, canReindex, canSync])
 
   const {
     table,
@@ -686,9 +689,11 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                 </div>
               )}
               <div className="docs-card-actions" onClick={e => e.stopPropagation()}>
-                <button className="docs-action-btn" onClick={() => setEditTarget(p)}>
-                  <Pencil size={16} />
-                </button>
+                {canEdit && (
+                  <button className="docs-action-btn" onClick={() => setEditTarget(p)}>
+                    <Pencil size={16} />
+                  </button>
+                )}
                 <button className="docs-action-btn" onClick={() => openDebug(p)}>
                   <Bug size={16} />
                 </button>
