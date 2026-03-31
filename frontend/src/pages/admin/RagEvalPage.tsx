@@ -243,7 +243,7 @@ export function RagEvalPage() {
         </div>
       </div>
 
-      {!data && !isRunning ? (
+      {!data && !isRunning && (
         <div className="rag-eval-empty-state">
           <div className="rag-eval-empty-icon">
             <Target size={48} strokeWidth={1} />
@@ -251,21 +251,30 @@ export function RagEvalPage() {
           <p className="rag-eval-empty-title">{t('admin.ragEval.noRuns')}</p>
           <p className="rag-eval-empty-hint">{t('admin.ragEval.noRunsHint')}</p>
         </div>
-      ) : (
-        <>
-          {/* Tabs */}
-          <div className="rag-eval-tabs">
-            {tabs.map(t => (
-              <button
-                key={t.id}
-                className={`rag-eval-tab${tab === t.id ? ' rag-eval-tab--active' : ''}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
+      )}
+
+      {!data && isRunning && (
+        <div className="rag-eval-empty-state">
+          <div className="rag-eval-empty-icon">
+            <Loader2 size={48} strokeWidth={1} className="rag-eval-spin" />
           </div>
-        </>
+          <p className="rag-eval-empty-title">{t('admin.ragEval.running')}</p>
+          <p className="rag-eval-empty-hint">{activeRun?.progress_stage || ''}</p>
+        </div>
+      )}
+
+      {data && (
+        <div className="rag-eval-tabs">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              className={`rag-eval-tab${tab === t.id ? ' rag-eval-tab--active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* Overview */}
