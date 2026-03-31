@@ -2238,6 +2238,32 @@ def check_stale_reindex_jobs_task(self):
             session.commit()
 
 
+def _redispatch_document(doc) -> str | None:
+    """Dispatch the appropriate Celery ingest task for a document.
+
+    Returns the new celery_task_id, or None if the format is unknown.
+    """
+    if doc.format == "confluence":
+        task = ingest_confluence_task.delay(document_id=doc.id)
+    elif doc.format == "site":
+        task = ingest_site_task.delay(document_id=doc.id)
+    elif doc.format == "url":
+        task = ingest_single_url_task.delay(document_id=doc.id)
+    elif doc.format == "github":
+        from app.ingestion.converters.github import parse_github_url
+        _branch = "main"
+        try:
+            _, _, url_branch = parse_github_url(doc.source_path)
+            if url_branch:
+                _branch = url_branch
+        except ValueError:
+            pass
+        task = ingest_github_task.delay(document_id=doc.id, branch=_branch)
+    else:
+        task = ingest_document_task.delay(doc.id)
+    return task.id
+
+
 @celery.task(name="check_stale_documents", bind=True)
 def check_stale_documents_task(self):
     """Periodic task: reset documents stuck in 'processing' for too long
@@ -2245,8 +2271,6 @@ def check_stale_documents_task(self):
     from datetime import datetime, timezone, timedelta
     from sqlalchemy import select, func as sa_func
     from app.models import Document
-
-    _SKIP_FORMATS = {"site", "confluence", "url"}
 
     engine = _get_sync_engine()
     threshold = datetime.now(timezone.utc) - timedelta(
@@ -2270,12 +2294,10 @@ def check_stale_documents_task(self):
             doc.error_message = None
             doc.progress_percent = 0
             doc.progress_stage = ""
-            if doc.format in _SKIP_FORMATS:
-                doc.status = "pending"
-            else:
-                doc.status = "pending"
-                task = ingest_document_task.delay(doc.id)
-                doc.celery_task_id = task.id
+            doc.status = "pending"
+            task_id = _redispatch_document(doc)
+            if task_id:
+                doc.celery_task_id = task_id
                 rescued += 1
             logger.warning(
                 "Stale document reset and re-queued",
@@ -2283,8 +2305,9 @@ def check_stale_documents_task(self):
                     "event": "document_stale_reset",
                     "document_id": doc.id,
                     "title": doc.title,
+                    "format": doc.format,
                     "processing_started_at": str(started),
-                    "re_queued": doc.format not in _SKIP_FORMATS,
+                    "re_queued": task_id is not None,
                 },
             )
 
@@ -2305,6 +2328,7 @@ def rescue_orphaned_documents_task(self):
     2. 'processing' documents whose celery_task_id is no longer known to
        Redis (worker restarted mid-task) and have been stuck for > 5 min.
 
+    Handles all document formats including confluence, site, url, and github.
     Processes up to 200 per run to avoid overloading the queue.
     """
     from celery.result import AsyncResult
@@ -2312,7 +2336,6 @@ def rescue_orphaned_documents_task(self):
     from sqlalchemy import select, func as sa_func
     from app.models import Document
 
-    _SKIP_FORMATS = {"site", "confluence", "url"}
     _THRESHOLD_MINUTES = 5
     _BATCH_LIMIT = 200
     _LOST_STATES = {"PENDING", "REVOKED"}
@@ -2327,7 +2350,6 @@ def rescue_orphaned_documents_task(self):
             select(Document).where(
                 Document.status == "pending",
                 Document.uploaded_at < threshold,
-                Document.format.notin_(_SKIP_FORMATS),
             ).limit(_BATCH_LIMIT)
         ).scalars().all()
 
@@ -2338,7 +2360,6 @@ def rescue_orphaned_documents_task(self):
             select(Document).where(
                 Document.status == "processing",
                 effective_started < threshold,
-                Document.format.notin_(_SKIP_FORMATS),
             ).limit(_BATCH_LIMIT)
         ).scalars().all()
 
@@ -2361,17 +2382,19 @@ def rescue_orphaned_documents_task(self):
             doc.progress_percent = 0
             doc.progress_stage = ""
             doc.error_message = None
-            task = ingest_document_task.delay(doc.id)
-            doc.celery_task_id = task.id
-            rescued_count += 1
+            task_id = _redispatch_document(doc)
+            if task_id:
+                doc.celery_task_id = task_id
+                rescued_count += 1
             logger.info(
                 "Rescued orphaned document",
                 extra={
                     "event": "rescue_orphaned_document",
                     "document_id": doc.id,
                     "title": doc.title,
+                    "format": doc.format,
                     "prev_status": prev_status,
-                    "new_task_id": task.id,
+                    "new_task_id": task_id,
                 },
             )
 
