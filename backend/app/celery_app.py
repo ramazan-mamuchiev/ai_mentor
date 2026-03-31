@@ -2852,7 +2852,7 @@ def backfill_chunk_languages_task(self):
 
         logger.info("backfill_chunk_languages: progress",
                     extra={"docs_done": updated_docs, "chunks_done": updated_chunks,
-                           "total_docs": len(doc_ids)})
+                           "total_docs": len(doc_ids_detect)})
 
     logger.info("backfill_chunk_languages: completed",
                 extra={"docs_updated": updated_docs, "chunks_updated": updated_chunks})
