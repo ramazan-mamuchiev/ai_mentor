@@ -205,7 +205,7 @@ function DocActions({
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 })
 
   useEffect(() => {
     if (!open) return
@@ -227,23 +227,27 @@ function DocActions({
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open || !dropRef.current || !btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    const dropRect = dropRef.current.getBoundingClientRect()
+    const dropW = dropRect.width || 200
+    const dropH = dropRect.height
+    let left = rect.right - dropW
+    if (left < 8) left = 8
+    if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8
+    const top = (rect.bottom + 4 + dropH > window.innerHeight)
+      ? rect.top - dropH - 4
+      : rect.bottom + 4
+    setPos({ top, left })
+  }, [open])
+
   const isLinked = isLinkedDoc(doc)
   const isPlaceholder = _PLACEHOLDER_FORMATS.has(doc.format)
   const canAct = doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled'
 
   const handleToggle = useCallback(() => {
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect()
-      const dropW = 200
-      const dropH = 180
-      let left = rect.right - dropW
-      if (left < 8) left = 8
-      if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8
-      const top = (rect.bottom + 4 + dropH > window.innerHeight)
-        ? rect.top - dropH - 4
-        : rect.bottom + 4
-      setPos({ top, left })
-    }
+    if (!open) setPos({ top: -9999, left: -9999 })
     setOpen(v => !v)
   }, [open])
 
