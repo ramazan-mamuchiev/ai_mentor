@@ -188,6 +188,34 @@ def _deduplicate_chunks(results: list[dict], limit: int) -> list[dict]:
     return unique
 
 
+_DOC_TYPE_BOOST: dict[str, float] = {
+    "user_guide": 1.20,
+    "overview": 1.15,
+    "troubleshooting": 1.10,
+    "configuration": 1.05,
+    "release_notes": 1.00,
+    "changelog": 1.00,
+    "api_reference": 0.90,
+    "protocol": 0.85,
+    "model_schema": 0.85,
+    "other": 1.00,
+}
+
+
+def _apply_doc_type_boost(results: list[dict]) -> list[dict]:
+    """Re-sort results by similarity × doc_type multiplier.
+
+    Guides and overviews get a gentle boost; raw API/protocol references
+    get a slight penalty so that explanatory content surfaces first.
+    """
+    boosted = []
+    for r in results:
+        factor = _DOC_TYPE_BOOST.get(r.get("doc_type", "other"), 1.0)
+        boosted.append((r, r["similarity"] * factor))
+    boosted.sort(key=lambda x: x[1], reverse=True)
+    return [r for r, _ in boosted]
+
+
 def _rrf_fuse(
     vector_results: list[dict],
     bm25_results: list[dict],
@@ -415,6 +443,9 @@ async def search_documents(
 
     deduped = _deduplicate_chunks(raw_results, fetch_limit)
     dedup_removed = len(raw_results) - len(deduped)
+
+    if settings.doc_type_boost_enabled:
+        deduped = _apply_doc_type_boost(deduped)
 
     rerank_ms = 0.0
     rerank_prompt_tokens = 0

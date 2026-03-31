@@ -47,6 +47,11 @@ Scoring guidelines:
 - 0.2-0.4: Chunk is tangentially related — same domain but does not address the query.
 - 0.0-0.1: Chunk is irrelevant to the query.
 
+When the query is a "how-to" or conceptual question, prefer chunks from guides and overviews \
+(type: user_guide, overview, troubleshooting) over raw API/protocol references \
+(type: api_reference, protocol, model_schema). \
+A guide that explains the data flow is more useful than a bare RPC signature.
+
 Score based on the chunk's language-independent meaning. A Russian query can match English docs and vice versa.
 
 Return ONLY a JSON array of numbers (floats) in the same order as the chunks. \
