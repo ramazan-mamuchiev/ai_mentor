@@ -1090,10 +1090,10 @@ async def get_cost_stats(
     from app.billing.pricing import calculate_llm_charge, calculate_embedding_charge
     from app.config import settings as _s
 
-    ocr_charge = float(calculate_llm_charge(int(ing["ocr_tokens"]), 0, _s.ocr_vision_model))
-    extract_charge = float(calculate_llm_charge(int(ing["extract_tokens"]), 0, _s.metadata_extraction_model))
-    embed_charge = float(calculate_embedding_charge(int(ing["embed_tokens"]), _s.embedding_model_gemini))
-    pk_charge = float(calculate_llm_charge(int(ing["pk_tokens"]), 0, _s.product_resolve_model))
+    ocr_charge = float(calculate_llm_charge(_s.ocr_vision_model, int(ing["ocr_tokens"]), 0))
+    extract_charge = float(calculate_llm_charge(_s.metadata_extraction_model, int(ing["extract_tokens"]), 0))
+    embed_charge = float(calculate_embedding_charge(_s.embedding_model_gemini, int(ing["embed_tokens"])))
+    pk_charge = float(calculate_llm_charge(_s.product_resolve_model, int(ing["pk_tokens"]), 0))
     ingestion_total = ocr_charge + extract_charge + embed_charge + pk_charge
 
     ingestion_breakdown = [
