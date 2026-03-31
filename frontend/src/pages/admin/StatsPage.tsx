@@ -115,9 +115,9 @@ function TenantFilter({ value, onChange, t }: {
   }, [])
 
   return (
-    <div ref={ref} style={{ position: 'relative', minWidth: 220 }}>
+    <div ref={ref} style={{ position: 'relative', minWidth: 240 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Users size={14} style={{ color: 'var(--text-muted)' }} />
+        <Users size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
         <input
           type="text"
           placeholder={t('admin.stats.filterTenant')}
@@ -130,16 +130,16 @@ function TenantFilter({ value, onChange, t }: {
           }}
           onFocus={() => { if (results.length) setOpen(true) }}
           style={{
-            padding: '4px 8px', fontSize: 12, border: '1px solid var(--border)',
-            borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)',
-            width: 200, outline: 'none',
+            padding: '4px 10px', fontSize: 11, border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', background: 'var(--surface)', color: 'var(--text)',
+            width: 220, outline: 'none',
           }}
         />
         {selected && (
           <button
             onClick={() => { setSelected(null); setQuery(''); onChange(undefined) }}
             className="admin-btn admin-btn--sm"
-            style={{ padding: '2px 6px', fontSize: 11 }}
+            style={{ flexShrink: 0 }}
           >
             ✕
           </button>
