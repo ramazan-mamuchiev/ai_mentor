@@ -108,8 +108,8 @@ export function RagEvalPage() {
   const loadData = useCallback(async () => {
     try {
       const [latestRes, runsRes] = await Promise.all([
-        getLatestRagEval(),
-        getRagEvalRuns(1, 50),
+        getLatestRagEval().catch(() => null),
+        getRagEvalRuns(1, 50).catch(() => ({ items: [], total: 0 })),
       ])
       setLatest(latestRes)
       setRuns(runsRes.items)
@@ -122,8 +122,8 @@ export function RagEvalPage() {
 
       const runningRun = runsRes.items.find(r => r.status === 'running')
       if (runningRun) {
-        const detail = await getRagEvalRun(runningRun.id)
-        setActiveRun(detail)
+        const detail = await getRagEvalRun(runningRun.id).catch(() => null)
+        if (detail) setActiveRun(detail)
       } else {
         setActiveRun(null)
       }
