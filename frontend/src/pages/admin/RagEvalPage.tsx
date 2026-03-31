@@ -188,7 +188,7 @@ export function RagEvalPage() {
   return (
     <div className="admin-page">
       {/* Header */}
-      <div className="admin-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className="admin-page-header rag-eval-page-header">
         <div>
           <h1><Gauge size={20} /> {t('admin.ragEval.title')}</h1>
           {data && !isRunning && (

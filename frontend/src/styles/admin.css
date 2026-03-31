@@ -2414,6 +2414,13 @@
 
 /* ── RAG Evaluation ── */
 
+.rag-eval-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .rag-eval-dot {
   width: 8px;
   height: 8px;
@@ -2628,12 +2635,25 @@
 
 /* Mobile responsive for RAG Eval */
 @media (max-width: 767px) {
+  .rag-eval-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
   .rag-eval-actions {
     width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .rag-eval-actions select {
+    flex: 0 0 auto;
+    width: 64px;
   }
 
   .rag-eval-actions .admin-btn {
     flex: 1;
+    min-width: 0;
   }
 
   .rag-eval-progress-inline {
@@ -2642,21 +2662,54 @@
     width: 100%;
   }
 
+  .rag-eval-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0;
+    margin-left: -12px;
+    margin-right: -12px;
+    padding: 0 12px;
+  }
+
+  .rag-eval-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rag-eval-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   .rag-eval-gauge-grid {
     grid-template-columns: 1fr;
+  }
+
+  .rag-eval-gauge-card {
+    padding: 14px 16px;
   }
 
   .rag-eval-gauge-desc {
     display: none;
   }
 
-  .rag-eval-tabs {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  .rag-eval-section-title {
+    font-size: 14px;
+    margin: 16px 0 10px;
   }
 
   .rag-eval-sample-meta {
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .rag-eval-sample-detail {
+    padding: 8px 0;
+  }
+
+  .rag-eval-sample-section p {
+    font-size: 12px;
   }
 }
