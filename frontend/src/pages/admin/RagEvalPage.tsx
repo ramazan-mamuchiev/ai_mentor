@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Target, Play, Loader2, Clock, ChevronDown, ChevronUp, Square } from 'lucide-react'
+import { Target, Play, Loader2, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   startRagEval, getRagEvalRuns, getRagEvalRun, getLatestRagEval, cancelRagEval,
   type RagEvalRunDetail, type RagEvalRunItem,
@@ -213,28 +213,24 @@ export function RagEvalPage() {
         </div>
         <div className="rag-eval-actions">
           {isRunning && activeRun ? (
-            <>
-              <div className="rag-eval-progress-inline">
-                <div className="rag-eval-progress-inline-top">
-                  <Loader2 size={14} className="rag-eval-spin" />
-                  <span className="rag-eval-progress-inline-stage">{activeRun.progress_stage || t('admin.ragEval.running')}</span>
-                  <span className="rag-eval-progress-inline-time">
-                    <Clock size={12} />
-                    {fmtDuration(activeRun.started_at, new Date().toISOString())}
-                  </span>
-                </div>
+            <div className="rag-eval-progress-inline">
+              <div className="rag-eval-progress-inline-top">
+                <Loader2 size={14} className="rag-eval-spin" />
+                <span className="rag-eval-progress-inline-stage">{activeRun.progress_stage || t('admin.ragEval.running')}</span>
+                <span className="rag-eval-progress-inline-time">
+                  <Clock size={12} />
+                  {fmtDuration(activeRun.started_at, new Date().toISOString())}
+                </span>
+              </div>
+              <div className="rag-eval-progress-inline-bottom">
                 <div className="rag-eval-progress-inline-track">
                   <div className="rag-eval-progress-inline-fill" style={{ width: `${activeRun.progress_percent}%` }} />
                 </div>
+                <button className="rag-eval-cancel-link" onClick={handleCancel}>
+                  {t('admin.ragEval.cancel')}
+                </button>
               </div>
-              <button
-                className="admin-btn admin-btn--danger"
-                onClick={handleCancel}
-                title={t('admin.ragEval.cancel')}
-              >
-                <Square size={14} />
-              </button>
-            </>
+            </div>
           ) : (
             <>
               <select
