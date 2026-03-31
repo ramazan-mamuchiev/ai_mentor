@@ -116,7 +116,7 @@ export function DocumentsAdminPage() {
           <div className="admin-empty">{t('admin.docs.noDocuments')}</div>
         ) : (
           <div className="admin-table-scroll">
-            <table className="admin-table">
+            <table className="admin-table admin-table--wide">
               <thead>
                 <tr>
                   <th>{t('admin.docs.title_col')}</th>

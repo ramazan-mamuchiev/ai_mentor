@@ -511,7 +511,7 @@ export function RagEvalPage() {
           <div className="rag-eval-section-title">{t('admin.ragEval.sampleDetails')} ({data.details.length})</div>
           <div className="admin-table-wrapper">
             <div className="admin-table-scroll">
-              <table className="admin-table">
+              <table className="admin-table admin-table--wide">
                 <thead>
                   <tr>
                     <th style={{ width: 28 }} />

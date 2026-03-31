@@ -88,7 +88,7 @@ export function TenantsPage() {
           <div className="admin-empty">{t('admin.tenants.noTenants')}</div>
         ) : (
           <div className="admin-table-scroll">
-            <table className="admin-table">
+            <table className="admin-table admin-table--wide">
               <thead>
                 <tr>
                   <th>{t('admin.tenants.email')}</th>

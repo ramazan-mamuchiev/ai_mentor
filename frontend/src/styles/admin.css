@@ -246,9 +246,12 @@
 
 .admin-table {
   width: 100%;
-  min-width: 900px;
   border-collapse: collapse;
   font-size: 13px;
+}
+
+.admin-table--wide {
+  min-width: 900px;
 }
 
 .admin-table th {
