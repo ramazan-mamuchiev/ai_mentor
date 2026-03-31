@@ -807,6 +807,7 @@
   "admin.ragEval.title": "RAG Evaluation",
   "admin.ragEval.runEval": "Run Evaluation",
   "admin.ragEval.running": "Evaluation running...",
+  "admin.ragEval.cancel": "Cancel",
   "admin.ragEval.lastRun": "Last run",
   "admin.ragEval.completed": "Completed",
   "admin.ragEval.failed": "Failed",

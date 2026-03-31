@@ -666,6 +666,29 @@ async def start_rag_eval(
     return run
 
 
+@router.post("/rag-eval/runs/{run_id}/cancel")
+async def cancel_rag_eval_run(
+    run_id: int,
+    session: AsyncSession = Depends(get_session),
+    _: Tenant = Depends(require_admin),
+):
+    from app.models import RagEvalRun
+    from datetime import datetime, timezone
+
+    run = await session.get(RagEvalRun, run_id)
+    if not run:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Eval run not found")
+    if run.status != "running":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Run is not active")
+
+    run.status = "cancelled"
+    run.finished_at = datetime.now(timezone.utc)
+    run.error_message = "Cancelled by user"
+    await session.commit()
+
+    return {"status": "cancelled"}
+
+
 @router.get("/rag-eval/runs", response_model=RagEvalRunListResponse)
 async def list_rag_eval_runs(
     page: int = Query(1, ge=1),

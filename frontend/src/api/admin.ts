@@ -990,6 +990,13 @@ export async function getRagEvalRun(id: number): Promise<RagEvalRunDetail> {
   return handleResponse(res)
 }
 
+export async function cancelRagEval(id: number): Promise<void> {
+  await fetch(`${BASE}/rag-eval/runs/${id}/cancel`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+}
+
 export async function getLatestRagEval(): Promise<RagEvalRunDetail | null> {
   const res = await fetch(`${BASE}/rag-eval/latest`, { credentials: 'include' })
   if (res.status === 200) {

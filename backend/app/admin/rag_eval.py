@@ -366,6 +366,11 @@ def run_full_evaluation(run_id: int) -> None:
             setattr(run, k, v)
         session.commit()
 
+    def _check_cancelled(session: Session) -> bool:
+        session.expire_all()
+        run = session.get(RagEvalRun, run_id)
+        return run is None or run.status == "cancelled"
+
     try:
         with Session(engine) as session:
             run = session.get(RagEvalRun, run_id)
@@ -376,6 +381,9 @@ def run_full_evaluation(run_id: int) -> None:
             _update(run, session, progress_percent=5, progress_stage="Collecting aggregate metrics...")
 
             agg = collect_aggregate_metrics(session)
+
+            if _check_cancelled(session):
+                return
             _update(run, session, progress_percent=15, progress_stage="Collecting segmented metrics...")
 
             metrics_by_qt, metrics_by_prod = collect_segmented_metrics(session)
@@ -386,12 +394,16 @@ def run_full_evaluation(run_id: int) -> None:
                     metrics_by_product=metrics_by_prod,
                     **{k: v for k, v in agg.items() if v is not None})
 
+            if _check_cancelled(session):
+                return
             sys_metrics = collect_system_metrics(session)
             _update(run, session,
                     progress_percent=30,
                     progress_stage="Sampling Q&A pairs...",
                     **{k: v for k, v in sys_metrics.items() if v is not None})
 
+            if _check_cancelled(session):
+                return
             samples = sample_qa_pairs(session, run.sample_size)
 
         if not samples:
@@ -412,6 +424,9 @@ def run_full_evaluation(run_id: int) -> None:
         faithfulness_scores = []
         batch_size = 5
         for i in range(0, len(samples), batch_size):
+            with Session(engine) as session:
+                if _check_cancelled(session):
+                    return
             batch = samples[i:i + batch_size]
             batch_scores = evaluate_faithfulness_batch(batch)
             faithfulness_scores.extend(batch_scores)
@@ -429,6 +444,9 @@ def run_full_evaluation(run_id: int) -> None:
 
         precision_scores = []
         for i in range(0, len(samples), batch_size):
+            with Session(engine) as session:
+                if _check_cancelled(session):
+                    return
             batch = samples[i:i + batch_size]
             batch_scores = evaluate_context_precision_batch(batch)
             precision_scores.extend(batch_scores)

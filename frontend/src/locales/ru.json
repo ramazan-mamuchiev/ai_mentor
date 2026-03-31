@@ -856,6 +856,7 @@
   "admin.ragEval.title": "Оценка RAG",
   "admin.ragEval.runEval": "Запустить оценку",
   "admin.ragEval.running": "Оценка запущена...",
+  "admin.ragEval.cancel": "Отменить",
   "admin.ragEval.lastRun": "Последний прогон",
   "admin.ragEval.completed": "Завершён",
   "admin.ragEval.failed": "Ошибка",
