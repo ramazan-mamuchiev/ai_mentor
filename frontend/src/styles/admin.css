@@ -2414,31 +2414,6 @@
 
 /* ── RAG Evaluation ── */
 
-.rag-eval-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  gap: 16px;
-}
-
-.rag-eval-title {
-  font-size: 22px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.rag-eval-last-run {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .rag-eval-dot {
   width: 8px;
   height: 8px;
@@ -2650,11 +2625,6 @@
 
 /* Mobile responsive for RAG Eval */
 @media (max-width: 767px) {
-  .rag-eval-header {
-    flex-direction: column;
-    gap: 12px;
-  }
-
   .rag-eval-actions {
     width: 100%;
   }

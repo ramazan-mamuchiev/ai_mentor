@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, Box, BarChart3, Settings, X, Shield, Plug,
   LayoutDashboard, Users, FileText, ScrollText, KeyRound, MessageSquareCode,
-  ArrowLeft, Activity, BookOpen, FlaskConical,
+  ArrowLeft, Activity, BookOpen, Gauge,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
@@ -70,7 +70,7 @@ const ADMIN_SUB_NAV: readonly { path: string; icon: typeof LayoutDashboard; labe
   { path: '/app/admin/logs', icon: ScrollText, labelKey: 'admin.nav.logs' },
   { path: '/app/admin/stats', icon: BarChart3, labelKey: 'admin.nav.stats' },
   { path: '/app/admin/system', icon: Activity, labelKey: 'admin.nav.system' },
-  { path: '/app/admin/rag-eval', icon: FlaskConical, labelKey: 'admin.nav.ragEval' },
+  { path: '/app/admin/rag-eval', icon: Gauge, labelKey: 'admin.nav.ragEval' },
 ]
 
 interface Props {

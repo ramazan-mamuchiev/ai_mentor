@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FlaskConical, Play, Loader2, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Gauge, Play, Loader2, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   startRagEval, getRagEvalRuns, getRagEvalRun, getLatestRagEval,
   type RagEvalRunDetail, type RagEvalRunItem,
@@ -188,14 +188,11 @@ export function RagEvalPage() {
   return (
     <div className="admin-page">
       {/* Header */}
-      <div className="rag-eval-header">
+      <div className="admin-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 className="rag-eval-title">
-            <FlaskConical size={22} />
-            {t('admin.ragEval.title')}
-          </h1>
+          <h1><Gauge size={20} /> {t('admin.ragEval.title')}</h1>
           {data && (
-            <div className="rag-eval-last-run">
+            <p>
               <span className={`rag-eval-dot rag-eval-dot--${data.status === 'completed' ? 'ok' : 'err'}`} />
               {t('admin.ragEval.lastRun')}: {fmtDate(data.started_at)} — {' '}
               <span style={{ color: data.status === 'completed' ? 'var(--success)' : 'var(--danger)' }}>
@@ -203,7 +200,7 @@ export function RagEvalPage() {
               </span>
               {' '}({fmtDuration(data.started_at, data.finished_at)})
               {' · '}{data.sample_size} {t('admin.ragEval.samples')}
-            </div>
+            </p>
           )}
         </div>
         <div className="rag-eval-actions">
