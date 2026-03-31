@@ -321,30 +321,6 @@ No rate limiting exists on any API endpoint. Any authenticated user (or leaked A
 
 ---
 
-## 11. Global Error Handler
-
-| | |
-|---|---|
-| **Priority** | P0 — Critical |
-| **Status** | Not started |
-| **Complexity** | Low (~2-3 hours) |
-| **Dependencies** | None |
-| **Area** | Backend |
-
-### Problem
-
-`main.py` has no `exception_handler` registered. Unhandled exceptions return raw 500 responses with stack traces in development. In production, FastAPI returns a generic error, but there is no structured JSON envelope, no request ID in the error response, and no consistent format for validation errors.
-
-### Implementation plan
-
-1. **Register global `Exception` handler** in `main.py` — return `{"error": "Internal server error", "request_id": "..."}` with HTTP 500
-2. **Register `RequestValidationError` handler** — return `{"error": "Validation error", "details": [...], "request_id": "..."}` with HTTP 422
-3. **Register `HTTPException` handler** — wrap in consistent envelope with `request_id`
-4. **Mask internal details** when `app_env == "production"` — no stack traces, no SQL errors
-5. **Log the full exception** with request ID for correlation in Loki
-
----
-
 ## 12. Sentry Integration
 
 | | |
@@ -886,7 +862,6 @@ Input validation relies on Pydantic schemas for type checking, but there is no e
 | 8 | RAG Eval: Regression Alerts | Medium | RAG | Medium |
 | 9 | RAG Eval: Retrieval-Only | Low | RAG | Medium |
 | 10 | API Rate Limiting | **P0** | Backend | Medium |
-| 11 | Global Error Handler | **P0** | Backend | Low |
 | 12 | Sentry Integration | **P0** | Backend | Low |
 | 13 | CORS Middleware | P1 | Backend | Low |
 | 14 | CI/CD Pipeline | **P0** | DevOps | High |

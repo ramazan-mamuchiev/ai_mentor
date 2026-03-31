@@ -489,6 +489,24 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from app.exceptions import (
+    http_exception_handler,
+    validation_exception_handler,
+    llm_error_handler,
+    quota_error_handler,
+    unhandled_exception_handler,
+)
+from app.llm.client import LLMError
+from app.uploads.quota import QuotaError
+
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(LLMError, llm_error_handler)
+app.add_exception_handler(QuotaError, quota_error_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
 from fastapi import Depends
 from app.auth.dependencies import get_current_tenant, require_admin
 
