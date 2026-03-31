@@ -262,7 +262,7 @@ async def list_products():
             fmt_key = (p.id, p.firmware_version_id)
 
             sync_st = p.sync_status
-            if sync_st != "idle" and pending == 0 and processing == 0:
+            if sync_st not in ("idle", "deleting") and pending == 0 and processing == 0:
                 sync_st = "idle"
                 reset_product_ids.append(p.id)
 
