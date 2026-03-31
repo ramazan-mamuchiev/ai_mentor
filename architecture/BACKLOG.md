@@ -111,7 +111,46 @@ The "Get Started" / "Начать" button leads to `/app`, which requires authen
 
 ---
 
-## 4. Landing Page: Technical/Business View Toggle for "How It Works"
+## 4. Product Deletion: Progress Bar for Large Products
+
+| | |
+|---|---|
+| **Priority** | High |
+| **Status** | Not started |
+| **Complexity** | Medium (~4-6 hours) |
+| **Dependencies** | None |
+
+### Problem
+
+When deleting a product that contains a large number of documents (~15 000), the confirmation dialog freezes for over a minute with no feedback. The user sees a "dead" modal with no indication of progress, which looks like the app has crashed. This is a poor UX for any bulk-destructive operation.
+
+### Implementation plan
+
+**Backend:**
+
+1. **Convert product deletion to an async Celery task** — instead of deleting all documents synchronously in the request handler, enqueue a `delete_product` task that:
+   - Deletes documents in batches (e.g. 500 at a time)
+   - Reports progress after each batch via a task state update (`meta={'deleted': N, 'total': M}`)
+   - Removes the product record after all documents are deleted
+2. **New endpoint `GET /api/v1/products/{product_id}/delete-status`** — returns current deletion progress (`deleted`, `total`, `state`) by querying the Celery task result backend
+
+**Frontend:**
+
+1. **Close the confirmation dialog immediately** after the delete request is accepted (HTTP 202)
+2. **Show a progress bar** — either inline in the products table (replacing the deleted row) or as a toast/notification with a progress indicator
+3. **Poll the delete-status endpoint** every 1-2 seconds until the task completes, updating the progress bar
+4. **Handle completion** — remove the product from the list and show a success message
+5. **Handle errors** — if the task fails mid-way, show an error with the count of documents deleted so far
+
+### Notes
+
+- The same pattern can be reused for other bulk operations (e.g. bulk document deletion)
+- Consider using SSE (Server-Sent Events) instead of polling if real-time updates are preferred — the project already supports SSE via nginx config
+- Mark the product as "deleting" in the DB to prevent concurrent edits while deletion is in progress
+
+---
+
+## 5. Landing Page: Technical/Business View Toggle for "How It Works"
 
 | | |
 |---|---|
