@@ -2414,6 +2414,11 @@
 
 /* ── RAG Evaluation ── */
 
+.rag-eval-page {
+  flex: none;
+  min-height: auto;
+}
+
 .rag-eval-page-header {
   display: flex;
   justify-content: space-between;

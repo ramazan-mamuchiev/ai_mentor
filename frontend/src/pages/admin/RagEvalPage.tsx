@@ -194,7 +194,7 @@ export function RagEvalPage() {
   ]
 
   return (
-    <div className="admin-page">
+    <div className="admin-page rag-eval-page">
       {/* Header */}
       <div className="admin-page-header rag-eval-page-header">
         <div>
