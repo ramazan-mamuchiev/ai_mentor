@@ -2427,6 +2427,8 @@
   border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 .rag-eval-dot--ok { background: var(--success, #22c55e); }
@@ -2448,12 +2450,16 @@
 }
 
 .rag-eval-progress-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 280px;
-  max-width: 360px;
+  max-width: 420px;
   background: var(--surface);
   border: 1px solid var(--accent, #7c3aed);
   border-radius: var(--radius, 8px);
-  padding: 10px 14px;
+  padding: 0 12px;
+  height: 36px;
   animation: rag-eval-pulse 2s ease infinite;
 }
 
@@ -2462,18 +2468,10 @@
   50% { border-color: var(--accent3, #db2777); }
 }
 
-.rag-eval-progress-inline-top {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-
 .rag-eval-progress-inline-stage {
   font-size: 12px;
   font-weight: 500;
   color: var(--accent2, #a78bfa);
-  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2487,30 +2485,7 @@
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
-}
-
-.rag-eval-progress-inline-track {
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.rag-eval-progress-inline-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent, #7c3aed), var(--accent3, #db2777));
-  border-radius: 2px;
-  transition: width 0.5s ease;
-}
-
-.rag-eval-progress-inline-bottom {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.rag-eval-progress-inline-bottom .rag-eval-progress-inline-track {
-  flex: 1;
+  margin-left: auto;
 }
 
 .rag-eval-cancel-link {

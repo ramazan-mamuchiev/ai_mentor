@@ -214,22 +214,15 @@ export function RagEvalPage() {
         <div className="rag-eval-actions">
           {isRunning && activeRun ? (
             <div className="rag-eval-progress-inline">
-              <div className="rag-eval-progress-inline-top">
-                <Loader2 size={14} className="rag-eval-spin" />
-                <span className="rag-eval-progress-inline-stage">{activeRun.progress_stage || t('admin.ragEval.running')}</span>
-                <span className="rag-eval-progress-inline-time">
-                  <Clock size={12} />
-                  {fmtDuration(activeRun.started_at, new Date().toISOString())}
-                </span>
-              </div>
-              <div className="rag-eval-progress-inline-bottom">
-                <div className="rag-eval-progress-inline-track">
-                  <div className="rag-eval-progress-inline-fill" style={{ width: `${activeRun.progress_percent}%` }} />
-                </div>
-                <button className="rag-eval-cancel-link" onClick={handleCancel}>
-                  {t('admin.ragEval.cancel')}
-                </button>
-              </div>
+              <Loader2 size={14} className="rag-eval-spin" style={{ flexShrink: 0 }} />
+              <span className="rag-eval-progress-inline-stage">{activeRun.progress_stage || t('admin.ragEval.running')}</span>
+              <span className="rag-eval-progress-inline-time">
+                <Clock size={11} />
+                {fmtDuration(activeRun.started_at, new Date().toISOString())}
+              </span>
+              <button className="rag-eval-cancel-link" onClick={handleCancel}>
+                {t('admin.ragEval.cancel')}
+              </button>
             </div>
           ) : (
             <>
