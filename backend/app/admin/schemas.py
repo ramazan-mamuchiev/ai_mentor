@@ -182,8 +182,23 @@ class SearchStat(BaseModel):
     top_queries: list[dict] = []
     zero_result_count: int
 
+class ActionUsageStat(BaseModel):
+    action: str
+    requests: int
+    tokens: int
+    charge_usd: str
+
+class TopTenantUsageStat(BaseModel):
+    tenant_id: str
+    email: str
+    requests: int
+    tokens: int
+    charge_usd: str
+
 class UsageStatsResponse(BaseModel):
     daily: list[DailyUsageStat]
+    by_action: list[ActionUsageStat] = []
+    top_tenants: list[TopTenantUsageStat] = []
 
 
 # --- Extended Stats ---
@@ -280,12 +295,19 @@ class TopApiKeyStat(BaseModel):
     request_count: int
     charge_usd: str
 
+class IngestionBreakdownItem(BaseModel):
+    step: str
+    tokens: int
+    charge_usd: str
+
 class CostStats(BaseModel):
     total_charge_usd: str
     total_cogs_usd: str
     avg_per_day: str
     avg_per_user: str
     forecast_month_usd: str
+    ingestion_cost_usd: str = "0"
+    ingestion_breakdown: list[IngestionBreakdownItem] = []
     daily: list[dict] = []
     by_model: list[CostByModelStat] = []
     by_channel: list[CostByChannelStat] = []

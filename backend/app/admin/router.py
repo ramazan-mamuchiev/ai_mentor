@@ -253,18 +253,19 @@ async def stats_overview(session: AsyncSession = Depends(get_session)):
 @router.get("/stats/usage", response_model=UsageStatsResponse)
 async def stats_usage(
     days: int = Query(30, ge=1, le=365),
+    tenant_id: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    daily = await service.get_usage_stats(session, days=days)
-    return UsageStatsResponse(daily=daily)
+    return await service.get_usage_stats(session, days=days, tenant_id=tenant_id)
 
 
 @router.get("/stats/models", response_model=list[ModelUsageStat])
 async def stats_models(
     days: int = Query(30, ge=1, le=365),
+    tenant_id: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    return await service.get_model_stats(session, days=days)
+    return await service.get_model_stats(session, days=days, tenant_id=tenant_id)
 
 
 @router.get("/stats/ingestion", response_model=IngestionStat)
@@ -275,41 +276,46 @@ async def stats_ingestion(session: AsyncSession = Depends(get_session)):
 @router.get("/stats/search", response_model=SearchStat)
 async def stats_search(
     days: int = Query(30, ge=1, le=365),
+    tenant_id: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    return await service.get_search_stats(session, days=days)
+    return await service.get_search_stats(session, days=days, tenant_id=tenant_id)
 
 
 @router.get("/stats/chat", response_model=ChatStats)
 async def stats_chat(
     days: int = Query(30, ge=1, le=365),
+    tenant_id: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    return await service.get_chat_stats(session, days=days)
+    return await service.get_chat_stats(session, days=days, tenant_id=tenant_id)
 
 
 @router.get("/stats/documents", response_model=DocumentStats)
 async def stats_documents(
     days: int = Query(30, ge=1, le=365),
+    tenant_id: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    return await service.get_document_stats(session, days=days)
+    return await service.get_document_stats(session, days=days, tenant_id=tenant_id)
 
 
 @router.get("/stats/search-extended", response_model=ExtendedSearchStats)
 async def stats_search_extended(
     days: int = Query(30, ge=1, le=365),
+    tenant_id: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    return await service.get_extended_search_stats(session, days=days)
+    return await service.get_extended_search_stats(session, days=days, tenant_id=tenant_id)
 
 
 @router.get("/stats/costs", response_model=CostStats)
 async def stats_costs(
     days: int = Query(30, ge=1, le=365),
+    tenant_id: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    return await service.get_cost_stats(session, days=days)
+    return await service.get_cost_stats(session, days=days, tenant_id=tenant_id)
 
 
 # ---------------------------------------------------------------------------

@@ -1,14 +1,17 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { BarChart3, LayoutDashboard, MessageSquare, FileText, Search, Plug, DollarSign } from 'lucide-react'
+import { BarChart3, LayoutDashboard, MessageSquare, FileText, Search, Plug, DollarSign, Users } from 'lucide-react'
 import {
   getOverview, getUsageStats, getModelStats, getIngestionStats, getSearchStats,
   getChatStats, getDocumentStats, getExtendedSearchStats, getCostStats, getMcpStats,
+  searchTenants,
   type PlatformOverview, type DailyUsageStat, type ModelUsageStat, type IngestionStat,
   type ChatStats as ChatStatsT, type DocumentStats as DocStatsT,
   type ExtendedSearchStats as SearchStatsT, type CostStats as CostStatsT,
   type McpStats as McpStatsT,
+  type UsageStatsResponse,
+  type TenantSearchResult,
 } from '../../api/admin'
 
 const TABS = ['overview', 'chat', 'documents', 'search', 'mcp', 'costs'] as const
@@ -80,27 +83,118 @@ function fmtBytes(b: number) {
   return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
+/* ───── Tenant Filter ───── */
+function TenantFilter({ value, onChange, t }: {
+  value: string | undefined; onChange: (v: string | undefined) => void; t: any
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<TenantSearchResult[]>([])
+  const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState<TenantSearchResult | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  useEffect(() => {
+    if (!value) { setSelected(null); setQuery('') }
+  }, [value])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const doSearch = useCallback((q: string) => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (q.length < 2) { setResults([]); return }
+    timerRef.current = setTimeout(() => {
+      searchTenants(q, 8).then(setResults).catch(() => {})
+    }, 300)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative', minWidth: 220 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Users size={14} style={{ color: 'var(--text-muted)' }} />
+        <input
+          type="text"
+          placeholder={t('admin.stats.filterTenant')}
+          value={selected ? selected.email : query}
+          onChange={e => {
+            if (selected) { setSelected(null); onChange(undefined) }
+            setQuery(e.target.value)
+            doSearch(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => { if (results.length) setOpen(true) }}
+          style={{
+            padding: '4px 8px', fontSize: 12, border: '1px solid var(--border)',
+            borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)',
+            width: 200, outline: 'none',
+          }}
+        />
+        {selected && (
+          <button
+            onClick={() => { setSelected(null); setQuery(''); onChange(undefined) }}
+            className="admin-btn admin-btn--sm"
+            style={{ padding: '2px 6px', fontSize: 11 }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      {open && results.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+          background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6,
+          marginTop: 4, maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,.15)',
+        }}>
+          {results.map(r => (
+            <div
+              key={r.id}
+              onClick={() => { setSelected(r); onChange(r.id); setOpen(false); setQuery('') }}
+              style={{
+                padding: '6px 10px', cursor: 'pointer', fontSize: 12,
+                borderBottom: '1px solid var(--border)',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+              onMouseLeave={e => (e.currentTarget.style.background = '')}
+            >
+              <div style={{ fontWeight: 500 }}>{r.email}</div>
+              {r.name && <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{r.name}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ───── Tab: Overview ───── */
-function OverviewTab({ days, t }: { days: number; t: any }) {
+function OverviewTab({ days, t, tenantId }: { days: number; t: any; tenantId?: string }) {
   const [overview, setOverview] = useState<PlatformOverview | null>(null)
-  const [daily, setDaily] = useState<DailyUsageStat[]>([])
+  const [usage, setUsage] = useState<UsageStatsResponse | null>(null)
   const [models, setModels] = useState<ModelUsageStat[]>([])
   const [ingestion, setIngestion] = useState<IngestionStat | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([getOverview(), getUsageStats(days), getModelStats(days), getIngestionStats()])
-      .then(([ov, u, m, i]) => { setOverview(ov); setDaily(u.daily); setModels(m); setIngestion(i) })
+    Promise.all([getOverview(), getUsageStats(days, tenantId), getModelStats(days, tenantId), getIngestionStats()])
+      .then(([ov, u, m, i]) => { setOverview(ov); setUsage(u); setModels(m); setIngestion(i) })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [days])
+  }, [days, tenantId])
 
   if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
 
+  const daily = usage?.daily || []
+
   return (
     <>
-      {overview && (
+      {overview && !tenantId && (
         <div className="stats-grid" style={{ marginBottom: 24 }}>
           <StatCard label={t('admin.stats.overview.tenants')} value={`${overview.active_tenants} / ${overview.total_tenants}`} />
           <StatCard label={t('admin.stats.overview.documents')} value={overview.total_documents} sub={`${overview.documents_indexed} ${t('admin.stats.overview.indexed')}`} />
@@ -117,6 +211,35 @@ function OverviewTab({ days, t }: { days: number; t: any }) {
         <SimpleBar data={daily} labelKey="date" valueKey="requests" label={t('admin.stats.requestsPerDay')} />
         <SimpleBar data={daily} labelKey="date" valueKey="tokens" label={t('admin.stats.tokensPerDay')} />
       </div>
+
+      {usage && usage.by_action.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+          <div>
+            <h2 className="admin-section-title">{t('admin.stats.overview.byAction')}</h2>
+            <div className="admin-detail-card" style={{ padding: 16 }}>
+              {usage.by_action.map((a, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span className="badge badge--gray">{a.action}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtUsd(a.charge_usd)} &middot; {a.tokens.toLocaleString()} tok &middot; {a.requests} req</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {!tenantId && usage.top_tenants.length > 0 && (
+            <div>
+              <h2 className="admin-section-title">{t('admin.stats.overview.topTenants')}</h2>
+              <div className="admin-detail-card" style={{ padding: 16 }}>
+                {usage.top_tenants.map((te, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span>{te.email}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{fmtUsd(te.charge_usd)} &middot; {te.tokens.toLocaleString()} tok</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <h2 className="admin-section-title">{t('admin.stats.llmModels')}</h2>
       {models.length > 0 ? (
@@ -144,7 +267,7 @@ function OverviewTab({ days, t }: { days: number; t: any }) {
         </div>
       ) : <div className="admin-empty">{t('admin.stats.noModelData')}</div>}
 
-      {ingestion && (
+      {ingestion && !tenantId && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
             <h2 className="admin-section-title">{t('admin.stats.ingestion')}</h2>
@@ -165,14 +288,14 @@ function OverviewTab({ days, t }: { days: number; t: any }) {
 }
 
 /* ───── Tab: Chat / LLM ───── */
-function ChatTab({ days, t }: { days: number; t: any }) {
+function ChatTab({ days, t, tenantId }: { days: number; t: any; tenantId?: string }) {
   const [data, setData] = useState<ChatStatsT | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    getChatStats(days).then(setData).catch(() => {}).finally(() => setLoading(false))
-  }, [days])
+    getChatStats(days, tenantId).then(setData).catch(() => {}).finally(() => setLoading(false))
+  }, [days, tenantId])
 
   if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
   if (!data) return <div className="admin-empty">{t('admin.stats.noData')}</div>
@@ -267,14 +390,14 @@ function ChatTab({ days, t }: { days: number; t: any }) {
 }
 
 /* ───── Tab: Documents ───── */
-function DocumentsTab({ days, t }: { days: number; t: any }) {
+function DocumentsTab({ days, t, tenantId }: { days: number; t: any; tenantId?: string }) {
   const [data, setData] = useState<DocStatsT | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    getDocumentStats(days).then(setData).catch(() => {}).finally(() => setLoading(false))
-  }, [days])
+    getDocumentStats(days, tenantId).then(setData).catch(() => {}).finally(() => setLoading(false))
+  }, [days, tenantId])
 
   if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
   if (!data) return <div className="admin-empty">{t('admin.stats.noData')}</div>
@@ -339,14 +462,14 @@ function DocumentsTab({ days, t }: { days: number; t: any }) {
 }
 
 /* ───── Tab: Search ───── */
-function SearchTab({ days, t }: { days: number; t: any }) {
+function SearchTab({ days, t, tenantId }: { days: number; t: any; tenantId?: string }) {
   const [data, setData] = useState<SearchStatsT | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    getExtendedSearchStats(days).then(setData).catch(() => {}).finally(() => setLoading(false))
-  }, [days])
+    getExtendedSearchStats(days, tenantId).then(setData).catch(() => {}).finally(() => setLoading(false))
+  }, [days, tenantId])
 
   if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
   if (!data) return <div className="admin-empty">{t('admin.stats.noData')}</div>
@@ -397,7 +520,7 @@ function SearchTab({ days, t }: { days: number; t: any }) {
 }
 
 /* ───── Tab: MCP ───── */
-function McpTab({ days, t }: { days: number; t: any }) {
+function McpTab({ days, t, tenantId }: { days: number; t: any; tenantId?: string }) {
   const [data, setData] = useState<McpStatsT | null>(null)
   const [loading, setLoading] = useState(true)
 

@@ -559,26 +559,65 @@ async def get_platform_overview(session: AsyncSession) -> dict:
     }
 
 
-async def get_usage_stats(session: AsyncSession, days: int = 30) -> list[dict]:
+async def get_usage_stats(
+    session: AsyncSession, days: int = 30, tenant_id: uuid.UUID | None = None,
+) -> dict:
     since = datetime.now(timezone.utc) - timedelta(days=days)
+    tenant_filter = "AND tenant_id = :tid " if tenant_id else ""
+    params: dict = {"since": since}
+    if tenant_id:
+        params["tid"] = str(tenant_id)
+
     rows = (await session.execute(text(
         "SELECT DATE(created_at) AS d, COUNT(*) AS cnt, "
         "COALESCE(SUM(total_tokens),0) AS tokens, "
         "COALESCE(SUM(charge_usd),0) AS charge "
-        "FROM usage_log WHERE created_at >= :since "
+        f"FROM usage_log WHERE created_at >= :since {tenant_filter}"
         "GROUP BY DATE(created_at) ORDER BY d"
+    ), params)).mappings().all()
+
+    by_action = (await session.execute(text(
+        "SELECT action, COUNT(*) AS cnt, "
+        "COALESCE(SUM(total_tokens),0) AS tokens, "
+        "COALESCE(SUM(charge_usd),0) AS charge "
+        f"FROM usage_log WHERE created_at >= :since {tenant_filter}"
+        "GROUP BY action ORDER BY charge DESC"
+    ), params)).mappings().all()
+
+    top_tenants_rows = (await session.execute(text(
+        "SELECT ul.tenant_id, t.email, COUNT(*) AS cnt, "
+        "COALESCE(SUM(ul.total_tokens),0) AS tokens, "
+        "COALESCE(SUM(ul.charge_usd),0) AS charge "
+        "FROM usage_log ul JOIN tenants t ON t.id = ul.tenant_id "
+        "WHERE ul.created_at >= :since AND ul.tenant_id IS NOT NULL "
+        "GROUP BY ul.tenant_id, t.email ORDER BY charge DESC LIMIT 10"
     ), {"since": since})).mappings().all()
 
-    return [
-        {"date": str(r["d"]), "requests": int(r["cnt"]),
-         "tokens": int(r["tokens"]), "charge_usd": str(r["charge"])}
-        for r in rows
-    ]
+    return {
+        "daily": [
+            {"date": str(r["d"]), "requests": int(r["cnt"]),
+             "tokens": int(r["tokens"]), "charge_usd": str(r["charge"])}
+            for r in rows
+        ],
+        "by_action": [
+            {"action": r["action"] or "—", "requests": int(r["cnt"]),
+             "tokens": int(r["tokens"]), "charge_usd": str(r["charge"])}
+            for r in by_action
+        ],
+        "top_tenants": [
+            {"tenant_id": str(r["tenant_id"]), "email": r["email"],
+             "requests": int(r["cnt"]), "tokens": int(r["tokens"]),
+             "charge_usd": str(r["charge"])}
+            for r in top_tenants_rows
+        ],
+    }
 
 
-async def get_model_stats(session: AsyncSession, days: int = 30) -> list[dict]:
+async def get_model_stats(
+    session: AsyncSession, days: int = 30, tenant_id: uuid.UUID | None = None,
+) -> list[dict]:
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    rows = (await session.execute(
+    q = (
         select(
             ChatMessageAnalytics.model,
             ChatMessageAnalytics.llm_provider,
@@ -587,9 +626,11 @@ async def get_model_stats(session: AsyncSession, days: int = 30) -> list[dict]:
             func.avg(ChatMessageAnalytics.total_ms).label("avg_total_ms"),
         )
         .where(ChatMessageAnalytics.created_at >= since)
-        .group_by(ChatMessageAnalytics.model, ChatMessageAnalytics.llm_provider)
-        .order_by(func.count().desc())
-    )).all()
+    )
+    if tenant_id:
+        q = q.join(ChatSession, ChatSession.id == ChatMessageAnalytics.session_id).where(ChatSession.tenant_id == tenant_id)
+    q = q.group_by(ChatMessageAnalytics.model, ChatMessageAnalytics.llm_provider).order_by(func.count().desc())
+    rows = (await session.execute(q)).all()
 
     return [
         {
@@ -640,26 +681,32 @@ async def get_ingestion_stats(session: AsyncSession) -> dict:
     }
 
 
-async def get_search_stats(session: AsyncSession, days: int = 30) -> dict:
+async def get_search_stats(
+    session: AsyncSession, days: int = 30, tenant_id: uuid.UUID | None = None,
+) -> dict:
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
+    base_w = [SearchAnalytics.created_at >= since]
+    if tenant_id:
+        base_w.append(SearchAnalytics.tenant_id == tenant_id)
+
     total = await session.scalar(
-        select(func.count()).select_from(SearchAnalytics).where(SearchAnalytics.created_at >= since)
+        select(func.count()).select_from(SearchAnalytics).where(*base_w)
     ) or 0
     avg_sim = await session.scalar(
-        select(func.avg(SearchAnalytics.top_similarity)).where(SearchAnalytics.created_at >= since)
+        select(func.avg(SearchAnalytics.top_similarity)).where(*base_w)
     )
     avg_dur = await session.scalar(
-        select(func.avg(SearchAnalytics.duration_ms)).where(SearchAnalytics.created_at >= since)
+        select(func.avg(SearchAnalytics.duration_ms)).where(*base_w)
     )
     zero_results = await session.scalar(
         select(func.count()).select_from(SearchAnalytics)
-        .where(SearchAnalytics.created_at >= since, SearchAnalytics.result_count == 0)
+        .where(*base_w, SearchAnalytics.result_count == 0)
     ) or 0
 
     top_queries = (await session.execute(
         select(SearchAnalytics.query, func.count().label("cnt"))
-        .where(SearchAnalytics.created_at >= since)
+        .where(*base_w)
         .group_by(SearchAnalytics.query)
         .order_by(func.count().desc())
         .limit(20)
@@ -678,36 +725,57 @@ async def get_search_stats(session: AsyncSession, days: int = 30) -> dict:
 # Extended Stats
 # ---------------------------------------------------------------------------
 
-async def get_chat_stats(session: AsyncSession, days: int = 30) -> dict:
+async def get_chat_stats(
+    session: AsyncSession, days: int = 30, tenant_id: uuid.UUID | None = None,
+) -> dict:
     since = datetime.now(timezone.utc) - timedelta(days=days)
+    tenant_filter_sql = "AND cs.tenant_id = :tid " if tenant_id else ""
+    cma_tenant_join = (
+        "JOIN chat_sessions cs ON cs.id = cma.session_id " if tenant_id else ""
+    )
+    cma_tenant_where = "AND cs.tenant_id = :tid " if tenant_id else ""
+    params: dict = {"since": since}
+    if tenant_id:
+        params["tid"] = str(tenant_id)
 
-    total_msgs = await session.scalar(
+    total_msgs_q = (
         select(func.count()).select_from(ChatMessage)
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .where(ChatMessage.role == "assistant", ChatMessage.created_at >= since)
-    ) or 0
+    )
+    if tenant_id:
+        total_msgs_q = total_msgs_q.where(ChatSession.tenant_id == tenant_id)
+    total_msgs = await session.scalar(total_msgs_q) or 0
 
-    positive = await session.scalar(
+    pos_q = (
         select(func.count()).select_from(ChatMessage)
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .where(ChatMessage.created_at >= since, ChatMessage.feedback == "positive")
-    ) or 0
-    negative = await session.scalar(
+    )
+    neg_q = (
         select(func.count()).select_from(ChatMessage)
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .where(ChatMessage.created_at >= since, ChatMessage.feedback == "negative")
-    ) or 0
+    )
+    if tenant_id:
+        pos_q = pos_q.where(ChatSession.tenant_id == tenant_id)
+        neg_q = neg_q.where(ChatSession.tenant_id == tenant_id)
+    positive = await session.scalar(pos_q) or 0
+    negative = await session.scalar(neg_q) or 0
     rated = positive + negative
 
-    qt_rows = (await session.execute(
-        select(
-            ChatMessageAnalytics.query_type,
-            func.count().label("cnt"),
-        )
+    qt_q = (
+        select(ChatMessageAnalytics.query_type, func.count().label("cnt"))
         .where(ChatMessageAnalytics.created_at >= since, ChatMessageAnalytics.query_type.isnot(None))
-        .group_by(ChatMessageAnalytics.query_type)
-        .order_by(func.count().desc())
+    )
+    if tenant_id:
+        qt_q = qt_q.join(ChatSession, ChatSession.id == ChatMessageAnalytics.session_id).where(ChatSession.tenant_id == tenant_id)
+    qt_rows = (await session.execute(
+        qt_q.group_by(ChatMessageAnalytics.query_type).order_by(func.count().desc())
     )).all()
     qt_total = sum(r.cnt for r in qt_rows) or 1
 
-    timing = (await session.execute(
+    timing_q = (
         select(
             func.avg(ChatMessageAnalytics.total_ms),
             func.avg(ChatMessageAnalytics.rag_ms),
@@ -716,24 +784,28 @@ async def get_chat_stats(session: AsyncSession, days: int = 30) -> dict:
             func.avg(ChatMessageAnalytics.first_token_ms),
             func.avg(ChatMessageAnalytics.tokens_per_sec),
         ).where(ChatMessageAnalytics.created_at >= since)
-    )).one()
+    )
+    if tenant_id:
+        timing_q = timing_q.join(ChatSession, ChatSession.id == ChatMessageAnalytics.session_id).where(ChatSession.tenant_id == tenant_id)
+    timing = (await session.execute(timing_q)).one()
 
     timing_daily = (await session.execute(text(
-        "SELECT DATE(created_at) AS d, "
-        "AVG(total_ms) AS avg_total, AVG(llm_ms) AS avg_llm, AVG(rag_ms) AS avg_rag "
-        "FROM chat_message_analytics WHERE created_at >= :since "
-        "GROUP BY DATE(created_at) ORDER BY d"
-    ), {"since": since})).mappings().all()
+        "SELECT DATE(cma.created_at) AS d, "
+        "AVG(cma.total_ms) AS avg_total, AVG(cma.llm_ms) AS avg_llm, AVG(cma.rag_ms) AS avg_rag "
+        f"FROM chat_message_analytics cma {cma_tenant_join}"
+        f"WHERE cma.created_at >= :since {cma_tenant_where}"
+        "GROUP BY DATE(cma.created_at) ORDER BY d"
+    ), params)).mappings().all()
 
-    models = await get_model_stats(session, days=days)
+    models = await get_model_stats(session, days=days, tenant_id=tenant_id)
 
     avg_msgs = await session.scalar(text(
         "SELECT AVG(cnt) FROM ("
         "  SELECT COUNT(*) AS cnt FROM chat_messages cm "
         "  JOIN chat_sessions cs ON cm.session_id = cs.id "
-        "  WHERE cs.created_at >= :since GROUP BY cs.id"
+        f"  WHERE cs.created_at >= :since {tenant_filter_sql}GROUP BY cs.id"
         ") sub"
-    ), {"since": since})
+    ), params)
 
     return {
         "feedback": {
@@ -763,22 +835,29 @@ async def get_chat_stats(session: AsyncSession, days: int = 30) -> dict:
         },
         "models": models,
         "avg_messages_per_session": round(float(avg_msgs), 1) if avg_msgs else None,
-        "error_rate": await _get_error_rate(session, since),
+        "error_rate": await _get_error_rate(session, since, tenant_id=tenant_id),
     }
 
 
-async def _get_error_rate(session: AsyncSession, since: datetime) -> dict:
-    total = await session.scalar(
+async def _get_error_rate(
+    session: AsyncSession, since: datetime, tenant_id: uuid.UUID | None = None,
+) -> dict:
+    total_q = (
         select(func.count()).select_from(ChatMessageAnalytics)
         .where(ChatMessageAnalytics.created_at >= since)
-    ) or 0
-    errors = await session.scalar(
+    )
+    errors_q = (
         select(func.count()).select_from(ChatMessageAnalytics)
         .where(
             ChatMessageAnalytics.created_at >= since,
             ChatMessageAnalytics.finish_reason.notin_(["stop", "STOP", None, ""]),
         )
-    ) or 0
+    )
+    if tenant_id:
+        total_q = total_q.join(ChatSession, ChatSession.id == ChatMessageAnalytics.session_id).where(ChatSession.tenant_id == tenant_id)
+        errors_q = errors_q.join(ChatSession, ChatSession.id == ChatMessageAnalytics.session_id).where(ChatSession.tenant_id == tenant_id)
+    total = await session.scalar(total_q) or 0
+    errors = await session.scalar(errors_q) or 0
     return {
         "total": total,
         "errors": errors,
@@ -786,37 +865,57 @@ async def _get_error_rate(session: AsyncSession, since: datetime) -> dict:
     }
 
 
-async def get_document_stats(session: AsyncSession, days: int = 30) -> dict:
+async def get_document_stats(
+    session: AsyncSession, days: int = 30, tenant_id: uuid.UUID | None = None,
+) -> dict:
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
-    total = await session.scalar(select(func.count()).select_from(Document)) or 0
-    avg_size = await session.scalar(select(func.avg(Document.file_size_bytes)))
-    avg_chunks = await session.scalar(
-        select(func.avg(Document.total_chunks)).where(Document.status == "ready")
-    )
+    base_doc = select(func.count()).select_from(Document)
+    if tenant_id:
+        base_doc = base_doc.where(Document.tenant_id == tenant_id)
+    total = await session.scalar(base_doc) or 0
+
+    avg_size_q = select(func.avg(Document.file_size_bytes))
+    if tenant_id:
+        avg_size_q = avg_size_q.where(Document.tenant_id == tenant_id)
+    avg_size = await session.scalar(avg_size_q)
+
+    avg_chunks_q = select(func.avg(Document.total_chunks)).where(Document.status == "ready")
+    if tenant_id:
+        avg_chunks_q = avg_chunks_q.where(Document.tenant_id == tenant_id)
+    avg_chunks = await session.scalar(avg_chunks_q)
+
+    doc_tenant_sql = "AND tenant_id = :tid " if tenant_id else ""
+    doc_params: dict = {"since": since}
+    if tenant_id:
+        doc_params["tid"] = str(tenant_id)
 
     uploads_daily = (await session.execute(text(
         "SELECT DATE(uploaded_at) AS d, COUNT(*) AS cnt "
-        "FROM documents WHERE uploaded_at >= :since "
+        f"FROM documents WHERE uploaded_at >= :since {doc_tenant_sql}"
         "GROUP BY DATE(uploaded_at) ORDER BY d"
-    ), {"since": since})).mappings().all()
+    ), doc_params)).mappings().all()
 
-    top_products = (await session.execute(
+    top_prod_q = (
         select(Product.name, Product.manufacturer, func.count(Document.id).label("cnt"))
         .join(Document, Document.product_id == Product.id)
-        .group_by(Product.id, Product.name, Product.manufacturer)
-        .order_by(func.count(Document.id).desc())
-        .limit(10)
+    )
+    if tenant_id:
+        top_prod_q = top_prod_q.where(Document.tenant_id == tenant_id)
+    top_products = (await session.execute(
+        top_prod_q.group_by(Product.id, Product.name, Product.manufacturer)
+        .order_by(func.count(Document.id).desc()).limit(10)
     )).all()
 
+    fmt_q = select(Document.format, func.count().label("cnt"))
+    if tenant_id:
+        fmt_q = fmt_q.where(Document.tenant_id == tenant_id)
     format_rows = (await session.execute(
-        select(Document.format, func.count().label("cnt"))
-        .group_by(Document.format)
-        .order_by(func.count().desc())
+        fmt_q.group_by(Document.format).order_by(func.count().desc())
     )).all()
     fmt_total = sum(r.cnt for r in format_rows) or 1
 
-    top_docs = (await session.execute(
+    top_docs_q = (
         select(
             DocumentUsageLog.document_id,
             Document.title,
@@ -828,16 +927,33 @@ async def get_document_stats(session: AsyncSession, days: int = 30) -> dict:
         .join(Document, Document.id == DocumentUsageLog.document_id)
         .outerjoin(Product, Product.id == Document.product_id)
         .where(DocumentUsageLog.created_at >= since)
-        .group_by(DocumentUsageLog.document_id, Document.title, Product.name)
-        .order_by(func.count(DocumentUsageLog.id).desc())
-        .limit(10)
+    )
+    if tenant_id:
+        top_docs_q = top_docs_q.where(Document.tenant_id == tenant_id)
+    top_docs = (await session.execute(
+        top_docs_q.group_by(DocumentUsageLog.document_id, Document.title, Product.name)
+        .order_by(func.count(DocumentUsageLog.id).desc()).limit(10)
     )).all()
 
-    used_ids_subq = select(DocumentUsageLog.document_id).distinct().subquery()
-    unused = await session.scalar(
+    unused_subq = select(DocumentUsageLog.document_id).distinct().subquery()
+    unused_q = (
         select(func.count()).select_from(Document)
-        .where(Document.status == "ready", ~Document.id.in_(select(used_ids_subq)))
-    ) or 0
+        .where(Document.status == "ready", ~Document.id.in_(select(unused_subq)))
+    )
+    if tenant_id:
+        unused_q = unused_q.where(Document.tenant_id == tenant_id)
+    unused = await session.scalar(unused_q) or 0
+
+    chunks_q = select(func.count()).select_from(Chunk)
+    size_q = select(func.sum(Document.file_size_bytes))
+    used_chunks_q = (
+        select(func.count(func.distinct(DocumentUsageLog.chunk_id)))
+        .where(DocumentUsageLog.chunk_id.isnot(None))
+    )
+    if tenant_id:
+        chunks_q = chunks_q.join(Document, Document.id == Chunk.document_id).where(Document.tenant_id == tenant_id)
+        size_q = size_q.where(Document.tenant_id == tenant_id)
+        used_chunks_q = used_chunks_q.join(Document, Document.id == DocumentUsageLog.document_id).where(Document.tenant_id == tenant_id)
 
     return {
         "total": total,
@@ -863,24 +979,30 @@ async def get_document_stats(session: AsyncSession, days: int = 30) -> dict:
             for r in format_rows
         ],
         "unused_count": unused,
-        "total_chunks": await session.scalar(select(func.count()).select_from(Chunk)) or 0,
-        "total_size_bytes": await session.scalar(select(func.sum(Document.file_size_bytes))) or 0,
-        "used_chunks_count": await session.scalar(
-            select(func.count(func.distinct(DocumentUsageLog.chunk_id)))
-            .where(DocumentUsageLog.chunk_id.isnot(None))
-        ) or 0,
+        "total_chunks": await session.scalar(chunks_q) or 0,
+        "total_size_bytes": await session.scalar(size_q) or 0,
+        "used_chunks_count": await session.scalar(used_chunks_q) or 0,
     }
 
 
-async def get_extended_search_stats(session: AsyncSession, days: int = 30) -> dict:
+async def get_extended_search_stats(
+    session: AsyncSession, days: int = 30, tenant_id: uuid.UUID | None = None,
+) -> dict:
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    base = await get_search_stats(session, days=days)
+    base = await get_search_stats(session, days=days, tenant_id=tenant_id)
+    sa_tenant = "AND tenant_id = :tid " if tenant_id else ""
+    params: dict = {"since": since}
+    if tenant_id:
+        params["tid"] = str(tenant_id)
 
-    source_rows = (await session.execute(
+    src_q = (
         select(SearchAnalytics.source, func.count().label("cnt"))
         .where(SearchAnalytics.created_at >= since)
-        .group_by(SearchAnalytics.source)
-        .order_by(func.count().desc())
+    )
+    if tenant_id:
+        src_q = src_q.where(SearchAnalytics.tenant_id == tenant_id)
+    source_rows = (await session.execute(
+        src_q.group_by(SearchAnalytics.source).order_by(func.count().desc())
     )).all()
     src_total = sum(r.cnt for r in source_rows) or 1
 
@@ -888,9 +1010,9 @@ async def get_extended_search_stats(session: AsyncSession, days: int = 30) -> di
         "SELECT DATE(created_at) AS d, COUNT(*) AS cnt, "
         "AVG(top_similarity) AS avg_sim, "
         "SUM(CASE WHEN result_count = 0 THEN 1 ELSE 0 END) AS zero_cnt "
-        "FROM search_analytics WHERE created_at >= :since "
+        f"FROM search_analytics WHERE created_at >= :since {sa_tenant}"
         "GROUP BY DATE(created_at) ORDER BY d"
-    ), {"since": since})).mappings().all()
+    ), params)).mappings().all()
 
     return {
         **base,
@@ -907,45 +1029,79 @@ async def get_extended_search_stats(session: AsyncSession, days: int = 30) -> di
     }
 
 
-async def get_cost_stats(session: AsyncSession, days: int = 30) -> dict:
+async def get_cost_stats(
+    session: AsyncSession, days: int = 30, tenant_id: uuid.UUID | None = None,
+) -> dict:
     since = datetime.now(timezone.utc) - timedelta(days=days)
+    tf = "AND tenant_id = :tid " if tenant_id else ""
+    params: dict = {"since": since}
+    if tenant_id:
+        params["tid"] = str(tenant_id)
 
     totals = (await session.execute(text(
         "SELECT COUNT(*) AS cnt, COALESCE(SUM(charge_usd),0) AS charge, "
         "COALESCE(SUM(cogs_usd),0) AS cogs "
-        "FROM usage_log WHERE created_at >= :since"
-    ), {"since": since})).mappings().one()
+        f"FROM usage_log WHERE created_at >= :since {tf}"
+    ), params)).mappings().one()
 
-    active_tenants = await session.scalar(
+    active_tenants_q = (
         select(func.count(func.distinct(UsageLog.tenant_id)))
         .where(UsageLog.created_at >= since, UsageLog.tenant_id.isnot(None))
-    ) or 1
+    )
+    active_tenants = await session.scalar(active_tenants_q) or 1
 
     daily = (await session.execute(text(
         "SELECT DATE(created_at) AS d, "
         "COALESCE(SUM(charge_usd),0) AS charge, "
         "COALESCE(SUM(cogs_usd),0) AS cogs, "
         "COUNT(*) AS cnt "
-        "FROM usage_log WHERE created_at >= :since "
+        f"FROM usage_log WHERE created_at >= :since {tf}"
         "GROUP BY DATE(created_at) ORDER BY d"
-    ), {"since": since})).mappings().all()
+    ), params)).mappings().all()
 
     by_model = (await session.execute(text(
         "SELECT llm_model, llm_provider, "
         "COALESCE(SUM(charge_usd),0) AS charge, "
         "COALESCE(SUM(total_tokens),0) AS tokens, "
         "COUNT(*) AS cnt "
-        "FROM usage_log WHERE created_at >= :since AND llm_model IS NOT NULL "
+        f"FROM usage_log WHERE created_at >= :since AND llm_model IS NOT NULL {tf}"
         "GROUP BY llm_model, llm_provider ORDER BY charge DESC"
-    ), {"since": since})).mappings().all()
+    ), params)).mappings().all()
 
     by_channel = (await session.execute(text(
         "SELECT channel, "
         "COALESCE(SUM(charge_usd),0) AS charge, "
         "COUNT(*) AS cnt "
-        "FROM usage_log WHERE created_at >= :since "
+        f"FROM usage_log WHERE created_at >= :since {tf}"
         "GROUP BY channel ORDER BY charge DESC"
-    ), {"since": since})).mappings().all()
+    ), params)).mappings().all()
+
+    # Ingestion cost breakdown from documents table
+    doc_tf = "AND tenant_id = :tid " if tenant_id else ""
+    ing = (await session.execute(text(
+        "SELECT "
+        "COALESCE(SUM(ocr_prompt_tokens + ocr_completion_tokens),0) AS ocr_tokens, "
+        "COALESCE(SUM(extract_prompt_tokens + extract_completion_tokens),0) AS extract_tokens, "
+        "COALESCE(SUM(embedding_tokens),0) AS embed_tokens, "
+        "COALESCE(SUM(product_keys_prompt_tokens + product_keys_completion_tokens),0) AS pk_tokens "
+        f"FROM documents WHERE uploaded_at >= :since {doc_tf}"
+    ), params)).mappings().one()
+
+    from app.billing.pricing import calculate_llm_charge, calculate_embedding_charge
+    from app.config import settings as _s
+
+    ocr_charge = float(calculate_llm_charge(int(ing["ocr_tokens"]), 0, _s.ocr_vision_model))
+    extract_charge = float(calculate_llm_charge(int(ing["extract_tokens"]), 0, _s.metadata_extraction_model))
+    embed_charge = float(calculate_embedding_charge(int(ing["embed_tokens"]), _s.embedding_model_gemini))
+    pk_charge = float(calculate_llm_charge(int(ing["pk_tokens"]), 0, _s.product_resolve_model))
+    ingestion_total = ocr_charge + extract_charge + embed_charge + pk_charge
+
+    ingestion_breakdown = [
+        {"step": "OCR", "tokens": int(ing["ocr_tokens"]), "charge_usd": f"{ocr_charge:.8f}"},
+        {"step": "Extraction", "tokens": int(ing["extract_tokens"]), "charge_usd": f"{extract_charge:.8f}"},
+        {"step": "Embedding", "tokens": int(ing["embed_tokens"]), "charge_usd": f"{embed_charge:.8f}"},
+        {"step": "Product Keys", "tokens": int(ing["pk_tokens"]), "charge_usd": f"{pk_charge:.8f}"},
+    ]
 
     total_charge = float(totals["charge"])
     total_cogs = float(totals["cogs"])
@@ -959,6 +1115,8 @@ async def get_cost_stats(session: AsyncSession, days: int = 30) -> dict:
         "avg_per_day": f"{avg_day:.8f}",
         "avg_per_user": f"{total_charge / active_tenants:.8f}",
         "forecast_month_usd": f"{forecast:.8f}",
+        "ingestion_cost_usd": f"{ingestion_total:.8f}",
+        "ingestion_breakdown": ingestion_breakdown,
         "daily": [
             {"date": str(r["d"]), "charge_usd": str(r["charge"]),
              "cogs_usd": str(r["cogs"]), "requests": int(r["cnt"])}
@@ -975,21 +1133,27 @@ async def get_cost_stats(session: AsyncSession, days: int = 30) -> dict:
              "request_count": int(r["cnt"])}
             for r in by_channel
         ],
-        "top_api_keys": await _get_top_api_keys(session, since),
+        "top_api_keys": await _get_top_api_keys(session, since, tenant_id=tenant_id),
     }
 
 
-async def _get_top_api_keys(session: AsyncSession, since: datetime) -> list[dict]:
+async def _get_top_api_keys(
+    session: AsyncSession, since: datetime, tenant_id: uuid.UUID | None = None,
+) -> list[dict]:
+    tf = "AND ul.tenant_id = :tid " if tenant_id else ""
+    params: dict = {"since": since}
+    if tenant_id:
+        params["tid"] = str(tenant_id)
     rows = (await session.execute(text(
         "SELECT ul.api_key_id, ak.key_prefix, t.email, "
         "COUNT(*) AS cnt, COALESCE(SUM(ul.charge_usd),0) AS charge "
         "FROM usage_log ul "
         "JOIN api_keys ak ON ak.id = ul.api_key_id "
         "JOIN tenants t ON t.id = ak.tenant_id "
-        "WHERE ul.created_at >= :since AND ul.api_key_id IS NOT NULL "
+        f"WHERE ul.created_at >= :since AND ul.api_key_id IS NOT NULL {tf}"
         "GROUP BY ul.api_key_id, ak.key_prefix, t.email "
         "ORDER BY cnt DESC LIMIT 10"
-    ), {"since": since})).mappings().all()
+    ), params)).mappings().all()
     return [
         {"key_prefix": r["key_prefix"], "email": r["email"],
          "request_count": int(r["cnt"]), "charge_usd": str(r["charge"])}

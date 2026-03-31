@@ -326,18 +326,45 @@ export interface SearchStat {
   zero_result_count: number
 }
 
+export interface ActionUsageStat {
+  action: string
+  requests: number
+  tokens: number
+  charge_usd: string
+}
+
+export interface TopTenantUsageStat {
+  tenant_id: string
+  email: string
+  requests: number
+  tokens: number
+  charge_usd: string
+}
+
+export interface UsageStatsResponse {
+  daily: DailyUsageStat[]
+  by_action: ActionUsageStat[]
+  top_tenants: TopTenantUsageStat[]
+}
+
+function statsParams(days: number, tenantId?: string): string {
+  const sp = new URLSearchParams({ days: String(days) })
+  if (tenantId) sp.set('tenant_id', tenantId)
+  return sp.toString()
+}
+
 export async function getOverview(): Promise<PlatformOverview> {
   const res = await fetch(`${BASE}/stats/overview`, { credentials: 'include' })
   return handleResponse(res)
 }
 
-export async function getUsageStats(days = 30): Promise<{ daily: DailyUsageStat[] }> {
-  const res = await fetch(`${BASE}/stats/usage?days=${days}`, { credentials: 'include' })
+export async function getUsageStats(days = 30, tenantId?: string): Promise<UsageStatsResponse> {
+  const res = await fetch(`${BASE}/stats/usage?${statsParams(days, tenantId)}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
-export async function getModelStats(days = 30): Promise<ModelUsageStat[]> {
-  const res = await fetch(`${BASE}/stats/models?days=${days}`, { credentials: 'include' })
+export async function getModelStats(days = 30, tenantId?: string): Promise<ModelUsageStat[]> {
+  const res = await fetch(`${BASE}/stats/models?${statsParams(days, tenantId)}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
@@ -346,8 +373,8 @@ export async function getIngestionStats(): Promise<IngestionStat> {
   return handleResponse(res)
 }
 
-export async function getSearchStats(days = 30): Promise<SearchStat> {
-  const res = await fetch(`${BASE}/stats/search?days=${days}`, { credentials: 'include' })
+export async function getSearchStats(days = 30, tenantId?: string): Promise<SearchStat> {
+  const res = await fetch(`${BASE}/stats/search?${statsParams(days, tenantId)}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
@@ -453,35 +480,43 @@ export interface TopApiKeyStat {
   charge_usd: string
 }
 
+export interface IngestionBreakdownItem {
+  step: string
+  tokens: number
+  charge_usd: string
+}
+
 export interface CostStats {
   total_charge_usd: string
   total_cogs_usd: string
   avg_per_day: string
   avg_per_user: string
   forecast_month_usd: string
+  ingestion_cost_usd: string
+  ingestion_breakdown: IngestionBreakdownItem[]
   daily: Array<{ date: string; charge_usd: string; cogs_usd: string; requests: number }>
   by_model: CostByModelStat[]
   by_channel: CostByChannelStat[]
   top_api_keys: TopApiKeyStat[]
 }
 
-export async function getChatStats(days = 30): Promise<ChatStats> {
-  const res = await fetch(`${BASE}/stats/chat?days=${days}`, { credentials: 'include' })
+export async function getChatStats(days = 30, tenantId?: string): Promise<ChatStats> {
+  const res = await fetch(`${BASE}/stats/chat?${statsParams(days, tenantId)}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
-export async function getDocumentStats(days = 30): Promise<DocumentStats> {
-  const res = await fetch(`${BASE}/stats/documents?days=${days}`, { credentials: 'include' })
+export async function getDocumentStats(days = 30, tenantId?: string): Promise<DocumentStats> {
+  const res = await fetch(`${BASE}/stats/documents?${statsParams(days, tenantId)}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
-export async function getExtendedSearchStats(days = 30): Promise<ExtendedSearchStats> {
-  const res = await fetch(`${BASE}/stats/search-extended?days=${days}`, { credentials: 'include' })
+export async function getExtendedSearchStats(days = 30, tenantId?: string): Promise<ExtendedSearchStats> {
+  const res = await fetch(`${BASE}/stats/search-extended?${statsParams(days, tenantId)}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
-export async function getCostStats(days = 30): Promise<CostStats> {
-  const res = await fetch(`${BASE}/stats/costs?days=${days}`, { credentials: 'include' })
+export async function getCostStats(days = 30, tenantId?: string): Promise<CostStats> {
+  const res = await fetch(`${BASE}/stats/costs?${statsParams(days, tenantId)}`, { credentials: 'include' })
   return handleResponse(res)
 }
 
