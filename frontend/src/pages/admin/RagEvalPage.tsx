@@ -212,40 +212,36 @@ export function RagEvalPage() {
           )}
         </div>
         <div className="rag-eval-actions">
-          {isRunning && activeRun ? (
-            <div className="rag-eval-progress-inline">
-              <Loader2 size={14} className="rag-eval-spin" style={{ flexShrink: 0 }} />
-              <span className="rag-eval-progress-inline-stage">{activeRun.progress_stage || t('admin.ragEval.running')}</span>
-              <span className="rag-eval-progress-inline-time">
-                <Clock size={11} />
-                {fmtDuration(activeRun.started_at, new Date().toISOString())}
-              </span>
-              <button className="rag-eval-cancel-link" onClick={handleCancel}>
-                {t('admin.ragEval.cancel')}
-              </button>
-            </div>
-          ) : (
-            <>
-              <select
-                className="admin-select"
-                value={sampleSize}
-                onChange={e => setSampleSize(Number(e.target.value))}
-                disabled={starting}
-              >
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <button
-                className="admin-btn admin-btn--primary"
-                onClick={handleStart}
-                disabled={starting}
-              >
+          {!isRunning && (
+            <select
+              className="admin-select"
+              value={sampleSize}
+              onChange={e => setSampleSize(Number(e.target.value))}
+              disabled={starting}
+            >
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          )}
+          <button
+            className={`admin-btn ${isRunning ? 'admin-btn--running' : 'admin-btn--primary'}`}
+            onClick={isRunning ? handleCancel : handleStart}
+            disabled={starting}
+          >
+            {isRunning && activeRun ? (
+              <>
+                <Loader2 size={14} className="rag-eval-spin" />
+                <span className="rag-eval-btn-stage">{activeRun.progress_stage || t('admin.ragEval.running')}</span>
+                <span className="rag-eval-btn-time">{fmtDuration(activeRun.started_at, new Date().toISOString())}</span>
+              </>
+            ) : (
+              <>
                 {starting ? <Loader2 size={16} className="rag-eval-spin" /> : <Play size={16} />}
                 {t('admin.ragEval.runEval')}
-              </button>
-            </>
-          )}
+              </>
+            )}
+          </button>
         </div>
       </div>
 

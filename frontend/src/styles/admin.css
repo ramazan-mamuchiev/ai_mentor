@@ -2449,18 +2449,17 @@
   to { transform: rotate(360deg); }
 }
 
-.rag-eval-progress-inline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 280px;
-  max-width: 420px;
-  background: var(--surface);
-  border: 1px solid var(--accent, #7c3aed);
-  border-radius: var(--radius, 8px);
-  padding: 0 12px;
-  height: 36px;
+.admin-btn--running {
+  border-color: var(--accent, #7c3aed);
+  color: var(--accent2, #a78bfa);
+  gap: 6px;
   animation: rag-eval-pulse 2s ease infinite;
+}
+
+.admin-btn--running:hover:not(:disabled) {
+  border-color: var(--danger, #ef4444);
+  color: var(--danger, #ef4444);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
 }
 
 @keyframes rag-eval-pulse {
@@ -2468,40 +2467,19 @@
   50% { border-color: var(--accent3, #db2777); }
 }
 
-.rag-eval-progress-inline-stage {
+.rag-eval-btn-stage {
   font-size: 12px;
-  font-weight: 500;
-  color: var(--accent2, #a78bfa);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 200px;
 }
 
-.rag-eval-progress-inline-time {
+.rag-eval-btn-time {
   font-size: 11px;
-  color: var(--text-muted);
   font-family: var(--font-mono);
-  display: flex;
-  align-items: center;
-  gap: 3px;
+  opacity: 0.7;
   flex-shrink: 0;
-  margin-left: auto;
-}
-
-.rag-eval-cancel-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 11px;
-  color: var(--text-muted);
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: color 0.15s;
-}
-
-.rag-eval-cancel-link:hover {
-  color: var(--danger, #ef4444);
 }
 
 .rag-eval-tabs {
@@ -2684,12 +2662,6 @@
     flex: 1 1 0;
     min-width: 0;
     justify-content: center;
-  }
-
-  .rag-eval-progress-inline {
-    min-width: 0;
-    max-width: none;
-    width: 100%;
   }
 
   .rag-eval-tabs {
