@@ -429,6 +429,68 @@ from app.documents.archive import (
 MAX_ARCHIVE_BYTES = settings.max_archive_size_mb * 1024 * 1024
 
 
+async def _create_proto_bundle_docs_async(
+    session,
+    proto_entries: list[tuple[str, bytes]],
+    *,
+    product_id: int,
+    firmware_version_id: int,
+    archive_filename: str,
+    tenant_id=None,
+    force: bool = False,
+) -> list[int]:
+    """Async version of proto bundle creation for FastAPI endpoint."""
+    from app.ingestion.converters.proto import convert_proto_bundle
+
+    files = []
+    for arc_path, data in proto_entries:
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        files.append((arc_path.replace("\\", "/"), text))
+
+    bundles = convert_proto_bundle(files)
+
+    doc_ids: list[int] = []
+    for domain_name, source_folder, markdown, meta in bundles:
+        md_bytes = markdown.encode("utf-8")
+        md_hash = hashlib.sha256(md_bytes).hexdigest()
+
+        if not force:
+            existing = await _find_by_hash(session, md_hash)
+            if existing is not None:
+                continue
+
+        title = f"gRPC API: {domain_name}"
+        filename = f"{domain_name}.md"
+
+        doc = Document(
+            product_id=product_id,
+            firmware_version_id=firmware_version_id,
+            format="markdown",
+            original_filename=filename,
+            file_size_bytes=len(md_bytes),
+            title=title,
+            status="pending",
+            source_hash=md_hash,
+            source_container=archive_filename,
+            source_folder=source_folder,
+            tenant_id=tenant_id,
+        )
+        session.add(doc)
+        await session.flush()
+
+        s3_key = s3_key_for_document(doc.id, filename)
+        upload_file(s3_key, md_bytes, "text/markdown")
+        doc.s3_key = s3_key
+        await session.commit()
+
+        doc_ids.append(doc.id)
+
+    return doc_ids
+
+
 @router.post("/ingest-archive", response_model=ArchiveIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
 async def ingest_archive(
     request: Request,
@@ -483,6 +545,8 @@ async def ingest_archive(
     if not entries:
         raise HTTPException(status_code=400, detail="No supported files found in archive")
 
+    from app.documents.archive import is_proto_heavy, classify_archive_entries
+
     results: list[ArchiveFileResult] = []
     accepted = 0
     skipped = 0
@@ -492,8 +556,36 @@ async def ingest_archive(
         product = await _get_or_create_product(session, product_name, manufacturer, tenant_id=tenant.id)
         fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
-        for arc_path, entry_data in entries:
+        proto_entries, other_entries = classify_archive_entries(entries)
+        use_bundle = is_proto_heavy(entries) and len(proto_entries) >= 5
+
+        if use_bundle:
+            bundle_ids = await _create_proto_bundle_docs_async(
+                session, proto_entries,
+                product_id=product.id,
+                firmware_version_id=fw.id,
+                archive_filename=original_filename,
+                tenant_id=tenant.id,
+                force=force,
+            )
+            for doc_id in bundle_ids:
+                from app.celery_app import ingest_document_task
+                task = ingest_document_task.delay(doc_id)
+                accepted += 1
+                results.append(ArchiveFileResult(
+                    filename=f"[proto-bundle-{doc_id}]",
+                    status="pending",
+                    document_id=doc_id,
+                    task_id=task.id,
+                    message="Proto bundle queued for processing",
+                ))
+            remaining_entries = other_entries
+        else:
+            remaining_entries = entries
+
+        for arc_path, entry_data in remaining_entries:
             entry_filename = os.path.basename(arc_path)
+            entry_folder = os.path.dirname(arc_path).replace("\\", "/")
 
             try:
                 entry_hash = hashlib.sha256(entry_data).hexdigest()
@@ -520,6 +612,7 @@ async def ingest_archive(
                     status="pending",
                     source_hash=entry_hash,
                     source_container=original_filename,
+                    source_folder=entry_folder,
                     tenant_id=tenant.id,
                 )
                 session.add(doc)

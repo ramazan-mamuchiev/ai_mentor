@@ -247,6 +247,7 @@ class Document(Base):
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     source_container: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_folder: Mapped[str] = mapped_column(Text, default="")
 
     converted_s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
 

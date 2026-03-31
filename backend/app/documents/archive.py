@@ -198,3 +198,36 @@ def extract_rar(file_data: bytes) -> list[tuple[str, bytes]]:
         return result
     finally:
         os.unlink(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Proto bundle detection
+# ---------------------------------------------------------------------------
+
+PROTO_BUNDLE_THRESHOLD = 0.8
+
+
+def classify_archive_entries(
+    entries: list[tuple[str, bytes]],
+) -> tuple[list[tuple[str, bytes]], list[tuple[str, bytes]]]:
+    """Split archive entries into proto files and non-proto files.
+
+    Returns (proto_entries, other_entries).
+    """
+    proto = []
+    other = []
+    for arc_path, data in entries:
+        ext = os.path.splitext(arc_path)[1].lower()
+        if ext == ".proto":
+            proto.append((arc_path, data))
+        else:
+            other.append((arc_path, data))
+    return proto, other
+
+
+def is_proto_heavy(entries: list[tuple[str, bytes]]) -> bool:
+    """Return True if the archive consists predominantly of .proto files."""
+    if not entries:
+        return False
+    proto_count = sum(1 for p, _ in entries if os.path.splitext(p)[1].lower() == ".proto")
+    return proto_count / len(entries) >= PROTO_BUNDLE_THRESHOLD

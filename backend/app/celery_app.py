@@ -337,6 +337,89 @@ def ingest_document_task(self, document_id: int):
                 os.unlink(tmp_path)
 
 
+def _create_proto_bundle_docs(
+    session,
+    proto_entries: list[tuple[str, bytes]],
+    *,
+    product_id: int,
+    firmware_version_id: int,
+    archive_filename: str,
+    tenant_id=None,
+    force: bool = False,
+) -> list[int]:
+    """Convert proto entries into bundled domain documents via convert_proto_bundle.
+
+    Returns list of created document IDs.
+    """
+    from app.ingestion.converters.proto import convert_proto_bundle
+    from app.models import Document
+    from app.s3 import upload_file, s3_key_for_document
+    from sqlalchemy import select as sa_select
+
+    files = []
+    for arc_path, data in proto_entries:
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        files.append((arc_path.replace("\\", "/"), text))
+
+    bundles = convert_proto_bundle(files)
+
+    doc_ids: list[int] = []
+    for domain_name, source_folder, markdown, meta in bundles:
+        md_bytes = markdown.encode("utf-8")
+        md_hash = hashlib.sha256(md_bytes).hexdigest()
+
+        if not force:
+            dup = session.execute(
+                sa_select(Document).where(
+                    Document.source_hash == md_hash,
+                    Document.product_id == product_id,
+                    Document.firmware_version_id == firmware_version_id,
+                ).limit(1)
+            ).scalar_one_or_none()
+            if dup is not None:
+                logger.info("Proto bundle duplicate skipped", extra={
+                    "domain": domain_name, "existing_id": dup.id,
+                })
+                continue
+
+        title = f"gRPC API: {domain_name}"
+        filename = f"{domain_name}.md"
+
+        doc = Document(
+            product_id=product_id,
+            firmware_version_id=firmware_version_id,
+            format="markdown",
+            original_filename=filename,
+            file_size_bytes=len(md_bytes),
+            title=title,
+            status="pending",
+            source_hash=md_hash,
+            source_container=archive_filename,
+            source_folder=source_folder,
+            tenant_id=tenant_id,
+        )
+        session.add(doc)
+        session.flush()
+
+        s3_key = s3_key_for_document(doc.id, filename)
+        upload_file(s3_key, md_bytes, "text/markdown")
+        doc.s3_key = s3_key
+        session.commit()
+
+        doc_ids.append(doc.id)
+        logger.info("Proto bundle document created", extra={
+            "domain": domain_name, "document_id": doc.id,
+            "services": meta.get("services", 0),
+            "messages": meta.get("messages", 0),
+            "source_files": meta.get("source_files", 0),
+        })
+
+    return doc_ids
+
+
 @celery.task(name="ingest_archive", bind=True, max_retries=1, default_retry_delay=30,
              soft_time_limit=3600, time_limit=3900)
 def ingest_archive_task(
@@ -432,9 +515,29 @@ def ingest_archive_task(
 
         archive_filename = archive_doc.original_filename
 
+        from app.documents.archive import is_proto_heavy, classify_archive_entries
+        proto_entries, other_entries = classify_archive_entries(entries)
+        use_bundle = is_proto_heavy(entries) and len(proto_entries) >= 5
+
         child_ids = []
-        for arc_path, entry_data in entries:
+
+        if use_bundle:
+            bundle_ids = _create_proto_bundle_docs(
+                session, proto_entries,
+                product_id=product_row.id,
+                firmware_version_id=fw_row.id,
+                archive_filename=archive_filename,
+                tenant_id=archive_tenant_id,
+                force=force,
+            )
+            child_ids.extend(bundle_ids)
+            remaining_entries = other_entries
+        else:
+            remaining_entries = entries
+
+        for arc_path, entry_data in remaining_entries:
             entry_filename = os.path.basename(arc_path)
+            entry_folder = os.path.dirname(arc_path).replace("\\", "/")
             entry_hash = hashlib.sha256(entry_data).hexdigest()
 
             if not force:
@@ -461,6 +564,7 @@ def ingest_archive_task(
                 status="pending",
                 source_hash=entry_hash,
                 source_container=archive_filename,
+                source_folder=entry_folder,
                 tenant_id=archive_tenant_id,
             )
             session.add(child_doc)
@@ -586,9 +690,29 @@ def ingest_archive_from_s3_task(
             session.add(fw_row)
             session.flush()
 
+        from app.documents.archive import is_proto_heavy, classify_archive_entries
+        proto_entries, other_entries = classify_archive_entries(entries)
+        use_bundle = is_proto_heavy(entries) and len(proto_entries) >= 5
+
         child_ids = []
-        for arc_path, entry_data in entries:
+
+        if use_bundle:
+            bundle_ids = _create_proto_bundle_docs(
+                session, proto_entries,
+                product_id=product_row.id,
+                firmware_version_id=fw_row.id,
+                archive_filename=archive_filename,
+                tenant_id=_tenant_id,
+                force=force,
+            )
+            child_ids.extend(bundle_ids)
+            remaining_entries = other_entries
+        else:
+            remaining_entries = entries
+
+        for arc_path, entry_data in remaining_entries:
             entry_filename = os.path.basename(arc_path)
+            entry_folder = os.path.dirname(arc_path).replace("\\", "/")
             entry_hash = hashlib.sha256(entry_data).hexdigest()
 
             if not force:
@@ -615,6 +739,7 @@ def ingest_archive_from_s3_task(
                 status="pending",
                 source_hash=entry_hash,
                 source_container=archive_filename,
+                source_folder=entry_folder,
                 tenant_id=_tenant_id,
             )
             session.add(child_doc)

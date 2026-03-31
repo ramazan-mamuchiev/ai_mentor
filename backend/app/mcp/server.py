@@ -203,6 +203,7 @@ async def tool_search_documentation(
     product: str | None = None,
     version: str | None = None,
     doc_type: str | None = None,
+    folder: str | None = None,
     limit: int | None = None,
 ) -> str:
     """Search Lexiro knowledge base for product integration documentation.
@@ -229,6 +230,8 @@ async def tool_search_documentation(
         version: Filter by firmware or API version. Examples: "V2.6.1", "5.0"
         doc_type: Filter by documentation type.
             Examples: "api_reference", "guide", "example", "configuration", "protocol"
+        folder: Filter by source folder within an archive.
+            Examples: "BL", "INTEGRATION", "MMSS", "axxonsoft/bl/domain"
         limit: Number of results (1-20, default 10). Use higher values for broad queries.
     """
     if limit is None:
@@ -266,7 +269,7 @@ async def tool_search_documentation(
 
         results = await search_documents(
             session, query, product_id=product_id, version=version,
-            doc_type=doc_type, limit=limit, metadata=metadata,
+            doc_type=doc_type, source_folder=folder, limit=limit, metadata=metadata,
         )
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 

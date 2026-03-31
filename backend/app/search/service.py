@@ -349,6 +349,7 @@ async def search_documents(
     version: str | None = None,
     doc_context: str | None = None,
     doc_type: str | None = None,
+    source_folder: str | None = None,
     limit: int = 5,
     metadata: dict | None = None,
     query_type: str | None = None,
@@ -388,6 +389,9 @@ async def search_documents(
     if doc_type:
         where_clauses.append("c.doc_type = :doc_type")
         params["doc_type"] = doc_type
+    if source_folder:
+        where_clauses.append("d.source_folder LIKE :source_folder")
+        params["source_folder"] = f"%{source_folder}%"
 
     where_sql = " AND ".join(where_clauses)
 
