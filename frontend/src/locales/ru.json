@@ -851,7 +851,7 @@
   "admin.nav.stats": "Статистика",
   "admin.nav.mcp": "Аудит MCP",
   "admin.nav.system": "Система",
-  "admin.nav.ragEval": "RAG Eval",
+  "admin.nav.ragEval": "Оценка RAG",
 
   "admin.ragEval.title": "Оценка RAG",
   "admin.ragEval.runEval": "Запустить оценку",
