@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Target, Play, Loader2, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Target, Play, Loader2, Clock, ChevronDown, ChevronRight } from 'lucide-react'
 import {
   startRagEval, getRagEvalRuns, getRagEvalRun, getLatestRagEval, cancelRagEval,
   type RagEvalRunDetail, type RagEvalRunItem,
@@ -514,13 +514,13 @@ export function RagEvalPage() {
               <table className="admin-table">
                 <thead>
                   <tr>
+                    <th style={{ width: 28 }} />
                     <th>#</th>
                     <th>{t('admin.ragEval.question')}</th>
                     <th>{t('admin.ragEval.col.type')}</th>
                     <th>{t('admin.ragEval.col.faithful')}</th>
                     <th>{t('admin.ragEval.col.precision')}</th>
                     <th>{t('admin.ragEval.col.similarity')}</th>
-                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -529,17 +529,19 @@ export function RagEvalPage() {
                     .map((s: any, i: number) => (
                     <>
                       <tr key={i} className="admin-table-row-clickable" onClick={() => setExpandedSample(expandedSample === i ? null : i)}>
+                        <td className="rag-eval-expand-cell">
+                          {expandedSample === i ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </td>
                         <td className="mono">{i + 1}</td>
                         <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.question}</td>
                         <td>{s.query_type ? <span className="badge badge--blue">{s.query_type}</span> : '—'}</td>
                         <td className="mono" style={{ color: metricColor(s.faithfulness) }}>{fmtMetric(s.faithfulness)}</td>
                         <td className="mono" style={{ color: metricColor(s.context_precision) }}>{fmtMetric(s.context_precision)}</td>
                         <td className="mono">{s.top_similarity?.toFixed(3) ?? '—'}</td>
-                        <td>{expandedSample === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</td>
                       </tr>
                       {expandedSample === i && (
                         <tr key={`${i}-detail`}>
-                          <td colSpan={7}>
+                          <td colSpan={7} className="rag-eval-detail-cell">
                             <div className="rag-eval-sample-detail">
                               <div className="rag-eval-sample-section">
                                 <strong>{t('admin.ragEval.question')}:</strong>

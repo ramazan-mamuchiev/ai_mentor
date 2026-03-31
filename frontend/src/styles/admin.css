@@ -2585,8 +2585,20 @@
   line-height: 1.4;
 }
 
+.rag-eval-expand-cell {
+  width: 28px;
+  padding: 0 4px !important;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.rag-eval-detail-cell {
+  padding: 0 !important;
+  background: var(--bg);
+}
+
 .rag-eval-sample-detail {
-  padding: 12px 0;
+  padding: 12px 16px;
 }
 
 .rag-eval-sample-section {

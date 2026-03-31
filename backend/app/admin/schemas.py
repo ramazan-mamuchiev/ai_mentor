@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # --- Tenants ---
@@ -530,6 +530,8 @@ class RagEvalRunRequest(BaseModel):
     sample_size: int = Field(default=50, ge=10, le=200)
 
 class RagEvalRunItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     started_at: datetime
     finished_at: datetime | None
