@@ -8,7 +8,7 @@ alwaysApply: true
 ## Stack
 
 - **Backend**: Python 3.11, FastAPI, Celery, SQLAlchemy (async), pgvector
-- **Frontend**: React 19, Vite, TypeScript, nginx (production)
+- **Frontend**: React 19, Vite, TypeScript, nginx on host (production)
 - **DB**: PostgreSQL 16 (pgvector), Redis 7
 - **Storage**: MinIO (S3-compatible)
 - **LLM**: Gemini 2.5 Pro (chat) + Gemini 2.5 Flash (auxiliary) via OpenAI-compatible API
@@ -16,19 +16,18 @@ alwaysApply: true
 
 ## Docker
 
-The project is fully Dockerized. Do NOT re-explore Docker setup each time.
+Backend services run in Docker. Nginx runs on the **host** (systemd), not in Docker.
 
-- `docker-compose.yml` — production stack (postgres, redis, minio, api, worker, beat, web, loki, promtail, grafana, prometheus, node-exporter, cadvisor)
+- `docker-compose.yml` — production stack (postgres, redis, minio, api, worker, beat, loki, promtail, grafana, prometheus, node-exporter, cadvisor)
 - `docker-compose.dev.yml` — dev (postgres only)
 - `backend/Dockerfile` — Python 3.11-slim, uvicorn
-- `frontend/Dockerfile` — multi-stage: node:20-alpine build + nginx:alpine serve
-- `frontend/nginx.conf` — reverse proxy /api/ to `api:8000`, SPA fallback, SSE support, TUS uploads
+- `frontend/Dockerfile` — multi-stage: node:20-alpine build (used to compile static files)
+- `nginx/lexiro.conf` — host Nginx config: reverse proxy /api/ to localhost:8000, SPA fallback, SSE, TUS, maintenance mode
 
-### Key services
+### Docker services
 
 | Service  | Port | Image               | Notes |
 |----------|------|---------------------|-------|
-| web      | 80   | frontend (nginx)    | |
 | api      | 8000 | lexiro-backend      | builds the shared backend image |
 | worker   | -    | lexiro-backend      | no build, reuses api image |
 | beat     | -    | lexiro-backend      | no build, reuses api image |
@@ -40,10 +39,17 @@ The project is fully Dockerized. Do NOT re-explore Docker setup each time.
 | node-exporter | - | prom/node-exporter | host metrics |
 | cadvisor | - | gcr.io/cadvisor/cadvisor | container metrics |
 
+### Host services (systemd)
+
+| Service | Port | Notes |
+|---------|------|-------|
+| nginx   | 80, 443 | Reverse proxy, TLS termination |
+
 ### Common commands
 
-- Rebuild & restart frontend: `docker compose build web && docker compose up -d web`
+- Rebuild frontend: `docker build --target build -t lexiro-frontend-build ./frontend && docker run --rm -v /var/www/lexiro:/out lexiro-frontend-build sh -c 'cp -r /app/dist/* /out/'`
 - Rebuild & restart backend: `docker compose build api && docker compose up -d api worker beat`
+- Reload Nginx: `nginx -t && nginx -s reload`
 - Full stack up: `docker compose up -d`
 - Logs: `docker compose logs -f <service>`
 

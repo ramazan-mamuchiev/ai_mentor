@@ -189,20 +189,6 @@ services:
     environment: *worker-env
     command: celery -A app.celery_app beat --loglevel=info
 
-  web:
-    build: ./frontend
-    restart: unless-stopped
-    logging: *default-logging
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./ssl:/etc/nginx/ssl:ro
-      - ./maintenance-flag:/tmp/maintenance-flag:ro
-    depends_on:
-      api:
-        condition: service_healthy
-
   loki:
     image: grafana/loki:3.4.2
     restart: unless-stopped
