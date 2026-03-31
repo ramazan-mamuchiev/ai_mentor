@@ -2453,6 +2453,11 @@
     padding: 8px 14px;
   }
 
+  .chat-input,
+  .message-edit-textarea {
+    font-size: 16px; /* prevents iOS Safari auto-zoom on focus */
+  }
+
 }
 
 /* ── Product Picker Overlay ── */
