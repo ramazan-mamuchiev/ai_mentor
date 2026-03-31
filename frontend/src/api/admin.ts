@@ -917,3 +917,84 @@ export async function getSystemInfo(): Promise<SystemInfo> {
   const res = await fetch(`${BASE}/system/info`, { credentials: 'include' })
   return handleResponse(res)
 }
+
+// --- RAG Evaluation ---
+
+export interface RagEvalRunItem {
+  id: number
+  started_at: string
+  finished_at: string | null
+  status: string
+  triggered_by: string
+  error_message: string | null
+  progress_percent: number
+  progress_stage: string
+  sample_size: number
+  eval_model: string
+  context_precision: number | null
+  mrr: number | null
+  empty_retrieval_rate: number | null
+  similarity_p50: number | null
+  similarity_p75: number | null
+  similarity_p90: number | null
+  search_latency_p50_ms: number | null
+  search_latency_p95_ms: number | null
+  faithfulness: number | null
+  answer_relevance: number | null
+  feedback_positive_rate: number | null
+  no_answer_rate: number | null
+  vector_count: number | null
+  vector_search_ms: number | null
+  hnsw_index_size_mb: number | null
+  e2e_latency_p50_ms: number | null
+  e2e_latency_p95_ms: number | null
+}
+
+export interface RagEvalRunDetail extends RagEvalRunItem {
+  metrics_by_query_type: Record<string, Record<string, number>> | null
+  metrics_by_product: Record<string, Record<string, number>> | null
+  details: Array<{
+    question: string
+    answer: string
+    chunks_count: number
+    top_similarity: number
+    query_type: string | null
+    product_filter: string | null
+    faithfulness: number | null
+    context_precision: number | null
+  }> | null
+}
+
+export interface RagEvalRunListResponse {
+  items: RagEvalRunItem[]
+  total: number
+}
+
+export async function startRagEval(sampleSize: number = 50): Promise<RagEvalRunItem> {
+  const res = await fetch(`${BASE}/rag-eval/run`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sample_size: sampleSize }),
+  })
+  return handleResponse(res)
+}
+
+export async function getRagEvalRuns(page = 1, pageSize = 20): Promise<RagEvalRunListResponse> {
+  const res = await fetch(`${BASE}/rag-eval/runs?page=${page}&page_size=${pageSize}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getRagEvalRun(id: number): Promise<RagEvalRunDetail> {
+  const res = await fetch(`${BASE}/rag-eval/runs/${id}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function getLatestRagEval(): Promise<RagEvalRunDetail | null> {
+  const res = await fetch(`${BASE}/rag-eval/latest`, { credentials: 'include' })
+  if (res.status === 200) {
+    const data = await res.json()
+    return data
+  }
+  return null
+}

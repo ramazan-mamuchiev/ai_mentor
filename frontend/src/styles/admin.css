@@ -2410,3 +2410,274 @@
   color: var(--text-secondary);
   margin-left: 4px;
 }
+
+
+/* ── RAG Evaluation ── */
+
+.rag-eval-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.rag-eval-title {
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rag-eval-last-run {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rag-eval-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.rag-eval-dot--ok { background: var(--success, #22c55e); }
+.rag-eval-dot--err { background: var(--danger, #ef4444); }
+
+.rag-eval-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.rag-eval-spin {
+  animation: rag-eval-spin 1s linear infinite;
+}
+
+@keyframes rag-eval-spin {
+  to { transform: rotate(360deg); }
+}
+
+.rag-eval-progress {
+  background: var(--surface);
+  border: 1px solid var(--accent, #7c3aed);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  animation: rag-eval-pulse 2s ease infinite;
+}
+
+@keyframes rag-eval-pulse {
+  0%, 100% { border-color: var(--accent, #7c3aed); }
+  50% { border-color: var(--accent3, #db2777); }
+}
+
+.rag-eval-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.rag-eval-progress-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent2, #a78bfa);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rag-eval-progress-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rag-eval-progress-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.rag-eval-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent, #7c3aed), var(--accent3, #db2777));
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.rag-eval-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.rag-eval-tab {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.rag-eval-tab:hover { color: var(--text); }
+
+.rag-eval-tab--active {
+  color: var(--accent2, #a78bfa);
+  border-bottom-color: var(--accent, #7c3aed);
+}
+
+.rag-eval-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 24px 0 14px;
+}
+
+.rag-eval-gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.rag-eval-gauge-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 18px 20px;
+}
+
+.rag-eval-gauge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.rag-eval-gauge-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.rag-eval-gauge-value {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.rag-eval-gauge-track {
+  height: 7px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rag-eval-gauge-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.8s ease;
+}
+
+.rag-eval-gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.rag-eval-gauge-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.rag-eval-sample-detail {
+  padding: 12px 0;
+}
+
+.rag-eval-sample-section {
+  margin-bottom: 12px;
+}
+
+.rag-eval-sample-section strong {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rag-eval-sample-section p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.rag-eval-sample-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Mobile responsive for RAG Eval */
+@media (max-width: 767px) {
+  .rag-eval-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .rag-eval-actions {
+    width: 100%;
+  }
+
+  .rag-eval-actions .admin-btn {
+    flex: 1;
+  }
+
+  .rag-eval-gauge-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rag-eval-gauge-desc {
+    display: none;
+  }
+
+  .rag-eval-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rag-eval-sample-meta {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

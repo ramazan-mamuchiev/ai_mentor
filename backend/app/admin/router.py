@@ -35,6 +35,10 @@ from app.admin.schemas import (
     PromptTemplateDetail,
     PromptTemplateItem,
     PromptTemplatePatchRequest,
+    RagEvalRunDetail,
+    RagEvalRunItem,
+    RagEvalRunListResponse,
+    RagEvalRunRequest,
     RoleCreateRequest,
     RoleDetail,
     RoleListItem,
@@ -627,3 +631,87 @@ async def seed_prompts_from_files(session: AsyncSession = Depends(get_session)):
 @router.get("/system/info", response_model=SystemInfo)
 async def system_info(session: AsyncSession = Depends(get_session)):
     return await service.get_system_info(session)
+
+
+# ---------------------------------------------------------------------------
+# RAG Evaluation
+# ---------------------------------------------------------------------------
+
+@router.post("/rag-eval/run", response_model=RagEvalRunItem, status_code=201)
+async def start_rag_eval(
+    body: RagEvalRunRequest,
+    tenant: Tenant = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from sqlalchemy import select as sa_select
+    from app.models import RagEvalRun
+
+    running = (await session.execute(
+        sa_select(RagEvalRun).where(RagEvalRun.status == "running").limit(1)
+    )).scalar_one_or_none()
+    if running:
+        raise HTTPException(status.HTTP_409_CONFLICT, "An evaluation is already running")
+
+    run = RagEvalRun(
+        sample_size=body.sample_size,
+        triggered_by=tenant.email,
+    )
+    session.add(run)
+    await session.commit()
+    await session.refresh(run)
+
+    from app.celery_app import run_rag_evaluation_task
+    run_rag_evaluation_task.delay(run.id)
+
+    return run
+
+
+@router.get("/rag-eval/runs", response_model=RagEvalRunListResponse)
+async def list_rag_eval_runs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    from sqlalchemy import select as sa_select, func
+    from app.models import RagEvalRun
+
+    total = (await session.execute(
+        sa_select(func.count()).select_from(RagEvalRun)
+    )).scalar() or 0
+
+    rows = (await session.execute(
+        sa_select(RagEvalRun)
+        .order_by(RagEvalRun.started_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )).scalars().all()
+
+    return RagEvalRunListResponse(items=rows, total=total)
+
+
+@router.get("/rag-eval/runs/{run_id}", response_model=RagEvalRunDetail)
+async def get_rag_eval_run(
+    run_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models import RagEvalRun
+
+    run = await session.get(RagEvalRun, run_id)
+    if not run:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Eval run not found")
+    return run
+
+
+@router.get("/rag-eval/latest", response_model=RagEvalRunDetail | None)
+async def get_latest_rag_eval(session: AsyncSession = Depends(get_session)):
+    from sqlalchemy import select as sa_select
+    from app.models import RagEvalRun
+
+    run = (await session.execute(
+        sa_select(RagEvalRun)
+        .where(RagEvalRun.status == "completed")
+        .order_by(RagEvalRun.started_at.desc())
+        .limit(1)
+    )).scalar_one_or_none()
+
+    return run

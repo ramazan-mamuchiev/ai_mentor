@@ -14,6 +14,7 @@ import { RoleDetailPage } from './RoleDetailPage'
 import { PromptsPage } from './PromptsPage'
 import { PromptEditorPage } from './PromptEditorPage'
 import { SystemPage } from './SystemPage'
+import { RagEvalPage } from './RagEvalPage'
 
 export default function AdminApp() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -44,6 +45,7 @@ export default function AdminApp() {
           <Route path="logs" element={<LogsPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="system" element={<SystemPage />} />
+          <Route path="rag-eval" element={<RagEvalPage />} />
           <Route path="*" element={<Navigate to="/app/admin" replace />} />
         </Routes>
       </div>

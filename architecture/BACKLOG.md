@@ -171,3 +171,105 @@ The "How It Works" section shows code blocks at every step — great for develop
 4. Add localization keys for business-mode descriptions
 
 ---
+
+## 6. RAG Evaluation: Golden Set (Etalon Q&A)
+
+| | |
+|---|---|
+| **Priority** | Medium |
+| **Status** | Not started |
+| **Complexity** | High (~8-12 hours) |
+| **Dependencies** | RAG Evaluation page (Phase 1+2) must be implemented first |
+
+### Problem
+
+LLM-as-judge metrics (Context Precision, Faithfulness) are industry-standard but inherently imperfect: an LLM evaluates another LLM, introducing bias and lacking ground truth. For maximum client confidence, the system needs a curated set of reference question-answer pairs with known correct source documents. This enables true Recall@K, Precision@K, and NDCG — metrics that are objective and reproducible.
+
+### Implementation plan
+
+**Backend:**
+
+1. New model `GoldenSetItem` — table `golden_set_items` with fields: `id`, `question`, `expected_answer`, `expected_chunk_ids` (array), `expected_document_ids` (array), `product_id`, `tags`, `created_at`, `updated_at`
+2. CRUD endpoints under `/api/v1/admin/golden-set` — create, list, update, delete items
+3. Import/export as CSV/JSON for batch management
+4. Extend `run_rag_evaluation` Celery task: when golden set items exist, run retrieval against each item and compute true Recall@K, Precision@K, NDCG by comparing retrieved chunks with `expected_chunk_ids`
+
+**Frontend:**
+
+1. New sub-tab "Golden Set" in the RAG Evaluation page — table of Q&A pairs with inline editing
+2. "Import from CSV" and "Export" buttons
+3. Display golden set metrics alongside LLM-as-judge metrics in eval results, clearly labeled as "Ground Truth Metrics"
+
+### Notes
+
+- Start with 30-50 manually curated pairs covering main products and edge cases
+- Golden set items should be versioned or timestamped — when documents are re-indexed, `expected_chunk_ids` may shift
+- Consider auto-suggesting golden set candidates from high-confidence chat sessions (thumbs-up + high similarity)
+
+---
+
+## 7. RAG Evaluation: A/B Config Comparison
+
+| | |
+|---|---|
+| **Priority** | Low |
+| **Status** | Not started |
+| **Complexity** | High (~10-14 hours) |
+| **Dependencies** | RAG Evaluation page + Golden Set or fixed query snapshots |
+
+### Problem
+
+When tuning RAG parameters (ef_search, reranker threshold, embedding model, hybrid weights), ML engineers need to compare results of two configurations on the **same set of queries**. Currently each eval run samples random queries, making apples-to-apples comparison impossible.
+
+### Implementation plan
+
+1. **Query snapshots** — ability to save a set of N queries from a previous eval run as a named snapshot
+2. **"Compare" mode** — run evaluation on a fixed snapshot with current config, then compare side-by-side with a previous run on the same snapshot
+3. **Diff view** — per-query comparison: which queries improved, which degraded, which chunks changed
+4. **Config capture** — each eval run records the active RAG config (ef_search, rerank_enabled, hybrid weights, embedding model) for reproducibility
+
+---
+
+## 8. RAG Evaluation: Regression Alerts
+
+| | |
+|---|---|
+| **Priority** | Medium |
+| **Status** | Not started |
+| **Complexity** | Medium (~4-6 hours) |
+| **Dependencies** | RAG Evaluation page (Phase 1+2) |
+
+### Problem
+
+Without automatic alerts, quality degradation goes unnoticed until a client complains. ML engineers must manually compare numbers between eval runs.
+
+### Implementation plan
+
+1. **Threshold config** — admin sets warning/critical thresholds for key metrics (e.g. faithfulness < 0.85 = warning, < 0.70 = critical)
+2. **Auto-compare** — after each eval run completes, compare with previous run; flag metrics that dropped beyond threshold
+3. **Visual indicators** — in the eval runs table, mark runs with regression as "Warning" badge; in detail view, highlight degraded metrics in red
+4. **Optional: email/webhook notification** — send alert to admin when regression detected (reuse existing Resend email infrastructure)
+
+---
+
+## 9. RAG Evaluation: Retrieval-Only Mode
+
+| | |
+|---|---|
+| **Priority** | Low |
+| **Status** | Not started |
+| **Complexity** | Medium (~6-8 hours) |
+| **Dependencies** | RAG Evaluation page + Golden Set |
+
+### Problem
+
+Current eval evaluates retrieval + generation together. ML engineers need to isolate retrieval quality: "Are we finding the right chunks?" without the noise of LLM generation quality. This is cheaper, faster, and more precise for tuning search parameters.
+
+### Implementation plan
+
+1. **New eval mode** — "Retrieval Only" option when launching eval run
+2. **Re-run retrieval** — for each sample query, call `search_documents()` directly (not the full RAG pipeline) and compare results with golden set expected chunks
+3. **Pure retrieval metrics** — Recall@K, Precision@K, NDCG, MRR based on ground truth, not LLM-as-judge
+4. **Speed** — no LLM calls needed, runs in seconds even for 100+ samples
+
+---

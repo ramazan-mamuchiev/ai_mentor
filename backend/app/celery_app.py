@@ -2470,6 +2470,28 @@ def s3_health_probe_task(self):
         logger.error("S3 health probe FAILED — storage may be degraded or unreachable")
 
 
+@celery.task(name="run_rag_evaluation", bind=True, soft_time_limit=600, time_limit=660)
+def run_rag_evaluation_task(self, run_id: int):
+    """Background task: execute full RAG evaluation pipeline."""
+    from app.admin.rag_eval import run_full_evaluation
+    logger.info("Celery run_rag_evaluation_task started", extra={"run_id": run_id, "task_id": self.request.id})
+    try:
+        run_full_evaluation(run_id)
+    except Exception as exc:
+        logger.error("run_rag_evaluation_task failed", extra={"run_id": run_id, "error_type": type(exc).__name__}, exc_info=True)
+        from app.models import RagEvalRun
+        from datetime import datetime, timezone
+        engine = _get_sync_engine()
+        with Session(engine) as session:
+            run = session.get(RagEvalRun, run_id)
+            if run and run.status == "running":
+                run.status = "failed"
+                run.error_message = f"Task crashed: {exc}"
+                run.finished_at = datetime.now(timezone.utc)
+                session.commit()
+        raise
+
+
 @celery.task(name="cleanup_expired_shares", bind=True)
 def cleanup_expired_shares_task(self):
     """Periodic task: delete expired and old deactivated shared links."""

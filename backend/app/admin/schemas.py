@@ -522,3 +522,50 @@ class SystemInfo(BaseModel):
     active_chat_sessions_5min: int
 
     services: list[ServiceHealth]
+
+
+# --- RAG Evaluation ---
+
+class RagEvalRunRequest(BaseModel):
+    sample_size: int = Field(default=50, ge=10, le=200)
+
+class RagEvalRunItem(BaseModel):
+    id: int
+    started_at: datetime
+    finished_at: datetime | None
+    status: str
+    triggered_by: str
+    error_message: str | None = None
+    progress_percent: int
+    progress_stage: str
+    sample_size: int
+    eval_model: str
+
+    context_precision: float | None = None
+    mrr: float | None = None
+    empty_retrieval_rate: float | None = None
+    similarity_p50: float | None = None
+    similarity_p75: float | None = None
+    similarity_p90: float | None = None
+    search_latency_p50_ms: float | None = None
+    search_latency_p95_ms: float | None = None
+
+    faithfulness: float | None = None
+    answer_relevance: float | None = None
+    feedback_positive_rate: float | None = None
+    no_answer_rate: float | None = None
+
+    vector_count: int | None = None
+    vector_search_ms: float | None = None
+    hnsw_index_size_mb: float | None = None
+    e2e_latency_p50_ms: float | None = None
+    e2e_latency_p95_ms: float | None = None
+
+class RagEvalRunDetail(RagEvalRunItem):
+    metrics_by_query_type: dict | None = None
+    metrics_by_product: dict | None = None
+    details: list | None = None
+
+class RagEvalRunListResponse(BaseModel):
+    items: list[RagEvalRunItem]
+    total: int

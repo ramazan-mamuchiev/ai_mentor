@@ -962,6 +962,54 @@ class TenantRole(Base):
     )
 
 
+class RagEvalRun(Base):
+    __tablename__ = "rag_eval_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(Text, default="running")
+    triggered_by: Mapped[str] = mapped_column(Text, default="")
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    progress_percent: Mapped[int] = mapped_column(Integer, default=0)
+    progress_stage: Mapped[str] = mapped_column(Text, default="")
+
+    sample_size: Mapped[int] = mapped_column(Integer, default=50)
+    eval_model: Mapped[str] = mapped_column(Text, default="")
+
+    context_precision: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mrr: Mapped[float | None] = mapped_column(Float, nullable=True)
+    empty_retrieval_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    similarity_p50: Mapped[float | None] = mapped_column(Float, nullable=True)
+    similarity_p75: Mapped[float | None] = mapped_column(Float, nullable=True)
+    similarity_p90: Mapped[float | None] = mapped_column(Float, nullable=True)
+    search_latency_p50_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    search_latency_p95_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    faithfulness: Mapped[float | None] = mapped_column(Float, nullable=True)
+    answer_relevance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    feedback_positive_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    no_answer_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    vector_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    vector_search_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hnsw_index_size_mb: Mapped[float | None] = mapped_column(Float, nullable=True)
+    e2e_latency_p50_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    e2e_latency_p95_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    metrics_by_query_type: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    metrics_by_product: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    __table_args__ = (
+        Index("idx_rag_eval_runs_status", "status"),
+        Index("idx_rag_eval_runs_started", "started_at"),
+    )
+
+
 class PromptTemplate(Base):
     __tablename__ = "prompt_templates"
 

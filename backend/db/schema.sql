@@ -659,6 +659,43 @@ DROP TABLE IF EXISTS product_aliases;
 ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS chat_session_id INT;
 CREATE INDEX IF NOT EXISTS idx_usage_log_chat_session ON usage_log (chat_session_id, created_at) WHERE chat_session_id IS NOT NULL;
 
+-- RAG evaluation runs
+CREATE TABLE IF NOT EXISTS rag_eval_runs (
+    id SERIAL PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at TIMESTAMPTZ,
+    status TEXT NOT NULL DEFAULT 'running',
+    triggered_by TEXT NOT NULL DEFAULT '',
+    error_message TEXT,
+    progress_percent INT NOT NULL DEFAULT 0,
+    progress_stage TEXT NOT NULL DEFAULT '',
+    sample_size INT NOT NULL DEFAULT 50,
+    eval_model TEXT NOT NULL DEFAULT '',
+    context_precision FLOAT,
+    mrr FLOAT,
+    empty_retrieval_rate FLOAT,
+    similarity_p50 FLOAT,
+    similarity_p75 FLOAT,
+    similarity_p90 FLOAT,
+    search_latency_p50_ms FLOAT,
+    search_latency_p95_ms FLOAT,
+    faithfulness FLOAT,
+    answer_relevance FLOAT,
+    feedback_positive_rate FLOAT,
+    no_answer_rate FLOAT,
+    vector_count INT,
+    vector_search_ms FLOAT,
+    hnsw_index_size_mb FLOAT,
+    e2e_latency_p50_ms FLOAT,
+    e2e_latency_p95_ms FLOAT,
+    metrics_by_query_type JSONB,
+    metrics_by_product JSONB,
+    details JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_eval_runs_status ON rag_eval_runs(status);
+CREATE INDEX IF NOT EXISTS idx_rag_eval_runs_started ON rag_eval_runs(started_at);
+
 -- Migration tracking
 CREATE TABLE IF NOT EXISTS schema_migrations (
     filename TEXT PRIMARY KEY,
