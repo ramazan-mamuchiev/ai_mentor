@@ -720,6 +720,7 @@ async def _parallel_search(
     locked_product_id: int | None = None,
     locked_product_name: str | None = None,
     metadata: dict | None = None,
+    query_type: str | None = None,
 ) -> list[dict]:
     """Run parallel searches for each sub-query and merge results with balanced interleaving."""
 
@@ -741,6 +742,7 @@ async def _parallel_search(
             session=db, query=sq, product_id=pid,
             version=version, doc_context=doc_context,
             limit=limit_per_query, metadata=meta,
+            query_type=query_type,
         )
         for r in results:
             r["_sub_query"] = sq
@@ -992,6 +994,7 @@ async def build_rag_prompt(
                 locked_product_id=effective_product_id if is_explicit_lock else None,
                 locked_product_name=product_filter if is_explicit_lock else None,
                 metadata=search_meta,
+                query_type=query_type,
             )
         else:
             chunks = await search_documents(
@@ -1002,6 +1005,7 @@ async def build_rag_prompt(
                 doc_context=doc_context,
                 limit=effective_top_k,
                 metadata=search_meta,
+                query_type=query_type,
             )
 
         search_ms = round((time.perf_counter() - t_search) * 1000, 1)
@@ -1066,6 +1070,7 @@ async def build_rag_prompt(
                 doc_context=doc_context,
                 limit=effective_top_k,
                 metadata=retry_meta,
+                query_type=query_type,
             )
 
             if settings.rerank_enabled and settings.rerank_min_score > 0:

@@ -188,29 +188,53 @@ def _deduplicate_chunks(results: list[dict], limit: int) -> list[dict]:
     return unique
 
 
-_DOC_TYPE_BOOST: dict[str, float] = {
-    "user_guide": 1.20,
-    "overview": 1.15,
-    "troubleshooting": 1.10,
-    "configuration": 1.05,
-    "release_notes": 1.00,
-    "changelog": 1.00,
-    "api_reference": 0.90,
-    "protocol": 0.85,
-    "model_schema": 0.85,
-    "other": 1.00,
+_NEUTRAL_BOOST: dict[str, float] = {
+    "user_guide": 1.00, "overview": 1.00, "troubleshooting": 1.00,
+    "configuration": 1.00, "release_notes": 1.00, "changelog": 1.00,
+    "api_reference": 1.00, "protocol": 1.00, "model_schema": 1.00, "other": 1.00,
+}
+
+_DOC_TYPE_BOOST_PROFILES: dict[str, dict[str, float]] = {
+    "overview": {
+        "user_guide": 1.20, "overview": 1.15, "troubleshooting": 1.05,
+        "configuration": 1.00, "release_notes": 1.00, "changelog": 1.00,
+        "api_reference": 0.90, "protocol": 0.85, "model_schema": 0.85, "other": 1.00,
+    },
+    "technical": {
+        "user_guide": 1.05, "overview": 1.00, "troubleshooting": 1.00,
+        "configuration": 1.00, "release_notes": 1.00, "changelog": 1.00,
+        "api_reference": 1.15, "protocol": 1.10, "model_schema": 1.10, "other": 1.00,
+    },
+    "code": {
+        "user_guide": 0.95, "overview": 0.90, "troubleshooting": 0.90,
+        "configuration": 1.00, "release_notes": 1.00, "changelog": 1.00,
+        "api_reference": 1.20, "protocol": 1.15, "model_schema": 1.15, "other": 1.00,
+    },
+    "troubleshooting": {
+        "user_guide": 1.10, "overview": 1.00, "troubleshooting": 1.20,
+        "configuration": 1.10, "release_notes": 1.00, "changelog": 1.00,
+        "api_reference": 0.90, "protocol": 0.85, "model_schema": 0.85, "other": 1.00,
+    },
+    "comparison": {
+        "user_guide": 1.10, "overview": 1.10, "troubleshooting": 1.00,
+        "configuration": 1.00, "release_notes": 1.00, "changelog": 1.00,
+        "api_reference": 1.00, "protocol": 1.00, "model_schema": 1.00, "other": 1.00,
+    },
+    "chitchat": _NEUTRAL_BOOST,
 }
 
 
-def _apply_doc_type_boost(results: list[dict]) -> list[dict]:
-    """Re-sort results by similarity × doc_type multiplier.
+def _apply_doc_type_boost(results: list[dict], query_type: str | None = None) -> list[dict]:
+    """Re-sort results by similarity x doc_type multiplier.
 
-    Guides and overviews get a gentle boost; raw API/protocol references
-    get a slight penalty so that explanatory content surfaces first.
+    The boost profile is chosen by query_type: how-to queries prefer guides,
+    code/technical queries prefer API references, etc.
     """
+    profile = _DOC_TYPE_BOOST_PROFILES.get(query_type or "overview",
+                                           _DOC_TYPE_BOOST_PROFILES["overview"])
     boosted = []
     for r in results:
-        factor = _DOC_TYPE_BOOST.get(r.get("doc_type", "other"), 1.0)
+        factor = profile.get(r.get("doc_type", "other"), 1.0)
         boosted.append((r, r["similarity"] * factor))
     boosted.sort(key=lambda x: x[1], reverse=True)
     return [r for r, _ in boosted]
@@ -327,6 +351,7 @@ async def search_documents(
     doc_type: str | None = None,
     limit: int = 5,
     metadata: dict | None = None,
+    query_type: str | None = None,
 ) -> list[dict]:
     """Hybrid search: vector similarity + BM25 full-text, fused via RRF.
 
@@ -445,7 +470,7 @@ async def search_documents(
     dedup_removed = len(raw_results) - len(deduped)
 
     if settings.doc_type_boost_enabled:
-        deduped = _apply_doc_type_boost(deduped)
+        deduped = _apply_doc_type_boost(deduped, query_type=query_type)
 
     rerank_ms = 0.0
     rerank_prompt_tokens = 0
