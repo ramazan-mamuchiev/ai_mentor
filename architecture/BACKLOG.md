@@ -797,22 +797,28 @@ The platform processes only text (plus OCR for scanned PDFs). Technical document
 | | |
 |---|---|
 | **Priority** | P3 — Nice-to-have |
-| **Status** | Not started |
-| **Complexity** | Medium (~6-8 hours) |
-| **Dependencies** | Multilingual embedding model |
+| **Status** | **Phase 1 done** (language-aware BM25 shipped in `1a199dd`) |
+| **Complexity** | Remaining: ~8-10 hours |
+| **Dependencies** | None (Phase 1 complete) |
 | **Area** | RAG Pipeline |
 
 ### Problem
 
-Documents may be in Russian or English, and users may query in either language. Current embeddings (Gemini embedding) have some multilingual capability, but there is no explicit cross-language support: no language detection, no query translation, no language-aware boosting.
+Documents may be in Russian or English, and users may query in either language. Current embeddings (Gemini embedding) have some multilingual capability, but there is no explicit cross-language support: no query translation, no language-aware boosting.
 
-### Implementation plan
+### What was shipped (Phase 1 — March 31, 2026)
 
-1. **Language detection** — detect document language during ingestion; store in `Document.language` field
-2. **Query language detection** — detect query language in the classifier step
-3. **Cross-language query expansion** — when query language differs from document language, generate a translated query and search with both
-4. **Language-aware BM25** — use language-specific stemmers in `tsvector` (currently uses `'simple'` config)
-5. **Evaluation** — add cross-language test cases to the golden set
+- **Language detection at ingestion** — `lingua-language-detector` detects document language (en/ru/other) and stores it in `Document.detected_language` and `Chunk.language`
+- **Language-aware BM25** — new `tsv_lang` tsvector column with language-specific stemming (`'russian'`, `'english'`, `'simple'` fallback); trigger updated; BM25 search uses combined tsquery (`simple || english || russian`)
+- **Feature flag** — `MULTILANG_BM25_ENABLED` (default: true)
+- **Backfill task** — `backfill_chunk_languages` Celery task for existing documents
+- **Migration** — `018_multilang_bm25.sql`
+
+### Remaining (Phase 2)
+
+1. **Query language detection in classifier** — add `"language"` field to `_classify_query` response; pass to `search_documents`
+2. **Cross-language query expansion** — translate query via Gemini Flash when query language differs from document language; dual BM25 search + RRF fusion
+3. **Evaluation** — add cross-language test cases to the golden set
 
 ---
 
@@ -899,6 +905,6 @@ Input validation relies on Pydantic schemas for type checking, but there is no e
 | 27 | API Versioning Strategy | P2 | Backend | Medium |
 | 28 | Database Backups | P1 | Infra | Medium |
 | 29 | Multi-Modal RAG | P3 | RAG | Very High |
-| 30 | Cross-Language Retrieval | P3 | RAG | Medium |
+| 30 | Cross-Language Retrieval | P3 | RAG | **Phase 1 done** |
 | 31 | Horizontal Scaling / HA | P3 | Infra | Very High |
 | 32 | Input Sanitization | P1 | Backend | Medium |
