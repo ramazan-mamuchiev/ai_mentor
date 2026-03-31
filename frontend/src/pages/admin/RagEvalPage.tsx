@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Gauge, Play, Loader2, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Target, Play, Loader2, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   startRagEval, getRagEvalRuns, getRagEvalRun, getLatestRagEval,
   type RagEvalRunDetail, type RagEvalRunItem,
@@ -190,7 +190,7 @@ export function RagEvalPage() {
       {/* Header */}
       <div className="admin-page-header rag-eval-page-header">
         <div>
-          <h1><Gauge size={20} /> {t('admin.ragEval.title')}</h1>
+          <h1><Target size={20} /> {t('admin.ragEval.title')}</h1>
           {data && !isRunning && (
             <p>
               <span className={`rag-eval-dot rag-eval-dot--${data.status === 'completed' ? 'ok' : 'err'}`} />
@@ -243,21 +243,29 @@ export function RagEvalPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="rag-eval-tabs">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            className={`rag-eval-tab${tab === t.id ? ' rag-eval-tab--active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {!data && !isRunning && (
-        <div className="admin-empty">{t('admin.ragEval.noRuns')}</div>
+      {!data && !isRunning ? (
+        <div className="rag-eval-empty-state">
+          <div className="rag-eval-empty-icon">
+            <Target size={48} strokeWidth={1} />
+          </div>
+          <p className="rag-eval-empty-title">{t('admin.ragEval.noRuns')}</p>
+          <p className="rag-eval-empty-hint">{t('admin.ragEval.noRunsHint')}</p>
+        </div>
+      ) : (
+        <>
+          {/* Tabs */}
+          <div className="rag-eval-tabs">
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                className={`rag-eval-tab${tab === t.id ? ' rag-eval-tab--active' : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Overview */}

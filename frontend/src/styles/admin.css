@@ -2625,6 +2625,35 @@
   word-break: break-word;
 }
 
+.rag-eval-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.rag-eval-empty-icon {
+  color: var(--border);
+  margin-bottom: 16px;
+}
+
+.rag-eval-empty-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+
+.rag-eval-empty-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin: 0;
+  max-width: 320px;
+}
+
 .rag-eval-sample-meta {
   display: flex;
   gap: 16px;
@@ -2643,17 +2672,17 @@
 
   .rag-eval-actions {
     width: 100%;
-    flex-wrap: wrap;
   }
 
   .rag-eval-actions select {
     flex: 0 0 auto;
-    width: 64px;
+    width: 60px;
   }
 
   .rag-eval-actions .admin-btn {
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
+    justify-content: center;
   }
 
   .rag-eval-progress-inline {
