@@ -1229,9 +1229,13 @@
   "admin.stats.search.sources": "Источники",
 
   "admin.stats.costs.total": "За период",
+  "admin.stats.costs.cogs": "Себестоимость",
   "admin.stats.costs.forecast": "Прогноз / месяц",
   "admin.stats.costs.perUser": "На пользователя",
   "admin.stats.costs.perDay": "В среднем / день",
+  "admin.stats.costs.ingestion": "Индексация",
+  "admin.stats.costs.ingestionBreakdown": "Расходы на индексацию по этапам",
+  "admin.stats.costs.step": "Этап",
   "admin.stats.costs.daily": "Расходы по дням",
   "admin.stats.costs.chargePerDay": "Расход ($) / день",
   "admin.stats.costs.byModel": "По моделям",
@@ -1275,6 +1279,9 @@
   "admin.mcp.summaryCharge": "стоимость",
   "admin.mcp.summaryDuration": "время",
 
+  "admin.stats.filterTenant": "Фильтр по пользователю...",
+  "admin.stats.overview.byAction": "По действиям",
+  "admin.stats.overview.topTenants": "Топ пользователей",
   "admin.stats.overview.tenants": "Пользователи",
   "admin.stats.overview.documents": "Документы",
   "admin.stats.overview.indexed": "индексировано",

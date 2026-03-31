@@ -594,14 +594,14 @@ function McpTab({ days, t, tenantId }: { days: number; t: any; tenantId?: string
 }
 
 /* ───── Tab: Costs ───── */
-function CostsTab({ days, t }: { days: number; t: any }) {
+function CostsTab({ days, t, tenantId }: { days: number; t: any; tenantId?: string }) {
   const [data, setData] = useState<CostStatsT | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    getCostStats(days).then(setData).catch(() => {}).finally(() => setLoading(false))
-  }, [days])
+    getCostStats(days, tenantId).then(setData).catch(() => {}).finally(() => setLoading(false))
+  }, [days, tenantId])
 
   if (loading) return <div className="admin-loading">{t('admin.common.loading')}</div>
   if (!data) return <div className="admin-empty">{t('admin.stats.noData')}</div>
@@ -610,9 +610,11 @@ function CostsTab({ days, t }: { days: number; t: any }) {
     <>
       <div className="stats-grid">
         <StatCard label={t('admin.stats.costs.total')} value={fmtUsd(data.total_charge_usd)} variant="accent" />
+        <StatCard label={t('admin.stats.costs.cogs')} value={fmtUsd(data.total_cogs_usd)} />
         <StatCard label={t('admin.stats.costs.forecast')} value={fmtUsd(data.forecast_month_usd)} />
         <StatCard label={t('admin.stats.costs.perUser')} value={fmtUsd(data.avg_per_user)} />
         <StatCard label={t('admin.stats.costs.perDay')} value={fmtUsd(data.avg_per_day)} />
+        <StatCard label={t('admin.stats.costs.ingestion')} value={fmtUsd(data.ingestion_cost_usd)} />
       </div>
 
       <div style={{ margin: '16px 0' }}>
@@ -651,6 +653,32 @@ function CostsTab({ days, t }: { days: number; t: any }) {
         </div>
       </div>
 
+      {data.ingestion_breakdown.length > 0 && (
+        <>
+          <h2 className="admin-section-title" style={{ marginTop: 16 }}>{t('admin.stats.costs.ingestionBreakdown')}</h2>
+          <div className="admin-table-wrapper">
+            <div className="admin-table-scroll">
+              <table className="admin-table">
+                <thead><tr>
+                  <th>{t('admin.stats.costs.step')}</th>
+                  <th>{t('admin.stats.totalTokens')}</th>
+                  <th>{t('admin.stats.costs.charge')}</th>
+                </tr></thead>
+                <tbody>
+                  {data.ingestion_breakdown.map((b, i) => (
+                    <tr key={i}>
+                      <td>{b.step}</td>
+                      <td>{b.tokens.toLocaleString()}</td>
+                      <td>{fmtUsd(b.charge_usd)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
       {data.top_api_keys.length > 0 && (
         <>
           <h2 className="admin-section-title" style={{ marginTop: 16 }}>{t('admin.stats.costs.topApiKeys')}</h2>
@@ -688,6 +716,7 @@ export function StatsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = (searchParams.get('tab') as Tab) || 'overview'
   const [days, setDays] = useState(30)
+  const [tenantId, setTenantId] = useState<string | undefined>(undefined)
 
   const setTab = useCallback((tab: Tab) => {
     setSearchParams({ tab }, { replace: true })
@@ -732,27 +761,30 @@ export function StatsPage() {
             </button>
           ))}
         </div>
-        <div className="stats-period">
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('admin.stats.period')}</span>
-          {[7, 14, 30, 90].map(d => (
-            <button
-              key={d}
-              className={`admin-btn admin-btn--sm${days === d ? ' admin-btn--primary' : ''}`}
-              onClick={() => setDays(d)}
-            >
-              {d}d
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <TenantFilter value={tenantId} onChange={setTenantId} t={t} />
+          <div className="stats-period">
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('admin.stats.period')}</span>
+            {[7, 14, 30, 90].map(d => (
+              <button
+                key={d}
+                className={`admin-btn admin-btn--sm${days === d ? ' admin-btn--primary' : ''}`}
+                onClick={() => setDays(d)}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="stats-content">
-        {activeTab === 'overview' && <OverviewTab days={days} t={t} />}
-        {activeTab === 'chat' && <ChatTab days={days} t={t} />}
-        {activeTab === 'documents' && <DocumentsTab days={days} t={t} />}
-        {activeTab === 'search' && <SearchTab days={days} t={t} />}
-        {activeTab === 'mcp' && <McpTab days={days} t={t} />}
-        {activeTab === 'costs' && <CostsTab days={days} t={t} />}
+        {activeTab === 'overview' && <OverviewTab days={days} t={t} tenantId={tenantId} />}
+        {activeTab === 'chat' && <ChatTab days={days} t={t} tenantId={tenantId} />}
+        {activeTab === 'documents' && <DocumentsTab days={days} t={t} tenantId={tenantId} />}
+        {activeTab === 'search' && <SearchTab days={days} t={t} tenantId={tenantId} />}
+        {activeTab === 'mcp' && <McpTab days={days} t={t} tenantId={tenantId} />}
+        {activeTab === 'costs' && <CostsTab days={days} t={t} tenantId={tenantId} />}
       </div>
     </div>
   )

@@ -1178,9 +1178,13 @@
   "admin.stats.search.sources": "Sources",
 
   "admin.stats.costs.total": "Period total",
+  "admin.stats.costs.cogs": "COGS",
   "admin.stats.costs.forecast": "Monthly forecast",
   "admin.stats.costs.perUser": "Per user",
   "admin.stats.costs.perDay": "Avg / day",
+  "admin.stats.costs.ingestion": "Ingestion",
+  "admin.stats.costs.ingestionBreakdown": "Ingestion cost breakdown",
+  "admin.stats.costs.step": "Step",
   "admin.stats.costs.daily": "Costs daily",
   "admin.stats.costs.chargePerDay": "Charge ($) / day",
   "admin.stats.costs.byModel": "By model",
@@ -1224,6 +1228,9 @@
   "admin.mcp.summaryCharge": "charge",
   "admin.mcp.summaryDuration": "duration",
 
+  "admin.stats.filterTenant": "Filter by tenant...",
+  "admin.stats.overview.byAction": "By action",
+  "admin.stats.overview.topTenants": "Top tenants",
   "admin.stats.overview.tenants": "Tenants",
   "admin.stats.overview.documents": "Documents",
   "admin.stats.overview.indexed": "indexed",
