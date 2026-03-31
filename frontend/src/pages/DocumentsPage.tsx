@@ -235,10 +235,14 @@ function DocActions({
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
       const dropW = 200
+      const dropH = 180
       let left = rect.right - dropW
       if (left < 8) left = 8
       if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8
-      setPos({ top: rect.bottom + 4, left })
+      const top = (rect.bottom + 4 + dropH > window.innerHeight)
+        ? rect.top - dropH - 4
+        : rect.bottom + 4
+      setPos({ top, left })
     }
     setOpen(v => !v)
   }, [open])
