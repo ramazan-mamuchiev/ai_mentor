@@ -191,7 +191,7 @@ export function RagEvalPage() {
       <div className="admin-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1><Gauge size={20} /> {t('admin.ragEval.title')}</h1>
-          {data && (
+          {data && !isRunning && (
             <p>
               <span className={`rag-eval-dot rag-eval-dot--${data.status === 'completed' ? 'ok' : 'err'}`} />
               {t('admin.ragEval.lastRun')}: {fmtDate(data.started_at)} — {' '}
@@ -204,45 +204,44 @@ export function RagEvalPage() {
           )}
         </div>
         <div className="rag-eval-actions">
-          <select
-            className="admin-select"
-            value={sampleSize}
-            onChange={e => setSampleSize(Number(e.target.value))}
-            disabled={isRunning || starting}
-          >
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-          <button
-            className="admin-btn admin-btn--primary"
-            onClick={handleStart}
-            disabled={isRunning || starting}
-          >
-            {isRunning || starting ? <Loader2 size={16} className="rag-eval-spin" /> : <Play size={16} />}
-            {t('admin.ragEval.runEval')}
-          </button>
+          {isRunning && activeRun ? (
+            <div className="rag-eval-progress-inline">
+              <div className="rag-eval-progress-inline-top">
+                <Loader2 size={14} className="rag-eval-spin" />
+                <span className="rag-eval-progress-inline-stage">{activeRun.progress_stage || t('admin.ragEval.running')}</span>
+                <span className="rag-eval-progress-inline-time">
+                  <Clock size={12} />
+                  {fmtDuration(activeRun.started_at, new Date().toISOString())}
+                </span>
+              </div>
+              <div className="rag-eval-progress-inline-track">
+                <div className="rag-eval-progress-inline-fill" style={{ width: `${activeRun.progress_percent}%` }} />
+              </div>
+            </div>
+          ) : (
+            <>
+              <select
+                className="admin-select"
+                value={sampleSize}
+                onChange={e => setSampleSize(Number(e.target.value))}
+                disabled={starting}
+              >
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <button
+                className="admin-btn admin-btn--primary"
+                onClick={handleStart}
+                disabled={starting}
+              >
+                {starting ? <Loader2 size={16} className="rag-eval-spin" /> : <Play size={16} />}
+                {t('admin.ragEval.runEval')}
+              </button>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Progress panel */}
-      {isRunning && activeRun && (
-        <div className="rag-eval-progress">
-          <div className="rag-eval-progress-header">
-            <div className="rag-eval-progress-title">
-              <Loader2 size={16} className="rag-eval-spin" />
-              <span>{activeRun.progress_stage || t('admin.ragEval.running')}</span>
-            </div>
-            <div className="rag-eval-progress-time">
-              <Clock size={14} />
-              {fmtDuration(activeRun.started_at, new Date().toISOString())}
-            </div>
-          </div>
-          <div className="rag-eval-progress-track">
-            <div className="rag-eval-progress-fill" style={{ width: `${activeRun.progress_percent}%` }} />
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="rag-eval-tabs">
