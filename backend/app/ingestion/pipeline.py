@@ -242,7 +242,12 @@ def _embedding_model_name() -> str:
     return _settings.embedding_model_gemini
 
 
-MAX_EMBEDDING_TOKENS = 500
+def _get_embedding_max_tokens() -> int:
+    val = _settings.embedding_max_tokens
+    if val and val > 0:
+        return val
+    return _settings.chunk_max_tokens + 256
+
 
 def enrich_for_embedding(
     chunks: list[ChunkData],
@@ -255,10 +260,11 @@ def enrich_for_embedding(
     2. Prepend heading hierarchy.
     3. Prepend doc_type and flattened entities (if metadata is available).
 
-    Warns and truncates if enriched text exceeds model max_seq_length.
+    Truncates if enriched text exceeds the configured embedding token limit.
     """
     from app.ingestion.chunker import _estimate_tokens
 
+    max_tokens = _get_embedding_max_tokens()
     enriched: list[str] = []
     for idx, c in enumerate(chunks):
         cleaned = _clean_md(c.content)
@@ -284,17 +290,17 @@ def enrich_for_embedding(
         text = heading_prefix + cleaned
 
         token_count = _estimate_tokens(text)
-        if token_count > MAX_EMBEDDING_TOKENS:
-            logger.warning(
-                "Enriched text exceeds embedding model limit, truncating",
+        if token_count > max_tokens:
+            logger.debug(
+                "Enriched text exceeds embedding token limit, truncating",
                 extra={
                     "heading_path": c.heading_path,
                     "token_count": token_count,
-                    "max_tokens": MAX_EMBEDDING_TOKENS,
+                    "max_tokens": max_tokens,
                 },
             )
             prefix_tokens = _estimate_tokens(heading_prefix) if heading_prefix else 0
-            content_budget = max(1, int((MAX_EMBEDDING_TOKENS - prefix_tokens) / 1.3))
+            content_budget = max(1, int((max_tokens - prefix_tokens) / 1.3))
             words = cleaned.split()
             text = heading_prefix + " ".join(words[:content_budget])
 

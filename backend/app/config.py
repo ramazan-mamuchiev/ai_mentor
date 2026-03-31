@@ -77,6 +77,7 @@ class Settings(BaseSettings):
     chunk_max_tokens: int = 512
     chunk_min_tokens: int = 50
     chunk_overlap_paragraphs: int = 2
+    embedding_max_tokens: int = 0  # 0 = auto (chunk_max_tokens + 256)
 
     metadata_extraction_enabled: bool = True
     metadata_extraction_model: str = "gemini-2.5-flash"

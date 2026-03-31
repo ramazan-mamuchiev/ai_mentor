@@ -1,7 +1,10 @@
 """Async fire-and-forget writer for the usage_log billing audit table."""
 
+import asyncio
 import logging
 from decimal import Decimal
+
+from sqlalchemy.exc import InterfaceError, OperationalError
 
 from app.billing.pricing import (
     calculate_llm_charge,
@@ -13,6 +16,9 @@ from app.database import async_session, get_sync_session
 from app.models import UsageLog
 
 logger = logging.getLogger(__name__)
+
+_RETRY_ATTEMPTS = 3
+_RETRY_BASE_DELAY = 0.1
 
 
 async def write_usage_log(
@@ -77,40 +83,58 @@ async def write_usage_log(
 
         total_tokens = prompt_tokens + completion_tokens
 
-        async with async_session() as session:
-            session.add(UsageLog(
-                channel=channel,
-                action=action,
-                request_id=request_id,
-                llm_provider=llm_provider,
-                llm_model=llm_model,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=total_tokens,
-                context_chunks=context_chunks,
-                context_tokens=context_tokens,
-                history_messages=history_messages,
-                query_tokens=query_tokens,
-                history_tokens=history_tokens,
-                system_prompt_tokens=system_prompt_tokens,
-                query_text=query_text,
-                result_count=result_count,
-                response_tokens=response_tokens,
-                response_length=response_length,
-                top_similarity=top_similarity,
-                product_filter=product_filter,
-                version_filter=version_filter,
-                duration_ms=duration_ms,
-                embedding_ms=embedding_ms,
-                search_ms=search_ms,
-                llm_ms=llm_ms,
-                cogs_usd=cogs_usd,
-                charge_usd=charge_usd,
-                tenant_id=tenant_id,
-                api_key_id=api_key_id,
-                chat_session_id=chat_session_id,
-            ))
-            await session.commit()
+        row = UsageLog(
+            channel=channel,
+            action=action,
+            request_id=request_id,
+            llm_provider=llm_provider,
+            llm_model=llm_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            context_chunks=context_chunks,
+            context_tokens=context_tokens,
+            history_messages=history_messages,
+            query_tokens=query_tokens,
+            history_tokens=history_tokens,
+            system_prompt_tokens=system_prompt_tokens,
+            query_text=query_text,
+            result_count=result_count,
+            response_tokens=response_tokens,
+            response_length=response_length,
+            top_similarity=top_similarity,
+            product_filter=product_filter,
+            version_filter=version_filter,
+            duration_ms=duration_ms,
+            embedding_ms=embedding_ms,
+            search_ms=search_ms,
+            llm_ms=llm_ms,
+            cogs_usd=cogs_usd,
+            charge_usd=charge_usd,
+            tenant_id=tenant_id,
+            api_key_id=api_key_id,
+            chat_session_id=chat_session_id,
+        )
+
+        last_exc: Exception | None = None
+        for attempt in range(_RETRY_ATTEMPTS):
+            try:
+                async with async_session() as session:
+                    session.add(row)
+                    await session.commit()
+                break
+            except (InterfaceError, OperationalError) as exc:
+                last_exc = exc
+                if attempt < _RETRY_ATTEMPTS - 1:
+                    await asyncio.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
+                    from sqlalchemy.orm import make_transient
+                    make_transient(row)
+        else:
+            logger.warning(
+                "Failed to write usage_log after retries",
+                extra={"attempts": _RETRY_ATTEMPTS, "last_error": str(last_exc)},
+            )
+            return
 
         logger.debug(
             "Usage log written",
