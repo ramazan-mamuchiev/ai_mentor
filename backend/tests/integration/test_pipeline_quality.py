@@ -16,7 +16,7 @@ class TestMarkdownCleaningPipeline:
     def test_headings_cleaned_in_parsed_sections(self):
         """Markdown formatting in headings should be stripped during parsing."""
         md = "# **Bold Title**\nContent.\n\n## `GET /api/doors`\nEndpoint docs."
-        sections = parse_markdown(md)
+        sections, _fm = parse_markdown(md)
         paths = [s.heading_path for s in sections]
         assert "Bold Title" in paths
         assert "**Bold Title**" not in paths
@@ -97,7 +97,7 @@ echo "done"
 ## Troubleshooting
 If something goes wrong, check logs.
 """
-        sections = parse_markdown(md)
+        sections, _fm = parse_markdown(md)
         paths = [s.heading_path for s in sections]
         assert "Installation Guide" in paths
         assert "Installation Guide > Troubleshooting" in paths
@@ -114,7 +114,7 @@ host: localhost
 port: 5432
 ```
 """
-        sections = parse_markdown(md)
+        sections, _fm = parse_markdown(md)
         assert len(sections) == 1
         assert "# Database settings" in sections[0].content
 
@@ -137,7 +137,7 @@ curl /api/doors
 
 Token-based.
 """
-        sections = parse_markdown(md)
+        sections, _fm = parse_markdown(md)
         chunks = chunk_sections(sections, max_tokens=500, min_tokens=5)
         paths = [c.heading_path for c in chunks]
         assert not any("Initialize client" in p for p in paths)
@@ -168,13 +168,13 @@ class TestBlockquoteCleaning:
 class TestUnicodeNormalization:
     def test_fullwidth_chars_normalized(self):
         md = "# \uff21\uff30\uff29\n\uff32\uff45\uff46\uff45\uff52\uff45\uff4e\uff43\uff45"
-        sections = parse_markdown(md)
+        sections, _fm = parse_markdown(md)
         assert sections[0].heading_path == "API"
         assert "Reference" in sections[0].content
 
     def test_non_breaking_space_normalized(self):
         md = "# Title\nSome\u00a0text\u00a0here."
-        sections = parse_markdown(md)
+        sections, _fm = parse_markdown(md)
         assert "\u00a0" not in sections[0].content
 
 

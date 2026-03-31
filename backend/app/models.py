@@ -280,6 +280,12 @@ class Chunk(Base):
     doc_type: Mapped[str] = mapped_column(Text, default="other")
     entities: Mapped[dict | None] = mapped_column(JSONB, default=dict)
     language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    layer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    topic: Mapped[str | None] = mapped_column(Text, nullable=True)
+    doc_number: Mapped[str | None] = mapped_column(Text, nullable=True)
+    related_docs: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -290,6 +296,7 @@ class Chunk(Base):
         UniqueConstraint("document_id", "chunk_index"),
         Index("idx_chunks_document", "document_id"),
         Index("idx_chunks_doc_type", "doc_type"),
+        Index("idx_chunks_layer", "layer"),
     )
 
 

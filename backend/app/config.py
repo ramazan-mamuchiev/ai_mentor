@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     decompose_model: str = "gemini-2.5-flash"
     decompose_max_sub_queries: int = 4
 
+    cross_doc_expansion_enabled: bool = True
+    cross_doc_expansion_limit: int = 3
+
     web_search_enabled: bool = True
     web_search_model: str = "gemini-2.5-flash"
     web_search_max_tokens: int = 1500

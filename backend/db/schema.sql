@@ -145,6 +145,13 @@ ALTER TABLE chunks ADD COLUMN IF NOT EXISTS entities JSONB DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS idx_chunks_doc_type ON chunks(doc_type);
 CREATE INDEX IF NOT EXISTS idx_chunks_entities ON chunks USING gin(entities jsonb_path_ops);
 
+-- YAML front matter metadata (layer, topic, doc_number, related_docs)
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS layer TEXT;
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS topic TEXT;
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS doc_number TEXT;
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS related_docs JSONB;
+CREATE INDEX IF NOT EXISTS idx_chunks_layer ON chunks(layer);
+
 -- Full-text search column (BM25 via tsvector for hybrid search)
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS language VARCHAR(10);

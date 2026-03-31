@@ -1,16 +1,16 @@
 """Unit tests for app.ingestion.parsers.markdown."""
 
-from app.ingestion.parsers.markdown import parse_markdown
+from app.ingestion.parsers.markdown import parse_markdown, strip_front_matter, FrontMatter
 
 
 class TestParseMarkdown:
     def test_empty_text(self):
-        assert parse_markdown("") == []
-        assert parse_markdown("   ") == []
+        assert parse_markdown("") == ([], None)
+        assert parse_markdown("   ") == ([], None)
 
     def test_no_headings(self):
         text = "Just some plain text\nwith multiple lines."
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         assert len(sections) == 1
         assert sections[0].heading_path == "Document"
         assert sections[0].heading_level == 1
@@ -18,7 +18,7 @@ class TestParseMarkdown:
 
     def test_single_h1(self):
         text = "# Overview\nSome content here."
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         assert len(sections) == 1
         assert sections[0].heading_path == "Overview"
         assert sections[0].heading_level == 1
@@ -40,7 +40,7 @@ Opens a door.
 ## Configuration
 Config section.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
 
         assert "Device Guide" in paths
@@ -58,7 +58,7 @@ Content A.
 ## Section B
 Content B.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         assert "Chapter 1 > Section A" in paths
         assert "Chapter 2 > Section B" in paths
@@ -70,7 +70,7 @@ Content B.
 ## Section With Content
 Real content here.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         assert "Title > Empty Section" not in paths
         assert "Title > Section With Content" in paths
@@ -81,7 +81,7 @@ Real content here.
 # First Heading
 Content.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         assert sections[0].heading_path == "Preamble"
         assert sections[0].heading_level == 0
         assert "preamble" in sections[0].content
@@ -94,7 +94,7 @@ Content 2.
 ### H3
 Content 3.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         levels = {s.heading_path: s.heading_level for s in sections}
         assert levels["H1"] == 1
         assert levels["H1 > H2"] == 2
@@ -108,7 +108,7 @@ Line 2.
 
 Line 3.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         assert len(sections) == 1
         assert "Line 1" in sections[0].content
         assert "Line 3" in sections[0].content
@@ -122,7 +122,7 @@ The timeout parameter.
 #### Response
 Returns JSON.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         assert "API > Endpoints > GET /doors > Parameters" in paths
         assert "API > Endpoints > GET /doors > Response" in paths
@@ -137,7 +137,7 @@ Content at H5.
 ###### Finest
 Content at H6.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         levels = {s.heading_path: s.heading_level for s in sections}
         assert any("Fine" in p for p in paths)
@@ -156,7 +156,7 @@ Details X.
 #### Param Y
 Details Y.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         assert any("Method A > Param X" in p for p in paths)
         assert any("Method B > Param Y" in p for p in paths)
@@ -172,7 +172,7 @@ Endpoint docs.
 ## [Authentication](https://example.com)
 Auth docs.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         assert "Bold Title" in paths
         assert "**Bold Title**" not in paths
@@ -183,7 +183,7 @@ Auth docs.
 
     def test_unicode_normalization(self):
         text = "# \uff21\uff30\uff29\n\uff32\uff45\uff46\uff45\uff52\uff45\uff4e\uff43\uff45"
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         assert sections[0].heading_path == "API"
         assert "Reference" in sections[0].content
 
@@ -204,7 +204,7 @@ More content after code block.
 ## Second Real Heading
 Content here.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         assert "Real Heading" in paths
         assert "Real Heading > Second Real Heading" in paths
@@ -232,7 +232,7 @@ Real content.
 ## Last Heading
 Final content.
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         assert "Top" in paths
         assert "Top > Middle Heading" in paths
@@ -248,7 +248,7 @@ key: value
 nested:
   - item
 ```"""
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         assert len(sections) == 1
         assert sections[0].heading_path == "Document"
         assert "key: value" in sections[0].content
@@ -264,7 +264,7 @@ def foo():
     pass
 ## Also inside unclosed block
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         paths = [s.heading_path for s in sections]
         assert "Real Heading" in paths
         assert not any("This is inside" in p for p in paths)
@@ -278,6 +278,79 @@ def foo():
 # install deps
 apt-get install python3
 """
-        sections = parse_markdown(text)
+        sections, fm = parse_markdown(text)
         assert len(sections) == 1
         assert sections[0].heading_path == "Setup"
+
+
+class TestFrontMatter:
+    def test_strip_front_matter(self):
+        text = """---
+layer: BL
+topic: "gRPC API"
+doc_number: "04a"
+related_docs:
+  - BL/03-SERVICE-REGISTRY.md
+  - MMSS/01-HTTP-REST-API.md
+chunking: heading
+---
+# Title
+Content here.
+"""
+        body, fm = strip_front_matter(text)
+        assert fm is not None
+        assert fm.layer == "BL"
+        assert fm.topic == "gRPC API"
+        assert fm.doc_number == "04a"
+        assert "BL/03-SERVICE-REGISTRY.md" in fm.related_docs
+        assert "MMSS/01-HTTP-REST-API.md" in fm.related_docs
+        assert fm.chunking == "heading"
+        assert "# Title" in body
+        assert "---" not in body.split("\n")[0]
+
+    def test_no_front_matter(self):
+        text = "# Just a heading\nSome text."
+        body, fm = strip_front_matter(text)
+        assert fm is None
+        assert body == text
+
+    def test_invalid_yaml_returns_none(self):
+        text = "---\n[invalid yaml: {{{\n---\n# Title\nContent."
+        body, fm = strip_front_matter(text)
+        assert fm is None
+
+    def test_parse_markdown_strips_front_matter(self):
+        text = """---
+layer: INTEGRATION
+topic: "Video Streaming API"
+doc_number: "11"
+related_docs:
+  - INTEGRATION/12-ARCHIVE-ACCESS.md
+chunking: heading
+---
+# Video Streaming API
+
+## RTSP Endpoints
+Content about RTSP.
+"""
+        sections, fm = parse_markdown(text)
+        assert fm is not None
+        assert fm.layer == "INTEGRATION"
+        assert fm.topic == "Video Streaming API"
+        paths = [s.heading_path for s in sections]
+        assert "Video Streaming API" in paths
+        for s in sections:
+            assert "---" not in s.content[:10]
+
+    def test_front_matter_not_in_chunk_content(self):
+        text = """---
+layer: BL
+topic: Test
+---
+# Title
+Real content only.
+"""
+        sections, fm = parse_markdown(text)
+        for s in sections:
+            assert "layer:" not in s.content
+            assert "topic:" not in s.content

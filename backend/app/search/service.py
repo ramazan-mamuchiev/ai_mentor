@@ -319,6 +319,10 @@ async def _bm25_search(
             c.token_count,
             c.doc_type,
             c.entities,
+            c.layer,
+            c.topic,
+            c.doc_number,
+            c.related_docs,
             d.title AS doc_title,
             p.name AS product_name,
             p.manufacturer,
@@ -346,6 +350,10 @@ async def _bm25_search(
             "token_count": row["token_count"],
             "doc_type": row["doc_type"] or "other",
             "entities": row["entities"] or {},
+            "layer": row["layer"],
+            "topic": row["topic"],
+            "doc_number": row["doc_number"],
+            "related_docs": row["related_docs"] or [],
             "doc_title": row["doc_title"],
             "product_name": row["product_name"],
             "manufacturer": row["manufacturer"],
@@ -364,6 +372,7 @@ async def search_documents(
     doc_context: str | None = None,
     doc_type: str | None = None,
     source_folder: str | None = None,
+    layer: str | None = None,
     limit: int = 5,
     metadata: dict | None = None,
     query_type: str | None = None,
@@ -406,6 +415,9 @@ async def search_documents(
     if source_folder:
         where_clauses.append("d.source_folder LIKE :source_folder")
         params["source_folder"] = f"%{source_folder}%"
+    if layer:
+        where_clauses.append("c.layer = :layer")
+        params["layer"] = layer
 
     where_sql = " AND ".join(where_clauses)
 
@@ -419,6 +431,10 @@ async def search_documents(
             c.token_count,
             c.doc_type,
             c.entities,
+            c.layer,
+            c.topic,
+            c.doc_number,
+            c.related_docs,
             d.title AS doc_title,
             p.name AS product_name,
             p.manufacturer,
@@ -453,6 +469,10 @@ async def search_documents(
             "token_count": row["token_count"],
             "doc_type": row["doc_type"] or "other",
             "entities": row["entities"] or {},
+            "layer": row["layer"],
+            "topic": row["topic"],
+            "doc_number": row["doc_number"],
+            "related_docs": row["related_docs"] or [],
             "doc_title": row["doc_title"],
             "product_name": row["product_name"],
             "manufacturer": row["manufacturer"],
@@ -616,6 +636,10 @@ async def search_endpoint(
             c.token_count,
             c.doc_type,
             c.entities,
+            c.layer,
+            c.topic,
+            c.doc_number,
+            c.related_docs,
             d.title AS doc_title,
             p.name AS product_name,
             p.manufacturer,
@@ -654,6 +678,10 @@ async def search_endpoint(
                 "token_count": row["token_count"],
                 "doc_type": row["doc_type"] or "other",
                 "entities": row["entities"] or {},
+                "layer": row["layer"],
+                "topic": row["topic"],
+                "doc_number": row["doc_number"],
+                "related_docs": row["related_docs"] or [],
                 "doc_title": row["doc_title"],
                 "product_name": row["product_name"],
                 "manufacturer": row["manufacturer"],

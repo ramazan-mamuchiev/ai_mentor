@@ -709,6 +709,58 @@ async def _decompose_query(
         return None
 
 
+async def _expand_related_docs(
+    db: AsyncSession,
+    chunks: list[dict],
+    query: str,
+    limit: int = 3,
+) -> list[dict]:
+    """Expand search results with chunks from related documents.
+
+    For each primary chunk that has ``related_docs`` metadata, fetch the most
+    relevant chunk from each related document and append it to the results.
+    Deduplicates by document_id so we don't add docs already present.
+    """
+    existing_doc_ids = {c.get("document_id") for c in chunks}
+    related_paths: set[str] = set()
+    for c in chunks:
+        for rd in c.get("related_docs") or []:
+            if rd:
+                related_paths.add(rd)
+
+    if not related_paths:
+        return chunks
+
+    expanded: list[dict] = []
+    for rel_path in list(related_paths)[:limit * 2]:
+        title_hint = rel_path.rsplit("/", 1)[-1].replace(".md", "").replace("-", " ")
+        try:
+            extra = await search_documents(
+                session=db,
+                query=query,
+                doc_context=title_hint,
+                limit=1,
+            )
+            for r in extra:
+                if r.get("document_id") not in existing_doc_ids:
+                    r["_cross_doc"] = True
+                    expanded.append(r)
+                    existing_doc_ids.add(r["document_id"])
+        except Exception:
+            logger.warning("Cross-doc expansion failed for %s", rel_path, exc_info=True)
+
+        if len(expanded) >= limit:
+            break
+
+    if expanded:
+        logger.info(
+            "Cross-document expansion",
+            extra={"related_paths": len(related_paths), "expanded_chunks": len(expanded)},
+        )
+
+    return chunks + expanded[:limit]
+
+
 async def _parallel_search(
     db: AsyncSession,
     sub_queries: list[str],
@@ -1088,6 +1140,9 @@ async def build_rag_prompt(
                     extra={"chunks_found": len(chunks), "top_sim": chunks[0]["similarity"]},
                 )
 
+    if chunks and settings.cross_doc_expansion_enabled:
+        chunks = await _expand_related_docs(db, chunks, search_query, limit=settings.cross_doc_expansion_limit)
+
     try:
         db.add(SearchAnalytics(
             source="chat",
@@ -1170,6 +1225,14 @@ async def build_rag_prompt(
     doc_types_found = set(c.get("doc_type", "other") for c in chunks)
     if doc_types_found - {"other"}:
         context_header += f"Source types: {', '.join(sorted(doc_types_found - {'other'}))}\n"
+
+    layers_found = {c.get("layer") for c in chunks if c.get("layer")}
+    if layers_found:
+        context_header += f"Architecture layers: {', '.join(sorted(layers_found))}\n"
+
+    cross_doc_count = sum(1 for c in chunks if c.get("_cross_doc"))
+    if cross_doc_count:
+        context_header += f"Cross-document expansion: {cross_doc_count} related chunks added\n"
 
     context_header += "\n"
     context_block = f"{context_header}{context}\n</documentation_context>"

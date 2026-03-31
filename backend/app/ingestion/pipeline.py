@@ -308,6 +308,24 @@ def enrich_for_embedding(
     return enriched
 
 
+def _prepend_context_header(sections: list, fm) -> None:
+    """Prepend ``[layer] topic >`` to heading_path of each section when front matter is available."""
+    prefix_parts: list[str] = []
+    if fm.layer:
+        prefix_parts.append(f"[{fm.layer}]")
+    if fm.topic:
+        prefix_parts.append(fm.topic)
+    if not prefix_parts:
+        return
+    prefix = " ".join(prefix_parts)
+    for s in sections:
+        hp = getattr(s, "heading_path", "")
+        if hp and hp not in ("Preamble", "Document"):
+            s.heading_path = f"{prefix} > {hp}"
+        elif hp in ("Preamble", "Document"):
+            s.heading_path = prefix
+
+
 def _replace_generic_headings(sections: list, title: str) -> list:
     """Replace 'Document' and 'Preamble' heading_paths with the actual document title."""
     for s in sections:
@@ -381,8 +399,9 @@ def detect_format(file_path: str, content_path: str | None = None) -> str:
 
 
 def _parse_content(text: str, fmt: str, file_path: str):
+    """Parse text into sections. Returns (sections, front_matter | None)."""
     if fmt == "swagger":
-        return parse_swagger(text, file_path)
+        return parse_swagger(text, file_path), None
     return parse_markdown(text)
 
 
@@ -557,8 +576,10 @@ async def ingest_file(
             doc.detected_language = doc_language
 
         t_parse = time.perf_counter()
-        sections = _parse_content(text, fmt_effective, file_path)
+        sections, front_matter = _parse_content(text, fmt_effective, file_path)
         _replace_generic_headings(sections, title)
+        if front_matter and front_matter.topic:
+            _prepend_context_header(sections, front_matter)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -579,6 +600,7 @@ async def ingest_file(
             extra={
                 "sections": len(sections), "chunks": len(chunks),
                 "parse_ms": parse_ms, "read_ms": read_ms,
+                "front_matter": bool(front_matter),
             },
         )
 
@@ -596,6 +618,11 @@ async def ingest_file(
         embeddings, embedding_api_tokens = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
+        fm_layer = front_matter.layer if front_matter else None
+        fm_topic = front_matter.topic if front_matter else None
+        fm_doc_number = front_matter.doc_number if front_matter else None
+        fm_related = front_matter.related_docs if front_matter else None
+
         t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
             meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
@@ -612,6 +639,10 @@ async def ingest_file(
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
                 language=doc_language,
+                layer=fm_layer,
+                topic=fm_topic,
+                doc_number=fm_doc_number,
+                related_docs=fm_related,
             )
             session.add(db_chunk)
 
@@ -802,8 +833,10 @@ async def ingest_url(
 
     try:
         t_parse = time.perf_counter()
-        sections = parse_markdown(text)
+        sections, front_matter = parse_markdown(text)
         _replace_generic_headings(sections, title)
+        if front_matter and front_matter.topic:
+            _prepend_context_header(sections, front_matter)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -833,6 +866,11 @@ async def ingest_url(
         embeddings, embedding_api_tokens = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
+        fm_layer = front_matter.layer if front_matter else None
+        fm_topic = front_matter.topic if front_matter else None
+        fm_doc_number = front_matter.doc_number if front_matter else None
+        fm_related = front_matter.related_docs if front_matter else None
+
         t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
             meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
@@ -848,6 +886,10 @@ async def ingest_url(
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
+                layer=fm_layer,
+                topic=fm_topic,
+                doc_number=fm_doc_number,
+                related_docs=fm_related,
             )
             session.add(db_chunk)
 
@@ -1125,9 +1167,11 @@ def ingest_from_bytes(
 
     try:
         t_parse = time.perf_counter()
-        sections = _parse_content(text, fmt_effective, file_path)
+        sections, front_matter = _parse_content(text, fmt_effective, file_path)
         doc_title = document.title or os.path.splitext(os.path.basename(original_filename or file_path))[0]
         _replace_generic_headings(sections, doc_title)
+        if front_matter and front_matter.topic:
+            _prepend_context_header(sections, front_matter)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -1200,6 +1244,11 @@ def ingest_from_bytes(
         _check_cancelled(session, document)
         _update_progress(session, document, 92, "storing")
 
+        fm_layer = front_matter.layer if front_matter else None
+        fm_topic = front_matter.topic if front_matter else None
+        fm_doc_number = front_matter.doc_number if front_matter else None
+        fm_related = front_matter.related_docs if front_matter else None
+
         t_db = time.perf_counter()
         from sqlalchemy import select as sa_select
         existing_chunks = session.execute(
@@ -1224,6 +1273,10 @@ def ingest_from_bytes(
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
                 language=doc_language,
+                layer=fm_layer,
+                topic=fm_topic,
+                doc_number=fm_doc_number,
+                related_docs=fm_related,
             )
             session.add(db_chunk)
 

@@ -888,7 +888,7 @@ def ingest_single_url_task(self, document_id: int):
 
         try:
             t_parse = time.perf_counter()
-            sections = parse_markdown(text)
+            sections, _fm = parse_markdown(text)
             _replace_generic_headings(sections, page_title)
             chunks = chunk_sections(sections)
             parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
