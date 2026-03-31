@@ -50,6 +50,9 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
       el.setSelectionRange(el.value.length, el.value.length)
       el.style.height = 'auto'
       el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+      setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 300)
     }
   }, [isEditing])
 
