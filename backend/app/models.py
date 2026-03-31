@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pgvector.sqlalchemy import Vector
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Numeric, Text, UniqueConstraint, text
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -279,6 +279,7 @@ class Chunk(Base):
     embedding = mapped_column(Vector(1024))
     doc_type: Mapped[str] = mapped_column(Text, default="other")
     entities: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

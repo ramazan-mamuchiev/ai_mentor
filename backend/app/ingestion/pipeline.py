@@ -551,6 +551,11 @@ async def ingest_file(
     await session.flush()
 
     try:
+        from app.ingestion.lang_detect import detect_language
+        doc_language = detect_language(text)
+        if not doc.detected_language:
+            doc.detected_language = doc_language
+
         t_parse = time.perf_counter()
         sections = _parse_content(text, fmt_effective, file_path)
         _replace_generic_headings(sections, title)
@@ -606,6 +611,7 @@ async def ingest_file(
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
+                language=doc_language,
             )
             session.add(db_chunk)
 
@@ -1109,6 +1115,11 @@ def ingest_from_bytes(
         except Exception:
             logger.warning("Failed to save converted MD to S3", extra={"document_id": document.id}, exc_info=True)
 
+    from app.ingestion.lang_detect import detect_language
+    doc_language = detect_language(text)
+    if not document.detected_language:
+        document.detected_language = doc_language
+
     _check_cancelled(session, document)
     _update_progress(session, document, 45, "chunking")
 
@@ -1212,6 +1223,7 @@ def ingest_from_bytes(
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
+                language=doc_language,
             )
             session.add(db_chunk)
 

@@ -147,11 +147,14 @@ CREATE INDEX IF NOT EXISTS idx_chunks_entities ON chunks USING gin(entities json
 
 -- Full-text search column (BM25 via tsvector for hybrid search)
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS language VARCHAR(10);
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv_lang tsvector;
 
 CREATE OR REPLACE FUNCTION chunks_tsv_trigger() RETURNS trigger AS $$
 DECLARE
     entity_text TEXT := '';
     kw TEXT;
+    lang_config REGCONFIG;
 BEGIN
     IF NEW.entities IS NOT NULL AND NEW.entities != '{}' THEN
         FOR kw IN SELECT jsonb_array_elements_text(v)
@@ -162,17 +165,33 @@ BEGIN
         END LOOP;
     END IF;
 
+    -- Simple tsvector (no stemming, exact term matching)
     NEW.tsv :=
         setweight(to_tsvector('simple', COALESCE(NEW.heading_path, '')), 'A') ||
         setweight(to_tsvector('simple', entity_text), 'B') ||
         setweight(to_tsvector('simple', COALESCE(NEW.doc_type, '')), 'B') ||
         setweight(to_tsvector('simple', COALESCE(NEW.content_clean, NEW.content, '')), 'C');
+
+    -- Language-aware tsvector (with stemming)
+    IF NEW.language = 'ru' THEN
+        lang_config := 'russian';
+    ELSIF NEW.language = 'en' THEN
+        lang_config := 'english';
+    ELSE
+        lang_config := 'simple';
+    END IF;
+
+    NEW.tsv_lang :=
+        setweight(to_tsvector(lang_config, COALESCE(NEW.heading_path, '')), 'A') ||
+        setweight(to_tsvector(lang_config, entity_text), 'B') ||
+        setweight(to_tsvector(lang_config, COALESCE(NEW.content_clean, NEW.content, '')), 'C');
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_chunks_tsv ON chunks;
-CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path, doc_type, entities ON chunks
+CREATE TRIGGER trg_chunks_tsv BEFORE INSERT OR UPDATE OF content, content_clean, heading_path, doc_type, entities, language ON chunks
     FOR EACH ROW EXECUTE FUNCTION chunks_tsv_trigger();
 
 -- Backfill existing rows that lack tsv (using 'simple' config with setweight for multilingual support)
@@ -184,6 +203,8 @@ WHERE tsv IS NULL;
 
 -- GIN index for full-text search
 CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON chunks USING gin(tsv);
+CREATE INDEX IF NOT EXISTS idx_chunks_tsv_lang ON chunks USING gin(tsv_lang);
+CREATE INDEX IF NOT EXISTS idx_chunks_language ON chunks(language);
 
 -- HNSW vector index (cosine similarity)
 CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks

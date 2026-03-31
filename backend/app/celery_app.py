@@ -2755,3 +2755,106 @@ def cleanup_expired_shares_task(self):
         logger.info("Cleaned up expired/deactivated shared links", extra={"count": deleted})
 
 
+@celery.task(name="backfill_chunk_languages", bind=True)
+def backfill_chunk_languages_task(self):
+    """One-shot task: detect language for documents missing it and
+    backfill ``chunks.language`` so the ``tsv_lang`` trigger fires.
+    """
+    from sqlalchemy import select as sa_select, update as sa_update
+    from app.models import Document, Chunk
+    from app.ingestion.lang_detect import detect_language
+
+    engine = _get_sync_engine()
+    updated_docs = 0
+    updated_chunks = 0
+    batch_size = 100
+
+    with Session(engine) as session:
+        docs_no_lang = session.execute(
+            sa_select(Document.id).where(
+                Document.status == "ready",
+                Document.detected_language.is_(None),
+            )
+        ).scalars().all()
+
+        docs_with_lang_but_no_chunks = session.execute(
+            sa_select(Document.id).where(
+                Document.status == "ready",
+                Document.detected_language.isnot(None),
+            ).where(
+                ~Document.id.in_(
+                    sa_select(Chunk.document_id)
+                    .where(Chunk.language.isnot(None))
+                    .distinct()
+                )
+            )
+        ).scalars().all()
+
+    doc_ids_detect = list(docs_no_lang)
+    doc_ids_propagate = list(docs_with_lang_but_no_chunks)
+
+    logger.info("backfill_chunk_languages: starting",
+                extra={"docs_need_detection": len(doc_ids_detect),
+                       "docs_need_propagation": len(doc_ids_propagate)})
+
+    for offset in range(0, len(doc_ids_detect), batch_size):
+        batch_ids = doc_ids_detect[offset : offset + batch_size]
+        with Session(engine) as session:
+            for doc_id in batch_ids:
+                first_chunk = session.execute(
+                    sa_select(Chunk.content)
+                    .where(Chunk.document_id == doc_id)
+                    .order_by(Chunk.chunk_index)
+                    .limit(1)
+                ).scalar_one_or_none()
+
+                if not first_chunk:
+                    continue
+
+                lang = detect_language(first_chunk)
+
+                session.execute(
+                    sa_update(Document)
+                    .where(Document.id == doc_id)
+                    .values(detected_language=lang)
+                )
+                cnt = session.execute(
+                    sa_update(Chunk)
+                    .where(Chunk.document_id == doc_id)
+                    .values(language=lang)
+                ).rowcount
+                updated_docs += 1
+                updated_chunks += cnt
+
+            session.commit()
+
+    for offset in range(0, len(doc_ids_propagate), batch_size):
+        batch_ids = doc_ids_propagate[offset : offset + batch_size]
+        with Session(engine) as session:
+            for doc_id in batch_ids:
+                lang = session.execute(
+                    sa_select(Document.detected_language)
+                    .where(Document.id == doc_id)
+                ).scalar_one_or_none()
+
+                if not lang:
+                    continue
+
+                cnt = session.execute(
+                    sa_update(Chunk)
+                    .where(Chunk.document_id == doc_id)
+                    .values(language=lang)
+                ).rowcount
+                updated_docs += 1
+                updated_chunks += cnt
+
+            session.commit()
+
+        logger.info("backfill_chunk_languages: progress",
+                    extra={"docs_done": updated_docs, "chunks_done": updated_chunks,
+                           "total_docs": len(doc_ids)})
+
+    logger.info("backfill_chunk_languages: completed",
+                extra={"docs_updated": updated_docs, "chunks_updated": updated_chunks})
+
+

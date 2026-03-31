@@ -290,10 +290,24 @@ async def _bm25_search(
     params: dict,
     fetch_limit: int,
 ) -> list[dict]:
-    """Full-text search using PostgreSQL tsvector/tsquery."""
+    """Full-text search using PostgreSQL tsvector/tsquery.
+
+    When ``multilang_bm25_enabled`` the search targets the *stemmed*
+    ``tsv_lang`` column with a combined tsquery (simple | english | russian)
+    so that morphological forms are matched correctly.
+    """
     bm25_params = {**params, "tsquery": query}
 
-    tsquery_expr = "plainto_tsquery('simple', :tsquery)"
+    if settings.multilang_bm25_enabled:
+        tsquery_expr = (
+            "(plainto_tsquery('simple', :tsquery)"
+            " || plainto_tsquery('english', :tsquery)"
+            " || plainto_tsquery('russian', :tsquery))"
+        )
+        tsv_col = "c.tsv_lang"
+    else:
+        tsquery_expr = "plainto_tsquery('simple', :tsquery)"
+        tsv_col = "c.tsv"
 
     sql = text(f"""
         SELECT
@@ -309,13 +323,13 @@ async def _bm25_search(
             p.name AS product_name,
             p.manufacturer,
             fw.version AS firmware_version,
-            ts_rank_cd(c.tsv, {tsquery_expr}) AS bm25_score
+            ts_rank_cd({tsv_col}, {tsquery_expr}) AS bm25_score
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
         JOIN products p ON d.product_id = p.id
         JOIN firmware_versions fw ON d.firmware_version_id = fw.id
         WHERE {where_sql}
-          AND c.tsv @@ {tsquery_expr}
+          AND {tsv_col} @@ {tsquery_expr}
         ORDER BY bm25_score DESC
         LIMIT :limit
     """)

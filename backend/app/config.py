@@ -74,6 +74,8 @@ class Settings(BaseSettings):
 
     doc_type_boost_enabled: bool = True
 
+    multilang_bm25_enabled: bool = True
+
     chunk_max_tokens: int = 512
     chunk_min_tokens: int = 50
     chunk_overlap_paragraphs: int = 2
