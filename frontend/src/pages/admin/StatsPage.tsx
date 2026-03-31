@@ -115,7 +115,7 @@ function TenantFilter({ value, onChange, t }: {
   }, [])
 
   return (
-    <div ref={ref} style={{ position: 'relative', minWidth: 240 }}>
+    <div ref={ref} style={{ position: 'relative' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Users size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
         <input
@@ -129,11 +129,8 @@ function TenantFilter({ value, onChange, t }: {
             setOpen(true)
           }}
           onFocus={() => { if (results.length) setOpen(true) }}
-          style={{
-            padding: '4px 10px', fontSize: 11, border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)', background: 'var(--surface)', color: 'var(--text)',
-            width: 220, outline: 'none',
-          }}
+          className="admin-btn admin-btn--sm"
+          style={{ width: 220, fontWeight: 400, cursor: 'text', textAlign: 'left' }}
         />
         {selected && (
           <button
