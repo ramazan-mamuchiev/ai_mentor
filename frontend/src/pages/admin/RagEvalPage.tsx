@@ -46,13 +46,13 @@ function fmtPct(val: number | null | undefined): string {
   return `${(val * 100).toFixed(1)}%`
 }
 
-function DeltaBadge({ current, previous }: { current: number | null; previous: number | null }) {
+function DeltaBadge({ current, previous, t }: { current: number | null; previous: number | null; t: (k: string) => string }) {
   if (current == null || previous == null) return null
   const d = current - previous
-  if (Math.abs(d) < 0.005) return <span className="stat-card__sub">stable</span>
+  if (Math.abs(d) < 0.005) return <span className="stat-card__sub">{t('admin.ragEval.stable')}</span>
   const sign = d > 0 ? '+' : ''
   const color = d > 0 ? 'var(--success)' : 'var(--danger)'
-  return <span className="stat-card__sub" style={{ color }}>{sign}{d.toFixed(2)} vs prev</span>
+  return <span className="stat-card__sub" style={{ color }}>{sign}{d.toFixed(2)} {t('admin.ragEval.vsPrevious')}</span>
 }
 
 function StatCard({ label, value, sub, variant }: {
@@ -268,25 +268,25 @@ export function RagEvalPage() {
             <StatCard
               label={t('admin.ragEval.contextPrecision')}
               value={fmtMetric(data.context_precision)}
-              sub={<DeltaBadge current={data.context_precision} previous={previous?.context_precision ?? null} />}
+              sub={<DeltaBadge current={data.context_precision} previous={previous?.context_precision ?? null} t={t} />}
               variant={data.context_precision != null && data.context_precision >= 0.8 ? 'success' : undefined}
             />
             <StatCard
               label={t('admin.ragEval.faithfulness')}
               value={fmtMetric(data.faithfulness)}
-              sub={<DeltaBadge current={data.faithfulness} previous={previous?.faithfulness ?? null} />}
+              sub={<DeltaBadge current={data.faithfulness} previous={previous?.faithfulness ?? null} t={t} />}
               variant={data.faithfulness != null && data.faithfulness >= 0.8 ? 'success' : undefined}
             />
             <StatCard
               label={t('admin.ragEval.mrr')}
               value={fmtMetric(data.mrr)}
-              sub={<DeltaBadge current={data.mrr} previous={previous?.mrr ?? null} />}
+              sub={<DeltaBadge current={data.mrr} previous={previous?.mrr ?? null} t={t} />}
               variant={data.mrr != null && data.mrr >= 0.8 ? 'success' : undefined}
             />
             <StatCard
               label={t('admin.ragEval.feedbackScore')}
               value={fmtPct(data.feedback_positive_rate)}
-              sub={<DeltaBadge current={data.feedback_positive_rate} previous={previous?.feedback_positive_rate ?? null} />}
+              sub={<DeltaBadge current={data.feedback_positive_rate} previous={previous?.feedback_positive_rate ?? null} t={t} />}
               variant={data.feedback_positive_rate != null && data.feedback_positive_rate >= 0.8 ? 'success' : undefined}
             />
             <StatCard
@@ -354,11 +354,11 @@ export function RagEvalPage() {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>Query Type</th>
-                        <th>Queries</th>
-                        <th>Empty Rate</th>
-                        <th>Avg Similarity</th>
-                        <th>Avg E2E ms</th>
+                        <th>{t('admin.ragEval.col.queryType')}</th>
+                        <th>{t('admin.ragEval.col.queries')}</th>
+                        <th>{t('admin.ragEval.col.emptyRate')}</th>
+                        <th>{t('admin.ragEval.col.avgSimilarity')}</th>
+                        <th>{t('admin.ragEval.col.avgE2e')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -435,9 +435,9 @@ export function RagEvalPage() {
           <div className="stats-grid">
             <StatCard label={t('admin.ragEval.totalVectors')} value={data.vector_count?.toLocaleString() ?? '—'} />
             <StatCard label={t('admin.ragEval.hnswIndex')} value={data.hnsw_index_size_mb != null ? `${data.hnsw_index_size_mb.toFixed(0)} MB` : '—'} />
-            <StatCard label={t('admin.ragEval.vectorSearch')} value={data.vector_search_ms != null ? `${data.vector_search_ms.toFixed(1)}ms` : '—'} sub="top-10, warm cache" />
-            <StatCard label="E2E Latency p50" value={data.e2e_latency_p50_ms != null ? `${(data.e2e_latency_p50_ms / 1000).toFixed(1)}s` : '—'} />
-            <StatCard label="E2E Latency p95" value={data.e2e_latency_p95_ms != null ? `${(data.e2e_latency_p95_ms / 1000).toFixed(1)}s` : '—'} />
+            <StatCard label={t('admin.ragEval.vectorSearch')} value={data.vector_search_ms != null ? `${data.vector_search_ms.toFixed(1)}ms` : '—'} sub={t('admin.ragEval.warmCache')} />
+            <StatCard label={t('admin.ragEval.e2eLatencyP50')} value={data.e2e_latency_p50_ms != null ? `${(data.e2e_latency_p50_ms / 1000).toFixed(1)}s` : '—'} />
+            <StatCard label={t('admin.ragEval.e2eLatencyP95')} value={data.e2e_latency_p95_ms != null ? `${(data.e2e_latency_p95_ms / 1000).toFixed(1)}s` : '—'} />
           </div>
         </>
       )}
@@ -455,11 +455,11 @@ export function RagEvalPage() {
                     <th>{t('admin.ragEval.status')}</th>
                     <th>{t('admin.ragEval.duration')}</th>
                     <th>{t('admin.ragEval.sampleSize')}</th>
-                    <th>Precision</th>
-                    <th>Faithful.</th>
-                    <th>MRR</th>
-                    <th>Feedback</th>
-                    <th>Vector ms</th>
+                    <th>{t('admin.ragEval.col.precision')}</th>
+                    <th>{t('admin.ragEval.col.faithful')}</th>
+                    <th>{t('admin.ragEval.col.mrr')}</th>
+                    <th>{t('admin.ragEval.col.feedback')}</th>
+                    <th>{t('admin.ragEval.col.vectorMs')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -498,10 +498,10 @@ export function RagEvalPage() {
                   <tr>
                     <th>#</th>
                     <th>{t('admin.ragEval.question')}</th>
-                    <th>Type</th>
-                    <th>Faithful.</th>
-                    <th>Precision</th>
-                    <th>Similarity</th>
+                    <th>{t('admin.ragEval.col.type')}</th>
+                    <th>{t('admin.ragEval.col.faithful')}</th>
+                    <th>{t('admin.ragEval.col.precision')}</th>
+                    <th>{t('admin.ragEval.col.similarity')}</th>
                     <th />
                   </tr>
                 </thead>
@@ -532,9 +532,9 @@ export function RagEvalPage() {
                                 <p>{s.answer}</p>
                               </div>
                               <div className="rag-eval-sample-meta">
-                                <span>Chunks: {s.chunks_count}</span>
-                                <span>Product: {s.product_filter ?? '—'}</span>
-                                <span>Top similarity: {s.top_similarity?.toFixed(3)}</span>
+                                <span>{t('admin.ragEval.chunks')}: {s.chunks_count}</span>
+                                <span>{t('admin.ragEval.product')}: {s.product_filter ?? '—'}</span>
+                                <span>{t('admin.ragEval.topSimilarity')}: {s.top_similarity?.toFixed(3)}</span>
                               </div>
                             </div>
                           </td>
