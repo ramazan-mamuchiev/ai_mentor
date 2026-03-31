@@ -3,6 +3,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy import case, delete, func, select
 
 from fastapi import Query as QueryParam
@@ -369,32 +370,30 @@ async def update_product(product_id: int, body: ProductUpdate):
 
 @router.delete("/{product_id}", dependencies=[Depends(require_permission("products.delete"))])
 async def delete_product(product_id: int):
-    """Delete a product and all its documents (cascade)."""
-    from app.s3 import delete_file
-
+    """Enqueue async product deletion. Returns 202 immediately."""
     async with async_session() as session:
         product = await _get_product(session, product_id)
 
-        docs_result = await session.execute(
-            select(Document).where(Document.product_id == product_id)
-        )
-        docs = docs_result.scalars().all()
-        for doc in docs:
-            if doc.s3_key:
-                try:
-                    delete_file(doc.s3_key)
-                except Exception as e:
-                    logger.warning("Failed to delete S3 file", extra={"s3_key": doc.s3_key, "error": str(e)})
+        if product.sync_status == "deleting":
+            raise HTTPException(status_code=409, detail="Product is already being deleted")
 
-        await session.delete(product)
+        doc_count = await session.scalar(
+            select(func.count()).select_from(Document).where(Document.product_id == product_id)
+        ) or 0
+
+        product.sync_status = "deleting"
         await session.commit()
 
-        logger.info("Product deleted", extra={"product_id": product_id, "documents_deleted": len(docs)})
-        return {
-            "product_id": product_id,
-            "deleted": True,
-            "documents_deleted": len(docs),
-        }
+    from app.celery_app import celery
+    task = celery.send_task("delete_product", args=[product_id])
+
+    logger.info("Product deletion queued",
+                extra={"product_id": product_id, "task_id": task.id, "total_documents": doc_count})
+    return JSONResponse(status_code=202, content={
+        "product_id": product_id,
+        "task_id": task.id,
+        "total_documents": doc_count,
+    })
 
 
 _PLACEHOLDER_FORMATS = {"site", "confluence", "url", "github"}

@@ -629,6 +629,7 @@
   "products.sync.confirm": "Синхронизировать",
   "products.status.syncing": "Синхронизация…",
   "products.status.reindexing": "Переиндексация…",
+  "products.status.deleting": "Удаление…",
   "products.actions.cancelIngestion": "Остановить индексирование",
   "products.cancelIngestion.title": "Остановить индексирование",
   "products.cancelIngestion.message": "Индексирование всех ожидающих и обрабатываемых документов этого продукта будет остановлено.",

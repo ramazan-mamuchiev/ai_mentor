@@ -901,6 +901,11 @@
   color: #aaa;
 }
 
+.docs-status--deleting {
+  background: var(--error-light);
+  color: var(--error);
+}
+
 /* ── Product aggregated status counters ── */
 
 .product-status-summary {

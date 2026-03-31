@@ -2492,6 +2492,88 @@ def run_rag_evaluation_task(self, run_id: int):
         raise
 
 
+@celery.task(name="delete_product", bind=True, acks_late=False)
+def delete_product_task(self, product_id: int):
+    """Delete all documents (S3 files + DB rows) of a product, then the product itself.
+
+    Runs as a background Celery task so the API can return 202 immediately.
+    Documents are processed in batches to avoid holding a huge transaction.
+    """
+    from sqlalchemy import select as sa_sel, func as sa_func, delete as sa_del
+    from app.models import Product, Document, Chunk
+    from app.s3 import delete_file
+
+    BATCH_SIZE = 500
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        total = session.scalar(
+            sa_sel(sa_func.count()).select_from(Document).where(Document.product_id == product_id)
+        ) or 0
+
+        task_ids: list[str] = []
+        active_docs = session.execute(
+            sa_sel(Document.celery_task_id).where(
+                Document.product_id == product_id,
+                Document.status.in_(["pending", "processing"]),
+                Document.celery_task_id.isnot(None),
+            )
+        ).scalars().all()
+        task_ids = [tid for tid in active_docs if tid]
+
+    if task_ids:
+        try:
+            for tid in task_ids:
+                celery.control.revoke(tid, terminate=True)
+        except Exception:
+            logger.warning("delete_product: failed to revoke active tasks",
+                           extra={"product_id": product_id, "task_ids": task_ids})
+
+    deleted_count = 0
+    try:
+        while True:
+            with Session(engine) as session:
+                docs = session.execute(
+                    sa_sel(Document).where(Document.product_id == product_id).limit(BATCH_SIZE)
+                ).scalars().all()
+                if not docs:
+                    break
+
+                for doc in docs:
+                    for key in (doc.s3_key, doc.converted_s3_key):
+                        if key:
+                            try:
+                                delete_file(key)
+                            except Exception as e:
+                                logger.warning("delete_product: S3 cleanup failed",
+                                               extra={"s3_key": key, "error": str(e)})
+
+                    session.execute(sa_del(Chunk).where(Chunk.document_id == doc.id))
+                    session.delete(doc)
+
+                session.commit()
+                deleted_count += len(docs)
+
+        with Session(engine) as session:
+            product = session.get(Product, product_id)
+            if product:
+                session.delete(product)
+                session.commit()
+
+        logger.info("delete_product: completed",
+                     extra={"product_id": product_id, "documents_deleted": deleted_count, "total": total})
+    except Exception:
+        logger.error("delete_product: failed",
+                      extra={"product_id": product_id, "deleted_so_far": deleted_count},
+                      exc_info=True)
+        with Session(engine) as session:
+            product = session.get(Product, product_id)
+            if product and product.sync_status == "deleting":
+                product.sync_status = "idle"
+                session.commit()
+        raise
+
+
 @celery.task(name="cleanup_expired_shares", bind=True)
 def cleanup_expired_shares_task(self):
     """Periodic task: delete expired and old deactivated shared links."""

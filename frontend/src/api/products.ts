@@ -23,8 +23,14 @@ export async function updateProduct(
   })
 }
 
-export async function deleteProduct(productId: number): Promise<void> {
-  return apiFetch<void>(`/products/${productId}`, { method: 'DELETE' })
+export interface DeleteProductResult {
+  product_id: number
+  task_id: string
+  total_documents: number
+}
+
+export async function deleteProduct(productId: number): Promise<DeleteProductResult> {
+  return apiFetch<DeleteProductResult>(`/products/${productId}`, { method: 'DELETE' })
 }
 
 export async function reingestProduct(productId: number): Promise<{ product_id: number; status: string; documents_queued: number }> {

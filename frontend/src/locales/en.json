@@ -592,6 +592,7 @@
   "products.delete.message": "This product and all its documents will be permanently deleted. This action cannot be undone.",
   "products.delete.confirm": "Delete",
   "products.delete.cancel": "Cancel",
+  "products.status.deleting": "Deleting…",
   "products.reingest.title": "Reindex product",
   "products.reingest.message": "All documents of this product will be re-processed (parsed, chunked, and re-embedded). Pending documents will be pushed through.",
   "products.reingest.confirm": "Reindex",

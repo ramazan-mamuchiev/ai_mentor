@@ -58,11 +58,14 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
   const total = product.total_documents
 
   if (product.sync_status && product.sync_status !== 'idle') {
-    const labelKey = product.sync_status === 'syncing'
-      ? 'products.status.syncing'
-      : 'products.status.reindexing'
+    const labelKey = product.sync_status === 'deleting'
+      ? 'products.status.deleting'
+      : product.sync_status === 'syncing'
+        ? 'products.status.syncing'
+        : 'products.status.reindexing'
+    const variant = product.sync_status === 'deleting' ? 'deleting' : 'processing'
     return (
-      <span className="docs-status docs-status--processing">
+      <span className={`docs-status docs-status--${variant}`}>
         <Loader2 size={14} className="spin-icon" />
         {t(labelKey)}
       </span>
@@ -294,7 +297,9 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     if (!deleteTarget) return
     try {
       await deleteProduct(deleteTarget.id)
-      setProducts(prev => prev.filter(p => p.id !== deleteTarget.id))
+      setProducts(prev => prev.map(p =>
+        p.id === deleteTarget.id ? { ...p, sync_status: 'deleting' } : p
+      ))
     } catch { /* ignore */ }
     finally { setDeleteTarget(null) }
   }, [deleteTarget])
@@ -382,18 +387,21 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       id: 'name',
       accessorFn: row => row.display_name || row.name,
       header: () => t('products.table.name'),
-      cell: ({ row }) => (
-        <div
-          className="docs-name-cell"
-          style={{ cursor: 'pointer' }}
-          onClick={() => navigate(`/app/products/${row.original.slug}`)}
-        >
-          <span className="docs-name">{row.original.display_name || row.original.name}</span>
-          {row.original.manufacturer && (
-            <span className="docs-filename">{row.original.manufacturer}</span>
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const isDeleting = row.original.sync_status === 'deleting'
+        return (
+          <div
+            className="docs-name-cell"
+            style={{ cursor: isDeleting ? 'default' : 'pointer', opacity: isDeleting ? 0.5 : 1 }}
+            onClick={isDeleting ? undefined : () => navigate(`/app/products/${row.original.slug}`)}
+          >
+            <span className="docs-name">{row.original.display_name || row.original.name}</span>
+            {row.original.manufacturer && (
+              <span className="docs-filename">{row.original.manufacturer}</span>
+            )}
+          </div>
+        )
+      },
       enableGrouping: true,
     },
     {
@@ -484,6 +492,8 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       cell: ({ row }: { row: { original: ProductListItem } }) => {
         const p = row.original
+        const isDeleting = p.sync_status === 'deleting'
+        if (isDeleting) return null
         return <ProductActions product={p} onEdit={canEdit ? setEditTarget : undefined} onDelete={canDelete ? setDeleteTarget : undefined} onReingest={canReindex ? setReingestTarget : undefined} onSync={canSync ? setSyncTarget : undefined} onDebug={canDebug ? openDebug : undefined} />
       },
     }] : []),
@@ -666,8 +676,8 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
             <div
               className="docs-card"
               key={p.firmware_version_id ? `${p.id}-${p.firmware_version_id}` : p.id}
-              onClick={() => navigate(`/app/products/${p.slug}`)}
-              style={{ cursor: 'pointer' }}
+              onClick={p.sync_status === 'deleting' ? undefined : () => navigate(`/app/products/${p.slug}`)}
+              style={{ cursor: p.sync_status === 'deleting' ? 'default' : 'pointer', opacity: p.sync_status === 'deleting' ? 0.5 : 1 }}
             >
               <div className="docs-card-header">
                 <div className="docs-card-title">
