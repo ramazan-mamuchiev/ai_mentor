@@ -990,6 +990,7 @@
   "admin.tenantDetail.name": "Name",
   "admin.tenantDetail.slug": "Slug",
   "admin.tenantDetail.emailVerified": "Email verified",
+  "admin.tenantDetail.emailNotVerified": "Email not verified",
   "admin.tenantDetail.yes": "Yes",
   "admin.tenantDetail.no": "No",
   "admin.tenantDetail.created": "Created",

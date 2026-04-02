@@ -1041,6 +1041,7 @@
   "admin.tenantDetail.name": "Имя",
   "admin.tenantDetail.slug": "Slug",
   "admin.tenantDetail.emailVerified": "Email подтверждён",
+  "admin.tenantDetail.emailNotVerified": "Email не подтверждён",
   "admin.tenantDetail.yes": "Да",
   "admin.tenantDetail.no": "Нет",
   "admin.tenantDetail.created": "Создан",
