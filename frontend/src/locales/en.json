@@ -784,6 +784,7 @@
   "auth.registerError": "Registration failed",
   "auth.loginError": "Invalid email or password",
   "auth.emailDomainHint": "Only @axxonsoft.dev email addresses are allowed",
+  "auth.domainRestricted": "Access is restricted to @axxonsoft.dev email addresses only",
 
   "onboarding.title": "Welcome to Lexiro!",
   "onboarding.subtitle": "Your workspace is ready ({{email}}). Here's how to get started:",

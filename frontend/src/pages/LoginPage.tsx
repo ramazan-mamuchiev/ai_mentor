@@ -27,7 +27,8 @@ export function LoginPage() {
       await login(email, password)
       navigate('/app')
     } catch (err: any) {
-      setError(err.message || t('auth.loginError'))
+      const msg = err.message || ''
+      setError(msg.includes('restricted') ? t('auth.domainRestricted') : msg || t('auth.loginError'))
     } finally {
       setLoading(false)
     }

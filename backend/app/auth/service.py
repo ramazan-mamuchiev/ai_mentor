@@ -56,7 +56,7 @@ def _validate_email_domain(email: str) -> None:
         from fastapi import HTTPException, status
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            f"Registration is restricted to @{domain} email addresses",
+            f"Access is restricted to @{domain} email addresses only",
         )
 
 
@@ -110,6 +110,8 @@ async def authenticate_tenant(
     session: AsyncSession,
 ) -> Tenant:
     """Verify email+password. Raises HTTPException on failure."""
+    _validate_email_domain(email)
+
     result = await session.execute(
         select(Tenant).where(Tenant.email == email, Tenant.is_active.is_(True))
     )

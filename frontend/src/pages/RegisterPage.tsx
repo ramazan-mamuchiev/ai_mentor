@@ -28,7 +28,8 @@ export function RegisterPage() {
       await register(email, password, name || undefined)
       navigate('/app?onboarding=true')
     } catch (err: any) {
-      setError(err.message || t('auth.registerError'))
+      const msg = err.message || ''
+      setError(msg.includes('restricted') ? t('auth.domainRestricted') : msg || t('auth.registerError'))
     } finally {
       setLoading(false)
     }
