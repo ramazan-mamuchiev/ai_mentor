@@ -835,6 +835,16 @@
   "auth.emailDomainHint": "Разрешены только адреса @axxonsoft.dev",
   "auth.domainRestricted": "Доступ ограничен — разрешены только адреса @axxonsoft.dev",
 
+  "verify.title": "Подтвердите email",
+  "verify.subtitle": "Мы отправили ссылку на {{email}}. Проверьте почту и перейдите по ссылке.",
+  "verify.resend": "Отправить повторно",
+  "verify.resent": "Письмо отправлено!",
+  "verify.verifying": "Проверяем...",
+  "verify.success": "Email подтверждён!",
+  "verify.expired": "Ссылка устарела или недействительна",
+  "verify.logout": "Выйти",
+  "verify.redirecting": "Перенаправление...",
+
   "onboarding.title": "Добро пожаловать в Lexiro!",
   "onboarding.subtitle": "Ваше рабочее пространство готово ({{email}}). Как начать:",
   "onboarding.step1": "Создать аккаунт",

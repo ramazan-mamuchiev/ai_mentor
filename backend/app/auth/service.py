@@ -95,12 +95,6 @@ async def register_tenant(
     await session.commit()
     await session.refresh(tenant)
 
-    try:
-        from app.email.service import send_welcome_email
-        send_welcome_email(email, slug)
-    except Exception:
-        pass  # non-critical
-
     return tenant, raw_key
 
 

@@ -786,6 +786,16 @@
   "auth.emailDomainHint": "Only @axxonsoft.dev email addresses are allowed",
   "auth.domainRestricted": "Access is restricted to @axxonsoft.dev email addresses only",
 
+  "verify.title": "Verify your email",
+  "verify.subtitle": "We sent a verification link to {{email}}. Check your inbox and click the link.",
+  "verify.resend": "Resend email",
+  "verify.resent": "Verification email sent!",
+  "verify.verifying": "Verifying...",
+  "verify.success": "Email verified!",
+  "verify.expired": "Link expired or invalid",
+  "verify.logout": "Sign out",
+  "verify.redirecting": "Redirecting...",
+
   "onboarding.title": "Welcome to Lexiro!",
   "onboarding.subtitle": "Your workspace is ready ({{email}}). Here's how to get started:",
   "onboarding.step1": "Create your account",

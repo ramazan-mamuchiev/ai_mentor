@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext'
 import { LandingPage } from './pages/LandingPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { LoginPage } from './pages/LoginPage'
+import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { ChatApp } from './pages/ChatApp'
 import { SharedView } from './pages/SharedView'
 import { KBShell } from './pages/KBShell'
@@ -17,6 +18,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="auth-loading" />
   if (!user) return <Navigate to="/login" replace />
+  if (!user.email_verified) return <Navigate to="/verify-email" replace />
   return <>{children}</>
 }
 
@@ -24,6 +26,7 @@ function AdminRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="auth-loading" />
   if (!user) return <Navigate to="/login" replace />
+  if (!user.email_verified) return <Navigate to="/verify-email" replace />
   if (!(user.permissions as any)?.features?.admin) return <Navigate to="/app" replace />
   return <>{children}</>
 }
@@ -42,6 +45,7 @@ function AppRoutes() {
       <Route path="/s/:token" element={<SharedView />} />
       <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
       <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/kb" element={<KBShell />}>
         <Route index element={<KBPage />} />
         <Route path=":slug" element={<KBArticlePage />} />

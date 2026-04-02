@@ -97,6 +97,12 @@ class OAuthCallbackResponse(BaseModel):
     is_new_account: bool
 
 
+# --- Email verification ---
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
 # --- Password reset ---
 
 class RequestPasswordResetRequest(BaseModel):

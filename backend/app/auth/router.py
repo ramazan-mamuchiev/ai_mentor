@@ -19,6 +19,7 @@ from app.auth.schemas import (
     TokenResponse,
     UpdateMeRequest,
     UsageSummaryResponse,
+    VerifyEmailRequest,
 )
 from app.auth.service import (
     authenticate_tenant,
@@ -61,6 +62,15 @@ async def register(body: RegisterRequest, response: Response, session: AsyncSess
     tenant, raw_key = await register_tenant(body.email, body.password, session, name=body.name)
     access, refresh = await create_token_pair(tenant.id, session)
     _set_tokens(response, access, refresh)
+
+    try:
+        from app.auth.jwt import create_email_verify_token
+        from app.email.service import send_email_verification
+        token = create_email_verify_token(tenant.id)
+        send_email_verification(tenant.email, token)
+    except Exception:
+        pass  # non-critical; user can resend later
+
     return RegisterResponse(id=tenant.id, email=tenant.email, slug=tenant.slug, api_key=raw_key)
 
 
@@ -91,6 +101,70 @@ async def logout(
     await revoke_all_refresh_tokens(tenant.id, session)
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
+
+
+# ---------------------------------------------------------------------------
+# Email verification
+# ---------------------------------------------------------------------------
+
+@router.post("/verify-email")
+async def verify_email(body: VerifyEmailRequest, session: AsyncSession = Depends(get_session)):
+    """Verify email using JWT token from verification email."""
+    import jwt as pyjwt
+    from app.auth.jwt import create_email_verify_token, decode_email_verify_token
+
+    try:
+        tenant_id = decode_email_verify_token(body.token)
+    except (pyjwt.ExpiredSignatureError, pyjwt.PyJWTError):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Verification link expired or invalid")
+
+    from sqlalchemy import select as sa_select
+    result = await session.execute(sa_select(Tenant).where(Tenant.id == tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Account not found")
+
+    if not tenant.email_verified:
+        tenant.email_verified = True
+        session.add(tenant)
+        await session.commit()
+
+        try:
+            from app.email.service import send_welcome_email
+            send_welcome_email(tenant.email, tenant.slug)
+        except Exception:
+            pass
+
+    return {"ok": True}
+
+
+@router.post("/resend-verification")
+async def resend_verification(
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Resend verification email. Max once per 60 seconds."""
+    if tenant.email_verified:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email already verified")
+
+    from datetime import datetime, timedelta, timezone
+    import redis.asyncio as aioredis
+
+    redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+    rate_key = f"resend_verify:{tenant.id}"
+    try:
+        if await redis_client.exists(rate_key):
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Please wait before resending")
+        await redis_client.setex(rate_key, 60, "1")
+    finally:
+        await redis_client.aclose()
+
+    from app.auth.jwt import create_email_verify_token
+    from app.email.service import send_email_verification
+    token = create_email_verify_token(tenant.id)
+    send_email_verification(tenant.email, token)
+
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

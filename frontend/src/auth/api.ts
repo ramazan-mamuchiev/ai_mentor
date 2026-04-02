@@ -103,6 +103,24 @@ export async function logout(): Promise<void> {
   })
 }
 
+export async function verifyEmail(token: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${BASE}/verify-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function resendVerification(): Promise<{ ok: boolean }> {
+  const res = await fetch(`${BASE}/resend-verification`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
 export async function getMe(): Promise<MeResponse> {
   const res = await fetch(`${BASE}/me`, { credentials: 'include' })
   return handleResponse(res)

@@ -42,3 +42,31 @@ def create_refresh_token() -> tuple[str, str]:
 
 def hash_refresh_token(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Email verification tokens
+# ---------------------------------------------------------------------------
+
+def create_email_verify_token(tenant_id: uuid.UUID) -> str:
+    """Create a JWT for email verification (24h expiry)."""
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(tenant_id),
+        "purpose": "email_verify",
+        "iat": now,
+        "exp": now + timedelta(hours=24),
+    }
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def decode_email_verify_token(token: str) -> uuid.UUID:
+    """Decode email verification JWT. Returns tenant_id. Raises on failure."""
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+    )
+    if payload.get("purpose") != "email_verify":
+        raise jwt.InvalidTokenError("Not an email verification token")
+    return uuid.UUID(payload["sub"])
