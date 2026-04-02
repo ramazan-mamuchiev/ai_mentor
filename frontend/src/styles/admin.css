@@ -2925,7 +2925,7 @@
 /* Stats strip */
 .td-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-bottom: 20px;
 }
@@ -2973,8 +2973,6 @@
   font-family: var(--font-mono);
   line-height: 1.2;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .td-stat__label {
@@ -3298,7 +3296,7 @@
 
   .td-stats {
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: 6px;
   }
 
   .td-stat {
