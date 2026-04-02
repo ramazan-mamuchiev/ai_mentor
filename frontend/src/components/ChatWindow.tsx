@@ -107,7 +107,7 @@ export function ChatWindow({
     const el = containerRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [messages, streamingContent])
+  }, [messages, streamingContent, streamingSources, status])
 
   const scrollToBottom = useCallback(() => {
     stickToBottomRef.current = true
