@@ -1281,7 +1281,8 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
             placeholder.progress_percent = 100
             placeholder.ingest_duration_ms = duration_ms
             placeholder.total_chunks = dispatched
-            placeholder.crawl_checkpoint = None
+            auth_token = (ckpt_pre or {}).get("auth") if isinstance(ckpt_pre, dict) else None
+            placeholder.crawl_checkpoint = {"auth": auth_token} if auth_token else None
             if result.root_title:
                 placeholder.title = f"{result.root_title} ({result.total_pages} pages)"
 
