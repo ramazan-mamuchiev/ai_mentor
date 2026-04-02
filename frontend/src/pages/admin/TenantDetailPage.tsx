@@ -35,22 +35,12 @@ function getInitials(name: string | null, email: string): string {
   return email.slice(0, 2).toUpperCase()
 }
 
-function getAvatarColor(email: string): string {
+function getAvatarIndex(email: string): number {
   let hash = 0
   for (let i = 0; i < email.length; i++) {
     hash = email.charCodeAt(i) + ((hash << 5) - hash)
   }
-  const colors = [
-    'linear-gradient(135deg, #667eea, #764ba2)',
-    'linear-gradient(135deg, #f093fb, #f5576c)',
-    'linear-gradient(135deg, #4facfe, #00f2fe)',
-    'linear-gradient(135deg, #43e97b, #38f9d7)',
-    'linear-gradient(135deg, #fa709a, #fee140)',
-    'linear-gradient(135deg, #a18cd1, #fbc2eb)',
-    'linear-gradient(135deg, #fccb90, #d57eeb)',
-    'linear-gradient(135deg, #e0c3fc, #8ec5fc)',
-  ]
-  return colors[Math.abs(hash) % colors.length]
+  return Math.abs(hash) % 8
 }
 
 type Tab = 'overview' | 'content'
@@ -132,7 +122,7 @@ export function TenantDetailPage() {
 
   const assignedRoleIds = new Set(tenantRoles.map(tr => tr.role_id))
   const initials = getInitials(tenant.name, tenant.email)
-  const avatarBg = getAvatarColor(tenant.email)
+  const avatarIdx = getAvatarIndex(tenant.email)
 
   return (
     <div className="td-page">
@@ -144,7 +134,7 @@ export function TenantDetailPage() {
 
       {/* Hero section */}
       <div className="td-hero">
-        <div className="td-hero__avatar" style={{ background: avatarBg }}>
+        <div className={`td-hero__avatar td-avatar--${avatarIdx}`}>
           {initials}
         </div>
         <div className="td-hero__info">

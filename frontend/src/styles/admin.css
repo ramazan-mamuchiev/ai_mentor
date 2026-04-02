@@ -2793,6 +2793,26 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
+/* Light theme avatar palettes — soft, muted */
+.td-avatar--0 { background: linear-gradient(135deg, #93a5f6, #a78bfa); }
+.td-avatar--1 { background: linear-gradient(135deg, #f0abfc, #f472b6); }
+.td-avatar--2 { background: linear-gradient(135deg, #7dd3fc, #67e8f9); }
+.td-avatar--3 { background: linear-gradient(135deg, #86efac, #6ee7b7); }
+.td-avatar--4 { background: linear-gradient(135deg, #fca5a5, #fcd34d); }
+.td-avatar--5 { background: linear-gradient(135deg, #c4b5fd, #f0abfc); }
+.td-avatar--6 { background: linear-gradient(135deg, #fdba74, #d8b4fe); }
+.td-avatar--7 { background: linear-gradient(135deg, #e9d5ff, #a5b4fc); }
+
+/* Dark theme avatar palettes — vivid, saturated */
+[data-theme='dark'] .td-avatar--0 { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+[data-theme='dark'] .td-avatar--1 { background: linear-gradient(135deg, #c026d3, #e11d48); }
+[data-theme='dark'] .td-avatar--2 { background: linear-gradient(135deg, #0284c7, #06b6d4); }
+[data-theme='dark'] .td-avatar--3 { background: linear-gradient(135deg, #059669, #14b8a6); }
+[data-theme='dark'] .td-avatar--4 { background: linear-gradient(135deg, #dc2626, #d97706); }
+[data-theme='dark'] .td-avatar--5 { background: linear-gradient(135deg, #7c3aed, #c026d3); }
+[data-theme='dark'] .td-avatar--6 { background: linear-gradient(135deg, #ea580c, #9333ea); }
+[data-theme='dark'] .td-avatar--7 { background: linear-gradient(135deg, #8b5cf6, #3b82f6); }
+
 .td-hero__info {
   flex: 1;
   min-width: 0;
