@@ -136,7 +136,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     manufacturer: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(Text, default="")
@@ -191,7 +191,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
+    tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     firmware_version_id: Mapped[int] = mapped_column(ForeignKey("firmware_versions.id", ondelete="CASCADE"), nullable=False)
     format: Mapped[str] = mapped_column(Text, default="markdown")
