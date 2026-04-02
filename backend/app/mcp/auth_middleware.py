@@ -63,6 +63,13 @@ class McpApiKeyAuthMiddleware:
                     await self._send_401(send, "Tenant not found or disabled")
                     return
 
+                if not tenant.email_verified:
+                    await self._send_401(
+                        send,
+                        "Email not verified. Please verify your email at https://lexiro.io/verify-email before using the API.",
+                    )
+                    return
+
                 from datetime import datetime, timezone
                 api_key.last_used_at = datetime.now(timezone.utc)
                 await session.commit()

@@ -114,8 +114,8 @@ export function TenantsPage() {
                   </td>
                   <td><span className="badge badge--gray">{tenant.tier}</span></td>
                   <td>
-                    <span className={`badge ${tenant.is_active ? 'badge--green' : 'badge--red'}`}>
-                      {tenant.is_active ? t('admin.tenants.active') : t('admin.tenants.blocked')}
+                    <span className={`badge ${!tenant.is_active ? 'badge--red' : tenant.email_verified ? 'badge--green' : 'badge--yellow'}`}>
+                      {!tenant.is_active ? t('admin.tenants.blocked') : tenant.email_verified ? t('admin.tenants.active') : t('admin.tenants.unverified')}
                     </span>
                   </td>
                   <td>{tenant.documents_count}</td>

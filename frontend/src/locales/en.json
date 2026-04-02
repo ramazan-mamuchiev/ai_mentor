@@ -969,6 +969,7 @@
   "admin.tenants.sessions": "Sessions",
   "admin.tenants.created": "Created",
   "admin.tenants.active": "Active",
+  "admin.tenants.unverified": "Unverified",
   "admin.tenants.blocked": "Blocked",
   "admin.tenants.block": "Block",
   "admin.tenants.unblock": "Unblock",

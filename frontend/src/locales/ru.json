@@ -1020,6 +1020,7 @@
   "admin.tenants.sessions": "Сессии",
   "admin.tenants.created": "Создан",
   "admin.tenants.active": "Активен",
+  "admin.tenants.unverified": "Не подтверждён",
   "admin.tenants.blocked": "Заблокирован",
   "admin.tenants.block": "Заблокировать",
   "admin.tenants.unblock": "Разблокировать",

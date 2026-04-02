@@ -135,9 +135,21 @@ def require_permission(key: str):
     return _dep
 
 
+async def require_email_verified(
+    tenant: Tenant = Depends(get_current_tenant),
+) -> Tenant:
+    """Raise 403 if the tenant has not verified their email address."""
+    if not tenant.email_verified:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail={"code": "EMAIL_NOT_VERIFIED", "message": "Email not verified"},
+        )
+    return tenant
+
+
 async def require_admin(
     request: Request,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_email_verified),
 ) -> Tenant:
     """Raise 403 unless the tenant has the 'admin' feature permission."""
     if not has_permission(request.state.permissions, "admin"):

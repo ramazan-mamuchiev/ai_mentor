@@ -508,9 +508,9 @@ app.add_exception_handler(QuotaError, quota_error_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
 from fastapi import Depends
-from app.auth.dependencies import get_current_tenant, require_admin
+from app.auth.dependencies import get_current_tenant, require_admin, require_email_verified
 
-_auth = [Depends(get_current_tenant)]
+_auth = [Depends(require_email_verified)]
 _admin_auth = [Depends(require_admin)]
 
 app.add_middleware(RequestLoggingMiddleware)

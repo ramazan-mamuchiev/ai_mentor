@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_tenant
+from app.auth.dependencies import get_current_tenant, require_email_verified
 from app.auth.schemas import (
     ApiKeyCreatedResponse,
     ApiKeyResponse,
@@ -246,7 +246,7 @@ async def auth_providers():
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
 async def get_api_keys(
     include_revoked: bool = False,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     keys = await list_api_keys(tenant.id, session, include_revoked=include_revoked)
@@ -264,7 +264,7 @@ async def get_api_keys(
 @router.post("/api-keys", response_model=ApiKeyCreatedResponse, status_code=201)
 async def create_key(
     body: CreateApiKeyRequest,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     api_key, raw = await create_api_key(tenant.id, body.name, body.scopes, session)
@@ -281,7 +281,7 @@ async def create_key(
 async def remove_key(
     key_id: str,
     body: RevokeApiKeyRequest | None = None,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     import uuid as _uuid
@@ -301,7 +301,7 @@ async def remove_key(
 @router.get("/api-keys/{key_id}/usage", response_model=ApiKeyUsageResponse)
 async def get_api_key_usage(
     key_id: str,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     """Usage statistics for a specific API key (last 30 days)."""
@@ -357,7 +357,7 @@ async def get_api_key_usage(
 @router.get("/usage/summary", response_model=UsageSummaryResponse)
 async def get_usage_summary(
     days: int = 30,
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     """Aggregated usage summary for the current tenant."""
@@ -427,7 +427,7 @@ async def get_usage_summary(
 @router.get("/analytics/chat")
 async def user_chat_stats(
     days: int = 30,
-    tenant: "Tenant" = Depends(get_current_tenant),
+    tenant: "Tenant" = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     from datetime import datetime, timedelta, timezone
@@ -508,7 +508,7 @@ async def user_chat_stats(
 @router.get("/analytics/documents")
 async def user_doc_stats(
     days: int = 30,
-    tenant: "Tenant" = Depends(get_current_tenant),
+    tenant: "Tenant" = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     from datetime import datetime, timedelta, timezone
@@ -597,7 +597,7 @@ async def user_doc_stats(
 @router.get("/analytics/search")
 async def user_search_stats(
     days: int = 30,
-    tenant: "Tenant" = Depends(get_current_tenant),
+    tenant: "Tenant" = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     from datetime import datetime, timedelta, timezone
@@ -638,7 +638,7 @@ async def user_search_stats(
 @router.get("/analytics/mcp")
 async def user_mcp_stats(
     days: int = 30,
-    tenant: "Tenant" = Depends(get_current_tenant),
+    tenant: "Tenant" = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     from datetime import datetime, timedelta, timezone
@@ -705,7 +705,7 @@ async def user_mcp_stats(
 @router.get("/analytics/costs")
 async def user_cost_stats(
     days: int = 30,
-    tenant: "Tenant" = Depends(get_current_tenant),
+    tenant: "Tenant" = Depends(require_email_verified),
     session: AsyncSession = Depends(get_session),
 ):
     from datetime import datetime, timedelta, timezone
