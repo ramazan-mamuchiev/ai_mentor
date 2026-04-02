@@ -63,7 +63,7 @@ export interface ApiKeyCreated extends ApiKeyItem {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.detail || `HTTP ${res.status}`)
+    throw new Error(body.detail || body.error || `HTTP ${res.status}`)
   }
   return res.json()
 }
