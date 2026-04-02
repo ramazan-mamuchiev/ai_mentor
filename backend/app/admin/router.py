@@ -137,9 +137,19 @@ async def patch_tenant(
 async def delete_tenant(
     tenant_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_tenant: Tenant = Depends(require_admin),
 ):
-    result = await service.patch_tenant(session, tenant_id, is_active=False)
-    if not result:
+    if tenant_id == current_tenant.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot delete yourself")
+    t = await session.get(Tenant, tenant_id)
+    if not t:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
+    if t.email_verified:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only unverified tenants can be deleted",
+        )
+    if not await service.delete_unverified_tenant(session, tenant_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
 
 

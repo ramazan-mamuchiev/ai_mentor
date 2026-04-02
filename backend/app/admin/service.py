@@ -135,6 +135,24 @@ async def get_tenant_detail(
     }
 
 
+async def delete_unverified_tenant(
+    session: AsyncSession, tenant_id: uuid.UUID,
+) -> bool:
+    """Permanently delete a tenant that has not verified their email.
+
+    All related data (api_keys, refresh_tokens, etc.) is removed via CASCADE.
+    Returns False if tenant not found or already verified.
+    """
+    t = await session.get(Tenant, tenant_id)
+    if not t:
+        return False
+    if t.email_verified:
+        return False
+    await session.delete(t)
+    await session.commit()
+    return True
+
+
 async def patch_tenant(
     session: AsyncSession, tenant_id: uuid.UUID,
     *, role: str | None = None, tier: str | None = None, is_active: bool | None = None,

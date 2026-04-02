@@ -976,6 +976,9 @@
   "admin.tenants.confirmBlockTitle": "Confirm blocking",
   "admin.tenants.confirmBlockMessage": "Are you sure you want to block {{email}}? They will lose access to the system.",
   "admin.tenants.cannotBlockSelf": "You cannot block yourself",
+  "admin.tenants.delete": "Delete",
+  "admin.tenants.confirmDeleteTitle": "Delete user",
+  "admin.tenants.confirmDeleteMessage": "Are you sure you want to permanently delete the unverified user {{email}}? All associated data will be removed.",
 
   "admin.tenantDetail.loading": "Loading tenant...",
   "admin.tenantDetail.notFound": "Tenant not found",

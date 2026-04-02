@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Users } from 'lucide-react'
-import { listTenants, patchTenant, type TenantListItem } from '../../api/admin'
+import { deleteTenant, listTenants, patchTenant, type TenantListItem } from '../../api/admin'
 import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 
@@ -17,6 +17,7 @@ export function TenantsPage() {
   const [roleFilter, setRoleFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [blockTarget, setBlockTarget] = useState<TenantListItem | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<TenantListItem | null>(null)
 
   const pageSize = 50
 
@@ -49,6 +50,14 @@ export function TenantsPage() {
       load()
     } catch { /* ignore */ }
     setBlockTarget(null)
+  }
+
+  const confirmDeleteTenant = async (tenant: TenantListItem) => {
+    try {
+      await deleteTenant(tenant.id)
+      load()
+    } catch { /* ignore */ }
+    setDeleteTarget(null)
   }
 
   const handleChangeRole = async (tenant: TenantListItem, newRole: string) => {
@@ -140,6 +149,15 @@ export function TenantsPage() {
                       >
                         {tenant.is_active ? t('admin.tenants.block') : t('admin.tenants.unblock')}
                       </button>
+                      {!tenant.email_verified && (
+                        <button
+                          className="admin-btn admin-btn--sm admin-btn--danger"
+                          onClick={() => setDeleteTarget(tenant)}
+                          disabled={tenant.id === user?.id}
+                        >
+                          {t('admin.tenants.delete')}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -169,6 +187,18 @@ export function TenantsPage() {
           variant="danger"
           onConfirm={() => confirmToggleActive(blockTarget)}
           onCancel={() => setBlockTarget(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title={t('admin.tenants.confirmDeleteTitle')}
+          message={t('admin.tenants.confirmDeleteMessage', { email: deleteTarget.email })}
+          confirmLabel={t('admin.tenants.delete')}
+          cancelLabel={t('admin.common.cancel')}
+          variant="danger"
+          onConfirm={() => confirmDeleteTenant(deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>
