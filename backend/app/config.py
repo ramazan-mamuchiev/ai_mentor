@@ -145,6 +145,9 @@ class Settings(BaseSettings):
     github_client_id: str = ""
     github_client_secret: str = ""
 
+    oauth_enabled: bool = False  # master switch — disables all OAuth providers when False
+    allowed_email_domain: str = "axxonsoft.dev"  # only emails ending with this domain can register; empty = no restriction
+
     app_base_url: str = "http://localhost:80"
 
     # --- Email (Resend) ---

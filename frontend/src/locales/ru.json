@@ -832,6 +832,7 @@
   "auth.apiKeys": "API ключи",
   "auth.registerError": "Ошибка регистрации",
   "auth.loginError": "Неверный email или пароль",
+  "auth.emailDomainHint": "Разрешены только адреса @axxonsoft.dev",
 
   "onboarding.title": "Добро пожаловать в Lexiro!",
   "onboarding.subtitle": "Ваше рабочее пространство готово ({{email}}). Как начать:",

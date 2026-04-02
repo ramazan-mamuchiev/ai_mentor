@@ -329,6 +329,12 @@
   text-align: center;
 }
 
+.auth-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.125rem;
+}
+
 .auth-footer {
   text-align: center;
   margin-top: 1rem;

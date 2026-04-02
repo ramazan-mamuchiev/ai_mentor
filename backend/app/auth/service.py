@@ -49,6 +49,17 @@ def _generate_api_key() -> tuple[str, str, str]:
     return raw, key_hash, prefix
 
 
+def _validate_email_domain(email: str) -> None:
+    """Raise 403 if email domain is not in the allow-list."""
+    domain = settings.allowed_email_domain
+    if domain and not email.lower().endswith(f"@{domain.lower()}"):
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"Registration is restricted to @{domain} email addresses",
+        )
+
+
 async def register_tenant(
     email: str,
     password: str,
@@ -56,6 +67,8 @@ async def register_tenant(
     name: str | None = None,
 ) -> tuple[Tenant, str]:
     """Create tenant + first API key. Returns (tenant, raw_api_key)."""
+    _validate_email_domain(email)
+
     existing = await session.execute(select(Tenant.id).where(Tenant.email == email))
     if existing.scalar_one_or_none():
         from fastapi import HTTPException, status

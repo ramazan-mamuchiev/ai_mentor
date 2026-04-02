@@ -783,6 +783,7 @@
   "auth.apiKeys": "API Keys",
   "auth.registerError": "Registration failed",
   "auth.loginError": "Invalid email or password",
+  "auth.emailDomainHint": "Only @axxonsoft.dev email addresses are allowed",
 
   "onboarding.title": "Welcome to Lexiro!",
   "onboarding.subtitle": "Your workspace is ready ({{email}}). Here's how to get started:",

@@ -157,10 +157,11 @@ async def update_me(
 
 @router.get("/auth/providers")
 async def auth_providers():
-    """Return which OAuth providers are configured."""
+    """Return which OAuth providers are configured and enabled."""
+    oauth_on = settings.oauth_enabled
     return {
-        "google": bool(settings.google_client_id),
-        "github": bool(settings.github_client_id),
+        "google": oauth_on and bool(settings.google_client_id),
+        "github": oauth_on and bool(settings.github_client_id),
     }
 
 
@@ -726,6 +727,9 @@ async def user_cost_stats(
 @router.get("/oauth/{provider}/authorize")
 async def oauth_authorize(provider: str, request: Request):
     """Redirect to provider's authorization URL."""
+    if not settings.oauth_enabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "OAuth login is disabled")
+
     import secrets as _secrets
     state = _secrets.token_urlsafe(32)
 
@@ -771,6 +775,9 @@ async def oauth_callback(
     session: AsyncSession = Depends(get_session),
 ):
     """Exchange code for tokens, find/create tenant, redirect to app."""
+    if not settings.oauth_enabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "OAuth login is disabled")
+
     stored_state = request.cookies.get("oauth_state")
     if not stored_state or stored_state != state:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid OAuth state")
@@ -840,6 +847,9 @@ async def oauth_callback(
             email = primary["email"]
     else:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown provider: {provider}")
+
+    from app.auth.service import _validate_email_domain
+    _validate_email_domain(email)
 
     tenant, is_new = await find_or_create_oauth_tenant(provider, oauth_id, email, session, name=oauth_name)
     access, refresh = await create_token_pair(tenant.id, session)
