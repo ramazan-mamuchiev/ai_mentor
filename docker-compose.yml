@@ -123,6 +123,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL:-https://lexiro.io}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-onboarding@resend.dev}
+      CONFLUENCE_CREDENTIALS_KEY: ${CONFLUENCE_CREDENTIALS_KEY:-}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs
@@ -165,6 +166,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
       APP_BASE_URL: ${APP_BASE_URL:-https://lexiro.io}
+      CONFLUENCE_CREDENTIALS_KEY: ${CONFLUENCE_CREDENTIALS_KEY:-}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs
