@@ -2963,14 +2963,18 @@
 
 .td-stat__data {
   min-width: 0;
+  overflow: hidden;
 }
 
 .td-stat__value {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text);
   font-family: var(--font-mono);
-  line-height: 1.1;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .td-stat__label {
