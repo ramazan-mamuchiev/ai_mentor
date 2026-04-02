@@ -43,6 +43,7 @@ celery.conf.update(
     worker_prefetch_multiplier=1,
     worker_hijack_root_logger=False,
     task_routes={
+        "delete_product": {"queue": "critical"},
         "queue_status_snapshot": {"queue": "monitoring"},
         "cleanup_expired_uploads": {"queue": "monitoring"},
         "check_stale_reindex_jobs": {"queue": "monitoring"},

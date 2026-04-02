@@ -385,7 +385,7 @@ async def delete_product(product_id: int):
         await session.commit()
 
     from app.celery_app import celery
-    task = celery.send_task("delete_product", args=[product_id])
+    task = celery.send_task("delete_product", args=[product_id], queue="critical")
 
     logger.info("Product deletion queued",
                 extra={"product_id": product_id, "task_id": task.id, "total_documents": doc_count})
