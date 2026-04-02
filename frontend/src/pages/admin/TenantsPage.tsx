@@ -1,10 +1,113 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { Users } from 'lucide-react'
+import { Ban, MoreHorizontal, ShieldCheck, Trash2, Unlock, Users } from 'lucide-react'
 import { deleteTenant, listTenants, patchTenant, type TenantListItem } from '../../api/admin'
 import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+
+function TenantActions({
+  tenant,
+  isSelf,
+  onChangeRole,
+  onToggleActive,
+  onDelete,
+}: {
+  tenant: TenantListItem
+  isSelf: boolean
+  onChangeRole: (role: string) => void
+  onToggleActive: () => void
+  onDelete?: () => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 })
+
+  useEffect(() => {
+    if (!open) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node) &&
+          btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onScroll = () => setOpen(false)
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('scroll', onScroll, true)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !dropRef.current || !btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    const dropRect = dropRef.current.getBoundingClientRect()
+    const dropW = dropRect.width || 220
+    const dropH = dropRect.height
+    let left = rect.right - dropW
+    if (left < 8) left = 8
+    if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8
+    const top = (rect.bottom + 4 + dropH > window.innerHeight)
+      ? rect.top - dropH - 4
+      : rect.bottom + 4
+    setPos({ top, left })
+  }, [open])
+
+  return (
+    <div className="docs-actions">
+      <button
+        ref={btnRef}
+        className="docs-action-btn"
+        onClick={() => {
+          if (!open) setPos({ top: -9999, left: -9999 })
+          setOpen(v => !v)
+        }}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && createPortal(
+        <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: pos.left }}>
+          {tenant.role !== 'admin' && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onChangeRole('admin'); setOpen(false) }}>
+              <ShieldCheck size={15} />
+              {t('admin.tenants.makeAdmin')}
+            </button>
+          )}
+          {tenant.role !== 'user' && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onChangeRole('user'); setOpen(false) }}>
+              <Users size={15} />
+              {t('admin.tenants.makeUser')}
+            </button>
+          )}
+          {!isSelf && (
+            <button
+              className={`docs-actions-dropdown-item ${tenant.is_active ? 'docs-actions-dropdown-item--danger' : ''}`}
+              onClick={() => { onToggleActive(); setOpen(false) }}
+            >
+              {tenant.is_active ? <Ban size={15} /> : <Unlock size={15} />}
+              {tenant.is_active ? t('admin.tenants.block') : t('admin.tenants.unblock')}
+            </button>
+          )}
+          {onDelete && !isSelf && (
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(); setOpen(false) }}>
+              <Trash2 size={15} />
+              {t('admin.tenants.delete')}
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
 
 export function TenantsPage() {
   const { t } = useTranslation()
@@ -131,34 +234,13 @@ export function TenantsPage() {
                   <td>{tenant.sessions_count}</td>
                   <td>{new Date(tenant.created_at).toLocaleDateString()}</td>
                   <td onClick={e => e.stopPropagation()}>
-                    <div className="admin-actions">
-                      <select
-                        className="admin-select"
-                        value={tenant.role}
-                        onChange={e => handleChangeRole(tenant, e.target.value)}
-                        style={{ width: 80 }}
-                      >
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
-                      </select>
-                      <button
-                        className={`admin-btn admin-btn--sm ${tenant.is_active ? 'admin-btn--danger' : 'admin-btn--primary'}`}
-                        onClick={() => handleToggleActive(tenant)}
-                        disabled={tenant.id === user?.id}
-                        title={tenant.id === user?.id ? t('admin.tenants.cannotBlockSelf') : undefined}
-                      >
-                        {tenant.is_active ? t('admin.tenants.block') : t('admin.tenants.unblock')}
-                      </button>
-                      {!tenant.email_verified && (
-                        <button
-                          className="admin-btn admin-btn--sm admin-btn--danger"
-                          onClick={() => setDeleteTarget(tenant)}
-                          disabled={tenant.id === user?.id}
-                        >
-                          {t('admin.tenants.delete')}
-                        </button>
-                      )}
-                    </div>
+                    <TenantActions
+                      tenant={tenant}
+                      isSelf={tenant.id === user?.id}
+                      onChangeRole={role => handleChangeRole(tenant, role)}
+                      onToggleActive={() => handleToggleActive(tenant)}
+                      onDelete={!tenant.email_verified ? () => setDeleteTarget(tenant) : undefined}
+                    />
                   </td>
                 </tr>
               ))}

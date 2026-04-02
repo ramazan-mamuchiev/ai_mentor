@@ -1028,6 +1028,8 @@
   "admin.tenants.confirmBlockMessage": "Вы уверены, что хотите заблокировать пользователя {{email}}? Он потеряет доступ к системе.",
   "admin.tenants.cannotBlockSelf": "Нельзя заблокировать самого себя",
   "admin.tenants.delete": "Удалить",
+  "admin.tenants.makeAdmin": "Сделать админом",
+  "admin.tenants.makeUser": "Сделать пользователем",
   "admin.tenants.confirmDeleteTitle": "Удаление пользователя",
   "admin.tenants.confirmDeleteMessage": "Вы уверены, что хотите безвозвратно удалить неподтверждённого пользователя {{email}}? Все связанные данные будут удалены.",
 
