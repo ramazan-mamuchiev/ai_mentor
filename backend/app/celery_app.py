@@ -1029,6 +1029,12 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
         confluence_tenant_id = placeholder.tenant_id
         _set_tenant_log_context(confluence_tenant_id, session)
 
+        confluence_auth = None
+        ckpt_pre = placeholder.crawl_checkpoint
+        if ckpt_pre and isinstance(ckpt_pre, dict) and ckpt_pre.get("auth"):
+            from app.utils.crypto import decrypt_credentials
+            confluence_auth = decrypt_credentials(ckpt_pre["auth"])
+
         placeholder.status = "processing"
         placeholder.processing_started_at = datetime.now(timezone.utc)
         placeholder.progress_stage = "crawling"
@@ -1037,6 +1043,7 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
 
     logger.info("Celery ingest_confluence_task started", extra={
         "url": url, "document_id": document_id, "task_id": self.request.id,
+        "has_auth": confluence_auth is not None,
     })
 
     dispatched = 0
@@ -1182,7 +1189,7 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
                         stage += f", {errors} storage errors!"
                     ph.progress_stage = stage
                     ph.title = f"{page.title}" if pages_seen == 1 else ph.title
-                    ph.crawl_checkpoint = {
+                    _ckpt_data = {
                         "version": _CHECKPOINT_VERSION,
                         "saved_at": datetime.now(timezone.utc).isoformat(),
                         "queue": list(_latest_queue_snapshot),
@@ -1192,6 +1199,9 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
                         "errors": errors,
                         "pages_seen": pages_seen,
                     }
+                    if ckpt_pre and isinstance(ckpt_pre, dict) and ckpt_pre.get("auth"):
+                        _ckpt_data["auth"] = ckpt_pre["auth"]
+                    ph.crawl_checkpoint = _ckpt_data
                     s.commit()
         except Exception:
             pass
@@ -1206,6 +1216,7 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
         max_seconds=_eff_max_seconds,
         page_callback=_on_page,
         checkpoint_callback=_on_checkpoint,
+        auth=confluence_auth,
     )
     if restored_queue is not None:
         _crawl_kwargs["initial_queue"] = restored_queue
@@ -2136,6 +2147,8 @@ def reingest_confluence_page_task(self, document_id: int):
     t0 = time.perf_counter()
     engine = _get_sync_engine()
 
+    confluence_auth = None
+
     with Session(engine) as session:
         doc = session.get(Document, document_id)
         if doc is None:
@@ -2152,6 +2165,19 @@ def reingest_confluence_page_task(self, document_id: int):
             session.commit()
             return {"status": "error", "error": "No source_path"}
 
+        if doc.source_container:
+            parent = session.execute(
+                sa_select(Document).where(
+                    Document.source_path == doc.source_container,
+                    Document.format == "confluence",
+                ).limit(1)
+            ).scalar_one_or_none()
+            if parent and parent.crawl_checkpoint and isinstance(parent.crawl_checkpoint, dict):
+                auth_token = parent.crawl_checkpoint.get("auth")
+                if auth_token:
+                    from app.utils.crypto import decrypt_credentials
+                    confluence_auth = decrypt_credentials(auth_token)
+
         doc.status = "processing"
         doc.processing_started_at = datetime.now(timezone.utc)
         doc.progress_stage = "fetching"
@@ -2159,10 +2185,11 @@ def reingest_confluence_page_task(self, document_id: int):
         session.commit()
 
     logger.info("Celery reingest_confluence_page_task started",
-                extra={"url": url, "document_id": document_id})
+                extra={"url": url, "document_id": document_id,
+                       "has_auth": confluence_auth is not None})
 
     try:
-        base_url, _space_key, page_id = parse_confluence_url(url)
+        base_url, _space_key, page_id = parse_confluence_url(url, auth=confluence_auth)
     except ValueError as exc:
         with Session(engine) as session:
             doc = session.get(Document, document_id)
@@ -2174,7 +2201,9 @@ def reingest_confluence_page_task(self, document_id: int):
         return {"status": "error", "error": str(exc)}
 
     try:
-        title, markdown = get_page_with_children_toc(base_url, _space_key, page_id)
+        title, markdown = get_page_with_children_toc(
+            base_url, _space_key, page_id, auth=confluence_auth,
+        )
     except SoftTimeLimitExceeded:
         with Session(engine) as session:
             doc = session.get(Document, document_id)

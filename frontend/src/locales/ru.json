@@ -574,6 +574,9 @@
   "urlImport.githubDetected": "GitHub-репозиторий — все файлы документации будут импортированы",
   "urlImport.githubBranch": "Ветка",
   "urlImport.crawlingGithub": "Импорт GitHub-репозитория...",
+  "urlImport.confluenceUsername": "Логин",
+  "urlImport.confluencePassword": "Пароль",
+  "urlImport.confluenceAuthHint": "Для приватного Confluence — укажите учётные данные (оставьте пустыми для публичного)",
 
   "docs.format.github": "GitHub",
   "docs.format.confluence": "Confluence",

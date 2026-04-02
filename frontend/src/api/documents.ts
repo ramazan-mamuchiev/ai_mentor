@@ -67,6 +67,8 @@ export interface UrlIngestRequest {
   manufacturer?: string
   max_pages?: number
   max_depth?: number
+  confluence_username?: string
+  confluence_password?: string
 }
 
 export interface UrlIngestResponse {

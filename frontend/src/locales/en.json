@@ -546,6 +546,9 @@
   "urlImport.githubDetected": "GitHub repository — all documentation files will be imported",
   "urlImport.githubBranch": "Branch",
   "urlImport.crawlingGithub": "Importing GitHub repository...",
+  "urlImport.confluenceUsername": "Username",
+  "urlImport.confluencePassword": "Password",
+  "urlImport.confluenceAuthHint": "For private Confluence — enter credentials (leave empty for public)",
 
   "docs.format.github": "GitHub",
   "docs.format.confluence": "Confluence",

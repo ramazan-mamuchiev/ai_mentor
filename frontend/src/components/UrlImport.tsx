@@ -34,8 +34,10 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
   const [githubBranch, setGithubBranch] = useState('main')
   const [confluenceMaxPages, setConfluenceMaxPages] = useState(10000)
   const [confluenceMaxDepth, setConfluenceMaxDepth] = useState(100)
+  const [confluenceUsername, setConfluenceUsername] = useState('')
+  const [confluencePassword, setConfluencePassword] = useState('')
 
-  const isConfluence = /\/confluence\/spaces\/[^/]+\/pages\/\d+/.test(url)
+  const isConfluence = /\/spaces\/[^/]+\/pages\/\d+/.test(url) || /\/spaces\/[^/]+(?:\/overview)?\/?$/.test(url.trim())
   const isGitHub = /^https?:\/\/(?:www\.)?github\.com\/[^/]+\/[^/]+/.test(url.trim())
   const isHttpUrl = /^https?:\/\/.+/.test(url.trim())
   const showSiteCrawlOption = isHttpUrl && !isConfluence && !isGitHub
@@ -72,7 +74,12 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
           product_name: productName.trim(),
           firmware_version: firmwareVersion || '1.0',
           manufacturer: manufacturer,
-          ...(isConfluence ? { max_pages: confluenceMaxPages, max_depth: confluenceMaxDepth } : {}),
+          ...(isConfluence ? {
+            max_pages: confluenceMaxPages,
+            max_depth: confluenceMaxDepth,
+            ...(confluenceUsername ? { confluence_username: confluenceUsername } : {}),
+            ...(confluencePassword ? { confluence_password: confluencePassword } : {}),
+          } : {}),
         })
       }
       onComplete?.()
@@ -81,7 +88,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
       setStatus('error')
       setError(err instanceof Error ? err.message : String(err))
     }
-  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, isGitHub, isConfluence, githubBranch, maxDepth, maxPages, downloadResources, confluenceMaxPages, confluenceMaxDepth, onComplete, onClose])
+  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, isGitHub, isConfluence, githubBranch, maxDepth, maxPages, downloadResources, confluenceMaxPages, confluenceMaxDepth, confluenceUsername, confluencePassword, onComplete, onClose])
 
   const handleReset = useCallback(() => {
     setUrl('')
@@ -100,6 +107,8 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setDownloadResources(true)
     setConfluenceMaxPages(10000)
     setConfluenceMaxDepth(100)
+    setConfluenceUsername('')
+    setConfluencePassword('')
   }, [])
 
   useEffect(() => {
@@ -168,28 +177,53 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
               )}
 
               {isConfluence && (
-                <div className="file-upload-row">
-                  <label>
-                    {t('urlImport.maxDepth')}
-                    <input
-                      type="number"
-                      value={confluenceMaxDepth}
-                      onChange={e => setConfluenceMaxDepth(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
-                      min={1}
-                      max={200}
-                    />
-                  </label>
-                  <label>
-                    {t('urlImport.maxPages')}
-                    <input
-                      type="number"
-                      value={confluenceMaxPages}
-                      onChange={e => setConfluenceMaxPages(Math.max(1, Math.min(50000, Number(e.target.value) || 1)))}
-                      min={1}
-                      max={50000}
-                    />
-                  </label>
-                </div>
+                <>
+                  <div className="file-upload-row">
+                    <label>
+                      {t('urlImport.maxDepth')}
+                      <input
+                        type="number"
+                        value={confluenceMaxDepth}
+                        onChange={e => setConfluenceMaxDepth(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
+                        min={1}
+                        max={200}
+                      />
+                    </label>
+                    <label>
+                      {t('urlImport.maxPages')}
+                      <input
+                        type="number"
+                        value={confluenceMaxPages}
+                        onChange={e => setConfluenceMaxPages(Math.max(1, Math.min(50000, Number(e.target.value) || 1)))}
+                        min={1}
+                        max={50000}
+                      />
+                    </label>
+                  </div>
+                  <div className="url-import-type-hint" style={{ opacity: 0.7, fontSize: '0.82em' }}>
+                    {t('urlImport.confluenceAuthHint')}
+                  </div>
+                  <div className="file-upload-row">
+                    <label>
+                      {t('urlImport.confluenceUsername')}
+                      <input
+                        type="text"
+                        value={confluenceUsername}
+                        onChange={e => setConfluenceUsername(e.target.value)}
+                        autoComplete="username"
+                      />
+                    </label>
+                    <label>
+                      {t('urlImport.confluencePassword')}
+                      <input
+                        type="password"
+                        value={confluencePassword}
+                        onChange={e => setConfluencePassword(e.target.value)}
+                        autoComplete="current-password"
+                      />
+                    </label>
+                  </div>
+                </>
               )}
 
               {showSiteCrawlOption && (

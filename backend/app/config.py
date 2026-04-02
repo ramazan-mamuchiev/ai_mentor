@@ -123,6 +123,7 @@ class Settings(BaseSettings):
     confluence_crawl_max_pages: int = 0
     confluence_crawl_max_depth: int = 0
     confluence_crawl_max_seconds: int = 0
+    confluence_credentials_key: str = ""
 
     site_crawl_max_pages: int = 0
     site_crawl_max_depth: int = 0

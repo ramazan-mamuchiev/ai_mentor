@@ -1,7 +1,7 @@
 """Confluence documentation crawler with optional OCR for images.
 
 Crawls a Confluence page tree via REST API and converts each page to Markdown.
-Supports public (anonymous) Confluence instances.
+Supports both public (anonymous) and private (Basic Auth) Confluence instances.
 When OCR is enabled, downloads images from pages and extracts text via Gemini Vision.
 
 Discovery strategy (in order of priority):
@@ -89,7 +89,10 @@ class CrawlResult:
     ocr_ms: float = 0.0
 
 
-def _make_http_client(image: bool = False) -> httpx.Client:
+def _make_http_client(
+    image: bool = False,
+    auth: tuple[str, str] | None = None,
+) -> httpx.Client:
     timeout = httpx.Timeout(
         connect=_CONNECT_TIMEOUT,
         read=_IMAGE_READ_TIMEOUT if image else _READ_TIMEOUT,
@@ -99,6 +102,7 @@ def _make_http_client(image: bool = False) -> httpx.Client:
     return httpx.Client(
         timeout=timeout,
         headers=_HTTP_HEADERS,
+        auth=httpx.BasicAuth(auth[0], auth[1]) if auth else None,
         verify=False,
         follow_redirects=True,
     )
@@ -108,11 +112,15 @@ class ConfluenceAuthError(Exception):
     """Raised when Confluence REST API requires authentication."""
 
 
-def _api_get(url: str, client: httpx.Client | None = None) -> dict:
+def _api_get(
+    url: str,
+    client: httpx.Client | None = None,
+    auth: tuple[str, str] | None = None,
+) -> dict:
     """Fetch JSON from Confluence REST API."""
     own_client = client is None
     if own_client:
-        client = _make_http_client()
+        client = _make_http_client(auth=auth)
     try:
         resp = client.get(url)
 
@@ -144,14 +152,18 @@ def _api_get(url: str, client: httpx.Client | None = None) -> dict:
             client.close()
 
 
-def _resolve_space_homepage(base_url: str, space_key: str) -> str:
+def _resolve_space_homepage(
+    base_url: str,
+    space_key: str,
+    auth: tuple[str, str] | None = None,
+) -> str:
     """Resolve the homepage page ID of a Confluence space via REST API.
 
     Raises ValueError if the space does not exist or has no homepage.
     """
     api_url = f"{base_url}/rest/api/space/{space_key}?expand=homepage"
     try:
-        data = _api_get(api_url)
+        data = _api_get(api_url, auth=auth)
     except ConfluenceAuthError:
         raise
     except Exception as exc:
@@ -169,7 +181,10 @@ def _resolve_space_homepage(base_url: str, space_key: str) -> str:
     return str(homepage["id"])
 
 
-def parse_confluence_url(url: str) -> tuple[str, str, str]:
+def parse_confluence_url(
+    url: str,
+    auth: tuple[str, str] | None = None,
+) -> tuple[str, str, str]:
     """Extract (base_url, space_key, page_id) from a Confluence URL.
 
     Supports two URL formats:
@@ -187,7 +202,7 @@ def parse_confluence_url(url: str) -> tuple[str, str, str]:
     if m:
         base_url = m.group("base")
         space_key = m.group("space")
-        page_id = _resolve_space_homepage(base_url, space_key)
+        page_id = _resolve_space_homepage(base_url, space_key, auth=auth)
         logger.info("Resolved space homepage", extra={
             "space_key": space_key, "homepage_page_id": page_id,
         })
@@ -352,12 +367,15 @@ def get_page_with_children_toc(
     space_key: str,
     page_id: str,
     client: httpx.Client | None = None,
+    auth: tuple[str, str] | None = None,
 ) -> tuple[str, str]:
     """Fetch page content; fall back to a children-based TOC if body is empty.
 
     Returns (title, markdown). Useful for standalone reingest of pages that
     are TOC-only (children macro, no real text content).
     """
+    if client is None and auth is not None:
+        client = _make_http_client(auth=auth)
     title, html_body = _get_page_content(base_url, page_id, client)
     markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
 
@@ -375,10 +393,13 @@ def get_page_with_children_toc(
     return title, markdown
 
 
-def _fetch_image_bytes(url: str) -> bytes | None:
+def _fetch_image_bytes(
+    url: str,
+    auth: tuple[str, str] | None = None,
+) -> bytes | None:
     """Download image bytes from a URL. Returns None on failure."""
     try:
-        with _make_http_client(image=True) as client:
+        with _make_http_client(image=True, auth=auth) as client:
             resp = client.get(url)
             resp.raise_for_status()
             return resp.content
@@ -392,6 +413,7 @@ def _fetch_image_bytes(url: str) -> bytes | None:
 def _enrich_confluence_markdown_with_ocr(
     md_text: str,
     languages: list[str] | None = None,
+    auth: tuple[str, str] | None = None,
 ) -> tuple[str, dict]:
     """Download images referenced in Markdown and replace with OCR text.
 
@@ -424,7 +446,7 @@ def _enrich_confluence_markdown_with_ocr(
 
         stats["ocr_images_total"] += 1
         try:
-            data = _fetch_image_bytes(img_url)
+            data = _fetch_image_bytes(img_url, auth=auth)
             if data is None:
                 stats["ocr_images_failed"] += 1
                 return ""
@@ -478,6 +500,7 @@ async def crawl_confluence(
     initial_queue: list[tuple[str, int]] | None = None,
     initial_visited: set[str] | None = None,
     checkpoint_callback: callable | None = None,
+    auth: tuple[str, str] | None = None,
 ) -> CrawlResult:
     """Crawl a Confluence page tree starting from the given URL.
 
@@ -502,6 +525,7 @@ async def crawl_confluence(
         checkpoint_callback: Optional callback(queue_snapshot, visited_snapshot)
             invoked after each page is processed (after page_callback).
             Allows the caller to persist BFS state for resumability.
+        auth: Optional (username, password) for Basic Auth to private instances.
 
     Returns:
         CrawlResult with all crawled pages.
@@ -513,7 +537,7 @@ async def crawl_confluence(
 
     t0 = time.perf_counter()
     deadline = t0 + max_seconds
-    base_url, space_key, root_page_id = parse_confluence_url(url)
+    base_url, space_key, root_page_id = parse_confluence_url(url, auth=auth)
     do_ocr = _ocr_enabled()
 
     logger.info("Confluence crawl started", extra={
@@ -535,7 +559,7 @@ async def crawl_confluence(
     pages_done = 0
     ocr_languages: list[str] | None = None
 
-    client = _make_http_client()
+    client = _make_http_client(auth=auth)
     try:
         while queue and pages_done < max_pages:
             if time.perf_counter() >= deadline:
@@ -582,7 +606,7 @@ async def crawl_confluence(
                 t_ocr = time.perf_counter()
                 try:
                     markdown, page_ocr_stats = await asyncio.to_thread(
-                        _enrich_confluence_markdown_with_ocr, markdown, ocr_languages,
+                        _enrich_confluence_markdown_with_ocr, markdown, ocr_languages, auth,
                     )
                 except Exception as exc:
                     ocr_error_msg = f"{type(exc).__name__}: {exc}"

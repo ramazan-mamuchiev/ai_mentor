@@ -90,6 +90,8 @@ class UrlIngestRequest(BaseModel):
     manufacturer: str = ""
     max_pages: int | None = None
     max_depth: int | None = None
+    confluence_username: str | None = None
+    confluence_password: str | None = None
 
     model_config = {"from_attributes": True}
 

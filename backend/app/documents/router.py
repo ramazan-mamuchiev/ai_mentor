@@ -209,6 +209,13 @@ async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = 
         product = await _get_or_create_product(session, body.product_name, body.manufacturer, tenant_id=tenant.id)
         fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
 
+        crawl_checkpoint = None
+        if is_confluence and body.confluence_username and body.confluence_password:
+            from app.utils.crypto import encrypt_credentials
+            encrypted = encrypt_credentials(body.confluence_username, body.confluence_password)
+            if encrypted:
+                crawl_checkpoint = {"auth": encrypted}
+
         placeholder = Document(
             product_id=product.id,
             firmware_version_id=fw.id,
@@ -220,6 +227,7 @@ async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = 
             source_container=url,
             progress_stage="queued",
             tenant_id=tenant.id,
+            crawl_checkpoint=crawl_checkpoint,
         )
         session.add(placeholder)
         await session.flush()
