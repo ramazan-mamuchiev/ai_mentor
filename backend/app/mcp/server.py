@@ -198,6 +198,81 @@ async def _save_mcp_request_log(
         logger.warning("Failed to save mcp_request_log", exc_info=True)
 
 
+async def _get_lifecycle_prefix_for_results(results: list[dict]) -> str:
+    """Build a compact lifecycle context block for search results.
+
+    Queries product-level lifecycles and doc issue annotations for all products
+    represented in the results. Returns empty string if no lifecycle data.
+    No LLM calls — pure DB lookups.
+    """
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    from sqlalchemy import select as sa_select
+
+    product_ids = {r.get("product_id") for r in results if r.get("product_id")}
+    if not product_ids:
+        return ""
+
+    parts: list[str] = []
+    try:
+        async with async_session() as session:
+            for pid in product_ids:
+                lc = (await session.execute(
+                    sa_select(ApiLifecycle).where(
+                        ApiLifecycle.product_id == pid,
+                        ApiLifecycle.document_id.is_(None),
+                        ApiLifecycle.status == "ready",
+                    )
+                )).scalar_one_or_none()
+
+                if not lc:
+                    continue
+
+                product_name = None
+                for r in results:
+                    if r.get("product_id") == pid:
+                        product_name = r.get("product_name")
+                        break
+
+                lines = [f"--- API Integration Context ({product_name or f'product {pid}'}) ---"]
+
+                auth_phase = next(
+                    (p for p in (lc.phases or [])
+                     if p.get("phase_name") in ("authentication", "setup")
+                     and "auth" in (p.get("action", "") + p.get("notes", "")).lower()),
+                    None,
+                )
+                if auth_phase:
+                    lines.append(f"Auth: {auth_phase.get('action', 'See docs')}")
+
+                init_phases = [
+                    p for p in (lc.phases or [])
+                    if p.get("phase_name") == "initialization"
+                ]
+                if init_phases:
+                    init_desc = "; ".join(p.get("action", "") for p in init_phases[:2])
+                    lines.append(f"Init: {init_desc}")
+
+                for pat in (lc.unique_patterns or [])[:2]:
+                    lines.append(f"Unique: {pat.get('pattern', '')}: {pat.get('description', '')}")
+
+                issues = (await session.execute(
+                    sa_select(DocIssueAnnotation).where(
+                        DocIssueAnnotation.product_id == pid,
+                        DocIssueAnnotation.severity.in_(["warning", "error"]),
+                    ).limit(3)
+                )).scalars().all()
+
+                for issue in issues:
+                    lines.append(f"WARNING: {issue.description}")
+
+                lines.append("---")
+                parts.append("\n".join(lines))
+    except Exception:
+        logger.warning("Failed to enrich search results with lifecycle context", exc_info=True)
+
+    return "\n\n".join(parts)
+
+
 async def tool_search_documentation(
     query: str,
     product: str | None = None,
@@ -309,8 +384,12 @@ async def tool_search_documentation(
     if not results:
         response_text = "No results found. Try a different query or check available products with list_products."
     else:
+        lifecycle_prefix = await _get_lifecycle_prefix_for_results(results)
+
         seen_parents: set[str] = set()
         parts: list[str] = []
+        if lifecycle_prefix:
+            parts.append(lifecycle_prefix)
         for i, r in enumerate(results, 1):
             meta = _format_mcp_meta(i, r)
             body = _format_mcp_body(r, seen_parents)
@@ -1499,6 +1578,173 @@ async def tool_get_product_info(
     await _save_mcp_request_log(
         request_id=request_id, tool_name="get_product_info",
         query_text=product, product_filter=product, result_count=1,
+        response_length=len(response_text), metadata=metadata, duration_ms=duration_ms,
+        cogs_usd=cogs, charge_usd=charge,
+    )
+
+    return response_text
+
+
+async def tool_get_api_lifecycle(
+    product: str,
+    task: str | None = None,
+) -> str:
+    """Get the API lifecycle analysis for a product.
+
+    Returns structured information about the API integration workflow:
+    authentication method, initialization steps, operation sequence,
+    unique patterns, dependency chains, and a code skeleton.
+
+    This is essential context for writing integration code — call this
+    BEFORE writing code against an API to understand the required order
+    of operations and special requirements.
+
+    Args:
+        product: Product name. Examples: "HikCentral", "Axxon One", "Elsys-SDK"
+        task: Optional description of what you need to implement.
+            If provided, the response highlights the most relevant phases.
+            Example: "add a camera and get its live stream URL"
+    """
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    from sqlalchemy import select as sa_select
+
+    request_id = str(uuid4())
+    logger.debug("MCP get_api_lifecycle called", extra={"product": product, "task": task, "request_id": request_id})
+
+    metadata: dict = {}
+    t0 = time.perf_counter()
+
+    async with async_session() as session:
+        resolve = await resolve_product(session, product)
+        metadata["resolve_prompt_tokens"] = resolve.prompt_tokens
+        metadata["resolve_completion_tokens"] = resolve.completion_tokens
+        metadata["resolve_model"] = resolve.model
+        metadata["resolve_ms"] = resolve.resolve_ms
+        product_id = resolve.product_id
+
+        if product_id is None:
+            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+            cogs, charge = _calc_mcp_costs(metadata)
+            await _save_mcp_request_log(
+                request_id=request_id, tool_name="get_api_lifecycle",
+                query_text=product, product_filter=product,
+                duration_ms=duration_ms, metadata=metadata,
+                cogs_usd=cogs, charge_usd=charge,
+            )
+            return f"No product matching '{product}'. Use list_products to see available products."
+
+        merged = (await session.execute(
+            sa_select(ApiLifecycle).where(
+                ApiLifecycle.product_id == product_id,
+                ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.status == "ready",
+            )
+        )).scalar_one_or_none()
+
+        if merged:
+            lc = merged
+        else:
+            doc_lcs = (await session.execute(
+                sa_select(ApiLifecycle).where(
+                    ApiLifecycle.product_id == product_id,
+                    ApiLifecycle.document_id.isnot(None),
+                    ApiLifecycle.status == "ready",
+                ).order_by(ApiLifecycle.created_at.desc())
+            )).scalars().all()
+            lc = doc_lcs[0] if doc_lcs else None
+
+        issues = (await session.execute(
+            sa_select(DocIssueAnnotation).where(
+                DocIssueAnnotation.product_id == product_id,
+                DocIssueAnnotation.severity.in_(["warning", "error"]),
+            )
+        )).scalars().all() if lc else []
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    if not lc:
+        response_text = (
+            f"No API lifecycle analysis available for '{product}'. "
+            f"The analysis may not have been run yet. "
+            f"Use search_documentation to find API docs directly."
+        )
+    else:
+        lines: list[str] = [f"# API Lifecycle: {product}"]
+
+        if lc.phases:
+            lines.append("\n## Integration Steps (ordered)")
+            task_lower = (task or "").lower()
+            for phase in sorted(lc.phases, key=lambda p: p.get("step_order", 999)):
+                required = " [REQUIRED]" if phase.get("is_required") else ""
+                api_call = f" — `{phase['api_call']}`" if phase.get("api_call") else ""
+                relevant = ""
+                if task_lower and any(
+                    kw in phase.get("action", "").lower() or kw in phase.get("notes", "").lower()
+                    for kw in task_lower.split()
+                ):
+                    relevant = " ⭐"
+
+                lines.append(
+                    f"\n### Step {phase.get('step_order', '?')}: "
+                    f"{phase.get('action', 'Unknown')}{api_call}{required}{relevant}"
+                )
+                if phase.get("inputs"):
+                    lines.append(f"- Inputs: {', '.join(phase['inputs'])}")
+                if phase.get("outputs"):
+                    lines.append(f"- Outputs: {', '.join(phase['outputs'])}")
+                if phase.get("notes"):
+                    lines.append(f"- Note: {phase['notes']}")
+
+        if lc.unique_patterns:
+            lines.append("\n## Unique Patterns (non-standard, critical)")
+            for p in lc.unique_patterns:
+                lines.append(f"\n**{p.get('pattern', '?')}**: {p.get('description', '')}")
+                if p.get("impact"):
+                    lines.append(f"- Impact: {p['impact']}")
+                if p.get("code_hint"):
+                    lines.append(f"- Code: `{p['code_hint']}`")
+
+        if lc.dependency_chains:
+            lines.append("\n## Dependencies (must do A before B)")
+            for d in lc.dependency_chains:
+                lines.append(
+                    f"- {d.get('from_action', '?')} → {d.get('to_action', '?')}: "
+                    f"{d.get('description', '')} (data: {d.get('data_flow', '')})"
+                )
+
+        if lc.code_skeleton:
+            lines.append("\n## Code Skeleton")
+            lines.append(f"```python\n{lc.code_skeleton}\n```")
+
+        if issues:
+            lines.append("\n## ⚠️ Documentation Issues (verify before relying on docs)")
+            for issue in issues:
+                sev = issue.severity.upper()
+                lines.append(
+                    f"- [{sev}] {issue.description}"
+                    f"{f' (entity: {issue.affected_entity})' if issue.affected_entity else ''}"
+                )
+                if issue.suggestion:
+                    lines.append(f"  Suggestion: {issue.suggestion}")
+
+        response_text = "\n".join(lines)
+
+    cogs, charge = _calc_mcp_costs(metadata)
+    await _save_search_analytics(
+        source="mcp", tool_name="get_api_lifecycle", query=product,
+        duration_ms=duration_ms, result_count=1 if lc else 0, product_filter=product,
+        tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
+    )
+    await write_usage_log(
+        channel="mcp", action="get_api_lifecycle", request_id=request_id,
+        query_text=product, query_tokens=0, result_count=1 if lc else 0,
+        response_length=len(response_text), duration_ms=duration_ms,
+        cogs_usd=cogs, charge_usd=charge,
+        tenant_id=current_tenant_id.get(), api_key_id=current_api_key_id.get(),
+    )
+    await _save_mcp_request_log(
+        request_id=request_id, tool_name="get_api_lifecycle",
+        query_text=product, product_filter=product, result_count=1 if lc else 0,
         response_length=len(response_text), metadata=metadata, duration_ms=duration_ms,
         cogs_usd=cogs, charge_usd=charge,
     )

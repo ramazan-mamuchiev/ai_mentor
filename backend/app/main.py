@@ -27,6 +27,7 @@ from app.mcp.server import (
     tool_get_api_endpoint,
     tool_get_code_examples,
     tool_get_document_outline,
+    tool_get_api_lifecycle,
     tool_get_product_info,
     tool_get_section,
     tool_grep_docs,
@@ -57,6 +58,7 @@ mcp.tool(name="get_document_outline")(tool_get_document_outline)
 mcp.tool(name="get_section")(tool_get_section)
 mcp.tool(name="get_code_examples")(tool_get_code_examples)
 mcp.tool(name="grep_docs")(tool_grep_docs)
+mcp.tool(name="get_api_lifecycle")(tool_get_api_lifecycle)
 
 _start_time: float = 0.0
 

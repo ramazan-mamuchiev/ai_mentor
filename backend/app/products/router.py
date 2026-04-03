@@ -651,6 +651,120 @@ async def cancel_product_ingestion(product_id: int):
     }
 
 
+@router.post("/{product_id}/analyze-lifecycle", status_code=202, dependencies=[Depends(require_permission("debug"))])
+async def analyze_product_lifecycle(product_id: int):
+    """Manually trigger API lifecycle analysis for all documents of a product, then merge.
+
+    Dispatches per-document lifecycle analysis for every ready document with API-related chunks.
+    The merge task runs automatically after all per-document analyses finish.
+    """
+    from app.models import ApiLifecycle
+    async with async_session() as session:
+        product = await _get_product(session, product_id)
+
+        docs = (await session.execute(
+            select(Document.id).where(
+                Document.product_id == product_id,
+                Document.status == "ready",
+            )
+        )).scalars().all()
+
+        if not docs:
+            raise HTTPException(status_code=400, detail="No ready documents in this product")
+
+    from app.celery_app import celery
+    task_ids = []
+    for doc_id in docs:
+        task = celery.send_task("analyze_api_lifecycle", args=[doc_id])
+        task_ids.append({"document_id": doc_id, "task_id": task.id})
+
+    return {
+        "product_id": product_id,
+        "message": f"Lifecycle analysis started for {len(docs)} documents",
+        "tasks": task_ids,
+    }
+
+
+@router.get("/{product_id}/lifecycle", dependencies=[Depends(require_permission("debug"))])
+async def get_product_lifecycle(product_id: int):
+    """Get merged lifecycle analysis for a product."""
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    async with async_session() as session:
+        product = await _get_product(session, product_id)
+
+        merged = (await session.execute(
+            select(ApiLifecycle).where(
+                ApiLifecycle.product_id == product_id,
+                ApiLifecycle.document_id.is_(None),
+            )
+        )).scalar_one_or_none()
+
+        doc_lifecycles = (await session.execute(
+            select(
+                ApiLifecycle.document_id,
+                ApiLifecycle.status,
+                ApiLifecycle.analysis_ms,
+                ApiLifecycle.created_at,
+            ).where(
+                ApiLifecycle.product_id == product_id,
+                ApiLifecycle.document_id.isnot(None),
+            )
+        )).all()
+
+        issues = (await session.execute(
+            select(DocIssueAnnotation).where(
+                DocIssueAnnotation.product_id == product_id,
+            )
+        )).scalars().all()
+
+        result: dict = {
+            "product_id": product_id,
+            "product_name": product.name,
+            "document_lifecycles": [
+                {
+                    "document_id": dl.document_id,
+                    "status": dl.status,
+                    "analysis_ms": dl.analysis_ms,
+                    "created_at": dl.created_at.isoformat() if dl.created_at else None,
+                }
+                for dl in doc_lifecycles
+            ],
+        }
+
+        if merged:
+            result["merged"] = {
+                "status": merged.status,
+                "phases": merged.phases,
+                "unique_patterns": merged.unique_patterns,
+                "dependency_chains": merged.dependency_chains,
+                "code_skeleton": merged.code_skeleton,
+                "validation_issues": merged.validation_issues,
+                "validation_retries": merged.validation_retries,
+                "prompt_tokens": merged.prompt_tokens,
+                "completion_tokens": merged.completion_tokens,
+                "analysis_ms": merged.analysis_ms,
+                "model": merged.model,
+                "created_at": merged.created_at.isoformat() if merged.created_at else None,
+                "updated_at": merged.updated_at.isoformat() if merged.updated_at else None,
+            }
+        else:
+            result["merged"] = None
+
+        result["doc_issues"] = [
+            {
+                "document_id": i.document_id,
+                "issue_type": i.issue_type,
+                "severity": i.severity,
+                "description": i.description,
+                "affected_entity": i.affected_entity,
+                "suggestion": i.suggestion,
+            }
+            for i in issues
+        ]
+
+        return result
+
+
 @router.get("/{product_id}/debug", response_model=ProductDebugInfo, dependencies=[Depends(require_permission("debug"))])
 async def get_product_debug(product_id: int):
     """Get aggregated debug/analytics info for all documents of a product."""

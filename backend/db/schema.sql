@@ -730,6 +730,60 @@ CREATE TABLE IF NOT EXISTS rag_eval_runs (
 CREATE INDEX IF NOT EXISTS idx_rag_eval_runs_status ON rag_eval_runs(status);
 CREATE INDEX IF NOT EXISTS idx_rag_eval_runs_started ON rag_eval_runs(started_at);
 
+-- API lifecycle analysis (per-document and per-product merged)
+-- document_id NULL = product-level (merged) lifecycle; NOT NULL = per-document lifecycle
+CREATE TABLE IF NOT EXISTS api_lifecycles (
+    id BIGSERIAL PRIMARY KEY,
+    document_id INT REFERENCES documents(id) ON DELETE CASCADE,
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    phases JSONB NOT NULL DEFAULT '[]',
+    unique_patterns JSONB NOT NULL DEFAULT '[]',
+    dependency_chains JSONB NOT NULL DEFAULT '[]',
+    code_skeleton TEXT,
+    validation_issues JSONB NOT NULL DEFAULT '[]',
+    validation_retries INT NOT NULL DEFAULT 0,
+    prompt_tokens INT NOT NULL DEFAULT 0,
+    completion_tokens INT NOT NULL DEFAULT 0,
+    analysis_ms FLOAT NOT NULL DEFAULT 0,
+    model TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_lifecycles_doc
+    ON api_lifecycles(document_id) WHERE document_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_lifecycles_product_merged
+    ON api_lifecycles(product_id) WHERE document_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_api_lifecycles_product ON api_lifecycles(product_id);
+CREATE INDEX IF NOT EXISTS idx_api_lifecycles_status ON api_lifecycles(status);
+
+-- Source document issues found during lifecycle analysis (annotations, not modifying originals)
+CREATE TABLE IF NOT EXISTS doc_issue_annotations (
+    id BIGSERIAL PRIMARY KEY,
+    document_id INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    chunk_id BIGINT REFERENCES chunks(id) ON DELETE SET NULL,
+    issue_type TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'warning',
+    description TEXT NOT NULL,
+    affected_entity TEXT,
+    suggestion TEXT,
+    detected_by TEXT NOT NULL DEFAULT 'lifecycle_analysis',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_issues_document ON doc_issue_annotations(document_id);
+CREATE INDEX IF NOT EXISTS idx_doc_issues_product ON doc_issue_annotations(product_id);
+CREATE INDEX IF NOT EXISTS idx_doc_issues_type ON doc_issue_annotations(issue_type);
+
+-- Document lifecycle analysis metrics
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS lifecycle_prompt_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS lifecycle_completion_tokens INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS lifecycle_ms FLOAT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS lifecycle_status TEXT NOT NULL DEFAULT '';
+
 -- Migration tracking
 CREATE TABLE IF NOT EXISTS schema_migrations (
     filename TEXT PRIMARY KEY,

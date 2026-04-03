@@ -348,6 +348,72 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
     return "\n\n".join(parts)
 
 
+async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]) -> str:
+    """Fetch compact lifecycle context for products referenced in RAG chunks.
+
+    No LLM calls — pure DB lookups. Returns formatted string or empty.
+    """
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    from sqlalchemy import select as sa_select
+
+    product_ids = {c.get("product_id") for c in chunks if c.get("product_id")}
+    if not product_ids:
+        return ""
+
+    parts: list[str] = []
+    for pid in product_ids:
+        lc = (await db.execute(
+            sa_select(ApiLifecycle).where(
+                ApiLifecycle.product_id == pid,
+                ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.status == "ready",
+            )
+        )).scalar_one_or_none()
+
+        if not lc:
+            continue
+
+        product_name = None
+        for c in chunks:
+            if c.get("product_id") == pid:
+                product_name = c.get("product_name")
+                break
+
+        lines = [f"--- API Integration Context ({product_name or f'product {pid}'}) ---"]
+
+        auth_phase = next(
+            (p for p in (lc.phases or [])
+             if p.get("phase_name") in ("authentication", "setup")
+             and "auth" in (p.get("action", "") + p.get("notes", "")).lower()),
+            None,
+        )
+        if auth_phase:
+            lines.append(f"Auth: {auth_phase.get('action', 'See docs')}")
+
+        init_phases = [p for p in (lc.phases or []) if p.get("phase_name") == "initialization"]
+        if init_phases:
+            init_desc = "; ".join(p.get("action", "") for p in init_phases[:2])
+            lines.append(f"Init: {init_desc}")
+
+        for pat in (lc.unique_patterns or [])[:3]:
+            lines.append(f"Unique: {pat.get('pattern', '')}: {pat.get('description', '')}")
+
+        issues = (await db.execute(
+            sa_select(DocIssueAnnotation).where(
+                DocIssueAnnotation.product_id == pid,
+                DocIssueAnnotation.severity.in_(["warning", "error"]),
+            ).limit(3)
+        )).scalars().all()
+
+        for issue in issues:
+            lines.append(f"WARNING: {issue.description}")
+
+        lines.append("---")
+        parts.append("\n".join(lines))
+
+    return "\n\n".join(parts)
+
+
 def _estimate_tokens(text: str) -> int:
     """Rough token estimate: 1 token ≈ 4 characters for English/mixed text."""
     return max(1, len(text) // 4) if text else 0
@@ -1233,6 +1299,14 @@ async def build_rag_prompt(
     cross_doc_count = sum(1 for c in chunks if c.get("_cross_doc"))
     if cross_doc_count:
         context_header += f"Cross-document expansion: {cross_doc_count} related chunks added\n"
+
+    lifecycle_ctx = ""
+    try:
+        lifecycle_ctx = await _get_lifecycle_context_for_chunks(db, chunks)
+    except Exception:
+        logger.warning("Failed to enrich RAG with lifecycle context", exc_info=True)
+    if lifecycle_ctx:
+        context_header += f"\n{lifecycle_ctx}\n\n"
 
     context_header += "\n"
     context_block = f"{context_header}{context}\n</documentation_context>"

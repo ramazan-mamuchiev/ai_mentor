@@ -142,7 +142,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
         </div>
 
         {status === 'idle' && (
-          <form className="file-upload-form" onSubmit={handleSubmit}>
+          <form className="file-upload-form" onSubmit={handleSubmit} autoComplete="off" data-form-type="other">
             <div className="file-upload-fields">
               <label>
                 {t('urlImport.url')}
@@ -217,7 +217,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                         type="text"
                         value={confluenceUsername}
                         onChange={e => setConfluenceUsername(e.target.value)}
-                        autoComplete="username"
+                        autoComplete="off"
                       />
                     </label>
                     <label>
@@ -226,7 +226,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                         type="password"
                         value={confluencePassword}
                         onChange={e => setConfluencePassword(e.target.value)}
-                        autoComplete="current-password"
+                        autoComplete="off"
                       />
                     </label>
                   </div>
@@ -245,7 +245,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                         type="text"
                         value={httpUsername}
                         onChange={e => setHttpUsername(e.target.value)}
-                        autoComplete="username"
+                        autoComplete="off"
                       />
                     </label>
                     <label>
@@ -254,7 +254,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                         type="password"
                         value={httpPassword}
                         onChange={e => setHttpPassword(e.target.value)}
-                        autoComplete="current-password"
+                        autoComplete="off"
                       />
                     </label>
                   </div>

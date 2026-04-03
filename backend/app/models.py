@@ -261,6 +261,11 @@ class Document(Base):
 
     crawl_checkpoint: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
+    lifecycle_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    lifecycle_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    lifecycle_ms: Mapped[float] = mapped_column(Float, default=0)
+    lifecycle_status: Mapped[str] = mapped_column(Text, default="")
+
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 
@@ -297,6 +302,62 @@ class Chunk(Base):
         Index("idx_chunks_document", "document_id"),
         Index("idx_chunks_doc_type", "doc_type"),
         Index("idx_chunks_layer", "layer"),
+    )
+
+
+class ApiLifecycle(Base):
+    __tablename__ = "api_lifecycles"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=True,
+    )
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), nullable=False,
+    )
+    phases: Mapped[list] = mapped_column(JSONB, default=list)
+    unique_patterns: Mapped[list] = mapped_column(JSONB, default=list)
+    dependency_chains: Mapped[list] = mapped_column(JSONB, default=list)
+    code_skeleton: Mapped[str | None] = mapped_column(Text, nullable=True)
+    validation_issues: Mapped[list] = mapped_column(JSONB, default=list)
+    validation_retries: Mapped[int] = mapped_column(Integer, default=0)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    analysis_ms: Mapped[float] = mapped_column(Float, default=0)
+    model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text, default="pending")
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class DocIssueAnnotation(Base):
+    __tablename__ = "doc_issue_annotations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False,
+    )
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), nullable=False,
+    )
+    chunk_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("chunks.id", ondelete="SET NULL"), nullable=True,
+    )
+    issue_type: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(Text, default="warning")
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    affected_entity: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggestion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detected_by: Mapped[str] = mapped_column(Text, default="lifecycle_analysis")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
     )
 
 

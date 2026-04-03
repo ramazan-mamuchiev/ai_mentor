@@ -1062,6 +1062,93 @@ async def preview_markdown(document_id: int):
         )
 
 
+@router.post("/{document_id}/analyze-lifecycle", status_code=202, dependencies=[Depends(require_permission("debug"))])
+async def analyze_document_lifecycle(document_id: int):
+    """Manually trigger API lifecycle analysis for a document.
+
+    Dispatches an async Celery task. Returns immediately with task info.
+    """
+    from app.models import ApiLifecycle
+    async with async_session() as session:
+        doc = (await session.execute(
+            select(Document).where(Document.id == document_id)
+        )).scalar_one_or_none()
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        if doc.status != "ready":
+            raise HTTPException(status_code=409, detail=f"Document status is '{doc.status}', must be 'ready'")
+
+        existing = (await session.execute(
+            select(ApiLifecycle.status).where(ApiLifecycle.document_id == document_id)
+        )).scalar_one_or_none()
+
+        doc.lifecycle_status = "pending"
+        await session.commit()
+
+    from app.celery_app import celery
+    task = celery.send_task("analyze_api_lifecycle", args=[document_id])
+
+    return {
+        "document_id": document_id,
+        "task_id": task.id,
+        "message": "Lifecycle analysis started",
+        "previous_status": existing or "none",
+    }
+
+
+@router.get("/{document_id}/lifecycle", dependencies=[Depends(require_permission("debug"))])
+async def get_document_lifecycle(document_id: int):
+    """Get lifecycle analysis result for a document."""
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    async with async_session() as session:
+        doc = (await session.execute(
+            select(Document).where(Document.id == document_id)
+        )).scalar_one_or_none()
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        lc = (await session.execute(
+            select(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
+        )).scalar_one_or_none()
+        if lc is None:
+            return {"document_id": document_id, "status": "not_analyzed"}
+
+        issues = (await session.execute(
+            select(DocIssueAnnotation).where(
+                DocIssueAnnotation.document_id == document_id,
+                DocIssueAnnotation.detected_by == "lifecycle_analysis",
+            )
+        )).scalars().all()
+
+        return {
+            "document_id": document_id,
+            "status": lc.status,
+            "phases": lc.phases,
+            "unique_patterns": lc.unique_patterns,
+            "dependency_chains": lc.dependency_chains,
+            "code_skeleton": lc.code_skeleton,
+            "validation_issues": lc.validation_issues,
+            "validation_retries": lc.validation_retries,
+            "prompt_tokens": lc.prompt_tokens,
+            "completion_tokens": lc.completion_tokens,
+            "analysis_ms": lc.analysis_ms,
+            "model": lc.model,
+            "error_message": lc.error_message,
+            "created_at": lc.created_at.isoformat() if lc.created_at else None,
+            "updated_at": lc.updated_at.isoformat() if lc.updated_at else None,
+            "doc_issues": [
+                {
+                    "issue_type": i.issue_type,
+                    "severity": i.severity,
+                    "description": i.description,
+                    "affected_entity": i.affected_entity,
+                    "suggestion": i.suggestion,
+                }
+                for i in issues
+            ],
+        }
+
+
 @router.post("/{document_id}/cancel", status_code=200)
 async def cancel_document(document_id: int):
     """Cancel ingestion of a pending or processing document.

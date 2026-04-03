@@ -88,6 +88,11 @@ class Settings(BaseSettings):
     product_keys_extraction_enabled: bool = True
     product_resolve_model: str = "gemini-2.5-flash"
 
+    lifecycle_analysis_enabled: bool = True
+    lifecycle_analysis_model: str = "gemini-2.5-pro"
+    lifecycle_analysis_max_doc_tokens: int = 200_000
+    lifecycle_validation_max_retries: int = 2
+
     search_retry_enabled: bool = True
 
     decompose_enabled: bool = True

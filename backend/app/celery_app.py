@@ -2881,3 +2881,268 @@ def backfill_chunk_languages_task(self):
                 extra={"docs_updated": updated_docs, "chunks_updated": updated_chunks})
 
 
+# ---------------------------------------------------------------------------
+# API Lifecycle Analysis Tasks
+# ---------------------------------------------------------------------------
+
+@celery.task(name="analyze_api_lifecycle", bind=True, max_retries=1,
+             soft_time_limit=600, time_limit=660)
+def analyze_api_lifecycle_task(self, document_id: int):
+    """Analyze a single document and extract its API lifecycle."""
+    from datetime import datetime, timezone as _tz
+    from app.models import Base, Document, ApiLifecycle, DocIssueAnnotation, Chunk
+    from app.ingestion.lifecycle_analyzer import analyze_document_lifecycle_sync
+    from app.billing.usage_writer import write_usage_log_sync
+    from app.billing.pricing import calculate_llm_cogs, calculate_llm_charge
+
+    if not settings.lifecycle_analysis_enabled:
+        return {"status": "skipped", "reason": "lifecycle_analysis_enabled=False"}
+
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            return {"status": "error", "error": "Document not found"}
+        if doc.status != "ready":
+            return {"status": "skipped", "reason": f"Document status is '{doc.status}', not 'ready'"}
+
+        _set_tenant_log_context(doc.tenant_id, session)
+
+        api_types = {"api_reference", "protocol", "model_schema"}
+        chunk_types = session.execute(
+            sa_select(Chunk.doc_type).where(Chunk.document_id == document_id).distinct()
+        ).scalars().all()
+        if not any(ct in api_types for ct in chunk_types):
+            logger.info("Skipping lifecycle analysis: no API-related chunks",
+                        extra={"document_id": document_id, "chunk_types": list(chunk_types)})
+            return {"status": "skipped", "reason": "No API-related doc_types"}
+
+        doc.lifecycle_status = "processing"
+        session.commit()
+
+        try:
+            result, doc_issues = analyze_document_lifecycle_sync(document_id, session)
+
+            has_content = bool(result.phases)
+            if has_content:
+                effective_status = "ready"
+                error_msg = None
+            else:
+                effective_status = "error"
+                error_msg = "No API lifecycle phases extracted after all retries"
+                if result.validation_issues:
+                    error_msg += f": {result.validation_issues[0].get('error', '')}"
+
+            existing = session.execute(
+                sa_select(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
+            ).scalar_one_or_none()
+
+            if existing:
+                existing.phases = result.phases
+                existing.unique_patterns = result.unique_patterns
+                existing.dependency_chains = result.dependency_chains
+                existing.code_skeleton = result.code_skeleton
+                existing.validation_issues = result.validation_issues
+                existing.validation_retries = result.validation_retries
+                existing.prompt_tokens = result.usage.prompt_tokens
+                existing.completion_tokens = result.usage.completion_tokens
+                existing.analysis_ms = result.usage.analysis_ms
+                existing.model = result.usage.model
+                existing.status = effective_status
+                existing.error_message = error_msg
+                existing.updated_at = datetime.now(_tz.utc)
+            else:
+                lc = ApiLifecycle(
+                    document_id=document_id,
+                    product_id=doc.product_id,
+                    phases=result.phases,
+                    unique_patterns=result.unique_patterns,
+                    dependency_chains=result.dependency_chains,
+                    code_skeleton=result.code_skeleton,
+                    validation_issues=result.validation_issues,
+                    validation_retries=result.validation_retries,
+                    prompt_tokens=result.usage.prompt_tokens,
+                    completion_tokens=result.usage.completion_tokens,
+                    analysis_ms=result.usage.analysis_ms,
+                    model=result.usage.model,
+                    status=effective_status,
+                    error_message=error_msg,
+                )
+                session.add(lc)
+
+            from sqlalchemy import delete as sa_delete
+            session.execute(
+                sa_delete(DocIssueAnnotation).where(
+                    DocIssueAnnotation.document_id == document_id,
+                    DocIssueAnnotation.detected_by == "lifecycle_analysis",
+                )
+            )
+            for issue in doc_issues:
+                session.add(DocIssueAnnotation(
+                    document_id=document_id,
+                    product_id=doc.product_id,
+                    chunk_id=issue.chunk_id,
+                    issue_type=issue.issue_type,
+                    severity=issue.severity,
+                    description=issue.description,
+                    affected_entity=issue.affected_entity,
+                    suggestion=issue.suggestion,
+                    detected_by="lifecycle_analysis",
+                ))
+
+            doc.lifecycle_prompt_tokens = result.usage.prompt_tokens
+            doc.lifecycle_completion_tokens = result.usage.completion_tokens
+            doc.lifecycle_ms = result.usage.analysis_ms
+            doc.lifecycle_status = effective_status
+            session.commit()
+
+            import uuid
+            model = settings.lifecycle_analysis_model
+            tid = str(doc.tenant_id) if doc.tenant_id else None
+            req_id = f"lifecycle-{document_id}-{uuid.uuid4().hex[:8]}"
+            total_billed_tokens = result.usage.prompt_tokens + result.usage.completion_tokens + result.usage.thinking_tokens
+            write_usage_log_sync(
+                "ingestion", "lifecycle_analysis", req_id,
+                llm_provider="google", llm_model=model,
+                prompt_tokens=result.usage.prompt_tokens,
+                completion_tokens=result.usage.completion_tokens + result.usage.thinking_tokens,
+                duration_ms=result.usage.analysis_ms,
+                llm_ms=result.usage.llm_ms,
+                cogs_usd=calculate_llm_cogs(model, result.usage.prompt_tokens, result.usage.completion_tokens + result.usage.thinking_tokens),
+                charge_usd=calculate_llm_charge(model, result.usage.prompt_tokens, result.usage.completion_tokens + result.usage.thinking_tokens),
+                tenant_id=tid,
+            )
+
+            if has_content:
+                doc_lc_count = session.execute(
+                    sa_select(func.count()).select_from(ApiLifecycle).where(
+                        ApiLifecycle.product_id == doc.product_id,
+                        ApiLifecycle.document_id.isnot(None),
+                        ApiLifecycle.status == "ready",
+                    )
+                ).scalar() or 0
+
+                if doc_lc_count >= 1:
+                    try:
+                        celery.send_task("merge_product_lifecycle", args=[doc.product_id])
+                    except Exception:
+                        logger.warning("Failed to dispatch merge_product_lifecycle", exc_info=True)
+
+            logger.info("Lifecycle analysis completed",
+                        extra={
+                            "document_id": document_id,
+                            "phases": len(result.phases),
+                            "patterns": len(result.unique_patterns),
+                            "doc_issues": len(doc_issues),
+                            "retries": result.validation_retries,
+                            "analysis_ms": result.usage.analysis_ms,
+                        })
+            return {"status": "ok", "document_id": document_id, "phases": len(result.phases)}
+
+        except Exception as exc:
+            doc.lifecycle_status = "error"
+            session.commit()
+            logger.error("Lifecycle analysis failed",
+                         extra={"document_id": document_id, "error_type": type(exc).__name__},
+                         exc_info=True)
+            raise self.retry(exc=exc)
+
+
+@celery.task(name="merge_product_lifecycle", bind=True, max_retries=1,
+             soft_time_limit=300, time_limit=360)
+def merge_product_lifecycle_task(self, product_id: int):
+    """Merge all document-level lifecycles for a product into one."""
+    from datetime import datetime, timezone as _tz
+    from app.models import Base, ApiLifecycle, DocIssueAnnotation, Product
+    from app.ingestion.lifecycle_analyzer import merge_product_lifecycle_sync
+    from app.billing.usage_writer import write_usage_log_sync
+    from app.billing.pricing import calculate_llm_cogs, calculate_llm_charge
+
+    if not settings.lifecycle_analysis_enabled:
+        return {"status": "skipped", "reason": "lifecycle_analysis_enabled=False"}
+
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        product = session.get(Product, product_id)
+        if product is None:
+            return {"status": "error", "error": "Product not found"}
+
+        try:
+            result, doc_issues = merge_product_lifecycle_sync(product_id, session)
+
+            existing = session.execute(
+                sa_select(ApiLifecycle).where(
+                    ApiLifecycle.product_id == product_id,
+                    ApiLifecycle.document_id.is_(None),
+                )
+            ).scalar_one_or_none()
+
+            if existing:
+                existing.phases = result.phases
+                existing.unique_patterns = result.unique_patterns
+                existing.dependency_chains = result.dependency_chains
+                existing.code_skeleton = result.code_skeleton
+                existing.validation_issues = result.validation_issues
+                existing.validation_retries = result.validation_retries
+                existing.prompt_tokens = result.usage.prompt_tokens
+                existing.completion_tokens = result.usage.completion_tokens
+                existing.analysis_ms = result.usage.analysis_ms
+                existing.model = result.usage.model
+                existing.status = "ready"
+                existing.error_message = None
+                existing.updated_at = datetime.now(_tz.utc)
+            else:
+                lc = ApiLifecycle(
+                    document_id=None,
+                    product_id=product_id,
+                    phases=result.phases,
+                    unique_patterns=result.unique_patterns,
+                    dependency_chains=result.dependency_chains,
+                    code_skeleton=result.code_skeleton,
+                    validation_issues=result.validation_issues,
+                    validation_retries=result.validation_retries,
+                    prompt_tokens=result.usage.prompt_tokens,
+                    completion_tokens=result.usage.completion_tokens,
+                    analysis_ms=result.usage.analysis_ms,
+                    model=result.usage.model,
+                    status="ready",
+                )
+                session.add(lc)
+
+            session.commit()
+
+            if result.usage.prompt_tokens > 0:
+                import uuid
+                model = settings.lifecycle_analysis_model
+                req_id = f"lifecycle-merge-{product_id}-{uuid.uuid4().hex[:8]}"
+                tenant_id = getattr(product, "tenant_id", None)
+                tid = str(tenant_id) if tenant_id else None
+                write_usage_log_sync(
+                    "ingestion", "lifecycle_merge", req_id,
+                    llm_provider="google", llm_model=model,
+                    prompt_tokens=result.usage.prompt_tokens,
+                    completion_tokens=result.usage.completion_tokens + result.usage.thinking_tokens,
+                    duration_ms=result.usage.analysis_ms,
+                    llm_ms=result.usage.llm_ms,
+                    cogs_usd=calculate_llm_cogs(model, result.usage.prompt_tokens, result.usage.completion_tokens + result.usage.thinking_tokens),
+                    charge_usd=calculate_llm_charge(model, result.usage.prompt_tokens, result.usage.completion_tokens + result.usage.thinking_tokens),
+                    tenant_id=tid,
+                )
+
+            logger.info("Product lifecycle merge completed",
+                        extra={
+                            "product_id": product_id,
+                            "phases": len(result.phases),
+                            "analysis_ms": result.usage.analysis_ms,
+                        })
+            return {"status": "ok", "product_id": product_id, "phases": len(result.phases)}
+
+        except Exception as exc:
+            logger.error("Product lifecycle merge failed",
+                         extra={"product_id": product_id, "error_type": type(exc).__name__},
+                         exc_info=True)
+            raise self.retry(exc=exc)
+
+
