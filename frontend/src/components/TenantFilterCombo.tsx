@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { User, X } from 'lucide-react'
 import { searchTenants, getTenant, type TenantSearchResult } from '../api/admin'
@@ -11,6 +12,7 @@ interface Props {
 
 export function TenantFilterCombo({ value, onChange, initialTenantId }: Props) {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [options, setOptions] = useState<TenantSearchResult[]>([])
   const [open, setOpen] = useState(false)
@@ -20,7 +22,13 @@ export function TenantFilterCombo({ value, onChange, initialTenantId }: Props) {
   useEffect(() => {
     if (!initialTenantId || value) return
     getTenant(initialTenantId)
-      .then(t => onChange({ id: t.id, name: t.name || t.email.split('@')[0], email: t.email }))
+      .then(tenant => {
+        onChange({ id: tenant.id, name: tenant.name || tenant.email.split('@')[0], email: tenant.email })
+        if (searchParams.has('tenant_id')) {
+          searchParams.delete('tenant_id')
+          setSearchParams(searchParams, { replace: true })
+        }
+      })
       .catch(() => {})
   }, [initialTenantId]) // eslint-disable-line react-hooks/exhaustive-deps
 

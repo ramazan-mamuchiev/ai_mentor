@@ -293,7 +293,6 @@ function SessionListView() {
   const exportRef = useRef<HTMLDivElement>(null)
 
   const tenantIdFromUrl = searchParams.get('tenant_id') || undefined
-  const activeTenantId = tenantFilter?.id || tenantIdFromUrl
   const pageSize = 50
 
   useEffect(() => {
@@ -321,7 +320,7 @@ function SessionListView() {
         const res = await listChatSessionsAdmin({
           page, page_size: pageSize,
           search: debouncedSearch || undefined,
-          tenant_id: activeTenantId,
+          tenant_id: tenantFilter?.id,
           created_after: start,
           created_before: end,
         })
@@ -333,7 +332,7 @@ function SessionListView() {
       setError(err instanceof Error ? err.message : t('admin.chats.failedToLoad'))
     }
     setLoading(false)
-  }, [page, debouncedSearch, activeTenantId, isMessageSearch, timeRange])
+  }, [page, debouncedSearch, tenantFilter?.id, isMessageSearch, timeRange])
 
   useEffect(() => { load() }, [load])
 
@@ -388,7 +387,7 @@ function SessionListView() {
     <div className="chat-audit-page">
       <div className="admin-page-header">
         <h1><MessageSquare size={20} /> {t('admin.chats.title')}</h1>
-        <p>{t('admin.chats.sessionsCount', { count: total })}{activeTenantId ? t('admin.chats.filteredByTenant') : ''}</p>
+        <p>{t('admin.chats.sessionsCount', { count: total })}{tenantFilter ? t('admin.chats.filteredByTenant') : ''}</p>
       </div>
 
       <div className="logs-toolbar">
