@@ -682,6 +682,9 @@ async def ingest_archive(
 @router.get("", response_model=list[DocumentListItem])
 async def list_documents(product_id: int | None = None):
     """List all documents with their status. Optionally filter by product_id."""
+    import orjson
+    from starlette.responses import Response
+
     async with async_session() as session:
         query = (
             select(
@@ -711,7 +714,11 @@ async def list_documents(product_id: int | None = None):
             query = query.where(Document.product_id == product_id)
         result = await session.execute(query)
         rows = result.all()
-        return [DocumentListItem(**dict(row._mapping)) for row in rows]
+        items = [dict(row._mapping) for row in rows]
+        return Response(
+            content=orjson.dumps(items, option=orjson.OPT_NAIVE_UTC),
+            media_type="application/json",
+        )
 
 
 @router.patch("/{document_id}", response_model=DocumentStatus)

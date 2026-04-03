@@ -376,10 +376,13 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
     upload_tenant_id = us.tenant_id
 
     if us.is_archive:
+        product = await _get_or_create_product(session, us.product_name, us.manufacturer, tenant_id=upload_tenant_id)
+        fw = await _get_or_create_firmware(session, product.id, us.firmware_version)
+        await session.commit()
+
         from app.celery_app import ingest_archive_from_s3_task
         ingest_archive_from_s3_task.delay(
-            us.s3_key, us.filename, us.product_name,
-            us.firmware_version, us.manufacturer, us.force,
+            us.s3_key, us.filename, product.id, fw.id, us.force,
             str(upload_tenant_id) if upload_tenant_id else None,
         )
         return None

@@ -513,7 +513,10 @@ from app.auth.dependencies import get_current_tenant, require_admin, require_ema
 _auth = [Depends(require_email_verified)]
 _admin_auth = [Depends(require_admin)]
 
+from starlette.middleware.gzip import GZipMiddleware
+
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
 app.include_router(auth_router)
 app.include_router(documents_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(products_router, prefix="/api/v1", dependencies=_auth)

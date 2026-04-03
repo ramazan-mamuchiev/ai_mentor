@@ -356,6 +356,12 @@ CREATE INDEX IF NOT EXISTS idx_reindex_jobs_status ON reindex_jobs(status);
 -- Deduplication index on document content hash
 CREATE INDEX IF NOT EXISTS idx_documents_source_hash ON documents(source_hash) WHERE source_hash != '';
 
+-- Product document list (WHERE product_id = ? ORDER BY uploaded_at DESC)
+CREATE INDEX IF NOT EXISTS idx_documents_product_uploaded ON documents(product_id, uploaded_at DESC);
+
+-- FK join acceleration (PostgreSQL does not auto-index FK columns)
+CREATE INDEX IF NOT EXISTS idx_documents_firmware_version ON documents(firmware_version_id);
+
 -- Upload sessions (TUS resumable upload protocol)
 CREATE TABLE IF NOT EXISTS upload_sessions (
     id TEXT PRIMARY KEY,

@@ -618,16 +618,15 @@ def ingest_archive_from_s3_task(
     self,
     s3_key: str,
     archive_filename: str,
-    product_name: str,
-    firmware_version: str = "1.0",
-    manufacturer: str = "",
+    product_id: int,
+    firmware_version_id: int,
     force: bool = False,
     tenant_id_str: str | None = None,
 ):
     """Download archive from S3, extract files, create Documents for each inner file.
 
-    Unlike ingest_archive_task, this does NOT require a Document record for the
-    archive itself — it works directly with an S3 key.
+    Product and FirmwareVersion are created by the API layer before this task
+    is enqueued, so the product appears in the UI immediately.
     """
     import uuid as _uuid
     from app.models import Document, Product, FirmwareVersion
@@ -637,6 +636,7 @@ def ingest_archive_from_s3_task(
     t0 = time.perf_counter()
     logger.info("ingest_archive_from_s3_task started", extra={
         "s3_key": s3_key, "archive_filename": archive_filename, "task_id": self.request.id,
+        "product_id": product_id, "firmware_version_id": firmware_version_id,
     })
 
     engine = _get_sync_engine()
@@ -665,31 +665,15 @@ def ingest_archive_from_s3_task(
         _tenant_id = _uuid.UUID(tenant_id_str) if tenant_id_str else None
         _set_tenant_log_context(_tenant_id, session)
 
-        from sqlalchemy import select as sa_select
-        product_row = session.execute(
-            sa_select(Product).where(Product.name == product_name)
-        ).scalar_one_or_none()
+        product_row = session.get(Product, product_id)
         if product_row is None:
-            from app.products.utils import make_product_slug
-            product_row = Product(
-                name=product_name,
-                manufacturer=manufacturer,
-                slug=make_product_slug(manufacturer, product_name),
-                tenant_id=_tenant_id,
-            )
-            session.add(product_row)
-            session.flush()
+            logger.error("Product not found", extra={"product_id": product_id})
+            return {"status": "error", "error": f"Product {product_id} not found"}
 
-        fw_row = session.execute(
-            sa_select(FirmwareVersion).where(
-                FirmwareVersion.product_id == product_row.id,
-                FirmwareVersion.version == firmware_version,
-            )
-        ).scalar_one_or_none()
+        fw_row = session.get(FirmwareVersion, firmware_version_id)
         if fw_row is None:
-            fw_row = FirmwareVersion(product_id=product_row.id, version=firmware_version)
-            session.add(fw_row)
-            session.flush()
+            logger.error("FirmwareVersion not found", extra={"firmware_version_id": firmware_version_id})
+            return {"status": "error", "error": f"FirmwareVersion {firmware_version_id} not found"}
 
         from app.documents.archive import is_proto_heavy, classify_archive_entries
         proto_entries, other_entries = classify_archive_entries(entries)
