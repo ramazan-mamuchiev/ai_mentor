@@ -47,8 +47,9 @@ function formatDateCompact(iso: string | null): string {
 function getProductStatus(p: ProductListItem): DocumentStatusValue {
   if (p.processing_documents > 0) return 'processing'
   if (p.pending_documents > 0) return 'pending'
+  if (p.ready_documents > 0) return 'ready'
   if (p.error_documents > 0) return 'error'
-  if (p.cancelled_documents > 0 && p.ready_documents === 0) return 'cancelled'
+  if (p.cancelled_documents > 0) return 'cancelled'
   return 'ready'
 }
 
@@ -72,13 +73,29 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
     )
   }
 
-  const allReady = total > 0 && product.ready_documents === total
+  const finished = total > 0 && product.processing_documents === 0 && product.pending_documents === 0
+  const allReady = finished && product.ready_documents === total
+  const mostlyReady = finished && product.ready_documents > 0 && !allReady
 
   if (allReady) {
     return (
       <span className="docs-status docs-status--ready">
         <CheckCircle size={14} />
         {t('docs.status.ready')}
+      </span>
+    )
+  }
+
+  if (mostlyReady) {
+    return (
+      <span className="docs-status docs-status--ready">
+        <CheckCircle size={14} />
+        {t('docs.status.ready')}
+        {product.error_documents > 0 && (
+          <span className="product-segmented-error-hint" style={{ marginLeft: 6 }}>
+            ({product.error_documents} {t('docs.status.error').toLowerCase()})
+          </span>
+        )}
       </span>
     )
   }
