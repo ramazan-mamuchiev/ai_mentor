@@ -68,6 +68,38 @@ export interface ProductSuggestion {
   firmware_versions: Array<{ id: number; version: string }>
 }
 
+export async function analyzeProductLifecycle(productId: number): Promise<{ product_id: number; message: string; tasks: Array<{ document_id: number; task_id: string }> }> {
+  return apiFetch(`/products/${productId}/analyze-lifecycle`, { method: 'POST' })
+}
+
+export interface ProductLifecycle {
+  product_id: number
+  product_name: string
+  document_lifecycles: Array<{ document_id: number; status: string; analysis_ms: number; created_at: string | null }>
+  merged: null | {
+    status: string
+    phases: Array<{
+      phase_name: string; step_order: number; action: string; api_call: string
+      inputs: string[]; outputs: string[]; is_required: boolean; notes: string
+    }>
+    unique_patterns: Array<{ pattern: string; description: string; impact: string; code_hint: string }>
+    dependency_chains: Array<{ from_action: string; to_action: string; data_flow: string; description: string }>
+    code_skeleton: string
+    validation_issues: Array<{ error: string }>
+    validation_retries: number
+    prompt_tokens: number; completion_tokens: number; analysis_ms: number; model: string
+    created_at: string | null; updated_at: string | null
+  }
+  doc_issues: Array<{
+    document_id: number; issue_type: string; severity: string; description: string
+    affected_entity?: string; suggestion?: string
+  }>
+}
+
+export async function getProductLifecycle(productId: number): Promise<ProductLifecycle> {
+  return apiFetch<ProductLifecycle>(`/products/${productId}/lifecycle`)
+}
+
 export async function suggestProducts(q: string = '', limit: number = 20): Promise<ProductSuggestion[]> {
   const params = new URLSearchParams()
   if (q) params.set('q', q)

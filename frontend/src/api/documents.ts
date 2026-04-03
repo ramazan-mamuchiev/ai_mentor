@@ -148,3 +148,36 @@ export async function cancelReindexJob(id: number): Promise<ReindexJob> {
 export async function getDocumentSearchKeys(documentId: number): Promise<DocumentSearchKeysResponse> {
   return apiFetch<DocumentSearchKeysResponse>(`/documents/${documentId}/search-keys`)
 }
+
+export async function analyzeDocumentLifecycle(documentId: number): Promise<{ document_id: number; task_id: string; message: string; previous_status: string }> {
+  return apiFetch(`/documents/${documentId}/analyze-lifecycle`, { method: 'POST' })
+}
+
+export interface DocumentLifecycle {
+  document_id: number
+  status: string
+  phases?: Array<{
+    phase_name: string; step_order: number; action: string; api_call: string
+    inputs: string[]; outputs: string[]; is_required: boolean; notes: string
+  }>
+  unique_patterns?: Array<{ pattern: string; description: string; impact: string; code_hint: string }>
+  dependency_chains?: Array<{ from_action: string; to_action: string; data_flow: string; description: string }>
+  code_skeleton?: string
+  validation_issues?: Array<{ error: string }>
+  validation_retries?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  analysis_ms?: number
+  model?: string
+  error_message?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  doc_issues?: Array<{
+    issue_type: string; severity: string; description: string
+    affected_entity?: string; suggestion?: string
+  }>
+}
+
+export async function getDocumentLifecycle(documentId: number): Promise<DocumentLifecycle> {
+  return apiFetch<DocumentLifecycle>(`/documents/${documentId}/lifecycle`)
+}

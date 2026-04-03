@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Key, Loader2 } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { Key, Loader2, Play, RefreshCw, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getDocumentDebug, getDocumentUsageStats } from '../api/documents'
+import { getDocumentDebug, getDocumentUsageStats, getDocumentLifecycle, analyzeDocumentLifecycle } from '../api/documents'
 import type { DocumentDebugInfo, DocumentUsageStats } from '../types'
+import type { DocumentLifecycle } from '../api/documents'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 import { SearchKeysModal } from './SearchKeysModal'
 
@@ -77,6 +78,178 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
           />
         )
       })}
+    </div>
+  )
+}
+
+function LifecycleStatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation()
+  const icon = status === 'ready' ? <CheckCircle size={12} /> :
+    status === 'error' ? <XCircle size={12} /> :
+    status === 'processing' || status === 'pending' ? <Loader2 size={12} className="spin-icon" /> : null
+  return (
+    <span className={`lifecycle-status lifecycle-status--${status}`}>
+      {icon} {t(`lifecycle.status.${status}`, status)}
+    </span>
+  )
+}
+
+function LifecycleSection({ documentId }: { documentId: number }) {
+  const { t } = useTranslation()
+  const [lc, setLc] = useState<DocumentLifecycle | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [skeletonExpanded, setSkeletonExpanded] = useState(false)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    getDocumentLifecycle(documentId)
+      .then(setLc)
+      .catch(() => setLc(null))
+      .finally(() => setLoading(false))
+  }, [documentId])
+
+  useEffect(() => { load() }, [load])
+
+  const handleRun = async () => {
+    setRunning(true)
+    try {
+      await analyzeDocumentLifecycle(documentId)
+      setTimeout(load, 2000)
+    } catch { /* ignore */ }
+    finally { setRunning(false) }
+  }
+
+  if (loading) return null
+
+  const hasData = lc && lc.status !== 'not_analyzed'
+  const phases = lc?.phases ?? []
+  const patterns = lc?.unique_patterns ?? []
+  const deps = lc?.dependency_chains ?? []
+  const issues = lc?.doc_issues ?? []
+
+  return (
+    <div className="doc-debug-section lifecycle-section">
+      <div className="doc-debug-section-title lifecycle-section-header">
+        <span>{t('lifecycle.title')}</span>
+        <button
+          className="lifecycle-run-btn"
+          onClick={handleRun}
+          disabled={running}
+          title={hasData ? t('lifecycle.rerun') : t('lifecycle.run')}
+        >
+          {running ? <Loader2 size={12} className="spin-icon" /> :
+           hasData ? <RefreshCw size={12} /> : <Play size={12} />}
+          {hasData ? t('lifecycle.rerun') : t('lifecycle.run')}
+        </button>
+      </div>
+
+      {!hasData && (
+        <div className="doc-debug-row">
+          <span>{t('lifecycle.notAnalyzed')}</span>
+        </div>
+      )}
+
+      {hasData && lc && (
+        <>
+          <div className="doc-debug-row">
+            <span>{t('lifecycle.statusLabel')}</span>
+            <LifecycleStatusBadge status={lc.status} />
+          </div>
+
+          {lc.error_message && (
+            <div className="doc-debug-row doc-debug-row--warning">
+              <span>{t('lifecycle.error')}</span>
+              <code>{lc.error_message}</code>
+            </div>
+          )}
+
+          {phases.length > 0 && (
+            <div className="lifecycle-subsection">
+              <button className="lifecycle-toggle" onClick={() => setExpanded(!expanded)}>
+                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {t('lifecycle.phases')} ({phases.length})
+              </button>
+              {expanded && (
+                <div className="lifecycle-phases">
+                  {[...phases].sort((a, b) => a.step_order - b.step_order).map((p, i) => (
+                    <div key={i} className={`lifecycle-phase lifecycle-phase--${p.phase_name}`}>
+                      <div className="lifecycle-phase-header">
+                        <span className="lifecycle-phase-order">{p.step_order}</span>
+                        <span className="lifecycle-phase-action">{p.action}</span>
+                        {p.is_required && <span className="lifecycle-phase-required">REQ</span>}
+                      </div>
+                      {p.api_call && <code className="lifecycle-phase-api">{p.api_call}</code>}
+                      {p.notes && <div className="lifecycle-phase-notes">{p.notes}</div>}
+                      {p.inputs.length > 0 && <div className="lifecycle-phase-io">← {p.inputs.join(', ')}</div>}
+                      {p.outputs.length > 0 && <div className="lifecycle-phase-io">→ {p.outputs.join(', ')}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {patterns.length > 0 && (
+            <div className="lifecycle-subsection">
+              <div className="lifecycle-subsection-title">{t('lifecycle.patterns')} ({patterns.length})</div>
+              {patterns.map((p, i) => (
+                <div key={i} className="lifecycle-pattern">
+                  <strong>{p.pattern}</strong>: {p.description}
+                  {p.code_hint && <code className="lifecycle-code-hint">{p.code_hint}</code>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {deps.length > 0 && (
+            <div className="lifecycle-subsection">
+              <div className="lifecycle-subsection-title">{t('lifecycle.dependencies')} ({deps.length})</div>
+              {deps.map((d, i) => (
+                <div key={i} className="lifecycle-dep">
+                  {d.from_action} → {d.to_action} <span className="lifecycle-dep-data">({d.data_flow})</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {lc.code_skeleton && (
+            <div className="lifecycle-subsection">
+              <button className="lifecycle-toggle" onClick={() => setSkeletonExpanded(!skeletonExpanded)}>
+                {skeletonExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {t('lifecycle.codeSkeleton')}
+              </button>
+              {skeletonExpanded && (
+                <pre className="lifecycle-code-skeleton">{lc.code_skeleton}</pre>
+              )}
+            </div>
+          )}
+
+          {issues.length > 0 && (
+            <div className="lifecycle-subsection">
+              <div className="lifecycle-subsection-title lifecycle-issues-title">
+                <AlertTriangle size={14} /> {t('lifecycle.docIssues')} ({issues.length})
+              </div>
+              {issues.map((issue, i) => (
+                <div key={i} className={`lifecycle-issue lifecycle-issue--${issue.severity}`}>
+                  <span className="lifecycle-issue-type">{issue.issue_type}</span>
+                  <span>{issue.description}</span>
+                  {issue.suggestion && <div className="lifecycle-issue-suggestion">→ {issue.suggestion}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="doc-debug-row"><span>{t('lifecycle.analysisTime')}</span><code>{fmtMs(lc.analysis_ms)}</code></div>
+          <div className="doc-debug-row"><span>{t('lifecycle.promptTokens')}</span><code>{fmt(lc.prompt_tokens)}</code></div>
+          <div className="doc-debug-row"><span>{t('lifecycle.completionTokens')}</span><code>{fmt(lc.completion_tokens)}</code></div>
+          {lc.model && <div className="doc-debug-row"><span>{t('lifecycle.model')}</span><code className="doc-debug-embed-model">{lc.model}</code></div>}
+          {lc.validation_retries != null && lc.validation_retries > 0 && (
+            <div className="doc-debug-row"><span>{t('lifecycle.retries')}</span><code>{lc.validation_retries}</code></div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -211,6 +384,8 @@ export function DocumentDebugContent({ documentId, initialDebug, initialUsage }:
             <div className="doc-debug-row doc-debug-row-total"><span>{t('docDebug.extractTotalTokens')}</span><code>{fmt((debug.extract_prompt_tokens ?? 0) + (debug.extract_completion_tokens ?? 0))}</code></div>
           </div>
         )}
+
+        <LifecycleSection documentId={debug.document_id} />
 
         <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('searchKeys.sectionTitle')}</div>

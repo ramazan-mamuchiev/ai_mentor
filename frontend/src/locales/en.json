@@ -426,6 +426,9 @@
   "docs.preview.download": "Download",
   "docs.preview.largeFile": "This file is large ({{size}}). Rendering may slow down the browser.",
   "docs.preview.openAnyway": "Open anyway",
+  "docs.preview.search": "Search text",
+  "docs.preview.searchPlaceholder": "Search...",
+  "docs.preview.noResults": "No results",
 
   "docDebug.title": "Debug",
   "docDebug.file": "File",

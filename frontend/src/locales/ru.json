@@ -450,6 +450,9 @@
   "docs.preview.download": "Скачать",
   "docs.preview.largeFile": "Большой файл ({{size}}). Отображение может замедлить браузер.",
   "docs.preview.openAnyway": "Открыть всё равно",
+  "docs.preview.search": "Поиск по тексту",
+  "docs.preview.searchPlaceholder": "Поиск...",
+  "docs.preview.noResults": "Не найдено",
 
   "docDebug.title": "Debug",
   "docDebug.file": "Файл",
