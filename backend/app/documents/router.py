@@ -686,32 +686,42 @@ async def list_documents(product_id: int | None = None):
     from starlette.responses import Response
 
     async with async_session() as session:
-        query = (
-            select(
-                Document.id,
-                Document.title,
-                Document.format,
-                Document.status,
-                Document.original_filename,
-                Document.file_size_bytes,
-                Document.total_chunks,
-                Product.name.label("product_name"),
-                FirmwareVersion.version.label("firmware_version"),
-                Document.error_message,
-                Document.uploaded_at,
-                Document.indexed_at,
-                Document.progress_percent,
-                Document.progress_stage,
-                Document.detected_language,
-                Document.source_container,
-                Document.source_path,
-            )
-            .join(Product, Document.product_id == Product.id)
-            .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
-            .order_by(Document.uploaded_at.desc())
-        )
+        _base_cols = [
+            Document.id,
+            Document.title,
+            Document.format,
+            Document.status,
+            Document.original_filename,
+            Document.file_size_bytes,
+            Document.total_chunks,
+            Document.error_message,
+            Document.uploaded_at,
+            Document.indexed_at,
+            Document.progress_percent,
+            Document.progress_stage,
+            Document.detected_language,
+            Document.source_container,
+            Document.source_path,
+        ]
+
         if product_id is not None:
-            query = query.where(Document.product_id == product_id)
+            query = (
+                select(*_base_cols)
+                .where(Document.product_id == product_id)
+                .order_by(Document.uploaded_at.desc())
+            )
+        else:
+            query = (
+                select(
+                    *_base_cols,
+                    Product.name.label("product_name"),
+                    FirmwareVersion.version.label("firmware_version"),
+                )
+                .join(Product, Document.product_id == Product.id)
+                .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
+                .order_by(Document.uploaded_at.desc())
+            )
+
         result = await session.execute(query)
         rows = result.all()
         items = [dict(row._mapping) for row in rows]

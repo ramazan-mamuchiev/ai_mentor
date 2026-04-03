@@ -39,8 +39,8 @@ class DocumentListItem(BaseModel):
     original_filename: str
     file_size_bytes: int
     total_chunks: int
-    product_name: str = ""
-    firmware_version: str = ""
+    product_name: str | None = None
+    firmware_version: str | None = None
     error_message: str | None = None
     uploaded_at: datetime
     indexed_at: datetime | None = None

@@ -201,8 +201,8 @@ export interface DocumentListItem {
   original_filename: string
   file_size_bytes: number
   total_chunks: number
-  product_name: string | null
-  firmware_version: string | null
+  product_name?: string | null
+  firmware_version?: string | null
   error_message: string | null
   uploaded_at: string | null
   indexed_at: string | null
