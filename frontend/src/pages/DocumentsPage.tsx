@@ -392,6 +392,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
+  const [lifecycleFilter, setLifecycleFilter] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -531,6 +532,10 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     return [...map.entries()].sort((a, b) => b[1] - a[1])
   }, [documents])
 
+  const lifecycleReadyCount = useMemo(() =>
+    documents.filter(d => d.lifecycle_status === 'ready').length
+  , [documents])
+
   const toggleFilter = useCallback((setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
     setter(prev => {
       const next = new Set(prev)
@@ -543,22 +548,28 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const clearFilters = useCallback(() => {
     setFormatFilter(new Set())
     setStatusFilter(new Set())
+    setLifecycleFilter(false)
   }, [])
 
-  const hasActiveFilters = formatFilter.size > 0 || statusFilter.size > 0
+  const hasActiveFilters = formatFilter.size > 0 || statusFilter.size > 0 || lifecycleFilter
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const filters: ColumnFiltersState = []
     if (formatFilter.size > 0) filters.push({ id: 'format', value: formatFilter })
     if (statusFilter.size > 0) filters.push({ id: 'status', value: statusFilter })
+    if (lifecycleFilter) filters.push({ id: 'title', value: 'lifecycle_ready' })
     return filters
-  }, [formatFilter, statusFilter])
+  }, [formatFilter, statusFilter, lifecycleFilter])
 
   const columns = useMemo<ColumnDef<DocumentListItem, unknown>[]>(() => [
     {
       id: 'title',
       accessorFn: row => row.title,
       header: () => t('docs.table.name'),
+      filterFn: (row, _columnId, filterValue) => {
+        if (filterValue === 'lifecycle_ready') return row.original.lifecycle_status === 'ready'
+        return true
+      },
       cell: ({ row }) => {
         const { title, original_filename, source_container, source_path, lifecycle_status } = row.original
         const linkUrl = source_path || source_container
@@ -821,7 +832,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         </div>
       </div>
 
-      {(formatCounts.length > 1 || statusCounts.length > 1) && (
+      {(formatCounts.length > 1 || statusCounts.length > 1 || lifecycleReadyCount > 0) && (
         <div className="docs-filter-bar">
           {formatCounts.length > 1 && (
             <div className="docs-filter-group">
@@ -857,6 +868,20 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               </div>
             </div>
           )}
+          {lifecycleReadyCount > 0 && (
+            <div className="docs-filter-group">
+              <div className="docs-filter-chips">
+                <button
+                  className={`docs-filter-chip docs-filter-chip--lifecycle${lifecycleFilter ? ' docs-filter-chip--active' : ''}`}
+                  onClick={() => setLifecycleFilter(prev => !prev)}
+                >
+                  <Activity size={12} />
+                  API Lifecycle
+                  <span className="docs-filter-chip-count">{lifecycleReadyCount}</span>
+                </button>
+              </div>
+            </div>
+          )}
           {hasActiveFilters && (
             <button className="docs-filter-clear" onClick={clearFilters}>
               <X size={14} />
@@ -882,6 +907,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           .filter(doc => {
             if (formatFilter.size > 0 && !formatFilter.has(doc.format)) return false
             if (statusFilter.size > 0 && !statusFilter.has(doc.status)) return false
+            if (lifecycleFilter && doc.lifecycle_status !== 'ready') return false
             if (!globalFilter) return true
             const q = globalFilter.toLowerCase()
             return (

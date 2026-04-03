@@ -414,6 +414,48 @@
   opacity: 0.5;
 }
 
+.docs-filter-chip--lifecycle {
+  border-color: color-mix(in srgb, #10b981 40%, transparent);
+  background: color-mix(in srgb, #10b981 8%, transparent);
+  color: #059669;
+  gap: 5px;
+}
+
+.docs-filter-chip--lifecycle:hover {
+  border-color: #10b981;
+  background: color-mix(in srgb, #10b981 15%, transparent);
+}
+
+.docs-filter-chip--lifecycle.docs-filter-chip--active {
+  border-color: #059669;
+  background: #059669;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+}
+
+.docs-filter-chip--lifecycle.docs-filter-chip--active:hover {
+  background: #047857;
+  border-color: #047857;
+  color: #fff;
+}
+
+[data-theme="dark"] .docs-filter-chip--lifecycle {
+  border-color: color-mix(in srgb, #34d399 30%, transparent);
+  background: color-mix(in srgb, #34d399 10%, transparent);
+  color: #34d399;
+}
+
+[data-theme="dark"] .docs-filter-chip--lifecycle:hover {
+  border-color: #34d399;
+  background: color-mix(in srgb, #34d399 20%, transparent);
+}
+
+[data-theme="dark"] .docs-filter-chip--lifecycle.docs-filter-chip--active {
+  border-color: #10b981;
+  background: #10b981;
+  color: #fff;
+}
+
 .docs-filter-clear {
   display: inline-flex;
   align-items: center;
