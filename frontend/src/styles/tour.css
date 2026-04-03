@@ -146,33 +146,35 @@
   border-radius: var(--radius) !important;
 }
 
-/* Help button in sidebar footer */
-.help-tour-sidebar-btn {
+/* Help button — ghost icon, top-right of main-content */
+.help-tour-fab {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 20;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  margin-bottom: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  font-family: var(--font-sans);
-}
-
-.help-tour-sidebar-btn:hover {
-  background: var(--surface-hover);
-  color: var(--text-secondary);
-}
-
-.sidebar--collapsed .help-tour-sidebar-btn {
   justify-content: center;
-  padding: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  opacity: 0.7;
+}
+
+.help-tour-fab:hover {
+  opacity: 1;
+  color: var(--text-secondary);
+  border-color: var(--text-muted);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] .help-tour-fab:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 @media (max-width: 768px) {
