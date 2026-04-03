@@ -353,10 +353,18 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [globalFilter, setGlobalFilter] = useState('')
   const [debugPanel, setDebugPanel] = useState<DocumentListItem | null>(null)
   const [searchKeysTarget, setSearchKeysTarget] = useState<DocumentListItem | null>(null)
+  const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' | 'info' } | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  const showToast = useCallback((message: string, variant: 'success' | 'error' | 'info') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ message, variant })
+    toastTimer.current = setTimeout(() => setToast(null), 4000)
+  }, [])
 
   const fetchDocs = useCallback(async () => {
     try {
@@ -459,8 +467,11 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const handleAnalyzeLifecycle = useCallback(async (doc: DocumentListItem) => {
     try {
       await analyzeDocumentLifecycle(doc.id)
-    } catch { /* ignore */ }
-  }, [])
+      showToast(t('docs.lifecycle.started', { title: doc.title }), 'success')
+    } catch {
+      showToast(t('docs.lifecycle.error'), 'error')
+    }
+  }, [showToast, t])
 
   const closeDebug = useCallback(() => {
     setDebugPanel(null)
@@ -966,6 +977,15 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           documentTitle={debugPanel.title}
           onClose={closeDebug}
         />
+      )}
+
+      {toast && (
+        <div className={`docs-toast docs-toast--${toast.variant}`}>
+          <span>{toast.message}</span>
+          <button className="docs-toast-close" onClick={() => setToast(null)}>
+            <X size={14} />
+          </button>
+        </div>
       )}
     </div>
   )
