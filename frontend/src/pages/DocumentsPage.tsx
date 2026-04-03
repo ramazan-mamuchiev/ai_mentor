@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   Key,
   Activity,
+  FileSearch,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
 import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle } from '../api/documents'
@@ -30,6 +31,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
 import { DocsRightPanel } from '../components/DocsRightPanel'
 import { SearchKeysModal } from '../components/SearchKeysModal'
+import { LifecycleModal } from '../components/LifecycleModal'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
@@ -221,6 +223,7 @@ function DocActions({
   onDelete,
   onSearchKeys,
   onAnalyzeLifecycle,
+  onViewLifecycle,
 }: {
   doc: DocumentListItem
   onDebug?: (d: DocumentListItem) => void
@@ -231,6 +234,7 @@ function DocActions({
   onDelete?: (d: DocumentListItem) => void
   onSearchKeys?: (d: DocumentListItem) => void
   onAnalyzeLifecycle?: (d: DocumentListItem) => void
+  onViewLifecycle?: (d: DocumentListItem) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -338,6 +342,12 @@ function DocActions({
               {t('docs.actions.analyzeLifecycle')}
             </button>
           )}
+          {doc.status === 'ready' && onViewLifecycle && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onViewLifecycle(doc); setOpen(false) }}>
+              <FileSearch size={15} />
+              {t('docs.actions.viewLifecycle')}
+            </button>
+          )}
           {onDelete && (
             <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
               <Trash2 size={15} />
@@ -377,6 +387,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [globalFilter, setGlobalFilter] = useState('')
   const [debugPanel, setDebugPanel] = useState<DocumentListItem | null>(null)
   const [searchKeysTarget, setSearchKeysTarget] = useState<DocumentListItem | null>(null)
+  const [lifecycleTarget, setLifecycleTarget] = useState<DocumentListItem | null>(null)
   const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' | 'info' } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
@@ -680,6 +691,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onDelete={canDelete ? setDeleteTarget : undefined}
           onSearchKeys={setSearchKeysTarget}
           onAnalyzeLifecycle={handleAnalyzeLifecycle}
+          onViewLifecycle={setLifecycleTarget}
         />
       ),
     },
@@ -996,6 +1008,14 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           entityId={searchKeysTarget.id}
           entityTitle={searchKeysTarget.title}
           onClose={() => setSearchKeysTarget(null)}
+        />
+      )}
+
+      {lifecycleTarget && (
+        <LifecycleModal
+          documentId={lifecycleTarget.id}
+          documentTitle={lifecycleTarget.title}
+          onClose={() => setLifecycleTarget(null)}
         />
       )}
       </div>

@@ -27,59 +27,75 @@ const SOURCE_LABELS: Record<string, string> = {
   chunks_reconstructed: 'Reconstructed from chunks',
 }
 
-function highlightMatches(container: HTMLElement, query: string): HTMLElement[] {
-  clearHighlights(container)
-  if (!query.trim()) return []
+interface SearchMatch {
+  node: Text
+  startOffset: number
+  length: number
+}
 
-  const marks: HTMLElement[] = []
+function findTextRanges(container: HTMLElement, query: string): SearchMatch[] {
+  if (!query.trim()) return []
+  const matches: SearchMatch[] = []
   const lowerQuery = query.toLowerCase()
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
-  const textNodes: Text[] = []
-  let node: Text | null
-  while ((node = walker.nextNode() as Text | null)) textNodes.push(node)
-
-  for (const textNode of textNodes) {
+  let textNode: Text | null
+  while ((textNode = walker.nextNode() as Text | null)) {
     const text = textNode.nodeValue || ''
     const lowerText = text.toLowerCase()
     let idx = lowerText.indexOf(lowerQuery)
-    if (idx === -1) continue
-
-    const fragment = document.createDocumentFragment()
-    let lastIdx = 0
     while (idx !== -1) {
-      if (idx > lastIdx) {
-        fragment.appendChild(document.createTextNode(text.slice(lastIdx, idx)))
-      }
-      const mark = document.createElement('mark')
-      mark.className = 'md-search-highlight'
-      mark.textContent = text.slice(idx, idx + query.length)
-      fragment.appendChild(mark)
-      marks.push(mark)
-      lastIdx = idx + query.length
-      idx = lowerText.indexOf(lowerQuery, lastIdx)
+      matches.push({ node: textNode, startOffset: idx, length: query.length })
+      idx = lowerText.indexOf(lowerQuery, idx + query.length)
     }
-    if (lastIdx < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(lastIdx)))
-    }
-    textNode.parentNode?.replaceChild(fragment, textNode)
   }
-  return marks
+  return matches
 }
 
-function clearHighlights(container: HTMLElement) {
-  const marks = container.querySelectorAll('mark.md-search-highlight')
-  marks.forEach(mark => {
-    const parent = mark.parentNode
-    if (!parent) return
-    parent.replaceChild(document.createTextNode(mark.textContent || ''), mark)
-    parent.normalize()
-  })
+const HIGHLIGHT_NAME = 'md-search-results'
+const HIGHLIGHT_ACTIVE_NAME = 'md-search-active'
+
+function applyHighlights(matches: SearchMatch[], activeIndex: number) {
+  const CSS = window.CSS as typeof window.CSS & {
+    highlights?: Map<string, Highlight>
+  }
+  if (!CSS.highlights) return
+
+  if (matches.length === 0) {
+    CSS.highlights.delete(HIGHLIGHT_NAME)
+    CSS.highlights.delete(HIGHLIGHT_ACTIVE_NAME)
+    return
+  }
+
+  const allRanges: Range[] = []
+  for (const m of matches) {
+    const range = new Range()
+    range.setStart(m.node, m.startOffset)
+    range.setEnd(m.node, m.startOffset + m.length)
+    allRanges.push(range)
+  }
+
+  CSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...allRanges))
+
+  if (activeIndex >= 0 && activeIndex < allRanges.length) {
+    CSS.highlights.set(HIGHLIGHT_ACTIVE_NAME, new Highlight(allRanges[activeIndex]))
+  } else {
+    CSS.highlights.delete(HIGHLIGHT_ACTIVE_NAME)
+  }
 }
 
-function scrollToMark(mark: HTMLElement, scrollable: HTMLElement) {
+function clearAllHighlights() {
+  const CSS = window.CSS as typeof window.CSS & {
+    highlights?: Map<string, Highlight>
+  }
+  if (!CSS.highlights) return
+  CSS.highlights.delete(HIGHLIGHT_NAME)
+  CSS.highlights.delete(HIGHLIGHT_ACTIVE_NAME)
+}
+
+function scrollToRange(range: Range, scrollable: HTMLElement) {
+  const rect = range.getBoundingClientRect()
   const containerRect = scrollable.getBoundingClientRect()
-  const markRect = mark.getBoundingClientRect()
-  const offset = markRect.top - containerRect.top + scrollable.scrollTop - containerRect.height / 2
+  const offset = rect.top - containerRect.top + scrollable.scrollTop - containerRect.height / 2
   scrollable.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' })
 }
 
@@ -96,7 +112,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   const contentRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const marksRef = useRef<HTMLElement[]>([])
+  const matchesRef = useRef<SearchMatch[]>([])
   const currentIdxRef = useRef(0)
 
   useEffect(() => {
@@ -120,12 +136,16 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   }, [documentId])
 
   useEffect(() => {
+    return () => clearAllHighlights()
+  }, [])
+
+  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (searchQuery) {
           setSearchQuery('')
-          if (contentRef.current) clearHighlights(contentRef.current)
-          marksRef.current = []
+          clearAllHighlights()
+          matchesRef.current = []
           currentIdxRef.current = 0
           setMatchInfo({ total: 0, current: 0 })
         } else {
@@ -146,42 +166,48 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
     if (!contentRef.current) return
     const container = contentRef.current
     const timer = setTimeout(() => {
-      const marks = highlightMatches(container, searchQuery)
-      marksRef.current = marks
-      currentIdxRef.current = marks.length > 0 ? 1 : 0
-      setMatchInfo({ total: marks.length, current: currentIdxRef.current })
-      if (marks.length > 0 && bodyRef.current) {
-        marks[0].classList.add('md-search-highlight--active')
-        scrollToMark(marks[0], bodyRef.current)
+      const matches = findTextRanges(container, searchQuery)
+      matchesRef.current = matches
+      const idx = matches.length > 0 ? 1 : 0
+      currentIdxRef.current = idx
+      applyHighlights(matches, idx - 1)
+      setMatchInfo({ total: matches.length, current: idx })
+      if (matches.length > 0 && bodyRef.current) {
+        const range = new Range()
+        range.setStart(matches[0].node, matches[0].startOffset)
+        range.setEnd(matches[0].node, matches[0].startOffset + matches[0].length)
+        scrollToRange(range, bodyRef.current)
       }
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery])
 
   const navigateMatch = useCallback((direction: 'next' | 'prev') => {
-    const marks = marksRef.current
-    if (marks.length === 0) return
+    const matches = matchesRef.current
+    if (matches.length === 0) return
     const cur = currentIdxRef.current
-    const prevIdx = cur - 1
-    if (prevIdx >= 0 && prevIdx < marks.length) {
-      marks[prevIdx].classList.remove('md-search-highlight--active')
-    }
     let next: number
     if (direction === 'next') {
-      next = cur >= marks.length ? 1 : cur + 1
+      next = cur >= matches.length ? 1 : cur + 1
     } else {
-      next = cur <= 1 ? marks.length : cur - 1
+      next = cur <= 1 ? matches.length : cur - 1
     }
     currentIdxRef.current = next
-    setMatchInfo({ total: marks.length, current: next })
-    marks[next - 1].classList.add('md-search-highlight--active')
-    if (bodyRef.current) scrollToMark(marks[next - 1], bodyRef.current)
+    applyHighlights(matches, next - 1)
+    setMatchInfo({ total: matches.length, current: next })
+    if (bodyRef.current) {
+      const m = matches[next - 1]
+      const range = new Range()
+      range.setStart(m.node, m.startOffset)
+      range.setEnd(m.node, m.startOffset + m.length)
+      scrollToRange(range, bodyRef.current)
+    }
   }, [])
 
   const clearSearch = useCallback(() => {
     setSearchQuery('')
-    if (contentRef.current) clearHighlights(contentRef.current)
-    marksRef.current = []
+    clearAllHighlights()
+    matchesRef.current = []
     currentIdxRef.current = 0
     setMatchInfo({ total: 0, current: 0 })
   }, [])
