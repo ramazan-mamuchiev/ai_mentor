@@ -128,7 +128,17 @@
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
+  gap: 12px !important;
   margin-top: 16px !important;
+}
+
+.driver-popover .driver-popover-footer .driver-popover-progress-text {
+  flex-shrink: 0 !important;
+  line-height: 34px !important;
+}
+
+.driver-popover .driver-popover-footer .driver-popover-navigation-btns {
+  margin-top: 0 !important;
 }
 
 /* Highlight stage */
