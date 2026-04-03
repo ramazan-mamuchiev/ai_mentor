@@ -314,7 +314,7 @@ export function Layout({
             aria-label={t('help.btn')}
             title={t('help.btn')}
           >
-            <HelpCircle size={15} />
+            <HelpCircle size={18} />
           </button>
         )}
       </div>
