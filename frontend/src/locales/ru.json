@@ -591,6 +591,7 @@
   "lifecycleModal.title": "API Lifecycle",
   "lifecycleModal.loading": "Загрузка результатов…",
   "lifecycleModal.notAnalyzed": "Анализ ещё не выполнялся. Запустите его, чтобы получить результаты.",
+  "lifecycleModal.notAnalyzedNoAccess": "Анализ ещё не выполнялся. Обратитесь к администратору для запуска.",
   "lifecycleModal.retries": "ретраев",
   "lifecycleModal.running": "Анализ…",
   "lifecycleModal.alreadyRunning": "Анализ уже выполняется",

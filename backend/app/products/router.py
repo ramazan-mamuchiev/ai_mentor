@@ -685,7 +685,7 @@ async def analyze_product_lifecycle(product_id: int):
     }
 
 
-@router.get("/{product_id}/lifecycle", dependencies=[Depends(require_permission("debug"))])
+@router.get("/{product_id}/lifecycle")
 async def get_product_lifecycle(product_id: int):
     """Get merged lifecycle analysis for a product."""
     from app.models import ApiLifecycle, DocIssueAnnotation

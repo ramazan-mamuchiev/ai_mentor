@@ -12,6 +12,7 @@ const POLL_INTERVAL = 3000
 interface Props {
   documentId: number
   documentTitle: string
+  canRun?: boolean
   onClose: () => void
 }
 
@@ -31,7 +32,7 @@ function isInProgress(status?: string): boolean {
   return status === 'pending' || status === 'processing'
 }
 
-export function LifecycleModal({ documentId, documentTitle, onClose }: Props) {
+export function LifecycleModal({ documentId, documentTitle, canRun = false, onClose }: Props) {
   const { t } = useTranslation()
   const [lc, setLc] = useState<DocumentLifecycle | null>(null)
   const [loading, setLoading] = useState(true)
@@ -101,7 +102,7 @@ export function LifecycleModal({ documentId, documentTitle, onClose }: Props) {
             </h3>
           </div>
           <div className="md-preview-header-actions">
-            {!loading && !error && (
+            {canRun && !loading && !error && (
               <button
                 className="lc-modal-run-btn"
                 onClick={handleRun}
@@ -143,11 +144,13 @@ export function LifecycleModal({ documentId, documentTitle, onClose }: Props) {
           {!loading && !error && !hasData && !analysisRunning && (
             <div className="lc-modal-empty">
               <Activity size={40} className="lc-modal-empty-icon" />
-              <p>{t('lifecycleModal.notAnalyzed')}</p>
-              <button className="lc-modal-run-btn lc-modal-run-btn--large" onClick={handleRun} disabled={!canLaunch}>
-                {launching ? <Loader2 size={14} className="spin-icon" /> : <Play size={14} />}
-                {t('lifecycle.run')}
-              </button>
+              <p>{canRun ? t('lifecycleModal.notAnalyzed') : t('lifecycleModal.notAnalyzedNoAccess')}</p>
+              {canRun && (
+                <button className="lc-modal-run-btn lc-modal-run-btn--large" onClick={handleRun} disabled={!canLaunch}>
+                  {launching ? <Loader2 size={14} className="spin-icon" /> : <Play size={14} />}
+                  {t('lifecycle.run')}
+                </button>
+              )}
             </div>
           )}
 

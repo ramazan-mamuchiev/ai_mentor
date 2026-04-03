@@ -690,7 +690,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onSync={canSync ? setSyncTarget : undefined}
           onDelete={canDelete ? setDeleteTarget : undefined}
           onSearchKeys={setSearchKeysTarget}
-          onAnalyzeLifecycle={handleAnalyzeLifecycle}
+          onAnalyzeLifecycle={canDebug ? handleAnalyzeLifecycle : undefined}
           onViewLifecycle={setLifecycleTarget}
         />
       ),
@@ -917,9 +917,14 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                     <Key size={16} />
                   </button>
                 )}
-                {doc.status === 'ready' && (
+                {doc.status === 'ready' && canDebug && (
                   <button className="docs-action-btn" onClick={() => handleAnalyzeLifecycle(doc)} title={t('docs.actions.analyzeLifecycle')}>
                     <Activity size={16} />
+                  </button>
+                )}
+                {doc.status === 'ready' && (
+                  <button className="docs-action-btn" onClick={() => setLifecycleTarget(doc)} title={t('docs.actions.viewLifecycle')}>
+                    <FileSearch size={16} />
                   </button>
                 )}
                 {canReindex && (doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && !_PLACEHOLDER_FORMATS.has(doc.format) && (
@@ -1015,6 +1020,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         <LifecycleModal
           documentId={lifecycleTarget.id}
           documentTitle={lifecycleTarget.title}
+          canRun={canDebug}
           onClose={() => setLifecycleTarget(null)}
         />
       )}

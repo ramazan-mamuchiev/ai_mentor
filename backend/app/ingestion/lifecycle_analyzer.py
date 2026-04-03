@@ -75,6 +75,11 @@ You are an API lifecycle analyst. You are given the FULL documentation of a prod
 Your task is to extract the LIFECYCLE — the ordered sequence of steps a developer must follow
 to use this API from scratch.
 
+IMPORTANT: ALL output text MUST be in English, regardless of the source document language.
+If the documentation is in Chinese, Russian, or any other language, translate all free-text
+fields (action, description, notes, suggestion, code_hint, impact, code_skeleton) into English.
+Keep original API endpoint paths, parameter names, and code identifiers unchanged.
+
 Analyze the document and return a JSON object with these sections:
 
 ## 1. phases
@@ -125,6 +130,8 @@ _MERGE_PROMPT = """\
 You are an API lifecycle analyst. You have lifecycle analyses from {count} separate documentation \
 files for the same product. Merge them into a single coherent product lifecycle.
 
+IMPORTANT: ALL output text MUST be in English. Translate any non-English content into English.
+
 Rules:
 - Deduplicate phases that appear in multiple documents (same endpoint = same phase).
 - Order phases into a coherent lifecycle: setup -> authentication -> initialization -> operations -> cleanup.
@@ -152,6 +159,7 @@ Here is your previous result:
 {previous_result}
 
 Fix ONLY the identified errors. Keep everything else unchanged.
+All output text MUST remain in English.
 Return the corrected full JSON object with the same structure (phases, unique_patterns, \
 dependency_chains, code_skeleton, source_doc_issues).
 

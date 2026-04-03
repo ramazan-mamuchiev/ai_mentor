@@ -1097,7 +1097,7 @@ async def analyze_document_lifecycle(document_id: int):
     }
 
 
-@router.get("/{document_id}/lifecycle", dependencies=[Depends(require_permission("debug"))])
+@router.get("/{document_id}/lifecycle")
 async def get_document_lifecycle(document_id: int):
     """Get lifecycle analysis result for a document."""
     from app.models import ApiLifecycle, DocIssueAnnotation
