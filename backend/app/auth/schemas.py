@@ -18,7 +18,6 @@ class RegisterResponse(BaseModel):
     id: uuid.UUID
     email: str
     slug: str
-    api_key: str  # shown once on registration
 
 
 # --- Login ---

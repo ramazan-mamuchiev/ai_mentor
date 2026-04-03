@@ -88,6 +88,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   const [matchCount, setMatchCount] = useState(0)
   const [currentMatch, setCurrentMatch] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const marksRef = useRef<HTMLElement[]>([])
 
@@ -134,6 +135,15 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose, searchQuery])
 
+  const scrollToMark = useCallback((mark: HTMLElement) => {
+    const scrollable = bodyRef.current
+    if (!scrollable) return
+    const containerRect = scrollable.getBoundingClientRect()
+    const markRect = mark.getBoundingClientRect()
+    const targetTop = markRect.top - containerRect.top + scrollable.scrollTop - containerRect.height / 2
+    scrollable.scrollTo({ top: targetTop, behavior: 'smooth' })
+  }, [])
+
   useEffect(() => {
     if (!contentRef.current) return
     const container = contentRef.current
@@ -144,11 +154,11 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
       setCurrentMatch(marks.length > 0 ? 1 : 0)
       if (marks.length > 0) {
         marks[0].classList.add('md-search-highlight--active')
-        marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' })
+        scrollToMark(marks[0])
       }
-    }, 200)
+    }, 300)
     return () => clearTimeout(timer)
-  }, [searchQuery])
+  }, [searchQuery, scrollToMark])
 
   const navigateMatch = useCallback((direction: 'next' | 'prev') => {
     const marks = marksRef.current
@@ -165,8 +175,8 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
     }
     setCurrentMatch(next)
     marks[next - 1].classList.add('md-search-highlight--active')
-    marks[next - 1].scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [currentMatch])
+    scrollToMark(marks[next - 1])
+  }, [currentMatch, scrollToMark])
 
   const clearSearch = useCallback(() => {
     setSearchQuery('')
@@ -271,7 +281,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
           </div>
         </div>
 
-        <div className="md-preview-body">
+        <div className="md-preview-body" ref={bodyRef}>
           {showSpinner && (
             <div className="md-preview-placeholder">
               <Loader2 size={32} className="spin-icon" />

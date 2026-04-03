@@ -8,7 +8,7 @@ const ONBOARDING_KEY = 'lexiro-onboarding-dismissed'
 
 export function OnboardingChecklist() {
   const { t } = useTranslation()
-  const { user, firstApiKey } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [visible, setVisible] = useState(false)
@@ -39,9 +39,9 @@ export function OnboardingChecklist() {
     },
     {
       icon: Key,
-      done: !!firstApiKey,
+      done: false,
       label: t('onboarding.step2'),
-      action: () => navigate('/app/settings'),
+      action: () => { dismiss(); navigate('/app/settings') },
     },
     {
       icon: Upload,
@@ -80,13 +80,6 @@ export function OnboardingChecklist() {
             </div>
           ))}
         </div>
-
-        {firstApiKey && (
-          <div className="onboarding-api-key">
-            <p className="api-key-warning">{t('settings.keyShownOnce')}</p>
-            <code>{firstApiKey}</code>
-          </div>
-        )}
 
         <button className="auth-submit" onClick={dismiss} style={{ marginTop: '1rem' }}>
           {t('onboarding.dismiss')}

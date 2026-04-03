@@ -65,8 +65,8 @@ async def register_tenant(
     password: str,
     session: AsyncSession,
     name: str | None = None,
-) -> tuple[Tenant, str]:
-    """Create tenant + first API key. Returns (tenant, raw_api_key)."""
+) -> Tenant:
+    """Create tenant (no default API key). Returns tenant."""
     _validate_email_domain(email)
 
     existing = await session.execute(select(Tenant.id).where(Tenant.email == email))
@@ -82,20 +82,10 @@ async def register_tenant(
         name=name,
     )
     session.add(tenant)
-    await session.flush()
-
-    raw_key, key_hash, prefix = _generate_api_key()
-    api_key = ApiKey(
-        tenant_id=tenant.id,
-        key_hash=key_hash,
-        key_prefix=prefix,
-        name="Default",
-    )
-    session.add(api_key)
     await session.commit()
     await session.refresh(tenant)
 
-    return tenant, raw_key
+    return tenant
 
 
 async def authenticate_tenant(

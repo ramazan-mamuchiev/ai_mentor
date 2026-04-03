@@ -27,7 +27,6 @@ vi.mock('../../auth/AuthContext', () => ({
     register: vi.fn(),
     refreshUser: vi.fn(),
     loading: false,
-    firstApiKey: null,
   }),
 }))
 

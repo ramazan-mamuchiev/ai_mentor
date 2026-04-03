@@ -10,7 +10,6 @@ export interface RegisterResponse {
   id: string
   email: string
   slug: string
-  api_key: string
 }
 
 export interface LoginData {

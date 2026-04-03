@@ -15,12 +15,11 @@ const REFRESH_BUFFER_SEC = 120
 interface AuthState {
   user: MeResponse | null
   loading: boolean
-  firstApiKey: string | null
 }
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, name?: string) => Promise<string>
+  register: (email: string, password: string, name?: string) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -31,7 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
     loading: true,
-    firstApiKey: null,
   })
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -73,17 +71,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refreshUser()
   }, [refreshUser, scheduleRefresh])
 
-  const register = useCallback(async (email: string, password: string, name?: string): Promise<string> => {
-    const result = await apiRegister({ email, password, name })
-    setState(prev => ({ ...prev, firstApiKey: result.api_key }))
+  const register = useCallback(async (email: string, password: string, name?: string): Promise<void> => {
+    await apiRegister({ email, password, name })
     await refreshUser()
-    return result.api_key
   }, [refreshUser])
 
   const logout = useCallback(async () => {
     clearRefreshTimer()
     await apiLogout()
-    setState({ user: null, loading: false, firstApiKey: null })
+    setState({ user: null, loading: false })
   }, [clearRefreshTimer])
 
   const value = useMemo(

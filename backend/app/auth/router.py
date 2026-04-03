@@ -59,7 +59,7 @@ def _set_tokens(response: Response, access: str, refresh: str) -> None:
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 async def register(body: RegisterRequest, response: Response, session: AsyncSession = Depends(get_session)):
-    tenant, raw_key = await register_tenant(body.email, body.password, session, name=body.name)
+    tenant = await register_tenant(body.email, body.password, session, name=body.name)
     access, refresh = await create_token_pair(tenant.id, session)
     _set_tokens(response, access, refresh)
 
@@ -71,7 +71,7 @@ async def register(body: RegisterRequest, response: Response, session: AsyncSess
     except Exception:
         pass  # non-critical; user can resend later
 
-    return RegisterResponse(id=tenant.id, email=tenant.email, slug=tenant.slug, api_key=raw_key)
+    return RegisterResponse(id=tenant.id, email=tenant.email, slug=tenant.slug)
 
 
 @router.post("/login", response_model=TokenResponse)
