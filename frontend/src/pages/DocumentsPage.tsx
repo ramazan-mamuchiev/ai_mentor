@@ -560,12 +560,42 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       accessorFn: row => row.title,
       header: () => t('docs.table.name'),
       cell: ({ row }) => {
-        const { title, original_filename, source_container, source_path } = row.original
+        const { title, original_filename, source_container, source_path, lifecycle_status } = row.original
         const linkUrl = source_path || source_container
         const sourceIsUrl = linkUrl && isUrl(linkUrl)
+        const lcReady = lifecycle_status === 'ready'
+        const lcRunning = lifecycle_status === 'pending' || lifecycle_status === 'processing'
         return (
           <div className="docs-name-cell">
-            <OverflowCell className="docs-name">{title}</OverflowCell>
+            <div className="docs-name-row">
+              <OverflowCell className="docs-name">{title}</OverflowCell>
+              {lcReady && (
+                <button
+                  className="docs-lc-badge docs-lc-badge--ready"
+                  onClick={e => { e.stopPropagation(); setLifecycleTarget(row.original) }}
+                  title={t('docs.actions.viewLifecycle')}
+                >
+                  <Activity size={10} />
+                  API Lifecycle
+                </button>
+              )}
+              {lcRunning && (
+                <span className="docs-lc-badge docs-lc-badge--running">
+                  <Loader2 size={10} className="spin-icon" />
+                  {t('lifecycleModal.running')}
+                </span>
+              )}
+              {lifecycle_status === 'error' && (
+                <button
+                  className="docs-lc-badge docs-lc-badge--error"
+                  onClick={e => { e.stopPropagation(); setLifecycleTarget(row.original) }}
+                  title={t('docs.lifecycle.statusError')}
+                >
+                  <AlertCircle size={10} />
+                  Lifecycle
+                </button>
+              )}
+            </div>
             {sourceIsUrl ? (
               <a
                 href={linkUrl}
@@ -616,16 +646,13 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       accessorKey: 'status',
       header: () => t('docs.table.status'),
       cell: ({ row }) => (
-        <div className="docs-status-cell">
-          <StatusBadge
-            status={row.original.status}
-            errorMessage={row.original.error_message}
-            progressPercent={row.original.progress_percent}
-            progressStage={row.original.progress_stage}
-            onCancel={() => setCancelTarget(row.original)}
-          />
-          <LifecycleStatusIcon status={row.original.lifecycle_status} />
-        </div>
+        <StatusBadge
+          status={row.original.status}
+          errorMessage={row.original.error_message}
+          progressPercent={row.original.progress_percent}
+          progressStage={row.original.progress_stage}
+          onCancel={() => setCancelTarget(row.original)}
+        />
       ),
       enableGrouping: true,
       filterFn: (row, _columnId, filterValue: Set<string>) =>
@@ -869,7 +896,35 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
             return (
             <div className="docs-card" key={doc.id}>
               <div className="docs-card-header">
-                <div className="docs-card-title">{doc.title}</div>
+                <div className="docs-card-title-row">
+                  <div className="docs-card-title">{doc.title}</div>
+                  {doc.lifecycle_status === 'ready' && (
+                    <button
+                      className="docs-lc-badge docs-lc-badge--ready"
+                      onClick={() => setLifecycleTarget(doc)}
+                      title={t('docs.actions.viewLifecycle')}
+                    >
+                      <Activity size={10} />
+                      API Lifecycle
+                    </button>
+                  )}
+                  {(doc.lifecycle_status === 'pending' || doc.lifecycle_status === 'processing') && (
+                    <span className="docs-lc-badge docs-lc-badge--running">
+                      <Loader2 size={10} className="spin-icon" />
+                      {t('lifecycleModal.running')}
+                    </span>
+                  )}
+                  {doc.lifecycle_status === 'error' && (
+                    <button
+                      className="docs-lc-badge docs-lc-badge--error"
+                      onClick={() => setLifecycleTarget(doc)}
+                      title={t('docs.lifecycle.statusError')}
+                    >
+                      <AlertCircle size={10} />
+                      Lifecycle
+                    </button>
+                  )}
+                </div>
                 <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} onCancel={() => setCancelTarget(doc)} />
               </div>
               {cardLinkUrl && isUrl(cardLinkUrl) && (
