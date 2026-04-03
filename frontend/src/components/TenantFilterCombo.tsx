@@ -1,20 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { User, X } from 'lucide-react'
-import { searchTenants, type TenantSearchResult } from '../api/admin'
+import { searchTenants, getTenant, type TenantSearchResult } from '../api/admin'
 
 interface Props {
   value: TenantSearchResult | null
   onChange: (tenant: TenantSearchResult | null) => void
+  initialTenantId?: string
 }
 
-export function TenantFilterCombo({ value, onChange }: Props) {
+export function TenantFilterCombo({ value, onChange, initialTenantId }: Props) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [options, setOptions] = useState<TenantSearchResult[]>([])
   const [open, setOpen] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!initialTenantId || value) return
+    getTenant(initialTenantId)
+      .then(t => onChange({ id: t.id, name: t.name || t.email.split('@')[0], email: t.email }))
+      .catch(() => {})
+  }, [initialTenantId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)

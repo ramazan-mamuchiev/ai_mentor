@@ -409,6 +409,7 @@ function SessionListView() {
           <TenantFilterCombo
             value={tenantFilter}
             onChange={v => { setTenantFilter(v); setPage(1) }}
+            initialTenantId={tenantIdFromUrl}
           />
 
           <div className="logs-search-wrap">
