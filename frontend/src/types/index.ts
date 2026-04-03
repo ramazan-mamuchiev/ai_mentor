@@ -211,6 +211,7 @@ export interface DocumentListItem {
   detected_language: string | null
   source_container: string | null
   source_path: string | null
+  lifecycle_status?: string
 }
 
 export interface DocumentDebugInfo {

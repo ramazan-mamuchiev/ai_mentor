@@ -707,6 +707,7 @@ async def list_documents(product_id: int | None = None):
             Document.detected_language,
             Document.source_container,
             Document.source_path,
+            Document.lifecycle_status,
         ]
 
         if product_id is not None:

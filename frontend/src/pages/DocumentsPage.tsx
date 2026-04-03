@@ -147,6 +147,30 @@ function StatusBadge({
   )
 }
 
+function LifecycleStatusIcon({ status }: { status?: string }) {
+  const { t } = useTranslation()
+  if (!status) return null
+  if (status === 'pending' || status === 'processing')
+    return (
+      <span className="docs-lc-icon docs-lc-icon--pending" title={t('docs.lifecycle.statusPending')}>
+        <Loader2 size={13} className="spin-icon" />
+      </span>
+    )
+  if (status === 'ready')
+    return (
+      <span className="docs-lc-icon docs-lc-icon--ready" title={t('docs.lifecycle.statusReady')}>
+        <Activity size={13} />
+      </span>
+    )
+  if (status === 'error')
+    return (
+      <span className="docs-lc-icon docs-lc-icon--error" title={t('docs.lifecycle.statusError')}>
+        <AlertCircle size={13} />
+      </span>
+    )
+  return null
+}
+
 function OverflowCell({ children, className }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [truncated, setTruncated] = useState(false)
@@ -380,7 +404,10 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   useEffect(() => { fetchDocs() }, [fetchDocs, refreshKey])
 
   useEffect(() => {
-    const hasPending = documents.some(d => d.status === 'pending' || d.status === 'processing')
+    const hasPending = documents.some(d =>
+      d.status === 'pending' || d.status === 'processing' ||
+      d.lifecycle_status === 'pending' || d.lifecycle_status === 'processing'
+    )
     if (hasPending) {
       pollRef.current = setInterval(fetchDocs, POLL_INTERVAL)
     }
@@ -578,13 +605,16 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       accessorKey: 'status',
       header: () => t('docs.table.status'),
       cell: ({ row }) => (
-        <StatusBadge
-          status={row.original.status}
-          errorMessage={row.original.error_message}
-          progressPercent={row.original.progress_percent}
-          progressStage={row.original.progress_stage}
-          onCancel={() => setCancelTarget(row.original)}
-        />
+        <div className="docs-status-cell">
+          <StatusBadge
+            status={row.original.status}
+            errorMessage={row.original.error_message}
+            progressPercent={row.original.progress_percent}
+            progressStage={row.original.progress_stage}
+            onCancel={() => setCancelTarget(row.original)}
+          />
+          <LifecycleStatusIcon status={row.original.lifecycle_status} />
+        </div>
       ),
       enableGrouping: true,
       filterFn: (row, _columnId, filterValue: Set<string>) =>

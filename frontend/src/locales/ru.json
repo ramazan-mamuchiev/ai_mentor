@@ -442,6 +442,11 @@
   "docs.actions.debug": "Отладочная информация",
   "docs.actions.searchKeys": "Поисковые ключи",
   "docs.actions.analyzeLifecycle": "Анализ API Lifecycle",
+  "docs.lifecycle.started": "Анализ API Lifecycle запущен для «{{title}}»",
+  "docs.lifecycle.error": "Не удалось запустить анализ API Lifecycle",
+  "docs.lifecycle.statusPending": "Lifecycle-анализ выполняется…",
+  "docs.lifecycle.statusReady": "Lifecycle-анализ завершён",
+  "docs.lifecycle.statusError": "Ошибка lifecycle-анализа",
   "docs.source.from": "из {{source}}",
 
   "docs.preview.title": "Просмотр MD",

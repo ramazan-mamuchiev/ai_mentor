@@ -49,6 +49,7 @@ class DocumentListItem(BaseModel):
     detected_language: str | None = None
     source_container: str | None = None
     source_path: str | None = None
+    lifecycle_status: str = ""
 
     model_config = {"from_attributes": True}
 
