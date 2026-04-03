@@ -277,6 +277,17 @@ export function Layout({
         ) : null}
 
         <div className="sidebar-footer">
+          {hasTour && !isAdmin && (
+            <button
+              className="help-tour-sidebar-btn"
+              onClick={startTour}
+              aria-label={t('help.btn')}
+              title={t('help.btn')}
+            >
+              <HelpCircle size={16} />
+              {(!collapsed || isMobile) && <span>{t('help.btn')}</span>}
+            </button>
+          )}
           <AccountBadge collapsed={collapsed && !isMobile} theme={theme} onToggleTheme={onToggleTheme} />
         </div>
       </aside>
@@ -307,16 +318,6 @@ export function Layout({
           </div>
         )}
         {children}
-        {hasTour && !isAdmin && (
-          <button
-            className="help-tour-btn"
-            onClick={startTour}
-            aria-label={t('help.btn')}
-            title={t('help.btn')}
-          >
-            <HelpCircle size={20} />
-          </button>
-        )}
       </div>
     </div>
   )
