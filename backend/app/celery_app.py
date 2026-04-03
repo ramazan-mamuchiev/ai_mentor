@@ -784,6 +784,7 @@ def ingest_single_url_task(self, document_id: int):
     t0 = time.perf_counter()
     engine = _get_sync_engine()
 
+    http_auth = None
     with Session(engine) as session:
         doc = session.get(Document, document_id)
         if doc is None:
@@ -792,6 +793,12 @@ def ingest_single_url_task(self, document_id: int):
 
         url = doc.source_path
         _set_tenant_log_context(doc.tenant_id, session)
+
+        ckpt = doc.crawl_checkpoint
+        if ckpt and isinstance(ckpt, dict) and ckpt.get("http_auth"):
+            from app.utils.crypto import decrypt_credentials
+            http_auth = decrypt_credentials(ckpt["http_auth"])
+
         doc.status = "processing"
         doc.processing_started_at = datetime.now(timezone.utc)
         doc.progress_stage = "fetching"
@@ -800,16 +807,17 @@ def ingest_single_url_task(self, document_id: int):
 
     logger.info("Celery ingest_single_url_task started", extra={
         "url": url, "document_id": document_id, "task_id": self.request.id,
+        "has_http_auth": http_auth is not None,
     })
 
     try:
         try:
             loop = asyncio.get_event_loop()
-            text, convert_metadata = loop.run_until_complete(convert_url(url))
+            text, convert_metadata = loop.run_until_complete(convert_url(url, auth=http_auth))
         except RuntimeError:
             loop = asyncio.new_event_loop()
             try:
-                text, convert_metadata = loop.run_until_complete(convert_url(url))
+                text, convert_metadata = loop.run_until_complete(convert_url(url, auth=http_auth))
             finally:
                 loop.close()
     except SoftTimeLimitExceeded:

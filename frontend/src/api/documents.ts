@@ -69,6 +69,8 @@ export interface UrlIngestRequest {
   max_depth?: number
   confluence_username?: string
   confluence_password?: string
+  http_username?: string
+  http_password?: string
 }
 
 export interface UrlIngestResponse {

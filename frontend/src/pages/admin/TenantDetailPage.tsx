@@ -19,20 +19,12 @@ import {
 } from '../../api/admin'
 import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { getInitials } from '../../utils/getInitials'
 
 function formatCharge(raw: string): string {
   const n = parseFloat(raw)
   if (isNaN(n)) return raw
   return n.toFixed(2)
-}
-
-function getInitials(name: string | null, email: string): string {
-  if (name) {
-    const parts = name.trim().split(/\s+/)
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-    return name.slice(0, 2).toUpperCase()
-  }
-  return email.slice(0, 2).toUpperCase()
 }
 
 function getAvatarIndex(email: string): number {
@@ -121,7 +113,7 @@ export function TenantDetailPage() {
   if (!tenant) return <div className="admin-empty">{t('admin.tenantDetail.notFound')}</div>
 
   const assignedRoleIds = new Set(tenantRoles.map(tr => tr.role_id))
-  const initials = getInitials(tenant.name, tenant.email)
+  const initials = getInitials(tenant.email, tenant.name)
   const avatarIdx = getAvatarIndex(tenant.email)
 
   return (
@@ -179,7 +171,10 @@ export function TenantDetailPage() {
 
       {/* Stats strip */}
       <div className="td-stats">
-        <div className="td-stat">
+        <div
+          className="td-stat td-stat--link"
+          onClick={() => navigate(`/app/admin/chats?tenant_id=${tenant.id}`)}
+        >
           <div className="td-stat__icon"><Zap size={16} /></div>
           <div className="td-stat__data">
             <div className="td-stat__value">{tenant.total_requests.toLocaleString()}</div>
@@ -207,14 +202,20 @@ export function TenantDetailPage() {
             <div className="td-stat__label">{t('admin.tenantDetail.documents')}</div>
           </div>
         </div>
-        <div className="td-stat">
+        <div
+          className="td-stat td-stat--link"
+          onClick={() => navigate(`/app/admin/chats?tenant_id=${tenant.id}`)}
+        >
           <div className="td-stat__icon"><MessageSquare size={16} /></div>
           <div className="td-stat__data">
             <div className="td-stat__value">{tenant.sessions_count.toLocaleString()}</div>
             <div className="td-stat__label">{t('admin.tenantDetail.chatSessions')}</div>
           </div>
         </div>
-        <div className="td-stat">
+        <div
+          className="td-stat td-stat--link"
+          onClick={() => navigate(`/app/admin/mcp?tenant_id=${tenant.id}`)}
+        >
           <div className="td-stat__icon"><Key size={16} /></div>
           <div className="td-stat__data">
             <div className="td-stat__value">{tenant.api_keys_count}</div>

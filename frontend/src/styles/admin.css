@@ -2965,6 +2965,15 @@
   border-color: var(--accent);
 }
 
+.td-stat--link {
+  cursor: pointer;
+}
+
+.td-stat--link:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
 .td-stat__icon {
   display: flex;
   align-items: center;

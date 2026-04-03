@@ -36,6 +36,8 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
   const [confluenceMaxDepth, setConfluenceMaxDepth] = useState(100)
   const [confluenceUsername, setConfluenceUsername] = useState('')
   const [confluencePassword, setConfluencePassword] = useState('')
+  const [httpUsername, setHttpUsername] = useState('')
+  const [httpPassword, setHttpPassword] = useState('')
 
   const isConfluence = /\/spaces\/[^/]+\/pages\/\d+/.test(url) || /\/spaces\/[^/]+(?:\/overview)?\/?$/.test(url.trim())
   const isGitHub = /^https?:\/\/(?:www\.)?github\.com\/[^/]+\/[^/]+/.test(url.trim())
@@ -79,7 +81,10 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
             max_depth: confluenceMaxDepth,
             ...(confluenceUsername ? { confluence_username: confluenceUsername } : {}),
             ...(confluencePassword ? { confluence_password: confluencePassword } : {}),
-          } : {}),
+          } : {
+            ...(httpUsername ? { http_username: httpUsername } : {}),
+            ...(httpPassword ? { http_password: httpPassword } : {}),
+          }),
         })
       }
       onComplete?.()
@@ -88,7 +93,7 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
       setStatus('error')
       setError(err instanceof Error ? err.message : String(err))
     }
-  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, isGitHub, isConfluence, githubBranch, maxDepth, maxPages, downloadResources, confluenceMaxPages, confluenceMaxDepth, confluenceUsername, confluencePassword, onComplete, onClose])
+  }, [url, productName, firmwareVersion, manufacturer, crawlSite, showSiteCrawlOption, isGitHub, isConfluence, githubBranch, maxDepth, maxPages, downloadResources, confluenceMaxPages, confluenceMaxDepth, confluenceUsername, confluencePassword, httpUsername, httpPassword, onComplete, onClose])
 
   const handleReset = useCallback(() => {
     setUrl('')
@@ -109,6 +114,8 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
     setConfluenceMaxDepth(100)
     setConfluenceUsername('')
     setConfluencePassword('')
+    setHttpUsername('')
+    setHttpPassword('')
   }, [])
 
   useEffect(() => {
@@ -219,6 +226,34 @@ export function UrlImport({ onComplete, onClose, productContext }: UrlImportProp
                         type="password"
                         value={confluencePassword}
                         onChange={e => setConfluencePassword(e.target.value)}
+                        autoComplete="current-password"
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
+
+              {showSiteCrawlOption && !crawlSite && (
+                <>
+                  <div className="url-import-type-hint" style={{ opacity: 0.7, fontSize: '0.82em' }}>
+                    {t('urlImport.httpAuthHint')}
+                  </div>
+                  <div className="file-upload-row">
+                    <label>
+                      {t('urlImport.httpUsername')}
+                      <input
+                        type="text"
+                        value={httpUsername}
+                        onChange={e => setHttpUsername(e.target.value)}
+                        autoComplete="username"
+                      />
+                    </label>
+                    <label>
+                      {t('urlImport.httpPassword')}
+                      <input
+                        type="password"
+                        value={httpPassword}
+                        onChange={e => setHttpPassword(e.target.value)}
                         autoComplete="current-password"
                       />
                     </label>

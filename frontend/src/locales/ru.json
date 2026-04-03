@@ -577,6 +577,9 @@
   "urlImport.confluenceUsername": "Логин",
   "urlImport.confluencePassword": "Пароль",
   "urlImport.confluenceAuthHint": "Для приватного Confluence — укажите учётные данные (оставьте пустыми для публичного)",
+  "urlImport.httpUsername": "Логин",
+  "urlImport.httpPassword": "Пароль",
+  "urlImport.httpAuthHint": "Если страница требует авторизации — укажите логин и пароль (HTTP Basic Auth)",
 
   "docs.format.github": "GitHub",
   "docs.format.confluence": "Confluence",

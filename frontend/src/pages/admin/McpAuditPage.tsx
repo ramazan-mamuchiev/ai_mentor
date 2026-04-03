@@ -150,6 +150,9 @@ export function McpAuditPage() {
   const exportRef = useRef<HTMLDivElement>(null)
   const pageSize = 50
 
+  const tenantIdFromUrl = searchParams.get('tenant_id') || undefined
+  const activeTenantId = tenantFilter?.id || tenantIdFromUrl
+
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     searchDebounceRef.current = setTimeout(() => {
@@ -166,7 +169,7 @@ export function McpAuditPage() {
       const { start, end } = timeRangeToISO(timeRange)
       const res = await listMcpRequests({
         page, page_size: pageSize,
-        tenant_id: tenantFilter?.id,
+        tenant_id: activeTenantId,
         tool_name: toolFilter || undefined,
         status: statusFilter || undefined,
         search: debouncedSearch || undefined,
@@ -179,7 +182,7 @@ export function McpAuditPage() {
       setError(err instanceof Error ? err.message : t('admin.mcp.failedToLoad'))
     }
     setLoading(false)
-  }, [page, tenantFilter, toolFilter, statusFilter, timeRange, debouncedSearch, t])
+  }, [page, activeTenantId, toolFilter, statusFilter, timeRange, debouncedSearch, t])
 
   useEffect(() => { load() }, [load])
 

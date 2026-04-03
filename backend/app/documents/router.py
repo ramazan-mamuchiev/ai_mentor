@@ -215,6 +215,11 @@ async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = 
             encrypted = encrypt_credentials(body.confluence_username, body.confluence_password)
             if encrypted:
                 crawl_checkpoint = {"auth": encrypted}
+        elif not is_confluence and body.http_username and body.http_password:
+            from app.utils.crypto import encrypt_credentials
+            encrypted = encrypt_credentials(body.http_username, body.http_password)
+            if encrypted:
+                crawl_checkpoint = {"http_auth": encrypted}
 
         placeholder = Document(
             product_id=product.id,

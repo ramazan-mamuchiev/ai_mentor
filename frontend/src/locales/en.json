@@ -549,6 +549,9 @@
   "urlImport.confluenceUsername": "Username",
   "urlImport.confluencePassword": "Password",
   "urlImport.confluenceAuthHint": "For private Confluence — enter credentials (leave empty for public)",
+  "urlImport.httpUsername": "Username",
+  "urlImport.httpPassword": "Password",
+  "urlImport.httpAuthHint": "If the page requires authentication — enter credentials (HTTP Basic Auth)",
 
   "docs.format.github": "GitHub",
   "docs.format.confluence": "Confluence",

@@ -92,6 +92,8 @@ class UrlIngestRequest(BaseModel):
     max_depth: int | None = None
     confluence_username: str | None = None
     confluence_password: str | None = None
+    http_username: str | None = None
+    http_password: str | None = None
 
     model_config = {"from_attributes": True}
 

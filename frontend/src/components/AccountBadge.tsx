@@ -3,14 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { LogOut, User, ChevronUp, Moon, Sun, Languages } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useTranslation } from 'react-i18next'
-
-function getInitials(email: string, name?: string | null): string {
-  if (name) {
-    return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-  }
-  const local = email.split('@')[0]
-  return local.slice(0, 2).toUpperCase()
-}
+import { getInitials } from '../utils/getInitials'
 
 interface AccountBadgeProps {
   collapsed: boolean
