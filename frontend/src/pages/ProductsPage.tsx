@@ -26,6 +26,8 @@ import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { ProductListItem, DocumentStatusValue } from '../types'
 import { usePermission } from '../auth/usePermission'
+import { usePageTour } from '../hooks/usePageTour'
+import { getProductsSteps } from '../tour/steps/productsSteps'
 
 const POLL_INTERVAL = 2000
 const STORAGE_KEY = 'lexiro-products-table'
@@ -277,6 +279,8 @@ const DEFAULT_COLUMN_ORDER = ['name', 'category', 'documents', 'format', 'status
 export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const productsTourSteps = useMemo(() => getProductsSteps(t), [t])
+  usePageTour('products', productsTourSteps)
   const canDebug = usePermission('debug')
   const canEdit = usePermission('products.edit')
   const canDelete = usePermission('products.delete')

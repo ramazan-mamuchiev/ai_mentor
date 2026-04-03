@@ -17,6 +17,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@tanstack/react-table": "^8.21.3",
+    "driver.js": "^1.4.0",
     "i18next": "^25.8.19",
     "i18next-browser-languagedetector": "^8.2.1",
     "lucide-react": "^0.468.0",

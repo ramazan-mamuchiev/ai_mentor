@@ -20,13 +20,16 @@ import {
   ExternalLink,
   Eye,
   MoreHorizontal,
+  Key,
+  Activity,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
-import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
+import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle } from '../api/documents'
 import { usePermission } from '../auth/usePermission'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
 import { DocsRightPanel } from '../components/DocsRightPanel'
+import { SearchKeysModal } from '../components/SearchKeysModal'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
@@ -192,6 +195,8 @@ function DocActions({
   onReingest,
   onSync,
   onDelete,
+  onSearchKeys,
+  onAnalyzeLifecycle,
 }: {
   doc: DocumentListItem
   onDebug?: (d: DocumentListItem) => void
@@ -200,6 +205,8 @@ function DocActions({
   onReingest?: (d: DocumentListItem) => void
   onSync?: (d: DocumentListItem) => void
   onDelete?: (d: DocumentListItem) => void
+  onSearchKeys?: (d: DocumentListItem) => void
+  onAnalyzeLifecycle?: (d: DocumentListItem) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -295,6 +302,18 @@ function DocActions({
               {t('docs.actions.sync')}
             </button>
           )}
+          {doc.status === 'ready' && onSearchKeys && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onSearchKeys(doc); setOpen(false) }}>
+              <Key size={15} />
+              {t('docs.actions.searchKeys')}
+            </button>
+          )}
+          {doc.status === 'ready' && onAnalyzeLifecycle && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onAnalyzeLifecycle(doc); setOpen(false) }}>
+              <Activity size={15} />
+              {t('docs.actions.analyzeLifecycle')}
+            </button>
+          )}
           {onDelete && (
             <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
               <Trash2 size={15} />
@@ -333,6 +352,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [previewTarget, setPreviewTarget] = useState<DocumentListItem | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
   const [debugPanel, setDebugPanel] = useState<DocumentListItem | null>(null)
+  const [searchKeysTarget, setSearchKeysTarget] = useState<DocumentListItem | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -434,6 +454,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
 
   const openDebug = useCallback((doc: DocumentListItem) => {
     setDebugPanel(doc)
+  }, [])
+
+  const handleAnalyzeLifecycle = useCallback(async (doc: DocumentListItem) => {
+    try {
+      await analyzeDocumentLifecycle(doc.id)
+    } catch { /* ignore */ }
   }, [])
 
   const closeDebug = useCallback(() => {
@@ -611,10 +637,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onReingest={canReindex ? setReingestTarget : undefined}
           onSync={canSync ? setSyncTarget : undefined}
           onDelete={canDelete ? setDeleteTarget : undefined}
+          onSearchKeys={setSearchKeysTarget}
+          onAnalyzeLifecycle={handleAnalyzeLifecycle}
         />
       ),
     },
-  ], [t, handleDownload, openDebug, canDebug, canDelete, canReindex, canSync])
+  ], [t, handleDownload, openDebug, canDebug, canDelete, canReindex, canSync, handleAnalyzeLifecycle])
 
   const {
     table,
@@ -831,6 +859,16 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                     <Download size={16} />
                   </button>
                 )}
+                {doc.status === 'ready' && (
+                  <button className="docs-action-btn" onClick={() => setSearchKeysTarget(doc)} title={t('docs.actions.searchKeys')}>
+                    <Key size={16} />
+                  </button>
+                )}
+                {doc.status === 'ready' && (
+                  <button className="docs-action-btn" onClick={() => handleAnalyzeLifecycle(doc)} title={t('docs.actions.analyzeLifecycle')}>
+                    <Activity size={16} />
+                  </button>
+                )}
                 {canReindex && (doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && !_PLACEHOLDER_FORMATS.has(doc.format) && (
                   <button className="docs-action-btn" onClick={() => setReingestTarget(doc)}>
                     <RefreshCw size={16} />
@@ -908,6 +946,15 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           documentId={previewTarget.id}
           documentTitle={previewTarget.title}
           onClose={() => setPreviewTarget(null)}
+        />
+      )}
+
+      {searchKeysTarget && (
+        <SearchKeysModal
+          mode="document"
+          entityId={searchKeysTarget.id}
+          entityTitle={searchKeysTarget.title}
+          onClose={() => setSearchKeysTarget(null)}
         />
       )}
       </div>

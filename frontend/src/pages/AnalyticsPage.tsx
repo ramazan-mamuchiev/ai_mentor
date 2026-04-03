@@ -9,6 +9,8 @@ import {
   type UserMcpStats as McpStatsT, type UserCostStats as CostStatsT,
 } from '../auth/api'
 import { usePermission } from '../auth/usePermission'
+import { usePageTour } from '../hooks/usePageTour'
+import { getAnalyticsSteps } from '../tour/steps/analyticsSteps'
 
 const ALL_TABS = ['overview', 'chat', 'documents', 'search', 'mcp', 'costs'] as const
 type Tab = typeof ALL_TABS[number]
@@ -495,6 +497,8 @@ function CostsTab({ days, t, canPublish }: { days: number; t: any; canPublish?: 
 /* ───── Main AnalyticsPage ───── */
 export function AnalyticsPage() {
   const { t } = useTranslation()
+  const analyticsTourSteps = useMemo(() => getAnalyticsSteps(t), [t])
+  usePageTour('analytics', analyticsTourSteps)
   const [searchParams, setSearchParams] = useSearchParams()
   const [days, setDays] = useState(30)
   const canPublish = usePermission('documents.upload')

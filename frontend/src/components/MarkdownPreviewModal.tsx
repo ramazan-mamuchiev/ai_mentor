@@ -76,6 +76,13 @@ function clearHighlights(container: HTMLElement) {
   })
 }
 
+function scrollToMark(mark: HTMLElement, scrollable: HTMLElement) {
+  const containerRect = scrollable.getBoundingClientRect()
+  const markRect = mark.getBoundingClientRect()
+  const offset = markRect.top - containerRect.top + scrollable.scrollTop - containerRect.height / 2
+  scrollable.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' })
+}
+
 export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Props) {
   const { t } = useTranslation()
   const [data, setData] = useState<DocumentMarkdownPreview | null>(null)
@@ -85,12 +92,12 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
   const [largeFileConfirmed, setLargeFileConfirmed] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [matchCount, setMatchCount] = useState(0)
-  const [currentMatch, setCurrentMatch] = useState(0)
+  const [matchInfo, setMatchInfo] = useState({ total: 0, current: 0 })
   const contentRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const marksRef = useRef<HTMLElement[]>([])
+  const currentIdxRef = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -119,8 +126,8 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
           setSearchQuery('')
           if (contentRef.current) clearHighlights(contentRef.current)
           marksRef.current = []
-          setMatchCount(0)
-          setCurrentMatch(0)
+          currentIdxRef.current = 0
+          setMatchInfo({ total: 0, current: 0 })
         } else {
           onClose()
         }
@@ -135,55 +142,48 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose, searchQuery])
 
-  const scrollToMark = useCallback((mark: HTMLElement) => {
-    const scrollable = bodyRef.current
-    if (!scrollable) return
-    const containerRect = scrollable.getBoundingClientRect()
-    const markRect = mark.getBoundingClientRect()
-    const targetTop = markRect.top - containerRect.top + scrollable.scrollTop - containerRect.height / 2
-    scrollable.scrollTo({ top: targetTop, behavior: 'smooth' })
-  }, [])
-
   useEffect(() => {
     if (!contentRef.current) return
     const container = contentRef.current
     const timer = setTimeout(() => {
       const marks = highlightMatches(container, searchQuery)
       marksRef.current = marks
-      setMatchCount(marks.length)
-      setCurrentMatch(marks.length > 0 ? 1 : 0)
-      if (marks.length > 0) {
+      currentIdxRef.current = marks.length > 0 ? 1 : 0
+      setMatchInfo({ total: marks.length, current: currentIdxRef.current })
+      if (marks.length > 0 && bodyRef.current) {
         marks[0].classList.add('md-search-highlight--active')
-        scrollToMark(marks[0])
+        scrollToMark(marks[0], bodyRef.current)
       }
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchQuery, scrollToMark])
+  }, [searchQuery])
 
   const navigateMatch = useCallback((direction: 'next' | 'prev') => {
     const marks = marksRef.current
     if (marks.length === 0) return
-    const prev = currentMatch - 1
-    if (prev >= 0 && prev < marks.length) {
-      marks[prev].classList.remove('md-search-highlight--active')
+    const cur = currentIdxRef.current
+    const prevIdx = cur - 1
+    if (prevIdx >= 0 && prevIdx < marks.length) {
+      marks[prevIdx].classList.remove('md-search-highlight--active')
     }
     let next: number
     if (direction === 'next') {
-      next = currentMatch >= marks.length ? 1 : currentMatch + 1
+      next = cur >= marks.length ? 1 : cur + 1
     } else {
-      next = currentMatch <= 1 ? marks.length : currentMatch - 1
+      next = cur <= 1 ? marks.length : cur - 1
     }
-    setCurrentMatch(next)
+    currentIdxRef.current = next
+    setMatchInfo({ total: marks.length, current: next })
     marks[next - 1].classList.add('md-search-highlight--active')
-    scrollToMark(marks[next - 1])
-  }, [currentMatch, scrollToMark])
+    if (bodyRef.current) scrollToMark(marks[next - 1], bodyRef.current)
+  }, [])
 
   const clearSearch = useCallback(() => {
     setSearchQuery('')
     if (contentRef.current) clearHighlights(contentRef.current)
     marksRef.current = []
-    setMatchCount(0)
-    setCurrentMatch(0)
+    currentIdxRef.current = 0
+    setMatchInfo({ total: 0, current: 0 })
   }, [])
 
   const handleDownload = useCallback(() => {
@@ -264,13 +264,13 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
             />
             {searchQuery && (
               <span className="md-search-count">
-                {matchCount > 0 ? `${currentMatch} / ${matchCount}` : t('docs.preview.noResults')}
+                {matchInfo.total > 0 ? `${matchInfo.current} / ${matchInfo.total}` : t('docs.preview.noResults')}
               </span>
             )}
-            <button className="md-search-nav-btn" onClick={() => navigateMatch('prev')} disabled={matchCount === 0}>
+            <button className="md-search-nav-btn" onClick={() => navigateMatch('prev')} disabled={matchInfo.total === 0}>
               <ChevronUp size={14} />
             </button>
-            <button className="md-search-nav-btn" onClick={() => navigateMatch('next')} disabled={matchCount === 0}>
+            <button className="md-search-nav-btn" onClick={() => navigateMatch('next')} disabled={matchInfo.total === 0}>
               <ChevronDown size={14} />
             </button>
             {searchQuery && (

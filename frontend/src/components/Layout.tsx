@@ -3,12 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, Box, BarChart3, Settings, X, Shield, Plug,
   LayoutDashboard, Users, FileText, ScrollText, KeyRound, MessageSquareCode,
-  ArrowLeft, Activity, BookOpen, Target,
+  ArrowLeft, Activity, BookOpen, Target, HelpCircle,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
 import { useAuth } from '../auth/AuthContext'
 import { AccountBadge } from './AccountBadge'
+import { useHelpTour } from '../tour/HelpTourContext'
 import { SessionList } from './SessionList'
 import { SidebarMenuIcon, SidebarCollapseIcon, SidebarExpandIcon } from './icons'
 
@@ -107,6 +108,7 @@ export function Layout({
   const location = useLocation()
 
   const { user } = useAuth()
+  const { startTour, hasTour } = useHelpTour()
   const isChat = location.pathname === '/app' || location.pathname === '/app/'
   const isAdmin = location.pathname.startsWith('/app/admin')
 
@@ -305,6 +307,16 @@ export function Layout({
           </div>
         )}
         {children}
+        {hasTour && !isAdmin && (
+          <button
+            className="help-tour-btn"
+            onClick={startTour}
+            aria-label={t('help.btn')}
+            title={t('help.btn')}
+          >
+            <HelpCircle size={20} />
+          </button>
+        )}
       </div>
     </div>
   )

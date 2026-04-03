@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Copy, Key, Plus, ShieldOff, Check, User, Save, X, ChevronDown, ChevronUp, Settings, Eye, EyeOff } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Copy, Key, Plus, ShieldOff, Check, User, Save, X, ChevronDown, ChevronUp, Settings, Eye, EyeOff, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { getApiKeys, createApiKey, revokeApiKey, updateMe, getApiKeyUsage, type ApiKeyItem, type ApiKeyCreated, type ApiKeyUsageResponse } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
+import { usePageTour } from '../hooks/usePageTour'
+import { getSettingsSteps } from '../tour/steps/settingsSteps'
+import { resetAllHelpTours } from '../tour/HelpTourContext'
 
 type Tab = 'profile' | 'api-keys'
 
 export function SettingsPage() {
   const { t } = useTranslation()
   const { user, refreshUser } = useAuth()
+  const settingsTourSteps = useMemo(() => getSettingsSteps(t), [t])
+  usePageTour('settings', settingsTourSteps)
   const [activeTab, setActiveTab] = useState<Tab>('profile')
 
   return (
@@ -45,6 +50,7 @@ function ProfileTab() {
   const [name, setName] = useState(user?.name || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [helpReset, setHelpReset] = useState(false)
 
   useEffect(() => {
     setName(user?.name || '')
@@ -103,6 +109,20 @@ function ProfileTab() {
       <div className="profile-field">
         <label className="profile-label">{t('settings.profileTier')}</label>
         <span className="profile-tier-badge" data-tier={user.tier.toLowerCase()}>{user.tier}</span>
+      </div>
+
+      <div className="profile-field">
+        <button
+          className="btn"
+          onClick={() => {
+            resetAllHelpTours()
+            setHelpReset(true)
+            setTimeout(() => setHelpReset(false), 2000)
+          }}
+        >
+          {helpReset ? <Check size={16} /> : <RotateCcw size={16} />}
+          {helpReset ? t('help.resetAllDone') : t('help.resetAll')}
+        </button>
       </div>
     </section>
   )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Cpu, ArrowDown, Share2 } from 'lucide-react'
 import type { SourceInfo, StreamStatus, DebugInfo, SuggestionChip } from '../types'
@@ -12,6 +12,8 @@ import { ChatInput } from './ChatInput'
 import { ProductBadge } from './ProductPicker'
 import { RightPanel } from './RightPanel'
 import { ShareModal } from './ShareModal'
+import { usePageTour } from '../hooks/usePageTour'
+import { getChatSteps } from '../tour/steps/chatSteps'
 
 const SCROLL_THRESHOLD = 100
 const USER_INTERACTION_TTL = 200
@@ -156,6 +158,8 @@ export function ChatWindow({
   }, [sessionId])
 
   const { t, i18n } = useTranslation()
+  const chatTourSteps = useMemo(() => getChatSteps(t), [t])
+  usePageTour('chat', chatTourSteps)
   const { line1, line2, accent, visible: sloganVisible } = useRotatingSlogan()
   const lexiroChip = useRotatingLexiroChip()
   const isEmpty = messages.length === 0 && !streamingContent

@@ -11,6 +11,7 @@ import { useTheme } from '../hooks/useTheme'
 import type { ChatSession } from '../types'
 import { OnboardingChecklist } from '../components/OnboardingChecklist'
 import { usePermission } from '../auth/usePermission'
+import { HelpTourProvider } from '../tour/HelpTourContext'
 import { DocumentsPage } from './DocumentsPage'
 import { ProductsPage } from './ProductsPage'
 import { ProductDetailPage } from './ProductDetailPage'
@@ -268,6 +269,7 @@ export function ChatApp() {
   )
 
   return (
+    <HelpTourProvider>
     <Layout
       sessions={sessions}
       activeSessionId={activeSessionId}
@@ -326,5 +328,6 @@ export function ChatApp() {
       )}
       <OnboardingChecklist />
     </Layout>
+    </HelpTourProvider>
   )
 }
