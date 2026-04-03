@@ -344,7 +344,7 @@ function DocActions({
           )}
           {doc.status === 'ready' && onViewLifecycle && (
             <button className="docs-actions-dropdown-item" onClick={() => { onViewLifecycle(doc); setOpen(false) }}>
-              <FileSearch size={15} />
+              <Activity size={15} />
               {t('docs.actions.viewLifecycle')}
             </button>
           )}
