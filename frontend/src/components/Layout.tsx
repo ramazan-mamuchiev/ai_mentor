@@ -312,7 +312,6 @@ export function Layout({
             className="help-tour-fab"
             onClick={startTour}
             aria-label={t('help.btn')}
-            title={t('help.btn')}
           >
             <HelpCircle size={18} />
           </button>
