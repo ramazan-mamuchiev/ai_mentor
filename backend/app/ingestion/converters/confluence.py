@@ -217,10 +217,44 @@ def parse_confluence_url(
 _STORAGE_MIN_CHARS = 200
 
 
+def _format_confluence_date(iso_date: str) -> str:
+    """Format an ISO-8601 date string from Confluence into 'YYYY-MM-DD HH:MM'."""
+    if not iso_date:
+        return ""
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(iso_date.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return iso_date
+
+
+def _build_metadata_line(metadata: dict) -> str:
+    """Build a Markdown blockquote line from page metadata dict.
+
+    Returns empty string if no meaningful metadata is available.
+    """
+    parts: list[str] = []
+    if metadata.get("author"):
+        parts.append(f"**Author:** {metadata['author']}")
+    if metadata.get("created"):
+        parts.append(f"**Created:** {_format_confluence_date(metadata['created'])}")
+    if metadata.get("updated_by"):
+        parts.append(f"**Updated by:** {metadata['updated_by']}")
+    if metadata.get("updated"):
+        parts.append(f"**Updated:** {_format_confluence_date(metadata['updated'])}")
+    if not parts:
+        return ""
+    return "> " + " | ".join(parts)
+
+
 def _get_page_content(
     base_url: str, page_id: str, client: httpx.Client | None = None,
-) -> tuple[str, str]:
-    """Fetch page title and HTML body via REST API. Returns (title, html_body).
+) -> tuple[str, str, dict]:
+    """Fetch page title, HTML body, and metadata via REST API.
+
+    Returns (title, html_body, metadata).
+    Metadata dict contains: author, created, updated_by, updated.
 
     Requests both ``body.storage`` and ``body.export_view`` in a single call.
     Uses ``storage`` by default (faster, cleaner for markdownify).  Falls back
@@ -230,7 +264,7 @@ def _get_page_content(
     """
     url = (
         f"{base_url}/rest/api/content/{page_id}"
-        f"?expand=body.storage,body.export_view,title"
+        f"?expand=body.storage,body.export_view,title,history,version"
     )
     data = _api_get(url, client)
     title = data.get("title", "")
@@ -238,15 +272,22 @@ def _get_page_content(
     storage_html = body.get("storage", {}).get("value", "")
     export_html = body.get("export_view", {}).get("value", "")
 
+    metadata = {
+        "author": data.get("history", {}).get("createdBy", {}).get("displayName", ""),
+        "created": data.get("history", {}).get("createdDate", ""),
+        "updated_by": data.get("version", {}).get("by", {}).get("displayName", ""),
+        "updated": data.get("version", {}).get("when", ""),
+    }
+
     if len(storage_html) >= _STORAGE_MIN_CHARS:
-        return title, storage_html
+        return title, storage_html, metadata
 
     if export_html:
         logger.debug("Using export_view (storage too short: %d chars)", len(storage_html),
                       extra={"page_id": page_id, "title": title})
-        return title, export_html
+        return title, export_html, metadata
 
-    return title, storage_html
+    return title, storage_html, metadata
 
 
 def _get_child_pages(
@@ -295,8 +336,18 @@ def _resolve_confluence_images(html: str, base_url: str, page_id: str) -> str:
     return _AC_IMAGE_RE.sub(_replace, html)
 
 
-def _html_to_markdown(html: str, page_title: str, base_url: str = "", page_id: str = "") -> str:
-    """Convert Confluence storage format HTML to clean Markdown."""
+def _html_to_markdown(
+    html: str,
+    page_title: str,
+    base_url: str = "",
+    page_id: str = "",
+    metadata: dict | None = None,
+) -> str:
+    """Convert Confluence storage format HTML to clean Markdown.
+
+    When *metadata* is provided, a blockquote with author/date info is
+    inserted right after the page title heading.
+    """
     from markdownify import markdownify as md
 
     if not html or not html.strip():
@@ -327,8 +378,17 @@ def _html_to_markdown(html: str, page_title: str, base_url: str = "", page_id: s
 
     result = "\n".join(cleaned).strip()
 
+    meta_line = _build_metadata_line(metadata) if metadata else ""
+
     if result and not result.startswith("#"):
         result = f"# {page_title}\n\n{result}"
+
+    if meta_line and result.startswith("#"):
+        first_newline = result.find("\n")
+        if first_newline == -1:
+            result = f"{result}\n\n{meta_line}"
+        else:
+            result = f"{result[:first_newline]}\n\n{meta_line}{result[first_newline:]}"
 
     return result
 
@@ -376,8 +436,8 @@ def get_page_with_children_toc(
     """
     if client is None and auth is not None:
         client = _make_http_client(auth=auth)
-    title, html_body = _get_page_content(base_url, page_id, client)
-    markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
+    title, html_body, metadata = _get_page_content(base_url, page_id, client)
+    markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id, metadata=metadata)
 
     if len(markdown) < _MD_CONTENT_MIN_CHARS:
         children = _get_child_pages(base_url, page_id, client)
@@ -582,7 +642,7 @@ async def crawl_confluence(
                 continue
 
             try:
-                title, html_body = await asyncio.to_thread(
+                title, html_body, page_metadata = await asyncio.to_thread(
                     _get_page_content, base_url, page_id, client,
                 )
             except ConfluenceAuthError:
@@ -593,7 +653,7 @@ async def crawl_confluence(
                 result.errors.append(error_msg)
                 continue
 
-            markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id)
+            markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id, metadata=page_metadata)
 
             page_ocr_stats: dict = {}
             page_ocr_ms = 0.0
