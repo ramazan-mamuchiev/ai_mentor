@@ -876,6 +876,45 @@ async def list_tasks(
             error_message=job.error_message,
         ))
 
+    lc_items = [i for i in items if i.task_name in ("Lifecycle", "Lifecycle Merge") and i.source == "celery"]
+    if lc_items:
+        lc_doc_ids = []
+        lc_prod_ids = []
+        for it in lc_items:
+            summary = it.args_summary or ""
+            if "doc_id=" in summary:
+                try:
+                    lc_doc_ids.append(int(summary.split("doc_id=")[1].split(",")[0]))
+                except (ValueError, IndexError):
+                    pass
+        if lc_doc_ids:
+            lc_doc_rows = (await session.execute(
+                sa_select(
+                    Document.id, Document.title, Document.original_filename,
+                    Document.lifecycle_status, Document.product_id,
+                    Product.name.label("product_name"),
+                ).outerjoin(Product, Document.product_id == Product.id)
+                .where(Document.id.in_(lc_doc_ids))
+            )).all()
+            lc_doc_map = {r.id: r for r in lc_doc_rows}
+            _STAGE_MAP = {"pending": "queued", "processing": "analyzing", "ready": "done", "error": "error"}
+            for it in lc_items:
+                summary = it.args_summary or ""
+                if "doc_id=" in summary:
+                    try:
+                        did = int(summary.split("doc_id=")[1].split(",")[0])
+                    except (ValueError, IndexError):
+                        continue
+                    row = lc_doc_map.get(did)
+                    if row:
+                        it.document_id = row.id
+                        it.document_title = row.title or row.original_filename
+                        it.product_name = row.product_name
+                        it.product_id = row.product_id
+                        stage = _STAGE_MAP.get(row.lifecycle_status or "", "")
+                        if stage:
+                            it.progress_stage = stage
+
     if status_filter:
         items = [i for i in items if i.status == status_filter]
     if task_name:
