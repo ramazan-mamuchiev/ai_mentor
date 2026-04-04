@@ -582,7 +582,7 @@
   "lifecycle.patterns": "Уникальные паттерны",
   "lifecycle.dependencies": "Зависимости",
   "lifecycle.codeSkeleton": "Code skeleton",
-  "lifecycle.dataFlows": "Информационные потоки",
+  "lifecycle.dataFlows": "Потоки данных",
   "lifecycle.dfComponent": "Компонент",
   "lifecycle.dfType": "Тип",
   "lifecycle.dfDescription": "Описание",
