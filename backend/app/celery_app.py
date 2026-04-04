@@ -3223,7 +3223,7 @@ def analyze_api_lifecycle_task(self, document_id: int):
 
 
 @celery.task(name="merge_product_lifecycle", bind=True, max_retries=1,
-             soft_time_limit=300, time_limit=360)
+             soft_time_limit=900, time_limit=960)
 def merge_product_lifecycle_task(self, product_id: int):
     """Merge all document-level lifecycles for a product into one."""
     logger.info("Product lifecycle merge STARTED",
@@ -3346,6 +3346,30 @@ def merge_product_lifecycle_task(self, product_id: int):
                             "analysis_ms": result.usage.analysis_ms,
                         })
             return {"status": "ok", "product_id": product_id, "phases": len(result.phases)}
+
+        except SoftTimeLimitExceeded:
+            existing_lc = session.execute(
+                sa_select(ApiLifecycle).where(
+                    ApiLifecycle.product_id == product_id,
+                    ApiLifecycle.document_id.is_(None),
+                )
+            ).scalar_one_or_none()
+            error_msg = "Task exceeded soft time limit (15 min)"
+            if existing_lc:
+                existing_lc.status = "error"
+                existing_lc.error_message = error_msg
+                existing_lc.updated_at = datetime.now(_tz.utc)
+            else:
+                session.add(ApiLifecycle(
+                    document_id=None,
+                    product_id=product_id,
+                    status="error",
+                    error_message=error_msg,
+                ))
+            session.commit()
+            logger.error("merge_product_lifecycle_task soft time limit exceeded",
+                         extra={"product_id": product_id})
+            return {"status": "error", "error": "soft_time_limit", "product_id": product_id}
 
         except Exception as exc:
             error_msg = f"{type(exc).__name__}: {str(exc)[:500]}"
