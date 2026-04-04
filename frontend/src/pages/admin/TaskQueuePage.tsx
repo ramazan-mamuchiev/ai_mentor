@@ -334,7 +334,7 @@ export function TaskQueuePage() {
 
           <input
             className="logs-search"
-            style={{ paddingLeft: 10, width: 240 }}
+            style={{ paddingLeft: 10, minWidth: 200, flex: 1, maxWidth: 360 }}
             placeholder={t('admin.tasks.searchPlaceholder')}
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
