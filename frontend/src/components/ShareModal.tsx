@@ -7,11 +7,12 @@ import {
   shareDebugMessage,
   shareDebugDocument,
   shareDebugProduct,
+  shareLifecycle,
   deleteSharedLink,
 } from '../api/share'
 import type { SharedLinkResponse } from '../types'
 
-export type ShareType = 'session' | 'message' | 'debug_chat' | 'debug_document' | 'debug_product'
+export type ShareType = 'session' | 'message' | 'debug_chat' | 'debug_document' | 'debug_product' | 'lifecycle'
 
 interface Props {
   type: ShareType
@@ -31,6 +32,8 @@ async function createShareLink(type: ShareType, id: number | string): Promise<Sh
       return shareDebugDocument(id as number)
     case 'debug_product':
       return shareDebugProduct(id as number)
+    case 'lifecycle':
+      return shareLifecycle(id as number)
   }
 }
 
@@ -38,6 +41,7 @@ function getModalTitle(type: ShareType, t: (key: string) => string): string {
   switch (type) {
     case 'session': return t('share.shareChat')
     case 'message': return t('share.shareAnswer')
+    case 'lifecycle': return t('share.shareLifecycle')
     default: return t('share.shareDebug')
   }
 }

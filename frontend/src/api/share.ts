@@ -36,6 +36,13 @@ export async function shareDebugProduct(productId: number): Promise<SharedLinkRe
   })
 }
 
+export async function shareLifecycle(productId: number): Promise<SharedLinkResponse> {
+  return apiFetch<SharedLinkResponse>(`/share/lifecycle/${productId}`, {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
 export async function getSharedContent(token: string): Promise<SharedContentResponse | SharedDebugContentResponse> {
   return apiFetch<SharedContentResponse | SharedDebugContentResponse>(`/s/${token}`)
 }

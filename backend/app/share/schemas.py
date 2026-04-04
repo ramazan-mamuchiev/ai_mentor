@@ -40,3 +40,14 @@ class SharedDebugContentResponse(BaseModel):
     created_at: datetime
     view_count: int
     expires_at: datetime | None = None
+
+
+class SharedLifecycleContentResponse(BaseModel):
+    share_type: str
+    title: str
+    product_name: str
+    merged: dict | None = None
+    document_lifecycles: list[dict] = []
+    doc_issues: list[dict] = []
+    created_at: datetime
+    view_count: int

@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.database import async_session
 from app.models import SharedLink
-from app.share.schemas import SharedContentResponse, SharedDebugContentResponse, SharedMessageSnapshot
+from app.share.schemas import SharedContentResponse, SharedDebugContentResponse, SharedLifecycleContentResponse, SharedMessageSnapshot
 
 public_router = APIRouter(tags=["share"])
 
@@ -40,6 +40,18 @@ async def get_shared_content(token: str):
                 created_at=link.created_at,
                 view_count=link.view_count,
                 expires_at=link.expires_at,
+            )
+
+        if link.share_type == "lifecycle":
+            return SharedLifecycleContentResponse(
+                share_type=link.share_type,
+                title=link.title,
+                product_name=snapshot.get("product_name", ""),
+                merged=snapshot.get("merged"),
+                document_lifecycles=snapshot.get("document_lifecycles", []),
+                doc_issues=snapshot.get("doc_issues", []),
+                created_at=link.created_at,
+                view_count=link.view_count,
             )
 
         session_info = snapshot.get("session", {})

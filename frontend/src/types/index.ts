@@ -191,6 +191,17 @@ export interface SharedDebugContentResponse {
   expires_at: string | null
 }
 
+export interface SharedLifecycleContentResponse {
+  share_type: 'lifecycle'
+  title: string
+  product_name: string
+  merged: Record<string, unknown> | null
+  document_lifecycles: Array<Record<string, unknown>>
+  doc_issues: Array<Record<string, unknown>>
+  created_at: string
+  view_count: number
+}
+
 export type DocumentStatusValue = 'pending' | 'processing' | 'ready' | 'error' | 'cancelled'
 
 export interface DocumentListItem {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  X, Loader2, AlertCircle, Activity, Maximize2, Minimize2, Download,
+  X, Loader2, AlertCircle, Activity, Maximize2, Minimize2, Download, Share2,
   Play, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, Trash2,
   FileText, Layers,
 } from 'lucide-react'
@@ -10,6 +10,7 @@ import {
 } from '../api/products'
 import type { ProductLifecycle, LifecyclePayload } from '../api/products'
 import { ConfirmDialog } from './ConfirmDialog'
+import { ShareModal } from './ShareModal'
 
 const POLL_INTERVAL = 4000
 
@@ -39,7 +40,7 @@ interface LifecycleContentProps {
   issues?: Array<{ document_id: number; issue_type: string; severity: string; description: string; affected_entity?: string; suggestion?: string }>
 }
 
-function LifecycleContent({ lc, issues = [] }: LifecycleContentProps) {
+export function LifecycleContent({ lc, issues = [] }: LifecycleContentProps) {
   const { t } = useTranslation()
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     prereqs: true, phases: true, dataModels: true, errors: true,
@@ -379,6 +380,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
   const [launching, setLaunching] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showShare, setShowShare] = useState(false)
   const [activeTab, setActiveTab] = useState<TabId>('merged')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -508,13 +510,22 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                 {hasAnything && (
                   <>
                     {hasResults && (
-                      <button
-                        className="lc-modal-download-btn"
-                        onClick={handleDownload}
-                        title={t('lifecycleModal.download')}
-                      >
-                        <Download size={13} />
-                      </button>
+                      <>
+                        <button
+                          className="lc-modal-share-btn"
+                          onClick={() => setShowShare(true)}
+                          title={t('share.shareLifecycle')}
+                        >
+                          <Share2 size={13} />
+                        </button>
+                        <button
+                          className="lc-modal-download-btn"
+                          onClick={handleDownload}
+                          title={t('lifecycleModal.download')}
+                        >
+                          <Download size={13} />
+                        </button>
+                      </>
                     )}
                     <button
                       className="lc-modal-delete-btn"
@@ -662,6 +673,10 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
           onConfirm={() => { setShowDeleteConfirm(false); handleDelete() }}
           onCancel={() => setShowDeleteConfirm(false)}
         />
+      )}
+
+      {showShare && (
+        <ShareModal type="lifecycle" id={productId} onClose={() => setShowShare(false)} />
       )}
     </div>
   )

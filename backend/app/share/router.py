@@ -325,6 +325,120 @@ async def share_debug_product(product_id: int, request: Request):
     return _link_response(link, request)
 
 
+# ── Lifecycle share endpoint ──
+
+
+@router.post("/share/lifecycle/{product_id}", response_model=SharedLinkResponse, status_code=201)
+async def share_lifecycle(product_id: int, request: Request):
+    """Create a public snapshot of the full product lifecycle analysis."""
+    from app.models import ApiLifecycle, DocIssueAnnotation
+
+    async with async_session() as db:
+        product = (await db.execute(
+            select(Product).where(Product.id == product_id)
+        )).scalar_one_or_none()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        merged = (await db.execute(
+            select(ApiLifecycle).where(
+                ApiLifecycle.product_id == product_id,
+                ApiLifecycle.document_id.is_(None),
+            )
+        )).scalar_one_or_none()
+
+        doc_lifecycles = (await db.execute(
+            select(ApiLifecycle).where(
+                ApiLifecycle.product_id == product_id,
+                ApiLifecycle.document_id.isnot(None),
+            )
+        )).scalars().all()
+
+        if not merged and not doc_lifecycles:
+            raise HTTPException(status_code=400, detail="No lifecycle analysis found for this product")
+
+        doc_ids = [dl.document_id for dl in doc_lifecycles if dl.document_id]
+        doc_names: dict[int, str] = {}
+        if doc_ids:
+            rows = (await db.execute(
+                select(Document.id, Document.title, Document.original_filename)
+                .where(Document.id.in_(doc_ids))
+            )).all()
+            doc_names = {r.id: r.title or r.original_filename or f"Document {r.id}" for r in rows}
+
+        issues = (await db.execute(
+            select(DocIssueAnnotation).where(
+                DocIssueAnnotation.product_id == product_id,
+            )
+        )).scalars().all()
+
+        def _lc_dict(lc: ApiLifecycle) -> dict:
+            return {
+                "status": lc.status,
+                "phases": lc.phases or [],
+                "unique_patterns": lc.unique_patterns or [],
+                "dependency_chains": lc.dependency_chains or [],
+                "code_skeleton": lc.code_skeleton or "",
+                "data_models": lc.data_models or [],
+                "error_catalog": lc.error_catalog or [],
+                "prerequisites": lc.prerequisites or [],
+                "data_access_patterns": lc.data_access_patterns or [],
+                "endpoint_coverage": lc.endpoint_coverage or [],
+                "validation_issues": lc.validation_issues or [],
+                "validation_retries": lc.validation_retries,
+                "prompt_tokens": lc.prompt_tokens,
+                "completion_tokens": lc.completion_tokens,
+                "analysis_ms": lc.analysis_ms,
+                "model": lc.model,
+                "created_at": lc.created_at.isoformat() if lc.created_at else None,
+                "updated_at": lc.updated_at.isoformat() if lc.updated_at else None,
+            }
+
+        snapshot = {
+            "version": 1,
+            "share_type": "lifecycle",
+            "product_id": product_id,
+            "product_name": product.name,
+            "merged": _lc_dict(merged) if merged else None,
+            "document_lifecycles": [
+                {
+                    "document_id": dl.document_id,
+                    "document_name": doc_names.get(dl.document_id, f"Document {dl.document_id}") if dl.document_id else None,
+                    **_lc_dict(dl),
+                }
+                for dl in doc_lifecycles
+            ],
+            "doc_issues": [
+                {
+                    "document_id": i.document_id,
+                    "issue_type": i.issue_type,
+                    "severity": i.severity,
+                    "description": i.description,
+                    "affected_entity": i.affected_entity,
+                    "suggestion": i.suggestion,
+                }
+                for i in issues
+            ],
+        }
+
+        token = _generate_token()
+        title = f"API Lifecycle: {product.name}"
+
+        link = SharedLink(
+            token=token,
+            session_id=None,
+            share_type="lifecycle",
+            title=title[:200],
+            snapshot_json=snapshot,
+        )
+        db.add(link)
+        await db.commit()
+        await db.refresh(link)
+
+    logger.info("Shared lifecycle", extra={"product_id": product_id, "token": token})
+    return _link_response(link, request)
+
+
 # Public GET /s/{token} is in app.share.public (no auth required)
 
 

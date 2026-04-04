@@ -883,6 +883,7 @@
   "share.error": "Не удалось создать ссылку",
   "share.sharedChat": "Общий чат",
   "share.sharedAnswer": "Общий ответ",
+  "share.shareLifecycle": "Поделиться API Lifecycle",
   "share.shareDebug": "Поделиться отладочной информацией",
   "share.sharedDebug": "Отладочная информация",
   "share.expiresAt": "Истекает: {{date}}",
