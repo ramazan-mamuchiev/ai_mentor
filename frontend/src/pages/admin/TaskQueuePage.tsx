@@ -567,18 +567,18 @@ export function TaskQueuePage() {
 
       {/* Confirmation Dialog */}
       {confirmAction && (
-        <div className="tq-overlay" onClick={() => setConfirmAction(null)}>
-          <div className="tq-confirm" onClick={e => e.stopPropagation()}>
-            <div className="tq-confirm-icon">
-              <AlertTriangle size={32} />
+        <div className="confirm-overlay" onClick={() => setConfirmAction(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-icon confirm-icon--danger">
+              <AlertTriangle size={24} />
             </div>
-            <h3>{confirmAction.title}</h3>
-            <p>{confirmAction.message}</p>
-            <div className="tq-confirm-actions">
-              <button className="admin-btn admin-btn--sm" onClick={() => setConfirmAction(null)}>
+            <h3 className="confirm-title">{confirmAction.title}</h3>
+            <p className="confirm-message">{confirmAction.message}</p>
+            <div className="confirm-actions">
+              <button className="confirm-btn confirm-btn--cancel" onClick={() => setConfirmAction(null)}>
                 {t('admin.tasks.confirmCancel')}
               </button>
-              <button className="admin-btn admin-btn--sm admin-btn--danger" onClick={confirmAction.onConfirm}>
+              <button className="confirm-btn confirm-btn--danger" onClick={confirmAction.onConfirm}>
                 {t('admin.tasks.confirmOk')}
               </button>
             </div>

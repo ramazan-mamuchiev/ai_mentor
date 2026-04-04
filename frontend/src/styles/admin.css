@@ -3610,55 +3610,6 @@
 }
 
 /* Confirm overlay */
-.tq-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-[data-theme='dark'] .tq-overlay {
-  background: rgba(0, 0, 0, 0.6);
-}
-
-.tq-confirm {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 28px;
-  max-width: 400px;
-  width: 90vw;
-  text-align: center;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-}
-
-.tq-confirm-icon {
-  color: #d97706;
-  margin-bottom: 12px;
-}
-
-.tq-confirm h3 {
-  font-size: 16px;
-  margin: 0 0 8px;
-  color: var(--text);
-}
-
-.tq-confirm p {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0 0 20px;
-  line-height: 1.5;
-}
-
-.tq-confirm-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
 /* Toasts */
 .tq-toasts {
   position: fixed;
