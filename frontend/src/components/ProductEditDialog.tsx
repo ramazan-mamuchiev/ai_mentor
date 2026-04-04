@@ -82,7 +82,6 @@ export function ProductEditDialog({ product, onSave, onCancel }: Props) {
         manufacturer,
         category: category || undefined,
         version: version || undefined,
-        firmware_version_id: product.firmware_version_id,
       })
       onSave()
     } catch { /* ignore */ }

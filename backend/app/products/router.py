@@ -12,14 +12,13 @@ from app.auth.dependencies import require_permission
 from app.config import settings
 from app.database import async_session
 from app.models import (
-    ApiLifecycle, ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion,
+    ApiLifecycle, ChatMessage, Chunk, Document, DocumentUsageLog,
     Product, ProductSearchKey, SuggestionTemplate,
 )
 from app.products.schemas import (
     DocumentKeysGroup,
     FacetValue,
     Facets,
-    FirmwareVersionInfo,
     FormatCount,
     PaginatedProducts,
     ProductDebugInfo,
@@ -55,14 +54,12 @@ async def get_suggestions():
             select(
                 Product.id,
                 Product.name,
-                FirmwareVersion.version,
+                Product.version,
                 func.sum(Document.rag_hit_count).label("hits"),
             )
-            .join(FirmwareVersion, FirmwareVersion.product_id == Product.id)
             .join(
                 Document,
-                (Document.product_id == Product.id)
-                & (Document.firmware_version_id == FirmwareVersion.id),
+                Document.product_id == Product.id,
             )
             .where(
                 Document.status == "ready",
@@ -71,7 +68,7 @@ async def get_suggestions():
             .group_by(
                 Product.id,
                 Product.name,
-                FirmwareVersion.version,
+                Product.version,
             )
             .order_by(func.sum(Document.rag_hit_count).desc())
             .limit(4)
@@ -133,30 +130,22 @@ async def suggest_products(
 
         items = []
         for p in products:
-            fw_result = await session.execute(
-                select(FirmwareVersion.id, FirmwareVersion.version)
-                .where(FirmwareVersion.product_id == p.id)
-                .order_by(FirmwareVersion.version)
-            )
-            fws = [FirmwareVersionInfo(id=r.id, version=r.version) for r in fw_result]
-
             items.append(ProductSuggestion(
                 id=p.id,
                 name=p.name,
                 manufacturer=p.manufacturer,
-                firmware_versions=fws,
+                version=p.version,
             ))
         return items
 
 
 @router.get("", response_model=list[ProductListItem])
 async def list_products():
-    """List all products with aggregated document stats, one row per (product, firmware_version)."""
+    """List all products with aggregated document stats."""
     async with async_session() as session:
         agg = (
             select(
                 Document.product_id,
-                Document.firmware_version_id,
                 func.count().label("total_documents"),
                 func.sum(case((Document.status == "pending", 1), else_=0)).label("pending_documents"),
                 func.sum(case((Document.status == "processing", 1), else_=0)).label("processing_documents"),
@@ -169,18 +158,17 @@ async def list_products():
                 func.max(Document.indexed_at).label("indexed_at"),
                 func.sum(Document.progress_percent).label("sum_progress"),
             )
-            .group_by(Document.product_id, Document.firmware_version_id)
+            .group_by(Document.product_id)
             .subquery()
         )
 
         fmt_agg = (
             select(
                 Document.product_id,
-                Document.firmware_version_id,
                 Document.format,
                 func.count().label("cnt"),
             )
-            .group_by(Document.product_id, Document.firmware_version_id, Document.format)
+            .group_by(Document.product_id, Document.format)
             .subquery()
         )
 
@@ -191,10 +179,9 @@ async def list_products():
                 Product.slug,
                 Product.manufacturer,
                 Product.category,
+                Product.version,
                 Product.created_at,
                 Product.sync_status,
-                FirmwareVersion.id.label("firmware_version_id"),
-                FirmwareVersion.version.label("version"),
                 func.coalesce(agg.c.total_documents, 0).label("total_documents"),
                 func.coalesce(agg.c.pending_documents, 0).label("pending_documents"),
                 func.coalesce(agg.c.processing_documents, 0).label("processing_documents"),
@@ -207,28 +194,22 @@ async def list_products():
                 agg.c.indexed_at,
                 func.coalesce(agg.c.sum_progress, 0).label("sum_progress"),
             )
-            .join(FirmwareVersion, FirmwareVersion.product_id == Product.id)
-            .outerjoin(
-                agg,
-                (Product.id == agg.c.product_id) & (FirmwareVersion.id == agg.c.firmware_version_id),
-            )
-            .order_by(Product.name, FirmwareVersion.version)
+            .outerjoin(agg, Product.id == agg.c.product_id)
+            .order_by(Product.name, Product.version)
         )
         rows = result.all()
 
         fmt_result = await session.execute(
             select(
                 fmt_agg.c.product_id,
-                fmt_agg.c.firmware_version_id,
                 fmt_agg.c.format,
                 fmt_agg.c.cnt,
             )
         )
         fmt_rows = fmt_result.all()
-        fmt_map: dict[tuple[int, int], list[FormatCount]] = {}
+        fmt_map: dict[int, list[FormatCount]] = {}
         for row in fmt_rows:
-            key = (row.product_id, row.firmware_version_id)
-            fmt_map.setdefault(key, []).append(
+            fmt_map.setdefault(row.product_id, []).append(
                 FormatCount(format=row.format, count=row.cnt)
             )
 
@@ -278,8 +259,6 @@ async def list_products():
             version_str = p.version or ""
             display_name = f"{p.name} {version_str}".strip()
 
-            fmt_key = (p.id, p.firmware_version_id)
-
             sync_st = p.sync_status
             if sync_st not in ("idle", "deleting") and pending == 0 and processing == 0:
                 sync_st = "idle"
@@ -292,7 +271,6 @@ async def list_products():
                 manufacturer=p.manufacturer,
                 category=p.category,
                 created_at=p.created_at,
-                firmware_version_id=p.firmware_version_id,
                 version=version_str,
                 display_name=display_name,
                 total_documents=total,
@@ -303,7 +281,7 @@ async def list_products():
                 cancelled_documents=cancelled,
                 total_file_size_bytes=p.total_file_size_bytes,
                 total_chunks=p.total_chunks,
-                formats=fmt_map.get(fmt_key, []),
+                formats=fmt_map.get(p.id, []),
                 uploaded_at=p.uploaded_at,
                 indexed_at=p.indexed_at,
                 progress_percent=progress_pct,
@@ -325,12 +303,6 @@ async def list_products():
 
 
 async def _product_detail(session, product: Product) -> ProductDetail:
-    fw_result = await session.execute(
-        select(FirmwareVersion.version)
-        .where(FirmwareVersion.product_id == product.id)
-        .order_by(FirmwareVersion.version)
-    )
-    versions = [row[0] for row in fw_result.all()]
     return ProductDetail(
         id=product.id,
         name=product.name,
@@ -338,7 +310,7 @@ async def _product_detail(session, product: Product) -> ProductDetail:
         manufacturer=product.manufacturer,
         category=product.category,
         created_at=product.created_at,
-        firmware_versions=versions,
+        version=product.version,
     )
 
 
@@ -375,14 +347,11 @@ async def update_product(product_id: int, body: ProductUpdate):
             product.manufacturer = body.manufacturer
         if body.category is not None:
             product.category = body.category
+        if body.version is not None:
+            product.version = body.version
 
-        if body.name is not None or body.manufacturer is not None:
-            product.slug = make_product_slug(product.manufacturer, product.name)
-
-        if body.version is not None and body.firmware_version_id is not None:
-            fw = await session.get(FirmwareVersion, body.firmware_version_id)
-            if fw and fw.product_id == product.id:
-                fw.version = body.version
+        if body.name is not None or body.manufacturer is not None or body.version is not None:
+            product.slug = make_product_slug(product.manufacturer, product.name, product.version)
 
         await session.commit()
         await session.refresh(product)
@@ -861,13 +830,6 @@ async def get_product_debug(product_id: int):
         )
         agg = agg_result.one()
 
-        fw_count_result = await session.execute(
-            select(func.count())
-            .select_from(FirmwareVersion)
-            .where(FirmwareVersion.product_id == product_id)
-        )
-        fw_count = fw_count_result.scalar() or 0
-
         emb_result = await session.execute(
             select(Document.embedding_model)
             .where(Document.product_id == product_id, Document.embedding_model.isnot(None))
@@ -908,7 +870,6 @@ async def get_product_debug(product_id: int):
             product_id=product.id,
             product_name=product.name,
             total_documents=agg.total_documents or 0,
-            firmware_version_count=fw_count,
             total_file_size_bytes=agg.total_file_size_bytes or 0,
             sum_ingest_duration_ms=agg.sum_ingest_duration_ms,
             avg_ingest_duration_ms=float(agg.avg_ingest_duration_ms) if agg.avg_ingest_duration_ms else None,

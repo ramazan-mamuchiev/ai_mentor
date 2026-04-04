@@ -236,26 +236,24 @@ def _set_tenant_log_context(tenant_id, session):
     tenant_name_ctx.set(tenant.name if tenant and tenant.name else "-")
 
 
-def _find_existing_by_filename_sync(session, original_filename: str, product_id: int, firmware_version_id: int):
-    """Find existing document by filename within same product+version (sync)."""
+def _find_existing_by_filename_sync(session, original_filename: str, product_id: int):
+    """Find existing document by filename within same product (sync)."""
     from app.models import Document
     return session.execute(
         sa_select(Document).where(
             Document.original_filename == original_filename,
             Document.product_id == product_id,
-            Document.firmware_version_id == firmware_version_id,
         ).limit(1)
     ).scalar_one_or_none()
 
 
-def _find_existing_by_source_path_sync(session, source_path: str, product_id: int, firmware_version_id: int):
-    """Find existing document by source URL within same product+version (for crawlers)."""
+def _find_existing_by_source_path_sync(session, source_path: str, product_id: int):
+    """Find existing document by source URL within same product (for crawlers)."""
     from app.models import Document
     return session.execute(
         sa_select(Document).where(
             Document.source_path == source_path,
             Document.product_id == product_id,
-            Document.firmware_version_id == firmware_version_id,
         ).limit(1)
     ).scalar_one_or_none()
 
@@ -310,7 +308,7 @@ def _remove_old_document_sync(session, doc) -> int:
              soft_time_limit=2700, time_limit=3000)
 def ingest_document_task(self, document_id: int):
     """Background task: download file from S3, run ingestion pipeline, update DB."""
-    from app.models import Base, Chunk, Product, Document, FirmwareVersion
+    from app.models import Base, Chunk, Product, Document
     from app.s3 import download_file_to_path
     from app.ingestion.pipeline import ingest_from_bytes, _update_progress, IngestionCancelled
 
@@ -418,7 +416,6 @@ def _create_proto_bundle_docs(
     proto_entries: list[tuple[str, bytes]],
     *,
     product_id: int,
-    firmware_version_id: int,
     archive_filename: str,
     tenant_id=None,
     force: bool = False,
@@ -451,7 +448,6 @@ def _create_proto_bundle_docs(
             sa_select(Document).where(
                 Document.source_hash == md_hash,
                 Document.product_id == product_id,
-                Document.firmware_version_id == firmware_version_id,
             ).limit(1)
         ).scalar_one_or_none()
         if dup is not None and not force:
@@ -463,13 +459,12 @@ def _create_proto_bundle_docs(
         title = f"gRPC API: {domain_name}"
         filename = f"{domain_name}.md"
 
-        old_doc = _find_existing_by_filename_sync(session, filename, product_id, firmware_version_id)
+        old_doc = _find_existing_by_filename_sync(session, filename, product_id)
         if old_doc is not None:
             _remove_old_document_sync(session, old_doc)
 
         doc = Document(
             product_id=product_id,
-            firmware_version_id=firmware_version_id,
             format="markdown",
             original_filename=filename,
             file_size_bytes=len(md_bytes),
@@ -510,7 +505,7 @@ def ingest_archive_task(
     force: bool = False,
 ):
     """Background task: download archive from S3, extract files, create Documents, ingest each."""
-    from app.models import Document, Product, FirmwareVersion
+    from app.models import Document, Product
     from app.s3 import download_file, upload_file, s3_key_for_document
     from app.documents.archive import extract_archive
 
@@ -569,27 +564,21 @@ def ingest_archive_task(
 
         from sqlalchemy import select as sa_select
         product_row = session.execute(
-            sa_select(Product).where(Product.name == product_name)
+            sa_select(Product).where(
+                Product.name == product_name,
+                Product.manufacturer == manufacturer,
+                Product.version == firmware_version,
+            )
         ).scalar_one_or_none()
         if product_row is None:
             from app.products.utils import make_product_slug
             product_row = Product(
                 name=product_name, manufacturer=manufacturer,
-                slug=make_product_slug(manufacturer, product_name),
+                model=product_name, version=firmware_version,
+                slug=make_product_slug(manufacturer, product_name, firmware_version),
                 tenant_id=archive_tenant_id,
             )
             session.add(product_row)
-            session.flush()
-
-        fw_row = session.execute(
-            sa_select(FirmwareVersion).where(
-                FirmwareVersion.product_id == product_row.id,
-                FirmwareVersion.version == firmware_version,
-            )
-        ).scalar_one_or_none()
-        if fw_row is None:
-            fw_row = FirmwareVersion(product_id=product_row.id, version=firmware_version)
-            session.add(fw_row)
             session.flush()
 
         archive_filename = archive_doc.original_filename
@@ -604,7 +593,6 @@ def ingest_archive_task(
             bundle_ids = _create_proto_bundle_docs(
                 session, proto_entries,
                 product_id=product_row.id,
-                firmware_version_id=fw_row.id,
                 archive_filename=archive_filename,
                 tenant_id=archive_tenant_id,
                 force=force,
@@ -623,7 +611,6 @@ def ingest_archive_task(
                 sa_select(Document).where(
                     Document.source_hash == entry_hash,
                     Document.product_id == product_row.id,
-                    Document.firmware_version_id == fw_row.id,
                 ).limit(1)
             ).scalar_one_or_none()
             if dup is not None and not force:
@@ -632,13 +619,12 @@ def ingest_archive_task(
                 })
                 continue
 
-            old_doc = _find_existing_by_filename_sync(session, entry_filename, product_row.id, fw_row.id)
+            old_doc = _find_existing_by_filename_sync(session, entry_filename, product_row.id)
             if old_doc is not None:
                 _remove_old_document_sync(session, old_doc)
 
             child_doc = Document(
                 product_id=product_row.id,
-                firmware_version_id=fw_row.id,
                 format="auto",
                 original_filename=entry_filename,
                 file_size_bytes=len(entry_data),
@@ -700,24 +686,23 @@ def ingest_archive_from_s3_task(
     s3_key: str,
     archive_filename: str,
     product_id: int,
-    firmware_version_id: int,
     force: bool = False,
     tenant_id_str: str | None = None,
 ):
     """Download archive from S3, extract files, create Documents for each inner file.
 
-    Product and FirmwareVersion are created by the API layer before this task
-    is enqueued, so the product appears in the UI immediately.
+    Product is created by the API layer before this task is enqueued,
+    so the product appears in the UI immediately.
     """
     import uuid as _uuid
-    from app.models import Document, Product, FirmwareVersion
+    from app.models import Document, Product
     from app.s3 import download_file, upload_file, s3_key_for_document, delete_file as s3_delete
     from app.documents.archive import extract_archive
 
     t0 = time.perf_counter()
     logger.info("ingest_archive_from_s3_task started", extra={
         "s3_key": s3_key, "archive_filename": archive_filename, "task_id": self.request.id,
-        "product_id": product_id, "firmware_version_id": firmware_version_id,
+        "product_id": product_id,
     })
 
     engine = _get_sync_engine()
@@ -751,11 +736,6 @@ def ingest_archive_from_s3_task(
             logger.error("Product not found", extra={"product_id": product_id})
             return {"status": "error", "error": f"Product {product_id} not found"}
 
-        fw_row = session.get(FirmwareVersion, firmware_version_id)
-        if fw_row is None:
-            logger.error("FirmwareVersion not found", extra={"firmware_version_id": firmware_version_id})
-            return {"status": "error", "error": f"FirmwareVersion {firmware_version_id} not found"}
-
         from app.documents.archive import is_proto_heavy, classify_archive_entries
         proto_entries, other_entries = classify_archive_entries(entries)
         use_bundle = is_proto_heavy(entries) and len(proto_entries) >= 5
@@ -766,7 +746,6 @@ def ingest_archive_from_s3_task(
             bundle_ids = _create_proto_bundle_docs(
                 session, proto_entries,
                 product_id=product_row.id,
-                firmware_version_id=fw_row.id,
                 archive_filename=archive_filename,
                 tenant_id=_tenant_id,
                 force=force,
@@ -785,7 +764,6 @@ def ingest_archive_from_s3_task(
                 sa_select(Document).where(
                     Document.source_hash == entry_hash,
                     Document.product_id == product_row.id,
-                    Document.firmware_version_id == fw_row.id,
                 ).limit(1)
             ).scalar_one_or_none()
             if dup is not None and not force:
@@ -794,13 +772,12 @@ def ingest_archive_from_s3_task(
                 })
                 continue
 
-            old_doc = _find_existing_by_filename_sync(session, entry_filename, product_row.id, fw_row.id)
+            old_doc = _find_existing_by_filename_sync(session, entry_filename, product_row.id)
             if old_doc is not None:
                 _remove_old_document_sync(session, old_doc)
 
             child_doc = Document(
                 product_id=product_row.id,
-                firmware_version_id=fw_row.id,
                 format="auto",
                 original_filename=entry_filename,
                 file_size_bytes=len(entry_data),
@@ -1102,7 +1079,6 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
 
         url = placeholder.source_path
         product_id = placeholder.product_id
-        firmware_version_id = placeholder.firmware_version_id
         confluence_tenant_id = placeholder.tenant_id
         _set_tenant_log_context(confluence_tenant_id, session)
 
@@ -1194,20 +1170,18 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
                         Document.product_id == product_id,
-                        Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
                 if existing_by_hash is not None:
                     skipped += 1
                     return
 
-                old_doc = _find_existing_by_source_path_sync(s, page.url, product_id, firmware_version_id)
+                old_doc = _find_existing_by_source_path_sync(s, page.url, product_id)
                 if old_doc is not None:
                     _remove_old_document_sync(s, old_doc)
 
                 doc = Document(
                     product_id=product_id,
-                    firmware_version_id=firmware_version_id,
                     format="markdown",
                     original_filename=f"{page.title}.md",
                     file_size_bytes=len(md_bytes),
@@ -1481,7 +1455,6 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
 
         url = placeholder.source_path
         product_id = placeholder.product_id
-        firmware_version_id = placeholder.firmware_version_id
         site_tenant_id = placeholder.tenant_id
         _set_tenant_log_context(site_tenant_id, session)
 
@@ -1559,20 +1532,18 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
                         Document.product_id == product_id,
-                        Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
                 if existing_by_hash is not None:
                     skipped += 1
                     return
 
-                old_doc = _find_existing_by_source_path_sync(s, page.url, product_id, firmware_version_id)
+                old_doc = _find_existing_by_source_path_sync(s, page.url, product_id)
                 if old_doc is not None:
                     _remove_old_document_sync(s, old_doc)
 
                 doc = Document(
                     product_id=product_id,
-                    firmware_version_id=firmware_version_id,
                     format="markdown",
                     original_filename=f"{page.title[:150]}.md",
                     file_size_bytes=len(md_bytes),
@@ -1635,19 +1606,17 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
                         Document.product_id == product_id,
-                        Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
                 if existing_by_hash is not None:
                     return
 
-                old_doc = _find_existing_by_source_path_sync(s, crawled_file.url, product_id, firmware_version_id)
+                old_doc = _find_existing_by_source_path_sync(s, crawled_file.url, product_id)
                 if old_doc is not None:
                     _remove_old_document_sync(s, old_doc)
 
                 doc = Document(
                     product_id=product_id,
-                    firmware_version_id=firmware_version_id,
                     format=fmt,
                     original_filename=filename,
                     file_size_bytes=len(file_bytes),
@@ -1923,7 +1892,6 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
 
         url = placeholder.source_path
         product_id = placeholder.product_id
-        firmware_version_id = placeholder.firmware_version_id
         gh_tenant_id = placeholder.tenant_id
         _set_tenant_log_context(gh_tenant_id, session)
 
@@ -2011,20 +1979,18 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
                         Document.product_id == product_id,
-                        Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
                 if existing_by_hash is not None:
                     skipped += 1
                     return
 
-                old_doc = _find_existing_by_source_path_sync(s, gh_file.url, product_id, firmware_version_id)
+                old_doc = _find_existing_by_source_path_sync(s, gh_file.url, product_id)
                 if old_doc is not None:
                     _remove_old_document_sync(s, old_doc)
 
                 doc = Document(
                     product_id=product_id,
-                    firmware_version_id=firmware_version_id,
                     format=fmt,
                     original_filename=filename,
                     file_size_bytes=len(file_bytes),

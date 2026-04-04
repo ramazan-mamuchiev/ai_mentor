@@ -416,9 +416,11 @@ def _estimate_tokens(text: str) -> int:
 
 _ENDPOINT_RE = re.compile(
     r"(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+/[^\s,;)\"']+|"
-    r"/[a-zA-Z][a-zA-Z0-9_/{}.-]+",
+    r"/[a-zA-Z0-9][a-zA-Z0-9_/{}.:=-]+",
     re.IGNORECASE,
 )
+
+_API_PREFIX_RE = re.compile(r"^/api/v\d+/", re.IGNORECASE)
 
 
 def _extract_endpoints_from_chunks(chunk_contents: list[str]) -> set[str]:
@@ -429,17 +431,38 @@ def _extract_endpoints_from_chunks(chunk_contents: list[str]) -> set[str]:
             path = match.group(0).strip()
             parts = path.split()
             ep = parts[-1] if len(parts) > 1 else parts[0]
-            ep = re.sub(r"\{[^}]+\}", "{id}", ep)
-            endpoints.add(ep.lower())
+            ep = _normalize_endpoint(ep)
+            if ep and len(ep) > 1:
+                endpoints.add(ep)
     return endpoints
 
 
 def _normalize_endpoint(api_call: str) -> str:
-    """Normalize endpoint for comparison."""
+    """Normalize endpoint for comparison: strip method, query string, trailing
+    slashes, and normalize path parameter placeholders."""
     parts = api_call.strip().split()
     ep = parts[-1] if len(parts) > 1 else parts[0]
+    ep = ep.split("?")[0]
+    ep = ep.rstrip("/")
     ep = re.sub(r"\{[^}]+\}", "{id}", ep)
+    ep = re.sub(r"/\d+(?=/|$)", "/{id}", ep)
     return ep.lower()
+
+
+def _strip_api_prefix(ep: str) -> str:
+    """Remove common API version prefixes for fuzzy comparison."""
+    return _API_PREFIX_RE.sub("/", ep)
+
+
+def _endpoints_match(a: str, b: str) -> bool:
+    """Two-level endpoint comparison: exact then fuzzy (without api prefix)."""
+    if a in b or b in a:
+        return True
+    a_stripped = _strip_api_prefix(a)
+    b_stripped = _strip_api_prefix(b)
+    if a_stripped in b_stripped or b_stripped in a_stripped:
+        return True
+    return False
 
 
 def _validate_lifecycle(

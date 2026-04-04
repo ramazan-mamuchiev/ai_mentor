@@ -15,7 +15,7 @@ export async function getProductBySlug(slug: string): Promise<ProductDetail> {
 
 export async function updateProduct(
   productId: number,
-  data: { name?: string; manufacturer?: string; category?: string; version?: string; firmware_version_id?: number | null },
+  data: { name?: string; manufacturer?: string; category?: string; version?: string },
 ): Promise<ProductDetail> {
   return apiFetch<ProductDetail>(`/products/${productId}`, {
     method: 'PATCH',
@@ -65,7 +65,7 @@ export interface ProductSuggestion {
   id: number
   name: string
   manufacturer: string
-  firmware_versions: Array<{ id: number; version: string }>
+  version: string
 }
 
 export async function analyzeProductLifecycle(productId: number): Promise<{ product_id: number; message: string; tasks: Array<{ document_id: number; task_id: string }> }> {

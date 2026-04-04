@@ -37,7 +37,7 @@ describe('listProducts', () => {
 
 describe('getProduct', () => {
   it('calls correct API endpoint', async () => {
-    const product = { id: 1, name: 'Camera', firmware_versions: ['1.0'] }
+    const product = { id: 1, name: 'Camera', version: '1.0' }
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -124,7 +124,7 @@ describe('getProductDebug', () => {
 
 describe('suggestProducts', () => {
   it('calls suggest endpoint with query and limit', async () => {
-    const suggestions = [{ id: 1, name: 'Cam', manufacturer: 'Acme', firmware_versions: [] }]
+    const suggestions = [{ id: 1, name: 'Cam', manufacturer: 'Acme', version: '' }]
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       status: 200,

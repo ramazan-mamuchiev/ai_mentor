@@ -22,7 +22,7 @@ from app.config import settings as _settings
 from app.ingestion.parsers.markdown import parse_markdown
 from app.ingestion.parsers.swagger import parse_swagger
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
-from app.models import Chunk, Product, Document, FirmwareVersion
+from app.models import Chunk, Product, Document
 
 logger = logging.getLogger(__name__)
 
@@ -526,13 +526,11 @@ async def ingest_file(
 
     source_hash = _file_hash(file_path)
 
-    product = await _get_or_create_product(session, product_name, manufacturer)
-    fw = await _get_or_create_firmware(session, product.id, firmware_version)
+    product = await _get_or_create_product(session, product_name, manufacturer, version=firmware_version)
 
     existing = await session.execute(
         select(Document).where(
             Document.product_id == product.id,
-            Document.firmware_version_id == fw.id,
             Document.source_hash == source_hash,
         )
     )
@@ -559,7 +557,6 @@ async def ingest_file(
     title = os.path.splitext(os.path.basename(file_path))[0]
     doc = Document(
         product_id=product.id,
-        firmware_version_id=fw.id,
         format=fmt,
         source_path=file_path,
         source_hash=source_hash,
@@ -787,13 +784,11 @@ async def ingest_url(
 
     source_hash = _text_hash(text)
 
-    product = await _get_or_create_product(session, product_name, manufacturer)
-    fw = await _get_or_create_firmware(session, product.id, firmware_version)
+    product = await _get_or_create_product(session, product_name, manufacturer, version=firmware_version)
 
     existing = await session.execute(
         select(Document).where(
             Document.product_id == product.id,
-            Document.firmware_version_id == fw.id,
             Document.source_hash == source_hash,
         )
     )
@@ -820,7 +815,6 @@ async def ingest_url(
     title = convert_metadata.get("page_title") or convert_metadata.get("api_title") or url
     doc = Document(
         product_id=product.id,
-        firmware_version_id=fw.id,
         format="url",
         source_path=url,
         source_hash=source_hash,
@@ -1365,9 +1359,9 @@ def ingest_from_bytes(
         return {"status": "error", "error": str(e), "document_id": document.id}
 
 
-async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str, *, tenant_id=None) -> Product:
+async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str, *, version: str = "", tenant_id=None) -> Product:
     result = await session.execute(
-        select(Product).where(Product.name == name, Product.manufacturer == manufacturer)
+        select(Product).where(Product.name == name, Product.manufacturer == manufacturer, Product.version == version)
     )
     product = result.scalar_one_or_none()
     if product:
@@ -1379,26 +1373,10 @@ async def _get_or_create_product(session: AsyncSession, name: str, manufacturer:
         name=name,
         manufacturer=manufacturer,
         model=name,
-        slug=make_product_slug(manufacturer, name),
+        version=version,
+        slug=make_product_slug(manufacturer, name, version),
         tenant_id=tenant_id,
     )
     session.add(product)
     await session.flush()
     return product
-
-
-async def _get_or_create_firmware(session: AsyncSession, product_id: int, version: str) -> FirmwareVersion:
-    result = await session.execute(
-        select(FirmwareVersion).where(
-            FirmwareVersion.product_id == product_id,
-            FirmwareVersion.version == version,
-        )
-    )
-    fw = result.scalar_one_or_none()
-    if fw:
-        return fw
-
-    fw = FirmwareVersion(product_id=product_id, version=version)
-    session.add(fw)
-    await session.flush()
-    return fw

@@ -7,25 +7,16 @@ CREATE TABLE IF NOT EXISTS products (
     name TEXT NOT NULL,
     manufacturer TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
+    version TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(manufacturer, model)
-);
-
--- Firmware / API versions per product
-CREATE TABLE IF NOT EXISTS firmware_versions (
-    id SERIAL PRIMARY KEY,
-    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    version TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(product_id, version)
+    UNIQUE(manufacturer, model, version)
 );
 
 -- Documents (uploaded files metadata)
 CREATE TABLE IF NOT EXISTS documents (
     id SERIAL PRIMARY KEY,
     product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    firmware_version_id INT NOT NULL REFERENCES firmware_versions(id),
     format TEXT NOT NULL DEFAULT 'markdown',
     source_path TEXT NOT NULL DEFAULT '',
     s3_key TEXT NOT NULL DEFAULT '',
@@ -90,20 +81,6 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_container TEXT;
 
 -- Timestamp when document entered 'processing' state (for accurate stale detection)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMPTZ;
-
--- Fix FK: documents.firmware_version_id should CASCADE on delete
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'documents_firmware_version_id_fkey'
-        AND table_name = 'documents'
-    ) THEN
-        ALTER TABLE documents DROP CONSTRAINT documents_firmware_version_id_fkey;
-        ALTER TABLE documents ADD CONSTRAINT documents_firmware_version_id_fkey
-            FOREIGN KEY (firmware_version_id) REFERENCES firmware_versions(id) ON DELETE CASCADE;
-    END IF;
-END $$;
 
 -- Converted Markdown stored in S3 (full text before chunking, for preview/download)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS converted_s3_key TEXT;
@@ -358,9 +335,6 @@ CREATE INDEX IF NOT EXISTS idx_documents_source_hash ON documents(source_hash) W
 
 -- Product document list (WHERE product_id = ? ORDER BY uploaded_at DESC)
 CREATE INDEX IF NOT EXISTS idx_documents_product_uploaded ON documents(product_id, uploaded_at DESC);
-
--- FK join acceleration (PostgreSQL does not auto-index FK columns)
-CREATE INDEX IF NOT EXISTS idx_documents_firmware_version ON documents(firmware_version_id);
 
 -- Upload sessions (TUS resumable upload protocol)
 CREATE TABLE IF NOT EXISTS upload_sessions (

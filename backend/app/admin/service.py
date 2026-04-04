@@ -19,7 +19,6 @@ from app.models import (
     Chunk,
     Document,
     DocumentUsageLog,
-    FirmwareVersion,
     Product,
     ProductSearchKey,
     PromptTemplate,
@@ -198,12 +197,11 @@ async def list_documents_admin(
             Tenant.email.label("tenant_email"),
             Product.name.label("product_name"),
             Product.manufacturer.label("manufacturer"),
-            FirmwareVersion.version.label("firmware_version"),
+            Product.version.label("firmware_version"),
             keys_sub,
         )
         .outerjoin(Tenant, Document.tenant_id == Tenant.id)
         .outerjoin(Product, Document.product_id == Product.id)
-        .outerjoin(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
     )
     count_base = (
         select(func.count())

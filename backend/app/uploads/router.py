@@ -373,28 +373,26 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
     """
     from app.documents.router import (
         _find_by_hash, _find_by_filename, _remove_old_document,
-        _get_or_create_firmware, _get_or_create_product,
+        _get_or_create_product,
     )
 
     upload_tenant_id = us.tenant_id
 
     if us.is_archive:
-        product = await _get_or_create_product(session, us.product_name, us.manufacturer, tenant_id=upload_tenant_id)
-        fw = await _get_or_create_firmware(session, product.id, us.firmware_version)
+        product = await _get_or_create_product(session, us.product_name, us.manufacturer, version=us.firmware_version, tenant_id=upload_tenant_id)
         await session.commit()
 
         from app.celery_app import ingest_archive_from_s3_task
         ingest_archive_from_s3_task.delay(
-            us.s3_key, us.filename, product.id, fw.id, us.force,
+            us.s3_key, us.filename, product.id, us.force,
             str(upload_tenant_id) if upload_tenant_id else None,
         )
         return None
 
-    product = await _get_or_create_product(session, us.product_name, us.manufacturer, tenant_id=upload_tenant_id)
-    fw = await _get_or_create_firmware(session, product.id, us.firmware_version)
+    product = await _get_or_create_product(session, us.product_name, us.manufacturer, version=us.firmware_version, tenant_id=upload_tenant_id)
 
     if not us.force:
-        existing = await _find_by_hash(session, source_hash, product.id, fw.id)
+        existing = await _find_by_hash(session, source_hash, product.id)
         if existing is not None:
             logger.info(
                 "TUS upload completed but duplicate found",
@@ -406,13 +404,12 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
             )
             return existing.id
 
-    old_doc = await _find_by_filename(session, us.filename, product.id, fw.id)
+    old_doc = await _find_by_filename(session, us.filename, product.id)
     if old_doc is not None:
         await _remove_old_document(session, old_doc)
 
     doc = Document(
         product_id=product.id,
-        firmware_version_id=fw.id,
         format="auto",
         original_filename=us.filename,
         file_size_bytes=us.file_size,

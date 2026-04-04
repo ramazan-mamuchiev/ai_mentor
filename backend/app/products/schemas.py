@@ -10,11 +10,6 @@ class FormatCount(BaseModel):
     count: int
 
 
-class FirmwareVersionInfo(BaseModel):
-    id: int
-    version: str
-
-
 class ProductListItem(BaseModel):
     id: int
     name: str
@@ -23,9 +18,6 @@ class ProductListItem(BaseModel):
     category: str = ""
     created_at: datetime
 
-    firmware_versions: list[FirmwareVersionInfo] = []
-
-    firmware_version_id: int | None = None
     version: str = ""
     display_name: str = ""
 
@@ -77,7 +69,7 @@ class ProductSuggestion(BaseModel):
     id: int
     name: str
     manufacturer: str = ""
-    firmware_versions: list[FirmwareVersionInfo] = []
+    version: str = ""
 
 
 class ProductDetail(BaseModel):
@@ -87,7 +79,7 @@ class ProductDetail(BaseModel):
     manufacturer: str = ""
     category: str = ""
     created_at: datetime
-    firmware_versions: list[str] = []
+    version: str = ""
 
     model_config = {"from_attributes": True}
 
@@ -97,13 +89,11 @@ class ProductUpdate(BaseModel):
     manufacturer: str | None = None
     category: str | None = None
     version: str | None = None
-    firmware_version_id: int | None = None
 
 
 class DocumentUpdate(BaseModel):
     title: str | None = None
     product_id: int | None = None
-    firmware_version_id: int | None = None
 
 
 class ProductDocumentSummary(BaseModel):
@@ -159,7 +149,6 @@ class ProductDebugInfo(BaseModel):
     product_id: int
     product_name: str
     total_documents: int = 0
-    firmware_version_count: int = 0
     total_file_size_bytes: int = 0
 
     sum_ingest_duration_ms: float | None = None

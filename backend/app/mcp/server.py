@@ -691,16 +691,15 @@ async def tool_list_products(
                 p.name,
                 p.manufacturer,
                 p.category,
-                COALESCE(STRING_AGG(DISTINCT fw.version, ', ' ORDER BY fw.version), '') AS versions,
+                COALESCE(p.version, '') AS versions,
                 COUNT(DISTINCT d.id) FILTER (WHERE d.status = 'ready') AS doc_count,
                 COUNT(c.id) FILTER (WHERE d.status = 'ready') AS chunk_count
             FROM products p
-            LEFT JOIN firmware_versions fw ON fw.product_id = p.id
             LEFT JOIN documents d ON d.product_id = p.id
             LEFT JOIN chunks c ON c.document_id = d.id
             {joins_sql}
             {where_sql}
-            GROUP BY p.id, p.name, p.manufacturer, p.category
+            GROUP BY p.id, p.name, p.manufacturer, p.category, p.version
             ORDER BY p.name
         """)
 
@@ -950,11 +949,10 @@ async def tool_get_section(
                 c.chunk_index,
                 d.title AS doc_title,
                 p.name AS product_name,
-                fw.version AS firmware_version
+                p.version AS firmware_version
             FROM chunks c
             JOIN documents d ON c.document_id = d.id
             JOIN products p ON d.product_id = p.id
-            JOIN firmware_versions fw ON d.firmware_version_id = fw.id
             WHERE c.document_id = :doc_id
               AND c.heading_path ILIKE '%' || :heading || '%'
             ORDER BY c.chunk_index
@@ -1112,11 +1110,10 @@ async def tool_get_code_examples(
                 d.title AS doc_title,
                 p.id AS product_id,
                 p.name AS product_name,
-                fw.version AS firmware_version
+                p.version AS firmware_version
             FROM chunks c
             JOIN documents d ON c.document_id = d.id
             JOIN products p ON d.product_id = p.id
-            JOIN firmware_versions fw ON d.firmware_version_id = fw.id
             WHERE {where_sql}
             ORDER BY
                 CASE WHEN c.doc_type = 'example' THEN 0 ELSE 1 END,
@@ -1263,7 +1260,7 @@ async def tool_list_documents(
                 d.title,
                 d.format,
                 d.total_chunks,
-                fw.version AS firmware_version,
+                p.version AS firmware_version,
                 COUNT(c.id) AS chunk_count,
                 COALESCE(
                     STRING_AGG(DISTINCT c.doc_type, ', ')
@@ -1271,10 +1268,10 @@ async def tool_list_documents(
                     'other'
                 ) AS doc_types
             FROM documents d
-            JOIN firmware_versions fw ON d.firmware_version_id = fw.id
+            JOIN products p ON d.product_id = p.id
             LEFT JOIN chunks c ON c.document_id = d.id
             WHERE {where_sql}
-            GROUP BY d.id, d.title, d.format, d.total_chunks, fw.version
+            GROUP BY d.id, d.title, d.format, d.total_chunks, p.version
             ORDER BY d.title
         """)
 
@@ -1385,7 +1382,7 @@ async def tool_grep_docs(
                 c.doc_type,
                 d.title AS doc_title,
                 p.name AS product_name,
-                fw.version AS firmware_version
+                p.version AS firmware_version
             """
         else:
             select_cols = """
@@ -1400,7 +1397,6 @@ async def tool_grep_docs(
             FROM chunks c
             JOIN documents d ON c.document_id = d.id
             JOIN products p ON d.product_id = p.id
-            JOIN firmware_versions fw ON d.firmware_version_id = fw.id
             WHERE {where_sql}
             ORDER BY p.name, d.title, c.chunk_index
             LIMIT 30
@@ -1523,7 +1519,7 @@ async def tool_get_product_info(
                 p.name,
                 p.manufacturer,
                 p.category,
-                COALESCE(STRING_AGG(DISTINCT fw.version, ', ' ORDER BY fw.version), '') AS versions,
+                COALESCE(p.version, '') AS versions,
                 COUNT(DISTINCT d.id) FILTER (WHERE d.status = 'ready') AS doc_count,
                 COUNT(c.id) FILTER (WHERE d.status = 'ready') AS chunk_count,
                 COALESCE(
@@ -1532,11 +1528,10 @@ async def tool_get_product_info(
                     ''
                 ) AS doc_types
             FROM products p
-            LEFT JOIN firmware_versions fw ON fw.product_id = p.id
             LEFT JOIN documents d ON d.product_id = p.id
             LEFT JOIN chunks c ON c.document_id = d.id
             WHERE p.id = :pid
-            GROUP BY p.id, p.name, p.manufacturer, p.category
+            GROUP BY p.id, p.name, p.manufacturer, p.category, p.version
         """)
         info_row = (await session.execute(info_sql, {"pid": product_id})).mappings().first()
 

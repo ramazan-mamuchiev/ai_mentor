@@ -150,7 +150,6 @@ export function ProductDebugContent({ productId, initialDebug, initialUsage }: C
           <div className="doc-debug-section-title">Product Summary</div>
           <div className="doc-debug-row"><span>Product</span><code>{debug.product_name}</code></div>
           <div className="doc-debug-row"><span>Documents</span><code>{fmt(debug.total_documents)}</code></div>
-          <div className="doc-debug-row"><span>Firmware versions</span><code>{fmt(debug.firmware_version_count)}</code></div>
           <div className="doc-debug-row"><span>Total size</span><code>{fmtBytes(debug.total_file_size_bytes)}</code></div>
         </div>
 

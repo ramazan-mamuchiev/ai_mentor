@@ -220,40 +220,6 @@ async def _migrate_devices_to_products():
 
 async def _migrate_fk_columns(drv, target_table: str):
     """Rename legacy device_id / device_filter columns and re-point FK constraints."""
-    has_device_id_fw = await drv.fetchrow(
-        "SELECT 1 FROM information_schema.columns "
-        "WHERE table_name = 'firmware_versions' AND column_name = 'device_id'"
-    )
-    if has_device_id_fw:
-        await drv.execute(
-            "ALTER TABLE firmware_versions "
-            "DROP CONSTRAINT IF EXISTS firmware_versions_device_id_fkey"
-        )
-        await drv.execute(
-            "ALTER TABLE firmware_versions RENAME COLUMN device_id TO product_id"
-        )
-        await drv.execute(
-            "ALTER TABLE firmware_versions "
-            f"ADD CONSTRAINT firmware_versions_product_id_fkey "
-            f"FOREIGN KEY (product_id) REFERENCES {target_table}(id) ON DELETE CASCADE"
-        )
-        await drv.execute(
-            "ALTER TABLE firmware_versions "
-            "DROP CONSTRAINT IF EXISTS firmware_versions_device_id_version_key"
-        )
-        has_new_unique = await drv.fetchrow(
-            "SELECT 1 FROM information_schema.table_constraints "
-            "WHERE table_name = 'firmware_versions' "
-            "AND constraint_name = 'firmware_versions_product_id_version_key'"
-        )
-        if not has_new_unique:
-            await drv.execute(
-                "ALTER TABLE firmware_versions "
-                "ADD CONSTRAINT firmware_versions_product_id_version_key "
-                "UNIQUE (product_id, version)"
-            )
-        logger.info("Renamed firmware_versions.device_id -> product_id")
-
     has_device_id_doc = await drv.fetchrow(
         "SELECT 1 FROM information_schema.columns "
         "WHERE table_name = 'documents' AND column_name = 'device_id'"

@@ -342,7 +342,6 @@ export interface ProductListItem {
   manufacturer: string
   category: string
   created_at: string
-  firmware_version_id: number | null
   version: string
   display_name: string
   total_documents: number
@@ -370,7 +369,7 @@ export interface ProductDetail {
   manufacturer: string
   category: string
   created_at: string
-  firmware_versions: string[]
+  version: string
 }
 
 export interface ProductDocumentSummary {
@@ -387,7 +386,6 @@ export interface ProductDebugInfo {
   product_id: number
   product_name: string
   total_documents: number
-  firmware_version_count: number
   total_file_size_bytes: number
   sum_ingest_duration_ms: number | null
   avg_ingest_duration_ms: number | null
@@ -504,11 +502,6 @@ export interface ReindexJob {
 export interface ReindexJobList {
   jobs: ReindexJob[]
   total: number
-}
-
-export interface FirmwareVersionInfo {
-  id: number
-  version: string
 }
 
 export interface McpSourceInfo {

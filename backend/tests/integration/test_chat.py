@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select, text
 
-from app.models import ChatMessage, ChatSession, Product, Document, FirmwareVersion, Chunk
+from app.models import ChatMessage, ChatSession, Product, Document, Chunk
 from app.chat.rag import build_rag_prompt
 
 
@@ -148,17 +148,12 @@ class TestRAGIntegration:
 
     async def _ingest_test_data(self, db_session):
         """Insert a product, document, and chunks for RAG testing."""
-        product = Product(name="HikCentral", manufacturer="Hikvision")
+        product = Product(name="HikCentral", manufacturer="Hikvision", version="2.6", slug="hikvision-hikcentral-2-6")
         db_session.add(product)
-        await db_session.flush()
-
-        fw = FirmwareVersion(product_id=product.id, version="2.6")
-        db_session.add(fw)
         await db_session.flush()
 
         doc = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format="pdf",
             title="HikCentral API Guide",
             status="ready",

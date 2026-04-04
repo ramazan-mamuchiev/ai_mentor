@@ -140,9 +140,7 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
               {group.products.map(p => {
                 const isActive = value.productName === p.name
                   && (value.versionFilter ?? '') === (p.version ?? '')
-                const itemKey = p.firmware_version_id
-                  ? `${p.id}-${p.firmware_version_id}`
-                  : String(p.id)
+                const itemKey = String(p.id)
                 return (
                   <button
                     key={itemKey}

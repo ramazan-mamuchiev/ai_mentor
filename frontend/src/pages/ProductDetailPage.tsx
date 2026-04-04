@@ -36,9 +36,9 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
     product ? {
       name: product.name,
       manufacturer: product.manufacturer || undefined,
-      version: product.firmware_versions[0] || undefined,
+      version: product.version || undefined,
     } : undefined,
-    [product?.name, product?.manufacturer, product?.firmware_versions],
+    [product?.name, product?.manufacturer, product?.version],
   )
 
   const handleUploadClick = useCallback(() => {
@@ -81,11 +81,9 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
           API Lifecycle
         </button>
       </div>
-      {product.firmware_versions.length > 0 && (
+      {product.version && (
         <div className="product-versions">
-          {product.firmware_versions.map(v => (
-            <span key={v} className="docs-format-badge">{v}</span>
-          ))}
+          <span className="docs-format-badge">{product.version}</span>
         </div>
       )}
     </div>

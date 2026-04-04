@@ -18,12 +18,11 @@ export async function listDocuments(productId?: number): Promise<DocumentListIte
 
 export async function updateDocument(
   id: number,
-  data: { title?: string; product_id?: number; firmware_version_id?: number },
+  data: { title?: string; product_id?: number },
 ): Promise<void> {
   const params = new URLSearchParams()
   if (data.title != null) params.set('title', data.title)
   if (data.product_id != null) params.set('product_id', String(data.product_id))
-  if (data.firmware_version_id != null) params.set('firmware_version_id', String(data.firmware_version_id))
   return apiFetch<void>(`/documents/${id}?${params.toString()}`, { method: 'PATCH' })
 }
 

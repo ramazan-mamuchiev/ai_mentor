@@ -9,7 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 
-from app.models import Chunk, Document, FirmwareVersion, Product, ReindexJob
+from app.models import Chunk, Document, Product, ReindexJob
 
 
 def _wrap_session_as_factory(db_session):
@@ -35,19 +35,14 @@ async def reindex_client(db_engine, db_session):
 
 async def _seed_product_and_docs(db_session, product_name="TestProduct", count=3, fmt="proto"):
     """Insert a product with N ready documents into the test DB."""
-    product = Product(name=product_name, manufacturer="Test")
+    product = Product(name=product_name, manufacturer="Test", version="1.0", slug=f"test-{product_name.lower()}-1-0")
     db_session.add(product)
-    await db_session.flush()
-
-    fw = FirmwareVersion(product_id=product.id, version="1.0")
-    db_session.add(fw)
     await db_session.flush()
 
     doc_ids = []
     for i in range(count):
         doc = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format=fmt,
             original_filename=f"file_{i}.{fmt}",
             title=f"file_{i}",

@@ -140,6 +140,7 @@ class Product(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     manufacturer: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(Text, default="")
     slug: Mapped[str] = mapped_column(Text, unique=True, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
@@ -147,29 +148,10 @@ class Product(Base):
     )
     sync_status: Mapped[str] = mapped_column(Text, default="idle")
 
-    firmware_versions: Mapped[list["FirmwareVersion"]] = relationship(
-        back_populates="product", cascade="all, delete-orphan"
-    )
-
     __table_args__ = (
-        UniqueConstraint("manufacturer", "model"),
+        UniqueConstraint("manufacturer", "model", "version"),
         Index("idx_products_tenant", "tenant_id"),
     )
-
-
-class FirmwareVersion(Base):
-    __tablename__ = "firmware_versions"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
-    version: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-    product: Mapped["Product"] = relationship(back_populates="firmware_versions")
-
-    __table_args__ = (UniqueConstraint("product_id", "version"),)
 
 
 class ProductSearchKey(Base):
@@ -193,7 +175,6 @@ class Document(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tenant_id = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
-    firmware_version_id: Mapped[int] = mapped_column(ForeignKey("firmware_versions.id", ondelete="CASCADE"), nullable=False)
     format: Mapped[str] = mapped_column(Text, default="markdown")
     source_path: Mapped[str] = mapped_column(Text, default="")
     s3_key: Mapped[str] = mapped_column(Text, default="")

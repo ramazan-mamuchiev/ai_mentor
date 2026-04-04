@@ -327,12 +327,11 @@ async def _bm25_search(
             p.id AS product_id,
             p.name AS product_name,
             p.manufacturer,
-            fw.version AS firmware_version,
+            p.version AS firmware_version,
             ts_rank_cd({tsv_col}, {tsquery_expr}) AS bm25_score
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
         JOIN products p ON d.product_id = p.id
-        JOIN firmware_versions fw ON d.firmware_version_id = fw.id
         WHERE {where_sql}
           AND {tsv_col} @@ {tsquery_expr}
         ORDER BY bm25_score DESC
@@ -406,7 +405,7 @@ async def search_documents(
         where_clauses.append("d.product_id = :product_id")
         params["product_id"] = product_id
     if version:
-        where_clauses.append("fw.version = :version")
+        where_clauses.append("p.version = :version")
         params["version"] = version
     if doc_context:
         where_clauses.append("d.title = :doc_context")
@@ -441,12 +440,11 @@ async def search_documents(
             p.id AS product_id,
             p.name AS product_name,
             p.manufacturer,
-            fw.version AS firmware_version,
+            p.version AS firmware_version,
             1 - (c.embedding <=> CAST(:embedding AS vector)) AS similarity
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
         JOIN products p ON d.product_id = p.id
-        JOIN firmware_versions fw ON d.firmware_version_id = fw.id
         WHERE {where_sql}
         ORDER BY c.embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
@@ -648,11 +646,10 @@ async def search_endpoint(
             p.id AS product_id,
             p.name AS product_name,
             p.manufacturer,
-            fw.version AS firmware_version
+            p.version AS firmware_version
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
         JOIN products p ON d.product_id = p.id
-        JOIN firmware_versions fw ON d.firmware_version_id = fw.id
         WHERE {where_sql}
         ORDER BY c.heading_level, c.chunk_index
         LIMIT 10

@@ -720,7 +720,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     storageKey: STORAGE_KEY,
     defaultColumnOrder: DEFAULT_COLUMN_ORDER,
     defaultSorting: [{ id: 'name', desc: false }],
-    getRowId: row => row.firmware_version_id ? `${row.id}-${row.firmware_version_id}` : String(row.id),
+    getRowId: row => String(row.id),
     columnFilters,
     globalFilter,
     onGlobalFilterChange: setGlobalFilter,
@@ -898,7 +898,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           .map(p => (
             <div
               className="docs-card"
-              key={p.firmware_version_id ? `${p.id}-${p.firmware_version_id}` : p.id}
+              key={p.id}
               onClick={p.sync_status === 'deleting' ? undefined : () => navigate(`/app/products/${p.slug}`)}
               style={{ cursor: p.sync_status === 'deleting' ? 'default' : 'pointer', opacity: p.sync_status === 'deleting' ? 0.5 : 1 }}
             >

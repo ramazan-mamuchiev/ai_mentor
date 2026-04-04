@@ -126,7 +126,6 @@ def _make_mock_document(doc_id=1, **overrides):
     doc.indexed_at = overrides.get("indexed_at", None)
     doc.source_hash = overrides.get("source_hash", "abc123")
     doc.product_id = overrides.get("product_id", 1)
-    doc.firmware_version_id = overrides.get("firmware_version_id", 1)
     return doc
 
 
@@ -194,7 +193,6 @@ class TestIngestEndpointSuccess:
         self, mock_s3_key, mock_upload, mock_session_factory
     ):
         mock_product = MagicMock(id=1)
-        mock_fw = MagicMock(id=1)
         mock_doc = MagicMock(id=42)
 
         mock_session = AsyncMock()
@@ -211,7 +209,6 @@ class TestIngestEndpointSuccess:
         with (
             patch("app.documents.router._find_by_hash", new_callable=AsyncMock, return_value=None),
             patch("app.documents.router._get_or_create_product", new_callable=AsyncMock, return_value=mock_product),
-            patch("app.documents.router._get_or_create_firmware", new_callable=AsyncMock, return_value=mock_fw),
             patch("app.celery_app.ingest_document_task") as mock_celery_task,
             patch("app.documents.router.Document") as MockDocument,
         ):
@@ -489,7 +486,6 @@ class TestDeduplication:
     ):
         """When force=True, upload even if hash matches."""
         mock_product = MagicMock(id=1)
-        mock_fw = MagicMock(id=1)
         mock_doc = MagicMock(id=99)
 
         mock_session = AsyncMock()
@@ -509,11 +505,6 @@ class TestDeduplication:
                 "app.documents.router._get_or_create_product",
                 new_callable=AsyncMock,
                 return_value=mock_product,
-            ),
-            patch(
-                "app.documents.router._get_or_create_firmware",
-                new_callable=AsyncMock,
-                return_value=mock_fw,
             ),
             patch("app.celery_app.ingest_document_task") as mock_celery_task,
             patch("app.documents.router.Document") as MockDocument,
@@ -546,7 +537,6 @@ class TestDeduplication:
     ):
         """When no hash match exists, proceed with normal ingestion."""
         mock_product = MagicMock(id=1)
-        mock_fw = MagicMock(id=1)
         mock_doc = MagicMock(id=50)
 
         mock_session = AsyncMock()
@@ -571,11 +561,6 @@ class TestDeduplication:
                 "app.documents.router._get_or_create_product",
                 new_callable=AsyncMock,
                 return_value=mock_product,
-            ),
-            patch(
-                "app.documents.router._get_or_create_firmware",
-                new_callable=AsyncMock,
-                return_value=mock_fw,
             ),
             patch("app.celery_app.ingest_document_task") as mock_celery_task,
             patch("app.documents.router.Document") as MockDocument,

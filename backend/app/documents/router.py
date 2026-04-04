@@ -29,7 +29,7 @@ from app.documents.schemas import (
     UrlIngestRequest,
     UrlIngestResponse,
 )
-from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, FirmwareVersion, ProductSearchKey, Tenant
+from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, ProductSearchKey, Tenant
 from app.s3 import delete_file, generate_presigned_url, s3_key_for_document, upload_file
 from app.config import settings
 
@@ -100,11 +100,10 @@ async def ingest_document(
     )
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, product_name, manufacturer, tenant_id=tenant.id)
-        fw = await _get_or_create_firmware(session, product.id, firmware_version)
+        product = await _get_or_create_product(session, product_name, manufacturer, version=firmware_version, tenant_id=tenant.id)
 
         if not force:
-            existing_by_hash = await _find_by_hash(session, source_hash, product.id, fw.id)
+            existing_by_hash = await _find_by_hash(session, source_hash, product.id)
             if existing_by_hash is not None:
                 logger.info(
                     "Duplicate document skipped",
@@ -129,13 +128,12 @@ async def ingest_document(
                 )
 
         replaced_id = None
-        existing_by_name = await _find_by_filename(session, original_filename, product.id, fw.id)
+        existing_by_name = await _find_by_filename(session, original_filename, product.id)
         if existing_by_name is not None:
             replaced_id = await _remove_old_document(session, existing_by_name)
 
         doc = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format=format,
             original_filename=original_filename,
             file_size_bytes=file_size,
@@ -185,7 +183,7 @@ async def ingest_document(
 async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
     """Import documentation from a web URL.
 
-    Creates Product + FirmwareVersion + Document placeholder synchronously,
+    Creates Product + Document placeholder synchronously,
     then dispatches a Celery task for background crawl/ingestion.
     The placeholder tracks overall progress visible to the frontend via polling.
     """
@@ -213,8 +211,7 @@ async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = 
     doc_format = "confluence" if is_confluence else "url"
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, body.product_name, body.manufacturer, tenant_id=tenant.id)
-        fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, version=body.firmware_version, tenant_id=tenant.id)
 
         crawl_checkpoint = None
         if is_confluence and body.confluence_username and body.confluence_password:
@@ -230,7 +227,6 @@ async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = 
 
         placeholder = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format=doc_format,
             original_filename=url[:200],
             title=url[:200],
@@ -304,15 +300,13 @@ async def ingest_site(request: Request, body: SiteIngestRequest, tenant: Tenant 
     })
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, body.product_name, body.manufacturer, tenant_id=tenant.id)
-        fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, version=body.firmware_version, tenant_id=tenant.id)
 
         from urllib.parse import urlparse as _urlparse
         domain = _urlparse(url).netloc
 
         placeholder = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format="site",
             original_filename=url[:200],
             title=f"Site: {domain}",
@@ -388,12 +382,10 @@ async def ingest_github(request: Request, body: GitHubIngestRequest, tenant: Ten
     })
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, body.product_name, body.manufacturer, tenant_id=tenant.id)
-        fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, version=body.firmware_version, tenant_id=tenant.id)
 
         placeholder = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format="github",
             original_filename=url[:200],
             title=f"GitHub: {owner}/{repo}",
@@ -454,7 +446,6 @@ async def _create_proto_bundle_docs_async(
     proto_entries: list[tuple[str, bytes]],
     *,
     product_id: int,
-    firmware_version_id: int,
     archive_filename: str,
     tenant_id=None,
     force: bool = False,
@@ -477,20 +468,19 @@ async def _create_proto_bundle_docs_async(
         md_bytes = markdown.encode("utf-8")
         md_hash = hashlib.sha256(md_bytes).hexdigest()
 
-        existing_by_hash = await _find_by_hash(session, md_hash, product_id, firmware_version_id)
+        existing_by_hash = await _find_by_hash(session, md_hash, product_id)
         if existing_by_hash is not None and not force:
             continue
 
         title = f"gRPC API: {domain_name}"
         filename = f"{domain_name}.md"
 
-        old_doc = await _find_by_filename(session, filename, product_id, firmware_version_id)
+        old_doc = await _find_by_filename(session, filename, product_id)
         if old_doc is not None:
             await _remove_old_document(session, old_doc)
 
         doc = Document(
             product_id=product_id,
-            firmware_version_id=firmware_version_id,
             format="markdown",
             original_filename=filename,
             file_size_bytes=len(md_bytes),
@@ -577,8 +567,7 @@ async def ingest_archive(
     errors = 0
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, product_name, manufacturer, tenant_id=tenant.id)
-        fw = await _get_or_create_firmware(session, product.id, firmware_version)
+        product = await _get_or_create_product(session, product_name, manufacturer, version=firmware_version, tenant_id=tenant.id)
 
         proto_entries, other_entries = classify_archive_entries(entries)
         use_bundle = is_proto_heavy(entries) and len(proto_entries) >= 5
@@ -587,7 +576,6 @@ async def ingest_archive(
             bundle_ids = await _create_proto_bundle_docs_async(
                 session, proto_entries,
                 product_id=product.id,
-                firmware_version_id=fw.id,
                 archive_filename=original_filename,
                 tenant_id=tenant.id,
                 force=force,
@@ -614,7 +602,7 @@ async def ingest_archive(
             try:
                 entry_hash = hashlib.sha256(entry_data).hexdigest()
 
-                existing_by_hash = await _find_by_hash(session, entry_hash, product.id, fw.id)
+                existing_by_hash = await _find_by_hash(session, entry_hash, product.id)
                 if existing_by_hash is not None:
                     skipped += 1
                     results.append(ArchiveFileResult(
@@ -626,14 +614,13 @@ async def ingest_archive(
                     continue
 
                 replaced_id = None
-                existing_by_name = await _find_by_filename(session, entry_filename, product.id, fw.id)
+                existing_by_name = await _find_by_filename(session, entry_filename, product.id)
                 if existing_by_name is not None:
                     replaced_id = await _remove_old_document(session, existing_by_name)
                     replaced += 1
 
                 doc = Document(
                     product_id=product.id,
-                    firmware_version_id=fw.id,
                     format="auto",
                     original_filename=entry_filename,
                     file_size_bytes=len(entry_data),
@@ -740,10 +727,9 @@ async def list_documents(product_id: int | None = None):
                 select(
                     *_base_cols,
                     Product.name.label("product_name"),
-                    FirmwareVersion.version.label("firmware_version"),
+                    Product.version.label("firmware_version"),
                 )
                 .join(Product, Document.product_id == Product.id)
-                .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
                 .order_by(Document.uploaded_at.desc())
             )
 
@@ -757,8 +743,8 @@ async def list_documents(product_id: int | None = None):
 
 
 @router.patch("/{document_id}", response_model=DocumentStatus)
-async def update_document(document_id: int, title: str | None = None, product_id: int | None = None, firmware_version_id: int | None = None):
-    """Update document properties (title, product, firmware version)."""
+async def update_document(document_id: int, title: str | None = None, product_id: int | None = None):
+    """Update document properties (title, product)."""
     async with async_session() as session:
         doc = await session.get(Document, document_id)
         if doc is None:
@@ -771,11 +757,6 @@ async def update_document(document_id: int, title: str | None = None, product_id
             if product is None:
                 raise HTTPException(status_code=400, detail="Target product not found")
             doc.product_id = product_id
-        if firmware_version_id is not None:
-            fw = await session.get(FirmwareVersion, firmware_version_id)
-            if fw is None:
-                raise HTTPException(status_code=400, detail="Firmware version not found")
-            doc.firmware_version_id = firmware_version_id
 
         await session.commit()
         await session.refresh(doc)
@@ -867,10 +848,9 @@ async def get_document_debug(document_id: int):
                 Document.extract_prompt_tokens,
                 Document.extract_completion_tokens,
                 Product.name.label("product_name"),
-                FirmwareVersion.version.label("firmware_version"),
+                Product.version.label("firmware_version"),
             )
             .join(Product, Document.product_id == Product.id)
-            .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
             .where(Document.id == document_id)
         )
         row = result.one_or_none()
@@ -1614,28 +1594,26 @@ async def reingest_documents(
 
 
 async def _find_by_hash(
-    session, source_hash: str, product_id: int, firmware_version_id: int
+    session, source_hash: str, product_id: int,
 ) -> Document | None:
-    """Find an existing document with the same content hash within the same product+version."""
+    """Find an existing document with the same content hash within the same product."""
     result = await session.execute(
         select(Document).where(
             Document.source_hash == source_hash,
             Document.product_id == product_id,
-            Document.firmware_version_id == firmware_version_id,
         ).limit(1)
     )
     return result.scalar_one_or_none()
 
 
 async def _find_by_filename(
-    session, original_filename: str, product_id: int, firmware_version_id: int
+    session, original_filename: str, product_id: int,
 ) -> Document | None:
-    """Find existing document by filename within same product+version (for replacement)."""
+    """Find existing document by filename within same product (for replacement)."""
     result = await session.execute(
         select(Document).where(
             Document.original_filename == original_filename,
             Document.product_id == product_id,
-            Document.firmware_version_id == firmware_version_id,
         ).limit(1)
     )
     return result.scalar_one_or_none()
@@ -1679,11 +1657,11 @@ async def _remove_old_document(session, doc: Document) -> int:
     return old_id
 
 
-async def _get_or_create_product(session, name: str, manufacturer: str, *, tenant_id=None):
+async def _get_or_create_product(session, name: str, manufacturer: str, *, version: str = "", tenant_id=None):
     from sqlalchemy.exc import IntegrityError
 
     result = await session.execute(
-        select(Product).where(Product.name == name, Product.manufacturer == manufacturer)
+        select(Product).where(Product.name == name, Product.manufacturer == manufacturer, Product.version == version)
     )
     product = result.scalar_one_or_none()
     if product:
@@ -1695,7 +1673,8 @@ async def _get_or_create_product(session, name: str, manufacturer: str, *, tenan
         name=name,
         manufacturer=manufacturer,
         model=name,
-        slug=make_product_slug(manufacturer, name),
+        version=version,
+        slug=make_product_slug(manufacturer, name, version),
         tenant_id=tenant_id,
     )
     session.add(product)
@@ -1704,7 +1683,7 @@ async def _get_or_create_product(session, name: str, manufacturer: str, *, tenan
     except IntegrityError:
         await session.rollback()
         result = await session.execute(
-            select(Product).where(Product.name == name, Product.manufacturer == manufacturer)
+            select(Product).where(Product.name == name, Product.manufacturer == manufacturer, Product.version == version)
         )
         product = result.scalar_one_or_none()
         if product is None:
@@ -1712,32 +1691,3 @@ async def _get_or_create_product(session, name: str, manufacturer: str, *, tenan
     return product
 
 
-async def _get_or_create_firmware(session, product_id: int, version: str):
-    from sqlalchemy.exc import IntegrityError
-
-    result = await session.execute(
-        select(FirmwareVersion).where(
-            FirmwareVersion.product_id == product_id,
-            FirmwareVersion.version == version,
-        )
-    )
-    fw = result.scalar_one_or_none()
-    if fw:
-        return fw
-
-    fw = FirmwareVersion(product_id=product_id, version=version)
-    session.add(fw)
-    try:
-        await session.flush()
-    except IntegrityError:
-        await session.rollback()
-        result = await session.execute(
-            select(FirmwareVersion).where(
-                FirmwareVersion.product_id == product_id,
-                FirmwareVersion.version == version,
-            )
-        )
-        fw = result.scalar_one_or_none()
-        if fw is None:
-            raise
-    return fw

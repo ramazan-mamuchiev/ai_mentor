@@ -124,12 +124,11 @@ class TestRRFFusionIntegration:
             sa_text(f"""
                 SELECT c.content, c.parent_content, c.heading_path, c.heading_level,
                        c.token_count, d.title AS doc_title, p.name AS product_name,
-                       p.manufacturer, fw.version AS firmware_version,
+                       p.manufacturer, p.version AS firmware_version,
                        1 - (c.embedding <=> CAST(:embedding AS vector)) AS similarity
                 FROM chunks c
                 JOIN documents d ON c.document_id = d.id
                 JOIN products p ON d.product_id = p.id
-                JOIN firmware_versions fw ON d.firmware_version_id = fw.id
                 WHERE {where_sql}
                 ORDER BY c.embedding <=> CAST(:embedding AS vector)
                 LIMIT :limit

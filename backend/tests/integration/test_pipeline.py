@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from app.ingestion.pipeline import ingest_file
-from app.models import Chunk, Product, Document, FirmwareVersion
+from app.models import Chunk, Product, Document
 
 
 class TestIngestFile:
@@ -26,14 +26,7 @@ class TestIngestFile:
             select(Product).where(Product.name == "ZKTeco InBio")
         )).scalar_one()
         assert product.manufacturer == "ZKTeco"
-
-        fw = (await db_session.execute(
-            select(FirmwareVersion).where(
-                FirmwareVersion.product_id == product.id,
-                FirmwareVersion.version == "1.0",
-            )
-        )).scalar_one()
-        assert fw is not None
+        assert product.version == "1.0"
 
         doc = (await db_session.execute(
             select(Document).where(Document.product_id == product.id)
@@ -86,7 +79,7 @@ class TestIngestFile:
         )
         assert r2["status"] == "skipped"
 
-    async def test_new_firmware_creates_new_document(self, db_session, sample_md_file):
+    async def test_new_version_creates_new_document(self, db_session, sample_md_file):
         r1 = await ingest_file(
             session=db_session,
             file_path=sample_md_file,
@@ -103,7 +96,7 @@ class TestIngestFile:
         assert r2["status"] == "ok"
 
         products = (await db_session.execute(select(Product))).scalars().all()
-        assert len(products) == 1
+        assert len(products) == 2
 
         docs = (await db_session.execute(select(Document))).scalars().all()
         assert len(docs) == 2
