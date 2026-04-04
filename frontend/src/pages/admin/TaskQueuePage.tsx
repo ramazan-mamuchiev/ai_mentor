@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  ListTodo, RefreshCw, Radio, ShieldAlert, AlertTriangle,
+  ListTodo, RefreshCw, Radio, ShieldAlert,
   XCircle, RotateCcw, Clock, Loader, CheckCircle2,
   Globe, FileText, Activity, Github, Link, Layers,
   Trash2,
 } from 'lucide-react'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import {
   listTasks, listWorkers, cancelTask, retryTask, rescueStaleTasks, bulkCancelTasks,
   deleteTask, bulkDeleteTasks,
@@ -153,14 +154,6 @@ export function TaskQueuePage() {
     }
   }, [autoRefresh, fetchData])
 
-  useEffect(() => {
-    if (!confirmAction) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setConfirmAction(null)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [confirmAction])
 
   const handleCancel = useCallback(async (taskId: string) => {
     try {
@@ -574,25 +567,16 @@ export function TaskQueuePage() {
         )}
       </div>
 
-      {/* Confirmation Dialog */}
       {confirmAction && (
-        <div className="confirm-overlay" onClick={() => setConfirmAction(null)}>
-          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
-            <div className="confirm-icon confirm-icon--danger">
-              <AlertTriangle size={24} />
-            </div>
-            <h3 className="confirm-title">{confirmAction.title}</h3>
-            <p className="confirm-message">{confirmAction.message}</p>
-            <div className="confirm-actions">
-              <button className="confirm-btn confirm-btn--cancel" onClick={() => setConfirmAction(null)}>
-                {t('admin.tasks.confirmCancel')}
-              </button>
-              <button className="confirm-btn confirm-btn--danger" onClick={confirmAction.onConfirm}>
-                {t('admin.tasks.confirmOk')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title={confirmAction.title}
+          message={confirmAction.message}
+          confirmLabel={t('admin.tasks.confirmOk')}
+          cancelLabel={t('admin.tasks.confirmCancel')}
+          variant="danger"
+          onConfirm={confirmAction.onConfirm}
+          onCancel={() => setConfirmAction(null)}
+        />
       )}
 
       {/* Toasts */}
