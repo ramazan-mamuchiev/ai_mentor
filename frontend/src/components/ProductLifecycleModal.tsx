@@ -336,7 +336,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                           {md.content_type && <span className="lc-modal-ct">{md.content_type}</span>}
                           <span className="lc-modal-count">{md.fields?.length ?? 0} fields</span>
                         </summary>
-                        {md.used_in?.length > 0 && <div className="lc-modal-model-used">Used by: {md.used_in.join(', ')}</div>}
+                        {(md.used_in?.length ?? 0) > 0 && <div className="lc-modal-model-used">Used by: {md.used_in!.join(', ')}</div>}
                         <table className="lc-modal-fields-table">
                           <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Description</th></tr></thead>
                           <tbody>

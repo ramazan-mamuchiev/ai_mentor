@@ -89,10 +89,17 @@ export interface ProductLifecycle {
       used_in?: string[]
       fields?: Array<{ name: string; type: string; constraints?: string; required?: boolean; description?: string; example_value?: string }>
     }>
-    error_catalog: Array<{ code: string; description: string; cause?: string; resolution?: string }>
+    error_catalog: Array<{
+      http_status: number; error_code?: string; meaning: string
+      recovery_action: string; retry_after_seconds?: number
+    }>
     prerequisites: Array<{ name: string; type: string; description: string; example_value?: string; how_to_obtain?: string }>
-    data_access_patterns: Array<{ pattern: string; description: string; api_calls?: string[] }>
-    endpoint_coverage: Array<{ endpoint: string; completeness?: number }>
+    data_access_patterns: Array<{ pattern_type: string; endpoint: string; mechanism: string; code_hint?: string }>
+    endpoint_coverage: Array<{
+      method: string; endpoint: string; completeness: number
+      has_request_body_docs: boolean; has_response_docs: boolean
+      has_error_docs: boolean; has_example: boolean
+    }>
     code_skeleton: string
     validation_issues: Array<{ error: string }>
     validation_retries: number
