@@ -661,7 +661,7 @@ def _validate_and_correct(
         last_errors = lifecycle_errors
 
         if attempt < max_retries:
-            logger.info(
+            logger.warning(
                 "Lifecycle validation failed, retrying",
                 extra={"attempt": attempt + 1, "errors": lifecycle_errors},
             )
