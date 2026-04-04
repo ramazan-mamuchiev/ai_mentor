@@ -19,6 +19,7 @@ from app.admin.schemas import (
     AdminDocumentDetail,
     AdminDocumentListResponse,
     AdminDocumentPatchRequest,
+    BulkCancelRequest,
     ChatStats,
     CostStats,
     DocumentStats,
@@ -39,18 +40,22 @@ from app.admin.schemas import (
     RagEvalRunItem,
     RagEvalRunListResponse,
     RagEvalRunRequest,
+    RescueResult,
     RoleCreateRequest,
     RoleDetail,
     RoleListItem,
     RolePatchRequest,
     SearchStat,
     SystemInfo,
+    TaskItem,
+    TaskListResponse,
     TenantDetail,
     TenantListResponse,
     TenantPatchRequest,
     TenantRoleAssignRequest,
     TenantRoleItem,
     UsageStatsResponse,
+    WorkersResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -647,6 +652,514 @@ async def seed_prompts_from_files(session: AsyncSession = Depends(get_session)):
 @router.get("/system/info", response_model=SystemInfo)
 async def system_info(session: AsyncSession = Depends(get_session)):
     return await service.get_system_info(session)
+
+
+# ---------------------------------------------------------------------------
+# Task Queue
+# ---------------------------------------------------------------------------
+
+_TASK_NAME_MAP = {
+    "ingest_document": "Document",
+    "ingest_archive": "Archive",
+    "ingest_archive_from_s3": "Archive (S3)",
+    "ingest_single_url": "URL",
+    "ingest_confluence": "Confluence",
+    "ingest_site": "Site Crawl",
+    "ingest_github": "GitHub",
+    "reingest_confluence_page": "Confluence Page",
+    "run_reindex_job": "Reindex",
+    "analyze_api_lifecycle": "Lifecycle",
+    "merge_product_lifecycle": "Lifecycle Merge",
+    "delete_product": "Delete Product",
+    "run_rag_evaluation": "RAG Eval",
+    "backfill_chunk_languages": "Backfill Languages",
+}
+
+
+def _inspect_with_timeout(method: str, timeout: float = 2.0):
+    """Call Celery inspect method with timeout. Returns {} if workers offline."""
+    import asyncio
+    from app.celery_app import celery
+
+    inspector = celery.control.inspect(timeout=timeout)
+    fn = getattr(inspector, method, None)
+    if fn is None:
+        return {}
+    try:
+        result = fn()
+    except Exception:
+        result = None
+    return result or {}
+
+
+@router.get("/tasks", response_model=TaskListResponse)
+async def list_tasks(
+    status_filter: str | None = Query(None, alias="status"),
+    task_name: str | None = None,
+    search: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+):
+    """List active, pending, stale and error tasks from Celery + DB."""
+    import asyncio
+    from datetime import datetime, timezone
+    from sqlalchemy import select as sa_select, func
+    from app.models import Document, ReindexJob, Product, Tenant
+
+    items: list[TaskItem] = []
+
+    loop = asyncio.get_running_loop()
+    active_data, reserved_data = await asyncio.gather(
+        loop.run_in_executor(None, _inspect_with_timeout, "active"),
+        loop.run_in_executor(None, _inspect_with_timeout, "reserved"),
+    )
+
+    celery_active_ids: set[str] = set()
+    now = datetime.now(timezone.utc)
+
+    for worker_name, task_list in active_data.items():
+        for t in (task_list or []):
+            tid = t.get("id", "")
+            celery_active_ids.add(tid)
+            tname = t.get("name", "unknown")
+            args = t.get("args", [])
+            started = t.get("time_start")
+            runtime = (now.timestamp() - started) if started else None
+            doc_id = args[0] if args and isinstance(args[0], int) else None
+            items.append(TaskItem(
+                task_id=tid,
+                task_name=_TASK_NAME_MAP.get(tname, tname),
+                status="active",
+                source="celery",
+                worker=worker_name.split("@")[-1],
+                started_at=datetime.fromtimestamp(started, tz=timezone.utc).isoformat() if started else None,
+                runtime_sec=round(runtime, 1) if runtime else None,
+                args_summary=f"doc_id={doc_id}" if doc_id else str(args)[:80] if args else None,
+            ))
+
+    for worker_name, task_list in reserved_data.items():
+        for t in (task_list or []):
+            tid = t.get("id", "")
+            tname = t.get("name", "unknown")
+            args = t.get("args", [])
+            doc_id = args[0] if args and isinstance(args[0], int) else None
+            items.append(TaskItem(
+                task_id=tid,
+                task_name=_TASK_NAME_MAP.get(tname, tname),
+                status="reserved",
+                source="celery",
+                worker=worker_name.split("@")[-1],
+                args_summary=f"doc_id={doc_id}" if doc_id else str(args)[:80] if args else None,
+            ))
+
+    doc_q = (
+        sa_select(
+            Document.id,
+            Document.title,
+            Document.original_filename,
+            Document.status,
+            Document.celery_task_id,
+            Document.progress_percent,
+            Document.progress_stage,
+            Document.error_message,
+            Document.format,
+            Document.uploaded_at,
+            Document.processing_started_at,
+            Document.product_id,
+            Product.name.label("product_name"),
+            Tenant.email.label("tenant_email"),
+        )
+        .outerjoin(Product, Document.product_id == Product.id)
+        .outerjoin(Tenant, Document.tenant_id == Tenant.id)
+        .where(Document.status.in_(["pending", "processing", "error"]))
+        .order_by(Document.uploaded_at.desc())
+    )
+    doc_rows = (await session.execute(doc_q)).all()
+
+    _FORMAT_TASK = {
+        "site": "Site Crawl", "confluence": "Confluence", "url": "URL",
+        "github": "GitHub",
+    }
+
+    for row in doc_rows:
+        tid = row.celery_task_id
+        if tid and tid in celery_active_ids:
+            for item in items:
+                if item.task_id == tid:
+                    item.document_id = row.id
+                    item.document_title = row.title or row.original_filename
+                    item.product_name = row.product_name
+                    item.tenant_email = row.tenant_email
+                    item.progress_percent = row.progress_percent
+                    item.progress_stage = row.progress_stage
+                    break
+            continue
+
+        started = row.processing_started_at or row.uploaded_at
+        runtime = (now - started).total_seconds() if started else None
+        task_display = _FORMAT_TASK.get(row.format, "Document")
+
+        db_status = row.status
+        if db_status == "processing" and (not tid or tid not in celery_active_ids):
+            db_status = "stale"
+
+        items.append(TaskItem(
+            task_id=tid,
+            task_name=task_display,
+            status=db_status,
+            source="db_document",
+            started_at=started.isoformat() if started else None,
+            runtime_sec=round(runtime, 1) if runtime else None,
+            progress_percent=row.progress_percent,
+            progress_stage=row.progress_stage,
+            document_id=row.id,
+            document_title=row.title or row.original_filename,
+            product_id=row.product_id,
+            product_name=row.product_name,
+            tenant_email=row.tenant_email,
+            error_message=row.error_message,
+        ))
+
+    rj_q = (
+        sa_select(ReindexJob)
+        .where(ReindexJob.status.in_(["pending", "running", "stale"]))
+        .order_by(ReindexJob.created_at.desc())
+    )
+    rj_rows = (await session.execute(rj_q)).scalars().all()
+    for job in rj_rows:
+        tid = job.celery_task_id
+        if tid and tid in celery_active_ids:
+            for item in items:
+                if item.task_id == tid:
+                    item.document_title = f"Reindex: {job.product_filter or 'all'}"
+                    pct = round(job.processed_documents / max(job.total_documents, 1) * 100)
+                    item.progress_percent = pct
+                    item.progress_stage = f"{job.processed_documents}/{job.total_documents} docs"
+                    break
+            continue
+
+        started = job.started_at or job.created_at
+        runtime = (now - started).total_seconds() if started else None
+        pct = round(job.processed_documents / max(job.total_documents, 1) * 100)
+        items.append(TaskItem(
+            task_id=tid,
+            task_name="Reindex",
+            status=job.status,
+            source="db_reindex",
+            started_at=started.isoformat() if started else None,
+            runtime_sec=round(runtime, 1) if runtime else None,
+            progress_percent=pct,
+            progress_stage=f"{job.processed_documents}/{job.total_documents} docs",
+            document_title=f"Reindex: {job.product_filter or 'all'} ({job.mode})",
+            error_message=job.error_message,
+        ))
+
+    if status_filter:
+        items = [i for i in items if i.status == status_filter]
+    if task_name:
+        items = [i for i in items if task_name.lower() in i.task_name.lower()]
+    if search:
+        q = search.lower()
+        items = [
+            i for i in items
+            if (i.document_title and q in i.document_title.lower())
+            or (i.product_name and q in i.product_name.lower())
+            or (i.tenant_email and q in i.tenant_email.lower())
+            or (i.args_summary and q in i.args_summary.lower())
+        ]
+
+    _STATUS_ORDER = {"stale": 0, "error": 1, "active": 2, "processing": 3, "reserved": 4, "pending": 5}
+    items.sort(key=lambda i: (
+        _STATUS_ORDER.get(i.status, 9),
+        -(i.runtime_sec or 0),
+    ))
+
+    active_count = sum(1 for i in items if i.status == "active")
+    pending_count = sum(1 for i in items if i.status in ("pending", "reserved"))
+    stale_count = sum(1 for i in items if i.status == "stale")
+    error_count = sum(1 for i in items if i.status == "error")
+    total = len(items)
+
+    start = (page - 1) * page_size
+    page_items = items[start:start + page_size]
+
+    return TaskListResponse(
+        items=page_items,
+        total=total,
+        active_count=active_count,
+        pending_count=pending_count,
+        stale_count=stale_count,
+        error_count=error_count,
+    )
+
+
+@router.get("/tasks/workers", response_model=WorkersResponse)
+async def list_workers():
+    """Get status of all Celery workers."""
+    import asyncio
+    from app.admin.schemas import WorkerInfo
+
+    loop = asyncio.get_running_loop()
+    ping_data, stats_data, queue_data = await asyncio.gather(
+        loop.run_in_executor(None, _inspect_with_timeout, "ping"),
+        loop.run_in_executor(None, _inspect_with_timeout, "stats"),
+        loop.run_in_executor(None, _inspect_with_timeout, "active_queues"),
+    )
+
+    workers: list[WorkerInfo] = []
+    all_names = set(ping_data.keys()) | set(stats_data.keys())
+
+    for name in sorted(all_names):
+        short = name.split("@")[-1]
+        st = stats_data.get(name, {})
+        queues = [q.get("name", "") for q in (queue_data.get(name) or [])]
+        workers.append(WorkerInfo(
+            name=short,
+            status="online" if name in ping_data else "offline",
+            pid=st.get("pid"),
+            queues=queues,
+            active_tasks=len(st.get("active", [] if not isinstance(st.get("total"), dict) else [])),
+            processed_total=sum(st.get("total", {}).values()) if isinstance(st.get("total"), dict) else 0,
+        ))
+
+    return WorkersResponse(workers=workers)
+
+
+@router.post("/tasks/{task_id}/cancel")
+async def cancel_task(
+    task_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Cancel a task by revoking it in Celery and updating DB status."""
+    from app.celery_app import celery
+    from sqlalchemy import select as sa_select
+    from app.models import Document, ReindexJob, Chunk
+
+    try:
+        celery.control.revoke(task_id, terminate=True)
+    except Exception:
+        logger.warning("Failed to revoke task", extra={"task_id": task_id})
+
+    doc = (await session.execute(
+        sa_select(Document).where(Document.celery_task_id == task_id)
+    )).scalar_one_or_none()
+
+    if doc and doc.status in ("pending", "processing"):
+        doc.status = "cancelled"
+        doc.progress_percent = 0
+        doc.progress_stage = ""
+        doc.error_message = None
+        chunks = (await session.execute(
+            sa_select(Chunk).where(Chunk.document_id == doc.id)
+        )).scalars().all()
+        for chunk in chunks:
+            await session.delete(chunk)
+        doc.total_chunks = 0
+        await session.commit()
+        logger.info("Task cancelled (document)", extra={"task_id": task_id, "document_id": doc.id})
+        return {"status": "cancelled", "type": "document", "document_id": doc.id}
+
+    job = (await session.execute(
+        sa_select(ReindexJob).where(ReindexJob.celery_task_id == task_id)
+    )).scalar_one_or_none()
+
+    if job and job.status in ("pending", "running"):
+        from datetime import datetime, timezone
+        job.status = "cancelled"
+        job.finished_at = datetime.now(timezone.utc)
+        await session.commit()
+        logger.info("Task cancelled (reindex)", extra={"task_id": task_id, "job_id": job.id})
+        return {"status": "cancelled", "type": "reindex", "job_id": job.id}
+
+    return {"status": "revoked", "type": "unknown"}
+
+
+@router.post("/tasks/{document_id_int}/retry")
+async def retry_task(
+    document_id_int: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Retry a failed/stale document by resetting and re-dispatching."""
+    from app.models import Document
+    from app.celery_app import _redispatch_document, _get_sync_engine
+    from sqlalchemy.orm import Session as SyncSession
+
+    doc = await session.get(Document, document_id_int)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.status not in ("error", "cancelled", "processing", "pending"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot retry document with status '{doc.status}'",
+        )
+
+    doc.status = "pending"
+    doc.error_message = None
+    doc.progress_percent = 0
+    doc.progress_stage = ""
+    await session.commit()
+    await session.refresh(doc)
+
+    engine = _get_sync_engine()
+    with SyncSession(engine) as sync_session:
+        sync_doc = sync_session.get(Document, doc.id)
+        new_task_id = _redispatch_document(sync_doc)
+        if new_task_id:
+            sync_doc.celery_task_id = new_task_id
+            sync_session.commit()
+
+    logger.info("Task retried", extra={"document_id": doc.id, "new_task_id": new_task_id})
+    return {"status": "retried", "document_id": doc.id, "new_task_id": new_task_id}
+
+
+@router.post("/tasks/rescue-stale", response_model=RescueResult)
+async def rescue_stale_tasks(
+    session: AsyncSession = Depends(get_session),
+):
+    """Manually trigger rescue for orphaned/stale documents and reindex jobs."""
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select as sa_select
+    from app.models import Document, ReindexJob
+    from app.celery_app import _redispatch_document, _get_sync_engine
+    from sqlalchemy.orm import Session as SyncSession
+    from celery.result import AsyncResult
+    from app.celery_app import celery
+
+    engine = _get_sync_engine()
+    threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
+    rescued_docs = 0
+    rescued_jobs = 0
+
+    pending_docs = (await session.execute(
+        sa_select(Document).where(
+            Document.status == "pending",
+            Document.uploaded_at < threshold,
+        ).limit(200)
+    )).scalars().all()
+
+    processing_docs = (await session.execute(
+        sa_select(Document).where(
+            Document.status == "processing",
+        ).limit(200)
+    )).scalars().all()
+
+    orphaned = list(pending_docs)
+    for doc in processing_docs:
+        if not doc.celery_task_id:
+            orphaned.append(doc)
+            continue
+        try:
+            result = AsyncResult(doc.celery_task_id, app=celery)
+            if result.state in ("PENDING", "REVOKED"):
+                orphaned.append(doc)
+        except Exception:
+            orphaned.append(doc)
+
+    if orphaned:
+        with SyncSession(engine) as sync_session:
+            for doc in orphaned:
+                sync_doc = sync_session.get(Document, doc.id)
+                if sync_doc is None:
+                    continue
+                sync_doc.status = "pending"
+                sync_doc.error_message = None
+                sync_doc.progress_percent = 0
+                sync_doc.progress_stage = ""
+                new_tid = _redispatch_document(sync_doc)
+                if new_tid:
+                    sync_doc.celery_task_id = new_tid
+                    rescued_docs += 1
+            sync_session.commit()
+
+    from app.config import settings as _settings
+    stale_threshold = datetime.now(timezone.utc) - timedelta(seconds=_settings.reindex_stale_timeout_sec)
+    stale_jobs = (await session.execute(
+        sa_select(ReindexJob).where(
+            ReindexJob.status == "running",
+            ReindexJob.heartbeat_at < stale_threshold,
+        )
+    )).scalars().all()
+
+    for job in stale_jobs:
+        job.status = "stale"
+        job.finished_at = datetime.now(timezone.utc)
+        job.error_message = f"Manually marked stale (heartbeat stopped at {job.heartbeat_at})"
+        rescued_jobs += 1
+
+    await session.commit()
+
+    logger.info("Manual rescue completed", extra={
+        "rescued_documents": rescued_docs,
+        "rescued_reindex_jobs": rescued_jobs,
+    })
+    return RescueResult(rescued_documents=rescued_docs, rescued_reindex_jobs=rescued_jobs)
+
+
+@router.post("/tasks/bulk-cancel")
+async def bulk_cancel_tasks(
+    body: BulkCancelRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Cancel multiple tasks by IDs or by filter."""
+    from app.celery_app import celery
+    from sqlalchemy import select as sa_select
+    from app.models import Document, Chunk
+
+    cancelled = 0
+
+    if body.task_ids:
+        for tid in body.task_ids:
+            try:
+                celery.control.revoke(tid, terminate=True)
+            except Exception:
+                pass
+
+            doc = (await session.execute(
+                sa_select(Document).where(Document.celery_task_id == tid)
+            )).scalar_one_or_none()
+            if doc and doc.status in ("pending", "processing"):
+                doc.status = "cancelled"
+                doc.progress_percent = 0
+                doc.progress_stage = ""
+                chunks = (await session.execute(
+                    sa_select(Chunk).where(Chunk.document_id == doc.id)
+                )).scalars().all()
+                for chunk in chunks:
+                    await session.delete(chunk)
+                doc.total_chunks = 0
+                cancelled += 1
+
+        await session.commit()
+        return {"status": "ok", "cancelled": cancelled}
+
+    if body.filter_status:
+        target_statuses = []
+        if body.filter_status == "stale":
+            target_statuses = ["processing"]
+        elif body.filter_status in ("pending", "error"):
+            target_statuses = [body.filter_status]
+        else:
+            target_statuses = ["pending", "processing"]
+
+        q = sa_select(Document).where(Document.status.in_(target_statuses))
+        docs = (await session.execute(q.limit(500))).scalars().all()
+        for doc in docs:
+            if doc.celery_task_id:
+                try:
+                    celery.control.revoke(doc.celery_task_id, terminate=True)
+                except Exception:
+                    pass
+            doc.status = "cancelled"
+            doc.progress_percent = 0
+            doc.progress_stage = ""
+            cancelled += 1
+
+        await session.commit()
+        return {"status": "ok", "cancelled": cancelled}
+
+    raise HTTPException(status_code=400, detail="Provide task_ids or filter_status")
 
 
 # ---------------------------------------------------------------------------

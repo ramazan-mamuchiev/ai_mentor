@@ -548,6 +548,57 @@ class SystemInfo(BaseModel):
 
 # --- RAG Evaluation ---
 
+# --- Task Queue ---
+
+class TaskItem(BaseModel):
+    task_id: str | None = None
+    task_name: str
+    status: str
+    source: str
+    worker: str | None = None
+    started_at: str | None = None
+    runtime_sec: float | None = None
+    progress_percent: float | None = None
+    progress_stage: str | None = None
+    document_id: int | None = None
+    product_id: int | None = None
+    product_name: str | None = None
+    document_title: str | None = None
+    tenant_email: str | None = None
+    error_message: str | None = None
+    args_summary: str | None = None
+
+class TaskListResponse(BaseModel):
+    items: list[TaskItem]
+    total: int
+    active_count: int
+    pending_count: int
+    stale_count: int
+    error_count: int
+
+class WorkerInfo(BaseModel):
+    name: str
+    status: str
+    pid: int | None = None
+    queues: list[str] = []
+    active_tasks: int = 0
+    processed_total: int = 0
+
+class WorkersResponse(BaseModel):
+    workers: list[WorkerInfo]
+
+class BulkCancelRequest(BaseModel):
+    task_ids: list[str] | None = None
+    filter_task_name: str | None = None
+    filter_status: str | None = None
+
+class RescueResult(BaseModel):
+    rescued_documents: int
+    rescued_reindex_jobs: int
+
+
+# --- RAG Evaluation ---
+
 class RagEvalRunRequest(BaseModel):
     sample_size: int = Field(default=50, ge=10, le=200)
 

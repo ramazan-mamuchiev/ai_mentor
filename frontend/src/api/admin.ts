@@ -1040,3 +1040,111 @@ export async function getLatestRagEval(): Promise<RagEvalRunDetail | null> {
   }
   return null
 }
+
+
+// --- Task Queue ---
+
+export interface TaskItem {
+  task_id: string | null
+  task_name: string
+  status: string
+  source: string
+  worker: string | null
+  started_at: string | null
+  runtime_sec: number | null
+  progress_percent: number | null
+  progress_stage: string | null
+  document_id: number | null
+  product_id: number | null
+  product_name: string | null
+  document_title: string | null
+  tenant_email: string | null
+  error_message: string | null
+  args_summary: string | null
+}
+
+export interface TaskListResponse {
+  items: TaskItem[]
+  total: number
+  active_count: number
+  pending_count: number
+  stale_count: number
+  error_count: number
+}
+
+export interface WorkerInfo {
+  name: string
+  status: string
+  pid: number | null
+  queues: string[]
+  active_tasks: number
+  processed_total: number
+}
+
+export interface WorkersResponse {
+  workers: WorkerInfo[]
+}
+
+export interface RescueResult {
+  rescued_documents: number
+  rescued_reindex_jobs: number
+}
+
+export async function listTasks(params: {
+  status?: string
+  task_name?: string
+  search?: string
+  page?: number
+  page_size?: number
+} = {}): Promise<TaskListResponse> {
+  const sp = new URLSearchParams()
+  if (params.status) sp.set('status', params.status)
+  if (params.task_name) sp.set('task_name', params.task_name)
+  if (params.search) sp.set('search', params.search)
+  if (params.page) sp.set('page', String(params.page))
+  if (params.page_size) sp.set('page_size', String(params.page_size))
+  const res = await fetch(`${BASE}/tasks?${sp}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function listWorkers(): Promise<WorkersResponse> {
+  const res = await fetch(`${BASE}/tasks/workers`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function cancelTask(taskId: string): Promise<{ status: string }> {
+  const res = await fetch(`${BASE}/tasks/${taskId}/cancel`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function retryTask(documentId: number): Promise<{ status: string; document_id: number }> {
+  const res = await fetch(`${BASE}/tasks/${documentId}/retry`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function rescueStaleTasks(): Promise<RescueResult> {
+  const res = await fetch(`${BASE}/tasks/rescue-stale`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function bulkCancelTasks(body: {
+  task_ids?: string[]
+  filter_status?: string
+}): Promise<{ status: string; cancelled: number }> {
+  const res = await fetch(`${BASE}/tasks/bulk-cancel`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return handleResponse(res)
+}
