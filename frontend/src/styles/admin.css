@@ -3381,12 +3381,6 @@
   margin-bottom: 16px;
 }
 
-.tq-summary-section {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
 
 .tq-workers-section {
   display: flex;

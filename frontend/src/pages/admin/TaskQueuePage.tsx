@@ -313,63 +313,11 @@ export function TaskQueuePage() {
         </div>
       )}
 
-      {/* Summary + Workers bar */}
-      <div className="system-status-bar">
-        <div className="tq-summary-section">
-          <span className={`system-badge ${(data?.active_count || 0) > 0 ? 'system-badge--accent' : 'system-badge--muted'}`}>
-            <Loader size={12} /> {t('admin.tasks.active')}: {data?.active_count || 0}
-          </span>
-          <span className={`system-badge ${(data?.pending_count || 0) > 0 ? 'system-badge--warning' : 'system-badge--muted'}`}>
-            <Clock size={12} /> {t('admin.tasks.pending')}: {data?.pending_count || 0}
-          </span>
-          <span className={`system-badge ${(data?.stale_count || 0) > 0 ? 'system-badge--danger' : 'system-badge--muted'}`}>
-            <AlertTriangle size={12} /> {t('admin.tasks.stale')}: {data?.stale_count || 0}
-          </span>
-          <span className={`system-badge ${(data?.error_count || 0) > 0 ? 'system-badge--danger' : 'system-badge--muted'}`}>
-            <XCircle size={12} /> {t('admin.tasks.errors')}: {data?.error_count || 0}
-          </span>
-        </div>
-        <div className="tq-workers-section">
-          {workers.length > 0 ? workers.map((w, i) => (
-            <div key={i} className="tq-worker-pill">
-              <HealthDot status={w.status} />
-              <span className="tq-worker-name">{w.name}</span>
-              <span className="tq-worker-count">{w.active_tasks}</span>
-            </div>
-          )) : (
-            <div className="tq-worker-pill">
-              <HealthDot status="offline" />
-              <span className="tq-worker-name" style={{ color: 'var(--text-muted)' }}>
-                {t('admin.tasks.noWorkers')}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Toolbar */}
-      <div className="admin-table-wrapper">
-        <div className="admin-toolbar">
-          <input
-            className="admin-search"
-            placeholder={t('admin.tasks.searchPlaceholder')}
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-          />
+      <div className="logs-toolbar">
+        <div className="logs-toolbar__row">
           <select
-            className="admin-select"
-            value={statusFilter}
-            onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
-          >
-            <option value="">{t('admin.tasks.allStatuses')}</option>
-            <option value="active">{t('admin.tasks.statusActive')}</option>
-            <option value="pending">{t('admin.tasks.statusPending')}</option>
-            <option value="reserved">{t('admin.tasks.statusReserved')}</option>
-            <option value="stale">{t('admin.tasks.statusStale')}</option>
-            <option value="error">{t('admin.tasks.statusError')}</option>
-          </select>
-          <select
-            className="admin-select"
+            className="logs-select"
             value={taskFilter}
             onChange={e => { setTaskFilter(e.target.value); setPage(1) }}
           >
@@ -382,7 +330,71 @@ export function TaskQueuePage() {
             <option value="GitHub">GitHub</option>
             <option value="URL">URL</option>
           </select>
+
+          <input
+            className="logs-search"
+            style={{ paddingLeft: 10, width: 240 }}
+            placeholder={t('admin.tasks.searchPlaceholder')}
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+          />
+
           <div style={{ flex: 1 }} />
+
+          <div className="tq-workers-section">
+            {workers.length > 0 ? workers.map((w, i) => (
+              <div key={i} className="tq-worker-pill">
+                <HealthDot status={w.status} />
+                <span className="tq-worker-name">{w.name}</span>
+                <span className="tq-worker-count">{w.active_tasks}</span>
+              </div>
+            )) : (
+              <div className="tq-worker-pill">
+                <HealthDot status="offline" />
+                <span className="tq-worker-name" style={{ color: 'var(--text-muted)' }}>
+                  {t('admin.tasks.noWorkers')}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="logs-toolbar__row">
+          <div className="logs-level-chips" role="group" aria-label="Status filter">
+            <button
+              className={`logs-level-chip logs-level-chip--all${statusFilter === '' ? ' logs-level-chip--active' : ''}`}
+              onClick={() => { setStatusFilter(''); setPage(1) }}
+            >
+              {t('admin.tasks.allStatuses')}
+            </button>
+            <button
+              className={`logs-level-chip logs-level-chip--info${statusFilter === 'active' ? ' logs-level-chip--active' : ''}`}
+              onClick={() => { setStatusFilter('active'); setPage(1) }}
+            >
+              {t('admin.tasks.statusActive')} <span className="logs-level-chip__count">{data?.active_count || 0}</span>
+            </button>
+            <button
+              className={`logs-level-chip logs-level-chip--warning${statusFilter === 'pending' ? ' logs-level-chip--active' : ''}`}
+              onClick={() => { setStatusFilter('pending'); setPage(1) }}
+            >
+              {t('admin.tasks.statusPending')} <span className="logs-level-chip__count">{data?.pending_count || 0}</span>
+            </button>
+            <button
+              className={`logs-level-chip logs-level-chip--error${statusFilter === 'stale' ? ' logs-level-chip--active' : ''}`}
+              onClick={() => { setStatusFilter('stale'); setPage(1) }}
+            >
+              {t('admin.tasks.statusStale')} <span className="logs-level-chip__count">{data?.stale_count || 0}</span>
+            </button>
+            <button
+              className={`logs-level-chip logs-level-chip--error${statusFilter === 'error' ? ' logs-level-chip--active' : ''}`}
+              onClick={() => { setStatusFilter('error'); setPage(1) }}
+            >
+              {t('admin.tasks.statusError')} <span className="logs-level-chip__count">{data?.error_count || 0}</span>
+            </button>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
           {selected.size > 0 && (
             <>
               <button
@@ -402,6 +414,9 @@ export function TaskQueuePage() {
             </>
           )}
         </div>
+      </div>
+
+      <div className="admin-table-wrapper">
 
         {/* Table or Empty State */}
         {!data || data.items.length === 0 ? (
