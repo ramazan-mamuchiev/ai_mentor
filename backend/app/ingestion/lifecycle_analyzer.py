@@ -86,6 +86,17 @@ If the documentation is in Chinese, Russian, or any other language, translate al
 fields into English. Keep original API endpoint paths, parameter names, code identifiers,
 and header names unchanged.
 
+GROUNDING RULES (apply to ALL sections below):
+- NEVER invent information. Every endpoint path, field name, error code, and parameter
+  MUST come directly from the documentation text you are given.
+- If the documentation does not describe something, leave the field empty or omit the
+  entry entirely. Do NOT guess or extrapolate.
+- Use EXACT endpoint paths as they appear in the documentation. Do NOT normalize,
+  shorten, or modify them (e.g. if the doc says "/api/v1/cameras", write exactly that).
+- Cross-reference between sections: every api_call in phases must appear in
+  endpoint_coverage; every model in data_models.used_in must reference a real phase
+  api_call; every error_catalog.phase must match a real phase_name.
+
 Analyze the document and return a JSON object with ALL of the following sections:
 
 ## 1. phases
@@ -103,6 +114,12 @@ An ordered array of integration steps. Each step:
 - notes: unique details, gotchas, quirks specific to THIS API
 - request_example: minimal but complete request body/params as a string (JSON, form fields, or query params). Empty string if no request body.
 - response_example: key fields of the response as a string (JSON with important fields). Empty string if unknown.
+
+IMPORTANT for phases:
+- api_call must use the FULL path exactly as in the docs (e.g. "POST /api/v1/cameras", NOT "POST /cameras").
+- inputs and outputs MUST use consistent names across phases — if phase A outputs "session_token",
+  phase B that needs it must list "session_token" in inputs (exact string match).
+- output_used_by must reference real action names from later phases (exact match).
 
 ## 2. unique_patterns
 Array of things that make this API different from a standard REST/gRPC API:
@@ -135,6 +152,13 @@ setup to cleanup. Requirements:
 - Handle pagination if the API uses it
 - Include cleanup/logout if the API requires it
 - Add type hints and brief comments for non-obvious steps
+
+CRITICAL code_skeleton rules:
+- Every endpoint path in code_skeleton MUST exist in your phases array above.
+- NEVER invent endpoint paths. If you are unsure about a path, OMIT it.
+- NEVER fabricate request/response field names. Use ONLY field names from the docs.
+- If the documentation is incomplete (e.g. no response schema), add a comment
+  "# TODO: response schema not documented" instead of guessing.
 
 ## 5. source_doc_issues
 Array of issues found IN THE SOURCE DOCUMENTATION (not in your analysis).
@@ -185,6 +209,11 @@ Extract ALL models you can find in the documentation, even if incomplete. For ea
 POST/PUT/PATCH endpoint, there should be at least a request model. For each endpoint
 returning data, there should be at least a response model.
 
+IMPORTANT for data_models:
+- used_in array must contain EXACT api_call strings from your phases (e.g. "POST /api/v1/cameras").
+- Include ALL fields mentioned in the documentation, even optional ones.
+- For fields with enum constraints, list ALL enum values found in docs.
+
 ## 7. error_catalog
 Array of error responses the API can return:
 - http_status: integer (e.g. 400, 401, 403, 404, 409, 429, 500, 503)
@@ -196,6 +225,12 @@ Array of error responses the API can return:
 
 Extract ALL error codes/statuses mentioned anywhere in the documentation.
 
+IMPORTANT for error_catalog:
+- phase must be one of the phase_name values you used in your phases array.
+- Collect errors from ALL sections of the documentation, not just a dedicated error section.
+- If an endpoint description mentions "returns 404 if not found", that is an error_catalog entry.
+- If authentication is present, include a 401 entry with recovery_action "re_auth".
+
 ## 8. prerequisites
 Array of things a developer needs BEFORE making any API call:
 - name: identifier (e.g. "BASE_URL", "API_KEY", "CLIENT_CERTIFICATE", "SDK_LIBRARY")
@@ -203,6 +238,10 @@ Array of things a developer needs BEFORE making any API call:
 - description: what it is and why it's needed
 - example_value: a realistic example (use placeholder domains like "example.com" for URLs, "your-api-key-here" for secrets)
 - how_to_obtain: where/how the developer gets this (admin panel, registration, download, etc.)
+
+IMPORTANT for prerequisites:
+- Each prerequisite name should appear in at least one phase's inputs array.
+- example_value must be realistic (e.g. "https://vms.example.com:8080", not "xxx").
 
 ## 9. data_access_patterns
 Array of patterns for retrieving collections/streams of data:
@@ -213,6 +252,10 @@ Array of patterns for retrieving collections/streams of data:
 
 If the API has list endpoints but pagination is not documented, still include an entry
 with pattern_type "none" and note it in source_doc_issues as "missing_pagination_docs".
+
+IMPORTANT for data_access_patterns:
+- endpoint must match an api_call from your phases array (exact path).
+- code_hint must use the same endpoint path as in the phase.
 
 ## 10. endpoint_coverage
 Array assessing documentation completeness for EACH endpoint found in the docs:
@@ -227,6 +270,11 @@ Array assessing documentation completeness for EACH endpoint found in the docs:
 
 Be honest and strict in this assessment. This helps developers know which parts
 of the documentation to trust and where they need to be careful.
+
+IMPORTANT for endpoint_coverage:
+- Use the EXACT endpoint paths as they appear in the documentation.
+- Every api_call from your phases must have a matching endpoint_coverage entry.
+- Do NOT normalize, shorten, or modify endpoint paths.
 
 ## 11. integration_data_flows
 An object describing the architectural data-flow graph between system components.
@@ -280,6 +328,11 @@ Rules:
 - Build a unified code_skeleton covering the full API (all documents combined).
 - If documents contradict each other (different auth methods, conflicting params), report in source_doc_issues.
 - Preserve all unique information from each document.
+- NEVER invent new endpoints, data models, or error codes during merge.
+  Only combine what already exists in the individual analyses.
+- Ensure cross-referential integrity: every data_models.used_in must match a phase api_call,
+  every error_catalog.phase must match a phase_name, every data_access_patterns.endpoint
+  must match a phase api_call.
 
 Return the same JSON structure as the individual analyses (phases, unique_patterns, \
 dependency_chains, code_skeleton, source_doc_issues, data_models, error_catalog, \
@@ -302,6 +355,14 @@ Here is your previous result:
 
 Fix ONLY the identified errors. Keep everything else unchanged.
 All output text MUST remain in English.
+
+IMPORTANT correction rules:
+- If an error says an endpoint/entity is "not found in source documentation", REMOVE it
+  entirely rather than trying to fix it. Only use data explicitly present in the docs.
+- If an error says a reference does not match (e.g. used_in, phase, output_used_by),
+  fix it to match an existing entry or remove the reference.
+- NEVER invent new endpoints, field names, or error codes to fix a validation error.
+
 Return the corrected full JSON object with the same structure (phases, unique_patterns, \
 dependency_chains, code_skeleton, source_doc_issues, data_models, error_catalog, \
 prerequisites, data_access_patterns, endpoint_coverage, integration_data_flows).
@@ -490,7 +551,7 @@ def _validate_lifecycle(
         api_call = phase.get("api_call", "")
         if api_call and "/" in api_call:
             normalized = _normalize_endpoint(api_call)
-            if known_endpoints and not any(normalized in ep or ep in normalized for ep in known_endpoints):
+            if known_endpoints and not any(_endpoints_match(normalized, ep) for ep in known_endpoints):
                 lifecycle_errors.append(
                     f"Phase '{phase.get('action')}' references endpoint '{api_call}' "
                     f"which was not found in the source documentation."
@@ -542,12 +603,12 @@ def _validate_lifecycle(
             ep_parts = ep_match.strip().split()
             ep = ep_parts[-1] if len(ep_parts) > 1 else ep_parts[0]
             ep_norm = re.sub(r"\{[^}]+\}", "{id}", ep).lower()
-            if known_endpoints and not any(ep_norm in ke or ke in ep_norm for ke in known_endpoints):
+            if known_endpoints and not any(_endpoints_match(ep_norm, ke) for ke in known_endpoints):
                 phase_ep_calls = {
                     _normalize_endpoint(p["api_call"])
                     for p in result.phases if p.get("api_call")
                 }
-                if not any(ep_norm in pe or pe in ep_norm for pe in phase_ep_calls):
+                if not any(_endpoints_match(ep_norm, pe) for pe in phase_ep_calls):
                     lifecycle_errors.append(
                         f"code_skeleton references endpoint '{ep_match.strip()}' "
                         f"not found in phases or source documentation."
@@ -555,11 +616,11 @@ def _validate_lifecycle(
 
     # --- New validations for enhanced analysis ---
 
-    # Endpoint coverage check: at least 80% of known endpoints should be covered
     if known_endpoints and result.endpoint_coverage:
-        covered = {_normalize_endpoint(ec.get("endpoint", "") + " " + ec.get("method", ""))
+        covered = {_normalize_endpoint(ec.get("endpoint", ""))
                    for ec in result.endpoint_coverage if ec.get("endpoint")}
-        coverage_ratio = len(covered & known_endpoints) / len(known_endpoints) if known_endpoints else 1.0
+        matched = sum(1 for ke in known_endpoints if any(_endpoints_match(ke, ce) for ce in covered))
+        coverage_ratio = matched / len(known_endpoints)
         if coverage_ratio < 0.5:
             lifecycle_errors.append(
                 f"endpoint_coverage only covers {coverage_ratio:.0%} of endpoints found in the document. "
@@ -625,6 +686,91 @@ def _validate_lifecycle(
             "The documentation contains JSON data structures but data_models is empty. "
             "Extract request/response models with their fields."
         )
+
+    # --- Cross-section validation (capped at 10 errors to avoid overloading correction) ---
+    cross_errors: list[str] = []
+    phase_api_calls = {_normalize_endpoint(p["api_call"]) for p in result.phases if p.get("api_call")}
+    phase_names_set = {p.get("phase_name", "") for p in result.phases}
+
+    # data_models.used_in vs phases
+    for model in result.data_models:
+        for ref in model.get("used_in", []):
+            if ref and "/" in ref:
+                ref_norm = _normalize_endpoint(ref)
+                if not any(_endpoints_match(ref_norm, pa) for pa in phase_api_calls):
+                    cross_errors.append(
+                        f"data_models '{model.get('model_name', '?')}' references "
+                        f"used_in '{ref}' which does not match any phase api_call."
+                    )
+
+    # error_catalog.phase vs phase_names
+    for err in result.error_catalog:
+        err_phase = err.get("phase", "")
+        if err_phase and err_phase not in phase_names_set:
+            cross_errors.append(
+                f"error_catalog entry (HTTP {err.get('http_status', '?')}) references "
+                f"phase '{err_phase}' not found among extracted phase_names."
+            )
+
+    # Auth phases should have 401 in error_catalog
+    has_auth_related = any(
+        p.get("phase_name") in ("authentication", "setup")
+        for p in result.phases
+    )
+    if has_auth_related and result.error_catalog:
+        has_401 = any(e.get("http_status") == 401 for e in result.error_catalog)
+        if not has_401:
+            cross_errors.append(
+                "Authentication phases exist but error_catalog has no HTTP 401 entry. "
+                "Add a 401 Unauthorized error with recovery_action 're_auth'."
+            )
+
+    # data_access_patterns.endpoint vs phases
+    for pat in result.data_access_patterns:
+        pat_ep = pat.get("endpoint", "")
+        if pat_ep and "/" in pat_ep:
+            pat_norm = _normalize_endpoint(pat_ep)
+            if not any(_endpoints_match(pat_norm, pa) for pa in phase_api_calls):
+                cross_errors.append(
+                    f"data_access_patterns entry '{pat.get('pattern_type', '?')}' references "
+                    f"endpoint '{pat_ep}' not found in phases."
+                )
+
+    # endpoint_coverage completeness vs phases
+    if result.endpoint_coverage and phase_api_calls:
+        coverage_eps = {_normalize_endpoint(ec.get("endpoint", ""))
+                        for ec in result.endpoint_coverage if ec.get("endpoint")}
+        for pa in phase_api_calls:
+            if not any(_endpoints_match(pa, ce) for ce in coverage_eps):
+                cross_errors.append(
+                    f"Phase endpoint '{pa}' is missing from endpoint_coverage. "
+                    f"Add a coverage entry for it."
+                )
+
+    # unique_patterns rate_limit vs error_catalog 429
+    if result.unique_patterns:
+        mentions_rate_limit = any(
+            "rate" in (p.get("pattern", "") + p.get("description", "")).lower()
+            for p in result.unique_patterns
+        )
+        if mentions_rate_limit and result.error_catalog:
+            has_429 = any(e.get("http_status") == 429 for e in result.error_catalog)
+            if not has_429:
+                cross_errors.append(
+                    "unique_patterns mentions rate limiting but error_catalog has no "
+                    "HTTP 429 entry. Add a 429 error with recovery_action 'wait'."
+                )
+
+    # phases output_used_by should reference real actions
+    for phase in result.phases:
+        for ref_action in phase.get("output_used_by", []):
+            if ref_action and ref_action not in phase_actions:
+                cross_errors.append(
+                    f"Phase '{phase.get('action', '?')}' output_used_by references "
+                    f"'{ref_action}' which is not found among phase actions."
+                )
+
+    lifecycle_errors.extend(cross_errors[:10])
 
     for issue in result.source_doc_issues:
         doc_issues.append(DocIssue(
@@ -728,6 +874,95 @@ def _retry_with_corrections(
     return _lifecycle_from_parsed(parsed, usage, fallback=previous)
 
 
+def _build_grounded_skeleton(result: LifecycleResult) -> str:
+    """Build a deterministic code skeleton from validated phases and metadata.
+
+    Used as a fallback when LLM-generated skeleton fails validation.
+    """
+    lines: list[str] = ["import httpx", ""]
+
+    for prereq in result.prerequisites:
+        name = prereq.get("name", "UNKNOWN").upper().replace(" ", "_")
+        example = prereq.get("example_value", "...")
+        lines.append(f'{name} = "{example}"')
+    if result.prerequisites:
+        lines.append("")
+
+    lines.append("client = httpx.Client(")
+    url_prereq = next(
+        (p for p in result.prerequisites if p.get("type") == "url"),
+        None,
+    )
+    if url_prereq:
+        lines.append(f'    base_url={url_prereq["name"].upper().replace(" ", "_")},')
+    lines.append("    timeout=30.0,")
+    lines.append(")")
+    lines.append("headers: dict[str, str] = {}")
+    lines.append("")
+
+    sorted_phases = sorted(result.phases, key=lambda p: p.get("step_order", 999))
+
+    for phase in sorted_phases:
+        api_call = phase.get("api_call", "")
+        if not api_call:
+            lines.append(f"# Step {phase.get('step_order', '?')}: {phase.get('action', '?')}")
+            if phase.get("notes"):
+                lines.append(f"# Note: {phase['notes']}")
+            lines.append("")
+            continue
+
+        action = phase.get("action", "")
+        method = phase.get("http_method", "GET").upper() or "GET"
+        parts = api_call.strip().split()
+        endpoint = parts[-1] if parts else api_call
+
+        lines.append(f"# Step {phase.get('step_order', '?')}: {action}")
+        if phase.get("notes"):
+            lines.append(f"# {phase['notes']}")
+
+        call_kwargs: list[str] = [f'"{endpoint}"']
+        call_kwargs.append("headers=headers")
+
+        req_example = phase.get("request_example", "")
+        if req_example and method in ("POST", "PUT", "PATCH"):
+            call_kwargs.append(f"json={req_example}")
+
+        method_lower = method.lower()
+        call_args = ", ".join(call_kwargs)
+        lines.append(f"response = client.{method_lower}({call_args})")
+        lines.append("response.raise_for_status()")
+
+        outputs = phase.get("outputs", [])
+        resp_example = phase.get("response_example", "")
+        if outputs and resp_example:
+            lines.append("data = response.json()")
+            for out in outputs[:3]:
+                var_name = out.lower().replace(" ", "_").replace("-", "_")
+                lines.append(f'{var_name} = data.get("{out}")')
+        elif outputs:
+            lines.append("data = response.json()")
+            for out in outputs[:3]:
+                var_name = out.lower().replace(" ", "_").replace("-", "_")
+                lines.append(f'{var_name} = data.get("{out}")  # TODO: verify field name')
+
+        if phase.get("phase_name") == "authentication":
+            lines.append('headers["Authorization"] = f"Bearer {data.get(\'token\', \'\')}"')
+
+        lines.append("")
+
+    # Error handling from catalog
+    retry_codes = sorted({
+        e.get("http_status") for e in result.error_catalog
+        if e.get("recovery_action") in ("retry", "wait") and e.get("http_status")
+    })
+    if retry_codes:
+        lines.append(f"# Retryable HTTP status codes: {retry_codes}")
+        lines.append("")
+
+    lines.append("client.close()")
+    return "\n".join(lines)
+
+
 def _validate_and_correct(
     result: LifecycleResult,
     chunk_contents: list[str],
@@ -756,6 +991,14 @@ def _validate_and_correct(
 
     result.validation_issues = [{"error": e} for e in last_errors]
     result.validation_retries = max_retries
+
+    skeleton_errors = [e for e in last_errors if "code_skeleton" in e.lower()]
+    if skeleton_errors and result.phases:
+        grounded = _build_grounded_skeleton(result)
+        if grounded.strip():
+            result.code_skeleton = grounded
+            logger.info("Replaced invalid LLM skeleton with grounded skeleton")
+
     return result, all_doc_issues
 
 
@@ -856,14 +1099,27 @@ def analyze_document_lifecycle_sync(
 _MERGE_BATCH_SIZE = 10
 
 
+def _has_skeleton_errors(lc) -> bool:
+    """Check if a lifecycle ORM object has skeleton-related validation issues."""
+    for issue in (lc.validation_issues or []):
+        if "code_skeleton" in issue.get("error", "").lower():
+            return True
+    return False
+
+
 def _lc_to_merge_dict(lc) -> dict:
-    """Convert an ApiLifecycle ORM object to a dict suitable for the merge prompt."""
+    """Convert an ApiLifecycle ORM object to a dict suitable for the merge prompt.
+
+    Excludes code_skeleton if it had unresolved validation errors to prevent
+    propagating hallucinated endpoints into the merged product lifecycle.
+    """
+    skeleton = "" if _has_skeleton_errors(lc) else (lc.code_skeleton or "")
     return {
         "document_id": lc.document_id,
         "phases": lc.phases or [],
         "unique_patterns": lc.unique_patterns or [],
         "dependency_chains": lc.dependency_chains or [],
-        "code_skeleton": lc.code_skeleton or "",
+        "code_skeleton": skeleton,
         "data_models": lc.data_models or [],
         "error_catalog": lc.error_catalog or [],
         "prerequisites": lc.prerequisites or [],

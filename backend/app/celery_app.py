@@ -3299,6 +3299,26 @@ def merge_product_lifecycle_task(self, product_id: int):
                 )
                 session.add(lc)
 
+            from sqlalchemy import delete as sa_delete
+            session.execute(
+                sa_delete(DocIssueAnnotation).where(
+                    DocIssueAnnotation.product_id == product_id,
+                    DocIssueAnnotation.detected_by == "lifecycle_merge",
+                )
+            )
+            for issue in doc_issues:
+                session.add(DocIssueAnnotation(
+                    document_id=None,
+                    product_id=product_id,
+                    chunk_id=issue.chunk_id,
+                    issue_type=issue.issue_type,
+                    severity=issue.severity,
+                    description=issue.description,
+                    affected_entity=issue.affected_entity,
+                    suggestion=issue.suggestion,
+                    detected_by="lifecycle_merge",
+                ))
+
             session.commit()
 
             if result.usage.prompt_tokens > 0:

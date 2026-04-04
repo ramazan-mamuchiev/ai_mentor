@@ -1829,6 +1829,13 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
             if mermaid:
                 lines.append(f"\n### Architecture Diagram\n```mermaid\n{mermaid}\n```")
 
+        # Validation warnings
+        if lc.validation_issues:
+            lines.append("\n## ⚠️ Validation Warnings")
+            lines.append("The following issues could not be fully resolved — verify before relying:")
+            for vi in lc.validation_issues:
+                lines.append(f"- {vi.get('error', 'Unknown issue')}")
+
         # Code Skeleton
         if lc.code_skeleton:
             lines.append("\n## Production Code Skeleton")
