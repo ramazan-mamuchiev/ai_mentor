@@ -3574,6 +3574,12 @@
   background: rgba(34, 197, 94, 0.06);
 }
 
+.tq-action-btn--delete:hover {
+  color: var(--danger, #ef4444);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.06);
+}
+
 /* Empty state */
 .tq-empty {
   display: flex;

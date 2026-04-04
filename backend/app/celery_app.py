@@ -52,6 +52,7 @@ celery.conf.update(
         "ensure_usage_partitions": {"queue": "monitoring"},
         "cleanup_expired_shares": {"queue": "monitoring"},
         "s3_health_probe": {"queue": "monitoring"},
+        "heal_lifecycle_status": {"queue": "monitoring"},
     },
     beat_schedule={
         "cleanup-expired-uploads": {
@@ -85,6 +86,10 @@ celery.conf.update(
         "rescue-orphaned-documents": {
             "task": "rescue_orphaned_documents",
             "schedule": 120.0,
+        },
+        "heal-lifecycle-status": {
+            "task": "heal_lifecycle_status",
+            "schedule": 300.0,
         },
     },
 )
@@ -2557,6 +2562,72 @@ def rescue_orphaned_documents_task(self):
             "from_processing": len(processing_orphans),
         },
     )
+
+
+@celery.task(name="heal_lifecycle_status", bind=True)
+def heal_lifecycle_status_task(self):
+    """Periodic self-healing: fix desynchronized lifecycle_status in documents table.
+
+    1. If api_lifecycles has status='ready' but documents.lifecycle_status is empty → set to 'ready'.
+    2. If documents.lifecycle_status is 'pending'/'processing' for >30 min with no running
+       Celery task → reset to '' (prevents permanently stuck badges).
+    """
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select, update as sa_update, and_
+    from app.models import Document, ApiLifecycle
+
+    engine = _get_sync_engine()
+    fixed = 0
+    unstuck = 0
+
+    with Session(engine) as session:
+        desync_rows = session.execute(
+            select(Document.id, ApiLifecycle.status).join(
+                ApiLifecycle, ApiLifecycle.document_id == Document.id
+            ).where(
+                and_(
+                    Document.lifecycle_status.in_(["", None]),
+                    ApiLifecycle.status.in_(["ready", "error"]),
+                )
+            )
+        ).all()
+
+        for doc_id, lc_status in desync_rows:
+            session.execute(
+                sa_update(Document)
+                .where(Document.id == doc_id)
+                .values(lifecycle_status=lc_status)
+            )
+            fixed += 1
+
+        threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
+        stale_docs = session.execute(
+            select(Document).where(
+                Document.lifecycle_status.in_(["pending", "processing"]),
+                Document.indexed_at < threshold,
+            )
+        ).scalars().all()
+
+        for doc in stale_docs:
+            has_ready = session.execute(
+                select(ApiLifecycle.status).where(
+                    ApiLifecycle.document_id == doc.id
+                )
+            ).scalar_one_or_none()
+
+            doc.lifecycle_status = has_ready if has_ready in ("ready", "error") else ""
+            unstuck += 1
+
+        if fixed or unstuck:
+            session.commit()
+            logger.info(
+                "Healed lifecycle_status desync",
+                extra={
+                    "event": "heal_lifecycle_status",
+                    "fixed_desync": fixed,
+                    "unstuck_stale": unstuck,
+                },
+            )
 
 
 @celery.task(name="queue_status_snapshot", bind=True)

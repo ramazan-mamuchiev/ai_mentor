@@ -1149,3 +1149,24 @@ export async function bulkCancelTasks(body: {
   })
   return handleResponse(res)
 }
+
+export async function deleteTask(documentId: number): Promise<{ status: string; document_id: number; chunks_deleted: number }> {
+  const res = await fetch(`${BASE}/tasks/${documentId}/delete`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function bulkDeleteTasks(body: {
+  document_ids?: number[]
+  filter_status?: string
+}): Promise<{ status: string; deleted: number }> {
+  const res = await fetch(`${BASE}/tasks/bulk-delete`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return handleResponse(res)
+}

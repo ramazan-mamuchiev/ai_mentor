@@ -20,6 +20,7 @@ from app.admin.schemas import (
     AdminDocumentListResponse,
     AdminDocumentPatchRequest,
     BulkCancelRequest,
+    BulkDeleteRequest,
     ChatStats,
     CostStats,
     DocumentStats,
@@ -1168,6 +1169,109 @@ async def bulk_cancel_tasks(
         return {"status": "ok", "cancelled": cancelled}
 
     raise HTTPException(status_code=400, detail="Provide task_ids or filter_status")
+
+
+@router.delete("/tasks/{document_id_int}/delete")
+async def delete_task(
+    document_id_int: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Permanently delete a document (any status): revoke celery, remove chunks, S3 file, DB row."""
+    from app.celery_app import celery
+    from sqlalchemy import select as sa_select
+    from app.models import Document, Chunk
+    from app.s3 import delete_file
+
+    doc = await session.get(Document, document_id_int)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.celery_task_id:
+        try:
+            celery.control.revoke(doc.celery_task_id, terminate=True)
+        except Exception:
+            logger.warning("Failed to revoke task during delete", extra={
+                "task_id": doc.celery_task_id, "document_id": doc.id,
+            })
+
+    if doc.s3_key:
+        try:
+            delete_file(doc.s3_key)
+        except Exception as e:
+            logger.warning("Failed to delete S3 file", extra={
+                "s3_key": doc.s3_key, "error": str(e),
+            })
+
+    chunks = (await session.execute(
+        sa_select(Chunk).where(Chunk.document_id == doc.id)
+    )).scalars().all()
+    chunk_count = len(chunks)
+    for chunk in chunks:
+        await session.delete(chunk)
+
+    doc_id = doc.id
+    doc_title = doc.title or doc.original_filename
+    doc_status = doc.status
+    await session.delete(doc)
+    await session.commit()
+
+    logger.info("Task permanently deleted", extra={
+        "document_id": doc_id,
+        "document_title": doc_title,
+        "previous_status": doc_status,
+        "chunks_deleted": chunk_count,
+    })
+    return {"status": "deleted", "document_id": doc_id, "chunks_deleted": chunk_count}
+
+
+@router.post("/tasks/bulk-delete")
+async def bulk_delete_tasks(
+    body: BulkDeleteRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Permanently delete multiple documents by IDs or by status filter."""
+    from app.celery_app import celery
+    from sqlalchemy import select as sa_select, delete as sa_delete
+    from app.models import Document, Chunk
+    from app.s3 import delete_file
+
+    deleted = 0
+
+    if body.document_ids:
+        docs = (await session.execute(
+            sa_select(Document).where(Document.id.in_(body.document_ids))
+        )).scalars().all()
+    elif body.filter_status:
+        target = [body.filter_status]
+        if body.filter_status == "stale":
+            target = ["processing"]
+        docs = (await session.execute(
+            sa_select(Document).where(Document.status.in_(target)).limit(500)
+        )).scalars().all()
+    else:
+        raise HTTPException(status_code=400, detail="Provide document_ids or filter_status")
+
+    for doc in docs:
+        if doc.celery_task_id:
+            try:
+                celery.control.revoke(doc.celery_task_id, terminate=True)
+            except Exception:
+                pass
+        if doc.s3_key:
+            try:
+                delete_file(doc.s3_key)
+            except Exception:
+                pass
+
+        await session.execute(
+            sa_delete(Chunk).where(Chunk.document_id == doc.id)
+        )
+        await session.delete(doc)
+        deleted += 1
+
+    await session.commit()
+    logger.info("Bulk delete completed", extra={"deleted": deleted})
+    return {"status": "ok", "deleted": deleted}
 
 
 # ---------------------------------------------------------------------------

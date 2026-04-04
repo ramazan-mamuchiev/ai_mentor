@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import {
   listTasks, listWorkers, cancelTask, retryTask, rescueStaleTasks, bulkCancelTasks,
+  deleteTask, bulkDeleteTasks,
   type TaskItem, type TaskListResponse, type WorkerInfo,
 } from '../../api/admin'
 
@@ -202,6 +203,46 @@ export function TaskQueuePage() {
     })
   }, [selected, fetchData, addToast, t])
 
+  const handleDelete = useCallback((item: TaskItem) => {
+    if (!item.document_id) return
+    setConfirmAction({
+      title: t('admin.tasks.deleteTitle'),
+      message: t('admin.tasks.deleteMsg', { name: item.document_title || `#${item.document_id}` }),
+      onConfirm: async () => {
+        setConfirmAction(null)
+        try {
+          await deleteTask(item.document_id!)
+          addToast(t('admin.tasks.deleteOk'))
+          fetchData()
+        } catch {
+          addToast(t('admin.tasks.deleteFailed'), 'error')
+        }
+      },
+    })
+  }, [fetchData, addToast, t])
+
+  const handleBulkDelete = useCallback(() => {
+    const docIds = data?.items
+      .filter(i => selected.has(i.task_id || '') && i.document_id)
+      .map(i => i.document_id!) || []
+    if (docIds.length === 0) return
+    setConfirmAction({
+      title: t('admin.tasks.bulkDeleteTitle'),
+      message: t('admin.tasks.bulkDeleteMsg', { count: docIds.length }),
+      onConfirm: async () => {
+        setConfirmAction(null)
+        try {
+          const res = await bulkDeleteTasks({ document_ids: docIds })
+          addToast(t('admin.tasks.bulkDeleteOk', { count: res.deleted }))
+          setSelected(new Set())
+          fetchData()
+        } catch {
+          addToast(t('admin.tasks.bulkDeleteFailed'), 'error')
+        }
+      },
+    })
+  }, [data, selected, fetchData, addToast, t])
+
   const toggleSelect = (taskId: string) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -341,13 +382,22 @@ export function TaskQueuePage() {
           </select>
           <div style={{ flex: 1 }} />
           {selected.size > 0 && (
-            <button
-              className="admin-btn admin-btn--sm admin-btn--danger"
-              onClick={handleBulkCancel}
-            >
-              <XCircle size={14} />
-              {t('admin.tasks.cancelSelected', { count: selected.size })}
-            </button>
+            <>
+              <button
+                className="admin-btn admin-btn--sm admin-btn--danger"
+                onClick={handleBulkCancel}
+              >
+                <XCircle size={14} />
+                {t('admin.tasks.cancelSelected', { count: selected.size })}
+              </button>
+              <button
+                className="admin-btn admin-btn--sm admin-btn--danger"
+                onClick={handleBulkDelete}
+              >
+                <Trash2 size={14} />
+                {t('admin.tasks.deleteSelected', { count: selected.size })}
+              </button>
+            </>
           )}
         </div>
 
@@ -479,6 +529,15 @@ export function TaskQueuePage() {
                             title={t('admin.tasks.retryOne')}
                           >
                             <RotateCcw size={15} />
+                          </button>
+                        )}
+                        {item.document_id && (
+                          <button
+                            className="tq-action-btn tq-action-btn--delete"
+                            onClick={() => handleDelete(item)}
+                            title={t('admin.tasks.deleteOne')}
+                          >
+                            <Trash2 size={15} />
                           </button>
                         )}
                       </div>

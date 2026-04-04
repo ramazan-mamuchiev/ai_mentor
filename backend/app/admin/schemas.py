@@ -597,6 +597,10 @@ class RescueResult(BaseModel):
     rescued_documents: int
     rescued_reindex_jobs: int
 
+class BulkDeleteRequest(BaseModel):
+    document_ids: list[int] | None = None
+    filter_status: str | None = None
+
 
 # --- RAG Evaluation ---
 
