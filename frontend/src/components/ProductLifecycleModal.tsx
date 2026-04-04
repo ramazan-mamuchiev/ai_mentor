@@ -496,9 +496,12 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
       await deleteProductLifecycle(productId)
       setData(null)
       onDeleted?.()
+    } catch (err) {
+      console.error('Failed to delete product lifecycle:', err)
+    } finally {
+      setDeleting(false)
       onClose()
-    } catch { /* ignore */ }
-    finally { setDeleting(false) }
+    }
   }
 
   const m = data?.merged

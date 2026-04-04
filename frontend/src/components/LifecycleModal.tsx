@@ -94,9 +94,12 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
       await deleteDocumentLifecycle(documentId)
       setLc(null)
       onDeleted?.()
+    } catch (err) {
+      console.error('Failed to delete lifecycle:', err)
+    } finally {
+      setDeleting(false)
       onClose()
-    } catch { /* ignore */ }
-    finally { setDeleting(false) }
+    }
   }
 
   const hasData = lc && lc.status !== 'not_analyzed'

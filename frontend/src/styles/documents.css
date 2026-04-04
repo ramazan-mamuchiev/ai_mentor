@@ -1915,7 +1915,7 @@ button.docs-lc-badge--partial:hover {
 
 .product-detail-title-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 14px;
   flex-wrap: wrap;
 }
