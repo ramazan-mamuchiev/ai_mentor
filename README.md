@@ -54,7 +54,22 @@ lexiro/
 
 The heart of Lexiro — an MCP server that gives AI coding assistants (Cursor, Windsurf, GitHub Copilot) instant access to indexed product documentation.
 
-3 tools: `search_documentation`, `get_api_endpoint`, `list_products`.
+10 tools:
+
+| Tool | Purpose |
+|------|---------|
+| `search_documentation` | Semantic + hybrid search across all docs |
+| `get_api_lifecycle` | **Full integration blueprint** — auth, init sequence, data models, error handling, code skeleton |
+| `get_api_endpoint` | Look up a specific API endpoint by path |
+| `list_products` | Discover available products |
+| `list_documents` | List documents for a product |
+| `get_document_outline` | Table of contents / heading structure |
+| `get_section` | Full untruncated content of a section |
+| `get_code_examples` | Find code snippets and integration patterns |
+| `get_product_info` | Detailed product summary (versions, doc types, topics) |
+| `grep_docs` | Exact text search (IPs, error codes, params) |
+
+All search tools automatically enrich results with lifecycle context (auth flow, prerequisites, known errors) when available.
 
 See **[MCP Server README](backend/app/mcp/README.md)** for tool reference, quick start, and connection instructions.
 
@@ -74,6 +89,32 @@ Multi-format async pipeline (Celery) with real-time progress tracking:
 | Confluence | Space crawl → parallel page ingestion | Full space import |
 
 Pipeline stages: Download → Convert → Normalize (NFKC) → Parse (heading extraction) → Chunk (atomic blocks, split large, merge small) → LLM Metadata Extraction (Gemini Flash) → Enrich → Embed (Gemini Embedding) → Store (pgvector).
+
+### API Lifecycle Analysis
+
+Deep LLM-powered analysis of API documentation that extracts a complete integration blueprint — triggered manually per document or product.
+
+**What it produces** (10 structured sections):
+
+| Section | Description |
+|---------|-------------|
+| Prerequisites | Base URL, API keys, certificates, SDK requirements |
+| Integration Phases | Ordered steps: auth → init → operations → cleanup, with HTTP method, request/response examples |
+| Data Models | Request/response schemas with field types, constraints, examples |
+| Error Catalog | HTTP statuses, error codes, meanings, recovery actions, retry timings |
+| Data Access Patterns | Pagination, streaming, webhooks, long-polling mechanisms |
+| Unique Patterns | Non-standard API behaviors (heartbeats, custom auth, XML quirks) |
+| Dependency Chains | "Must do A before B" relationships with data flow |
+| Code Skeleton | Production-ready Python code with error handling |
+| Endpoint Coverage | Per-endpoint documentation quality score |
+| Documentation Issues | 16 types of problems found in source docs (contradictions, missing examples, etc.) |
+
+**How it's used:**
+- **MCP**: `get_api_lifecycle` tool returns the full blueprint; all search tools inject compact lifecycle context (auth, prerequisites, errors) into results
+- **Web chat**: RAG automatically enriches LLM context with lifecycle data for better answers
+- **UI**: results viewable in a dedicated modal, downloadable as JSON
+
+**Self-validation**: generated analysis goes through LLM validation + correction loop (up to 3 retries) to ensure completeness and consistency.
 
 ### RAG Chat
 
