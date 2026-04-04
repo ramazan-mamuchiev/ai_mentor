@@ -789,8 +789,8 @@ async def delete_product_lifecycle(product_id: int):
         )
         await session.execute(
             sa_update(Document)
-            .where(Document.product_id == product_id, Document.lifecycle_status.isnot(None))
-            .values(lifecycle_status=None)
+            .where(Document.product_id == product_id, Document.lifecycle_status != "")
+            .values(lifecycle_status="")
         )
         await session.commit()
 

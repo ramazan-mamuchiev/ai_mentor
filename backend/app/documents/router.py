@@ -1176,7 +1176,7 @@ async def delete_document_lifecycle(document_id: int):
                 DocIssueAnnotation.detected_by == "lifecycle_analysis",
             )
         )
-        doc.lifecycle_status = None
+        doc.lifecycle_status = ""
         await session.commit()
 
     return {

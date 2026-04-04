@@ -525,7 +525,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     if (!confirm(t('lifecycleModal.confirmDelete'))) return
     try {
       await deleteDocumentLifecycle(doc.id)
-      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, lifecycle_status: undefined } : d))
+      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, lifecycle_status: '' } : d))
       showToast(t('docs.lifecycle.deleted', { title: doc.title }), 'success')
     } catch {
       showToast(t('docs.lifecycle.deleteError'), 'error')
@@ -1125,7 +1125,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           canRun={canLifecycle}
           onClose={() => setLifecycleTarget(null)}
           onDeleted={() => {
-            setDocuments(prev => prev.map(d => d.id === lifecycleTarget.id ? { ...d, lifecycle_status: undefined } : d))
+            setDocuments(prev => prev.map(d => d.id === lifecycleTarget.id ? { ...d, lifecycle_status: '' } : d))
           }}
         />
       )}
