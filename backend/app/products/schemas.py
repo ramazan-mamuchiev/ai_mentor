@@ -48,6 +48,9 @@ class ProductListItem(BaseModel):
 
     sync_status: str = "idle"
 
+    lifecycle_ready_documents: int = 0
+    has_merged_lifecycle: bool = False
+
     model_config = {"from_attributes": True}
 
 

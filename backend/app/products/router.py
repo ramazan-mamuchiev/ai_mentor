@@ -12,7 +12,7 @@ from app.auth.dependencies import require_permission
 from app.config import settings
 from app.database import async_session
 from app.models import (
-    ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion,
+    ApiLifecycle, ChatMessage, Chunk, Document, DocumentUsageLog, FirmwareVersion,
     Product, ProductSearchKey, SuggestionTemplate,
 )
 from app.products.schemas import (
@@ -232,6 +232,25 @@ async def list_products():
                 FormatCount(format=row.format, count=row.cnt)
             )
 
+        lc_agg_result = await session.execute(
+            select(
+                Document.product_id,
+                func.sum(case((Document.lifecycle_status == "ready", 1), else_=0)).label("lc_ready"),
+            )
+            .group_by(Document.product_id)
+        )
+        lc_map: dict[int, int] = {
+            row.product_id: row.lc_ready for row in lc_agg_result.all()
+        }
+
+        merged_lc_result = await session.execute(
+            select(ApiLifecycle.product_id).where(
+                ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.status == "ready",
+            )
+        )
+        merged_lc_set: set[int] = {row.product_id for row in merged_lc_result.all()}
+
         reset_product_ids: list[int] = []
         items = []
         for p in rows:
@@ -290,6 +309,8 @@ async def list_products():
                 progress_percent=progress_pct,
                 progress_detail=progress_detail,
                 sync_status=sync_st,
+                lifecycle_ready_documents=lc_map.get(p.id, 0),
+                has_merged_lifecycle=p.id in merged_lc_set,
             ))
 
         if reset_product_ids:

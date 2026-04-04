@@ -100,6 +100,10 @@ export async function getProductLifecycle(productId: number): Promise<ProductLif
   return apiFetch<ProductLifecycle>(`/products/${productId}/lifecycle`)
 }
 
+export async function deleteProductLifecycle(productId: number): Promise<{ product_id: number; deleted_count: number }> {
+  return apiFetch(`/products/${productId}/lifecycle`, { method: 'DELETE' })
+}
+
 export async function suggestProducts(q: string = '', limit: number = 20): Promise<ProductSuggestion[]> {
   const params = new URLSearchParams()
   if (q) params.set('q', q)

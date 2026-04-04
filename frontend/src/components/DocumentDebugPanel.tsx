@@ -6,6 +6,7 @@ import type { DocumentDebugInfo, DocumentUsageStats } from '../types'
 import type { DocumentLifecycle } from '../api/documents'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 import { SearchKeysModal } from './SearchKeysModal'
+import { fmtUsd } from '../utils/format'
 
 function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
@@ -439,7 +440,7 @@ export function DocumentDebugContent({ documentId, initialDebug, initialUsage }:
                 </>
               )}
               <div className="doc-debug-row"><span>{t('docDebug.totalContextTokens')}</span><code>{fmt(usage.total_context_tokens)}</code></div>
-              <div className="doc-debug-row"><span>{t('docDebug.totalChargeUsd')}</span><code>${usage.total_charge_usd.toFixed(6)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.totalChargeUsd')}</span><code>{fmtUsd(usage.total_charge_usd)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.avgSimilarity')}</span><code>{fmtPct(usage.avg_similarity)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.firstUsedAt')}</span><code>{fmtDate(usage.first_used_at)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.lastUsedAt')}</span><code>{fmtDate(usage.last_used_at)}</code></div>

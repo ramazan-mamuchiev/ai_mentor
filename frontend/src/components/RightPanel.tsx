@@ -6,6 +6,7 @@ import type { McpRequestDetail } from '../api/admin'
 import { SourceCard } from './SourceCard'
 import { MarkdownPreviewModal } from './MarkdownPreviewModal'
 import { ShareModal } from './ShareModal'
+import { fmtUsd } from '../utils/format'
 
 const MOBILE_BP = 768
 const RATIO_KEY = 'lexiro-right-panel-ratio'
@@ -330,12 +331,6 @@ export function DebugPanelContent({ debug }: { debug: DebugInfo }) {
 function fmtMs(ms: number | null | undefined): string {
   if (ms == null) return '—'
   return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`
-}
-
-function fmtUsd(v: string | null | undefined): string {
-  if (v == null) return '—'
-  const n = parseFloat(v)
-  return isNaN(n) ? v : `$${n.toFixed(6)}`
 }
 
 export function McpDebugPanelContent({ detail, onSwitchToSources }: { detail: McpRequestDetail; onSwitchToSources?: () => void }) {

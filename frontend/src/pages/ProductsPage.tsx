@@ -16,12 +16,17 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
+  Activity,
+  ChevronRight,
+  Play,
+  FileSearch,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
-import { listProducts, deleteProduct, reingestProduct, syncProduct, cancelProductIngestion } from '../api/products'
+import { listProducts, deleteProduct, reingestProduct, syncProduct, cancelProductIngestion, analyzeProductLifecycle, deleteProductLifecycle } from '../api/products'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DocsRightPanel } from '../components/DocsRightPanel'
 import { ProductEditDialog } from '../components/ProductEditDialog'
+import { ProductLifecycleModal } from '../components/ProductLifecycleModal'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { ProductListItem, DocumentStatusValue } from '../types'
@@ -156,6 +161,76 @@ function ProductStatusBadge({ product, onCancel }: { product: ProductListItem; o
   )
 }
 
+function ProductLifecycleSubmenu({
+  product: p,
+  onAnalyze,
+  onView,
+  onDeleteLc,
+  onClose,
+}: {
+  product: ProductListItem
+  onAnalyze?: (p: ProductListItem) => void
+  onView?: (p: ProductListItem) => void
+  onDeleteLc?: (p: ProductListItem) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const subRef = useRef<HTMLDivElement>(null)
+  const [subOpen, setSubOpen] = useState(false)
+  const [flipLeft, setFlipLeft] = useState(false)
+
+  useEffect(() => {
+    if (!subOpen || !wrapperRef.current || !subRef.current) return
+    const wrapperRect = wrapperRef.current.getBoundingClientRect()
+    const subW = subRef.current.offsetWidth || 200
+    const spaceRight = window.innerWidth - wrapperRect.right
+    setFlipLeft(spaceRight < subW + 8)
+  }, [subOpen])
+
+  const hasResults = p.has_merged_lifecycle || p.lifecycle_ready_documents > 0
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="docs-actions-submenu-wrapper"
+      onMouseEnter={() => setSubOpen(true)}
+      onMouseLeave={() => setSubOpen(false)}
+    >
+      <button className="docs-actions-dropdown-item docs-actions-submenu-trigger">
+        <Activity size={15} />
+        API Lifecycle
+        <ChevronRight size={13} className="docs-actions-submenu-arrow" />
+      </button>
+      {subOpen && (
+        <div
+          ref={subRef}
+          className={`docs-actions-submenu${flipLeft ? ' docs-actions-submenu--left' : ''}`}
+        >
+          {onAnalyze && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onAnalyze(p); onClose() }}>
+              <Play size={14} />
+              {t('docs.actions.analyzeLifecycle')}
+            </button>
+          )}
+          {onView && hasResults && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onView(p); onClose() }}>
+              <FileSearch size={14} />
+              {t('docs.actions.viewLifecycle')}
+            </button>
+          )}
+          {hasResults && onDeleteLc && (
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDeleteLc(p); onClose() }}>
+              <Trash2 size={14} />
+              {t('docs.actions.deleteLifecycle')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ProductActions({
   product: p,
   onEdit,
@@ -163,6 +238,9 @@ function ProductActions({
   onReingest,
   onSync,
   onDebug,
+  onAnalyzeLifecycle,
+  onViewLifecycle,
+  onDeleteLifecycle,
 }: {
   product: ProductListItem
   onEdit?: (p: ProductListItem) => void
@@ -170,6 +248,9 @@ function ProductActions({
   onReingest?: (p: ProductListItem) => void
   onSync?: (p: ProductListItem) => void
   onDebug?: (p: ProductListItem) => void
+  onAnalyzeLifecycle?: (p: ProductListItem) => void
+  onViewLifecycle?: (p: ProductListItem) => void
+  onDeleteLifecycle?: (p: ProductListItem) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -255,6 +336,15 @@ function ProductActions({
               {t('products.actions.sync')}
             </button>
           )}
+          {(onAnalyzeLifecycle || onViewLifecycle || onDeleteLifecycle) && (
+            <ProductLifecycleSubmenu
+              product={p}
+              onAnalyze={onAnalyzeLifecycle}
+              onView={onViewLifecycle}
+              onDeleteLc={onDeleteLifecycle}
+              onClose={() => setOpen(false)}
+            />
+          )}
           {onDelete && (
             <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(p); setOpen(false) }}>
               <Trash2 size={15} />
@@ -286,6 +376,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const canDelete = usePermission('products.delete')
   const canReindex = usePermission('documents.reindex')
   const canSync = usePermission('documents.sync')
+  const canLifecycle = usePermission('lifecycle.run')
   const [products, setProducts] = useState<ProductListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [globalFilter, setGlobalFilter] = useState('')
@@ -295,10 +386,20 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const [syncTarget, setSyncTarget] = useState<ProductListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<ProductListItem | null>(null)
   const [debugPanel, setDebugPanel] = useState<ProductListItem | null>(null)
+  const [lifecycleTarget, setLifecycleTarget] = useState<ProductListItem | null>(null)
+  const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' | 'info' } | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
+  const [lifecycleFilter, setLifecycleFilter] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  const showToast = useCallback((message: string, variant: 'success' | 'error' | 'info') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ message, variant })
+    toastTimer.current = setTimeout(() => setToast(null), 4000)
+  }, [])
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -370,6 +471,30 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     setDebugPanel(null)
   }, [])
 
+  const handleAnalyzeLifecycle = useCallback(async (p: ProductListItem) => {
+    try {
+      await analyzeProductLifecycle(p.id)
+      showToast(t('products.lifecycle.started', { name: p.name }), 'success')
+      fetchProducts()
+    } catch {
+      showToast(t('products.lifecycle.error'), 'error')
+    }
+  }, [showToast, t, fetchProducts])
+
+  const handleDeleteLifecycle = useCallback(async (p: ProductListItem) => {
+    try {
+      await deleteProductLifecycle(p.id)
+      setProducts(prev => prev.map(pr => pr.id === p.id ? { ...pr, lifecycle_ready_documents: 0, has_merged_lifecycle: false } : pr))
+      showToast(t('products.lifecycle.deleted', { name: p.name }), 'success')
+    } catch {
+      showToast(t('products.lifecycle.deleteError'), 'error')
+    }
+  }, [showToast, t])
+
+  const lifecycleReadyCount = useMemo(() =>
+    products.filter(p => p.has_merged_lifecycle || p.lifecycle_ready_documents > 0).length
+  , [products])
+
   const formatCounts = useMemo(() => {
     const map = new Map<string, number>()
     for (const p of products) {
@@ -400,33 +525,66 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const clearFilters = useCallback(() => {
     setFormatFilter(new Set())
     setStatusFilter(new Set())
+    setLifecycleFilter(false)
   }, [])
 
-  const hasActiveFilters = formatFilter.size > 0 || statusFilter.size > 0
+  const hasActiveFilters = formatFilter.size > 0 || statusFilter.size > 0 || lifecycleFilter
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const filters: ColumnFiltersState = []
     if (formatFilter.size > 0) filters.push({ id: 'format', value: formatFilter })
     if (statusFilter.size > 0) filters.push({ id: 'status', value: statusFilter })
+    if (lifecycleFilter) filters.push({ id: 'name', value: 'lifecycle_ready' })
     return filters
-  }, [formatFilter, statusFilter])
+  }, [formatFilter, statusFilter, lifecycleFilter])
 
   const columns = useMemo<ColumnDef<ProductListItem, unknown>[]>(() => [
     {
       id: 'name',
       accessorFn: row => row.display_name || row.name,
       header: () => t('products.table.name'),
+      filterFn: (row, _columnId, filterValue) => {
+        if (filterValue === 'lifecycle_ready') {
+          return row.original.has_merged_lifecycle || row.original.lifecycle_ready_documents > 0
+        }
+        return true
+      },
       cell: ({ row }) => {
-        const isDeleting = row.original.sync_status === 'deleting'
+        const p = row.original
+        const isDeleting = p.sync_status === 'deleting'
+        const lcFull = p.has_merged_lifecycle
+        const lcPartial = !lcFull && p.lifecycle_ready_documents > 0
         return (
           <div
             className="docs-name-cell"
             style={{ cursor: isDeleting ? 'default' : 'pointer', opacity: isDeleting ? 0.5 : 1 }}
-            onClick={isDeleting ? undefined : () => navigate(`/app/products/${row.original.slug}`)}
+            onClick={isDeleting ? undefined : () => navigate(`/app/products/${p.slug}`)}
           >
-            <span className="docs-name">{row.original.display_name || row.original.name}</span>
-            {row.original.manufacturer && (
-              <span className="docs-filename">{row.original.manufacturer}</span>
+            <div className="docs-name-row">
+              <span className="docs-name">{p.display_name || p.name}</span>
+              {lcFull && (
+                <button
+                  className="docs-lc-badge docs-lc-badge--ready"
+                  onClick={e => { e.stopPropagation(); setLifecycleTarget(p) }}
+                  title={t('products.lifecycle.badgeFull')}
+                >
+                  <Activity size={10} />
+                  API Lifecycle
+                </button>
+              )}
+              {lcPartial && (
+                <button
+                  className="docs-lc-badge docs-lc-badge--partial"
+                  onClick={e => { e.stopPropagation(); setLifecycleTarget(p) }}
+                  title={t('products.lifecycle.badgePartial', { count: p.lifecycle_ready_documents })}
+                >
+                  <Activity size={10} />
+                  API Lifecycle ({p.lifecycle_ready_documents})
+                </button>
+              )}
+            </div>
+            {p.manufacturer && (
+              <span className="docs-filename">{p.manufacturer}</span>
             )}
           </div>
         )
@@ -514,7 +672,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
       enableGrouping: false,
       sortingFn: 'datetime',
     },
-    ...((canEdit || canDebug || canDelete || canReindex || canSync) ? [{
+    ...((canEdit || canDebug || canDelete || canReindex || canSync || canLifecycle) ? [{
       id: 'actions',
       header: () => t('products.table.actions'),
       enableSorting: false,
@@ -523,10 +681,22 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         const p = row.original
         const isDeleting = p.sync_status === 'deleting'
         if (isDeleting) return null
-        return <ProductActions product={p} onEdit={canEdit ? setEditTarget : undefined} onDelete={canDelete ? setDeleteTarget : undefined} onReingest={canReindex ? setReingestTarget : undefined} onSync={canSync ? setSyncTarget : undefined} onDebug={canDebug ? openDebug : undefined} />
+        return (
+          <ProductActions
+            product={p}
+            onEdit={canEdit ? setEditTarget : undefined}
+            onDelete={canDelete ? setDeleteTarget : undefined}
+            onReingest={canReindex ? setReingestTarget : undefined}
+            onSync={canSync ? setSyncTarget : undefined}
+            onDebug={canDebug ? openDebug : undefined}
+            onAnalyzeLifecycle={canLifecycle ? handleAnalyzeLifecycle : undefined}
+            onViewLifecycle={setLifecycleTarget}
+            onDeleteLifecycle={canLifecycle ? handleDeleteLifecycle : undefined}
+          />
+        )
       },
     }] : []),
-  ], [t, navigate, openDebug, canDebug, canEdit, canDelete, canReindex, canSync])
+  ], [t, navigate, openDebug, canDebug, canEdit, canDelete, canReindex, canSync, canLifecycle, handleAnalyzeLifecycle, handleDeleteLifecycle])
 
   const {
     table,
@@ -553,6 +723,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     setGlobalFilter('')
     setFormatFilter(new Set())
     setStatusFilter(new Set())
+    setLifecycleFilter(false)
   }, [resetSettings])
 
   if (loading) {
@@ -631,7 +802,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
         </div>
       </div>
 
-      {(formatCounts.length > 1 || statusCounts.length > 1) && (
+      {(formatCounts.length > 1 || statusCounts.length > 1 || lifecycleReadyCount > 0) && (
         <div className="docs-filter-bar">
           {formatCounts.length > 1 && (
             <div className="docs-filter-group">
@@ -667,6 +838,20 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
               </div>
             </div>
           )}
+          {lifecycleReadyCount > 0 && (
+            <div className="docs-filter-group">
+              <div className="docs-filter-chips">
+                <button
+                  className={`docs-filter-chip docs-filter-chip--lifecycle${lifecycleFilter ? ' docs-filter-chip--active' : ''}`}
+                  onClick={() => setLifecycleFilter(prev => !prev)}
+                >
+                  <Activity size={12} />
+                  API Lifecycle
+                  <span className="docs-filter-chip-count">{lifecycleReadyCount}</span>
+                </button>
+              </div>
+            </div>
+          )}
           {hasActiveFilters && (
             <button className="docs-filter-clear" onClick={clearFilters}>
               <X size={14} />
@@ -692,6 +877,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           .filter(p => {
             if (formatFilter.size > 0 && !p.formats.some(f => formatFilter.has(f.format))) return false
             if (statusFilter.size > 0 && !statusFilter.has(getProductStatus(p))) return false
+            if (lifecycleFilter && !p.has_merged_lifecycle && p.lifecycle_ready_documents === 0) return false
             if (!globalFilter) return true
             const q = globalFilter.toLowerCase()
             return (
@@ -709,9 +895,29 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
               style={{ cursor: p.sync_status === 'deleting' ? 'default' : 'pointer', opacity: p.sync_status === 'deleting' ? 0.5 : 1 }}
             >
               <div className="docs-card-header">
-                <div className="docs-card-title">
-                  {p.display_name || p.name}
-                  {p.manufacturer && <div className="docs-filename">{p.manufacturer}</div>}
+                <div className="docs-card-title-row">
+                  <div className="docs-card-title">
+                    {p.display_name || p.name}
+                    {p.manufacturer && <div className="docs-filename">{p.manufacturer}</div>}
+                  </div>
+                  {p.has_merged_lifecycle && (
+                    <button
+                      className="docs-lc-badge docs-lc-badge--ready"
+                      onClick={e => { e.stopPropagation(); setLifecycleTarget(p) }}
+                    >
+                      <Activity size={10} />
+                      API Lifecycle
+                    </button>
+                  )}
+                  {!p.has_merged_lifecycle && p.lifecycle_ready_documents > 0 && (
+                    <button
+                      className="docs-lc-badge docs-lc-badge--partial"
+                      onClick={e => { e.stopPropagation(); setLifecycleTarget(p) }}
+                    >
+                      <Activity size={10} />
+                      API Lifecycle ({p.lifecycle_ready_documents})
+                    </button>
+                  )}
                 </div>
                 <ProductStatusBadge product={p} onCancel={() => setCancelTarget(p)} />
               </div>
@@ -832,6 +1038,28 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           onSave={() => { setEditTarget(null); fetchProducts() }}
           onCancel={() => setEditTarget(null)}
         />
+      )}
+
+      {lifecycleTarget && (
+        <ProductLifecycleModal
+          productId={lifecycleTarget.id}
+          productName={lifecycleTarget.name}
+          canRun={canLifecycle}
+          onClose={() => setLifecycleTarget(null)}
+          onDeleted={() => {
+            setProducts(prev => prev.map(p => p.id === lifecycleTarget.id ? { ...p, lifecycle_ready_documents: 0, has_merged_lifecycle: false } : p))
+          }}
+          onAnalyzed={() => fetchProducts()}
+        />
+      )}
+
+      {toast && createPortal(
+        <div className={`docs-toast docs-toast--${toast.variant}`}>
+          {toast.variant === 'success' && <CheckCircle size={16} />}
+          {toast.variant === 'error' && <X size={16} />}
+          {toast.message}
+        </div>,
+        document.body
       )}
     </div>
   )

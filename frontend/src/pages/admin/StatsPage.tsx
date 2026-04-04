@@ -13,6 +13,7 @@ import {
   type UsageStatsResponse,
   type TenantSearchResult,
 } from '../../api/admin'
+import { fmtUsd } from '../../utils/format'
 
 const TABS = ['overview', 'chat', 'documents', 'search', 'mcp', 'costs'] as const
 type Tab = typeof TABS[number]
@@ -74,7 +75,6 @@ function HorizBar({ items, colorVar }: { items: Array<{ label: string; pct: numb
 }
 
 function fmtMs(v: number | null) { return v != null ? `${Math.round(v)}ms` : '—' }
-function fmtUsd(v: string) { return `$${parseFloat(v).toFixed(4)}` }
 
 function fmtBytes(b: number) {
   if (b < 1024) return `${b} B`

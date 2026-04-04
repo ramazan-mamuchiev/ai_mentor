@@ -170,6 +170,9 @@
   font-weight: 700;
   color: var(--text);
   font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stat-card__sub {

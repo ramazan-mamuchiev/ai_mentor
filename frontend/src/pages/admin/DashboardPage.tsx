@@ -6,6 +6,7 @@ import {
   getOverview, getUsageStats,
   type PlatformOverview, type DailyUsageStat,
 } from '../../api/admin'
+import { fmtUsd } from '../../utils/format'
 
 function StatCard({ label, value, sub, variant }: {
   label: string
@@ -99,19 +100,19 @@ export function DashboardPage() {
         />
         <StatCard label={t('admin.dashboard.requests30d')} value={overview.total_requests_30d.toLocaleString()} variant="accent" />
         <StatCard label={t('admin.dashboard.tokens30d')} value={overview.total_tokens_30d.toLocaleString()} />
-        <StatCard label={t('admin.dashboard.revenue30d')} value={`$${overview.total_charge_usd_30d}`} variant="success" />
+        <StatCard label={t('admin.dashboard.revenue30d')} value={fmtUsd(overview.total_charge_usd_30d)} variant="success" />
       </div>
 
       <div className="stats-grid">
         <StatCard
           label={t('admin.dashboard.chatRequests30d')}
           value={overview.chat_requests_30d.toLocaleString()}
-          sub={`${overview.chat_tokens_30d.toLocaleString()} tok · $${overview.chat_charge_usd_30d}`}
+          sub={`${overview.chat_tokens_30d.toLocaleString()} tok · ${fmtUsd(overview.chat_charge_usd_30d)}`}
         />
         <StatCard
           label={t('admin.dashboard.mcpRequests30d')}
           value={overview.mcp_requests_30d.toLocaleString()}
-          sub={`${overview.mcp_tokens_30d.toLocaleString()} tok · $${overview.mcp_charge_usd_30d}`}
+          sub={`${overview.mcp_tokens_30d.toLocaleString()} tok · ${fmtUsd(overview.mcp_charge_usd_30d)}`}
           variant="accent"
         />
       </div>

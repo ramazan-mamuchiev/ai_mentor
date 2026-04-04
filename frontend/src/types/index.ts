@@ -338,6 +338,8 @@ export interface ProductListItem {
   progress_percent: number
   progress_detail: string
   sync_status: 'idle' | 'syncing' | 'reindexing' | 'deleting'
+  lifecycle_ready_documents: number
+  has_merged_lifecycle: boolean
 }
 
 export interface ProductDetail {

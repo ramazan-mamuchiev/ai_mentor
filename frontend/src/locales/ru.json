@@ -604,6 +604,17 @@
   "lifecycleModal.delete": "Удалить результаты анализа",
   "lifecycleModal.confirmDelete": "Удалить результаты API Lifecycle анализа? Это действие необратимо.",
 
+  "products.lifecycle.started": "Анализ API Lifecycle запущен для «{{name}}»",
+  "products.lifecycle.error": "Не удалось запустить анализ API Lifecycle для продукта",
+  "products.lifecycle.deleted": "Результаты API Lifecycle удалены для «{{name}}»",
+  "products.lifecycle.deleteError": "Не удалось удалить результаты API Lifecycle для продукта",
+  "products.lifecycle.confirmDelete": "Удалить ВСЕ результаты API Lifecycle для этого продукта (все документы + объединённый анализ)? Это действие необратимо.",
+  "products.lifecycle.notAnalyzed": "Анализ API Lifecycle ещё не выполнялся для этого продукта. Запустите его — все документы будут проанализированы и объединены.",
+  "products.lifecycle.inProgressHint": "Анализируются документы продукта. Это может занять несколько минут. Вы можете закрыть окно и вернуться позже.",
+  "products.lifecycle.documentsAnalyzed": "Документов проанализировано",
+  "products.lifecycle.badgeFull": "Полный API Lifecycle анализ выполнен",
+  "products.lifecycle.badgePartial": "API Lifecycle: проанализировано {{count}} документов (без объединения)",
+
   "urlImport.button": "Импорт URL",
   "urlImport.title": "Импорт веб-документации",
   "urlImport.url": "URL документации *",

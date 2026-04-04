@@ -11,6 +11,7 @@ import {
 import { usePermission } from '../auth/usePermission'
 import { usePageTour } from '../hooks/usePageTour'
 import { getAnalyticsSteps } from '../tour/steps/analyticsSteps'
+import { fmtUsd } from '../utils/format'
 
 const ALL_TABS = ['overview', 'chat', 'documents', 'search', 'mcp', 'costs'] as const
 type Tab = typeof ALL_TABS[number]
@@ -72,7 +73,6 @@ function HorizBar({ items, colorVar }: { items: Array<{ label: string; pct: numb
 }
 
 function fmtMs(v: number | null) { return v != null ? `${Math.round(v)}ms` : '—' }
-function fmtUsd(v: string) { return `$${parseFloat(v).toFixed(4)}` }
 function fmtBytes(b: number) {
   if (b < 1024) return `${b} B`
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
@@ -98,7 +98,7 @@ function OverviewTab({ days, t }: { days: number; t: any }) {
       <div className="stats-grid">
         <StatCard label={t('analytics.kpiRequests')} value={data.total_requests.toLocaleString()} />
         <StatCard label={t('analytics.kpiTokens')} value={data.total_tokens.toLocaleString()} />
-        <StatCard label={t('analytics.kpiCharge')} value={`$${data.total_charge_usd}`} variant="accent" />
+        <StatCard label={t('analytics.kpiCharge')} value={fmtUsd(data.total_charge_usd)} variant="accent" />
         <StatCard label={t('analytics.kpiActiveKeys')} value={data.active_keys} />
       </div>
 
@@ -127,7 +127,7 @@ function OverviewTab({ days, t }: { days: number; t: any }) {
                 {data.by_key.map((k, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
                     <span><code>{k.key_prefix}…</code> {k.key_name && <span style={{ color: 'var(--text-muted)' }}>{k.key_name}</span>}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>{k.total_requests.toLocaleString()} · ${k.total_charge_usd}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>{k.total_requests.toLocaleString()} · {fmtUsd(k.total_charge_usd)}</span>
                   </div>
                 ))}
               </div>

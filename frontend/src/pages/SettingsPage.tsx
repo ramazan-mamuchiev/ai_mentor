@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext'
 import { usePageTour } from '../hooks/usePageTour'
 import { getSettingsSteps } from '../tour/steps/settingsSteps'
 import { resetAllHelpTours } from '../tour/HelpTourContext'
+import { fmtUsd } from '../utils/format'
 
 type Tab = 'profile' | 'api-keys'
 
@@ -352,7 +353,7 @@ function KeyUsagePanel({ usage }: { usage: ApiKeyUsageResponse }) {
           <span className="kpi-label">{t('analytics.kpiTokens')}</span>
         </div>
         <div className="kpi-card">
-          <span className="kpi-value">${usage.total_charge_usd}</span>
+          <span className="kpi-value">{fmtUsd(usage.total_charge_usd)}</span>
           <span className="kpi-label">{t('analytics.kpiCharge')}</span>
         </div>
       </div>

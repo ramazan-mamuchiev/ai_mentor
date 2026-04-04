@@ -836,6 +836,50 @@ button.docs-lc-badge--error:hover {
   box-shadow: 0 0 10px rgba(201, 42, 42, 0.4);
 }
 
+.docs-lc-badge--partial {
+  background: linear-gradient(135deg, #1c7ed6, #339af0);
+  color: #fff;
+  box-shadow: 0 0 6px rgba(28, 126, 214, 0.3);
+}
+
+button.docs-lc-badge--partial:hover {
+  box-shadow: 0 0 14px rgba(28, 126, 214, 0.5);
+}
+
+[data-theme="dark"] .docs-lc-badge--partial {
+  background: linear-gradient(135deg, #1864ab, #1c7ed6);
+  box-shadow: 0 0 10px rgba(28, 126, 214, 0.4);
+}
+
+[data-theme="dark"] button.docs-lc-badge--partial:hover {
+  box-shadow: 0 0 18px rgba(28, 126, 214, 0.6);
+}
+
+.plc-modal-doc-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.plc-doc-label { color: var(--text-secondary); }
+.plc-doc-ready { color: #12b886; font-weight: 600; }
+.plc-doc-running { color: #fab005; font-weight: 600; }
+.plc-doc-error { color: #e03131; font-weight: 600; }
+.plc-doc-total { color: var(--text-tertiary); }
+
+.plc-modal-doc-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  margin-top: 12px;
+}
+
 .docs-th--actions .docs-th-inner {
   gap: 8px;
 }

@@ -44,9 +44,7 @@ export function fmtDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-export function fmtUsd(v: string | number): string {
-  return `$${parseFloat(String(v)).toFixed(6)}`
-}
+export { fmtUsd } from './format'
 
 export function downloadBlob(content: string, filename: string, mime: string): void {
   const blob = new Blob([content], { type: mime })
