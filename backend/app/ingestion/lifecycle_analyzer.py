@@ -827,6 +827,111 @@ def analyze_document_lifecycle_sync(
 
 
 # ---------------------------------------------------------------------------
+# Merge helpers
+# ---------------------------------------------------------------------------
+
+_MERGE_BATCH_SIZE = 10
+
+
+def _lc_to_merge_dict(lc) -> dict:
+    """Convert an ApiLifecycle ORM object to a dict suitable for the merge prompt."""
+    return {
+        "document_id": lc.document_id,
+        "phases": lc.phases or [],
+        "unique_patterns": lc.unique_patterns or [],
+        "dependency_chains": lc.dependency_chains or [],
+        "code_skeleton": lc.code_skeleton or "",
+        "data_models": lc.data_models or [],
+        "error_catalog": lc.error_catalog or [],
+        "prerequisites": lc.prerequisites or [],
+        "data_access_patterns": lc.data_access_patterns or [],
+        "endpoint_coverage": lc.endpoint_coverage or [],
+        "integration_data_flows": lc.integration_data_flows or {},
+    }
+
+
+def _result_to_merge_dict(result: LifecycleResult) -> dict:
+    """Convert a LifecycleResult to a dict suitable for the merge prompt."""
+    return {
+        "phases": result.phases,
+        "unique_patterns": result.unique_patterns,
+        "dependency_chains": result.dependency_chains,
+        "code_skeleton": result.code_skeleton,
+        "data_models": result.data_models,
+        "error_catalog": result.error_catalog,
+        "prerequisites": result.prerequisites,
+        "data_access_patterns": result.data_access_patterns,
+        "endpoint_coverage": result.endpoint_coverage,
+        "integration_data_flows": result.integration_data_flows,
+    }
+
+
+def _merge_batch(batch_data: list[dict], usage: LifecycleUsage) -> LifecycleResult | None:
+    """Merge a single batch of lifecycle dicts via one LLM call."""
+    merge_prompt = _MERGE_PROMPT.format(
+        count=len(batch_data),
+        lifecycles_json=json.dumps(batch_data, indent=2, ensure_ascii=False),
+    )
+
+    raw, llm_usage, call_ms = _call_llm_sync(
+        "You are an API integration analyst. Merge multiple lifecycle analyses into one.",
+        merge_prompt,
+    )
+    usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
+    usage.completion_tokens += llm_usage.get("completion_tokens", 0)
+    usage.thinking_tokens += llm_usage.get("thinking_tokens", 0)
+    usage.llm_ms += call_ms
+    usage.llm_calls += 1
+
+    parsed = _parse_lifecycle_json(raw)
+    if parsed is None:
+        return None
+
+    return _lifecycle_from_parsed(parsed, usage)
+
+
+def _hierarchical_merge(all_data: list[dict], usage: LifecycleUsage) -> LifecycleResult | None:
+    """Recursively merge lifecycle dicts in batches of _MERGE_BATCH_SIZE.
+
+    Level 0: merge raw doc lifecycles in batches → intermediate results
+    Level 1+: merge intermediate results in batches → until 1 remains
+    """
+    current_level = all_data
+
+    level = 0
+    while len(current_level) > 1:
+        logger.info(
+            "Hierarchical merge level %d: %d items in batches of %d",
+            level, len(current_level), _MERGE_BATCH_SIZE,
+        )
+
+        next_level: list[dict] = []
+        for i in range(0, len(current_level), _MERGE_BATCH_SIZE):
+            batch = current_level[i : i + _MERGE_BATCH_SIZE]
+
+            if len(batch) == 1:
+                next_level.append(batch[0])
+                continue
+
+            result = _merge_batch(batch, usage)
+            if result is None:
+                logger.warning("Batch merge failed at level %d, batch %d", level, i // _MERGE_BATCH_SIZE)
+                next_level.append(batch[0])
+                continue
+
+            next_level.append(_result_to_merge_dict(result))
+
+        current_level = next_level
+        level += 1
+
+    if not current_level:
+        return None
+
+    final = current_level[0]
+    return _lifecycle_from_parsed(final, usage)
+
+
+# ---------------------------------------------------------------------------
 # Public API: per-product merge
 # ---------------------------------------------------------------------------
 
@@ -835,6 +940,10 @@ def merge_product_lifecycle_sync(
     session,
 ) -> tuple[LifecycleResult, list[DocIssue]]:
     """Merge all document-level lifecycles for a product into one.
+
+    Uses hierarchical merge when document count exceeds _MERGE_BATCH_SIZE:
+    splits into batches, merges each batch, then merges the batch results
+    recursively until one final lifecycle remains.
 
     If only 1 doc-level lifecycle exists, copies it (no LLM call).
 
@@ -878,49 +987,28 @@ def merge_product_lifecycle_sync(
             prerequisites=lc.prerequisites or [],
             data_access_patterns=lc.data_access_patterns or [],
             endpoint_coverage=lc.endpoint_coverage or [],
+            integration_data_flows=lc.integration_data_flows or {},
             usage=usage,
         )
         usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
         return result, []
 
-    lifecycles_data = []
-    for lc in doc_lifecycles:
-        lifecycles_data.append({
-            "document_id": lc.document_id,
-            "phases": lc.phases or [],
-            "unique_patterns": lc.unique_patterns or [],
-            "dependency_chains": lc.dependency_chains or [],
-            "code_skeleton": lc.code_skeleton or "",
-            "data_models": lc.data_models or [],
-            "error_catalog": lc.error_catalog or [],
-            "prerequisites": lc.prerequisites or [],
-            "data_access_patterns": lc.data_access_patterns or [],
-            "endpoint_coverage": lc.endpoint_coverage or [],
-        })
+    lifecycles_data = [_lc_to_merge_dict(lc) for lc in doc_lifecycles]
 
-    merge_prompt = _MERGE_PROMPT.format(
-        count=len(lifecycles_data),
-        lifecycles_json=json.dumps(lifecycles_data, indent=2, ensure_ascii=False),
-    )
+    if len(lifecycles_data) <= _MERGE_BATCH_SIZE:
+        result = _merge_batch(lifecycles_data, usage)
+    else:
+        logger.info(
+            "Starting hierarchical merge for product %d: %d documents",
+            product_id, len(lifecycles_data),
+        )
+        result = _hierarchical_merge(lifecycles_data, usage)
 
-    raw, llm_usage, call_ms = _call_llm_sync(
-        "You are an API integration analyst. Merge multiple lifecycle analyses into one.",
-        merge_prompt,
-    )
-    usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
-    usage.completion_tokens += llm_usage.get("completion_tokens", 0)
-    usage.thinking_tokens += llm_usage.get("thinking_tokens", 0)
-    usage.llm_ms += call_ms
-    usage.llm_calls += 1
-
-    parsed = _parse_lifecycle_json(raw)
-    if parsed is None:
+    if result is None:
         return LifecycleResult(
             validation_issues=[{"error": "Failed to parse merged lifecycle JSON"}],
             usage=usage,
         ), []
-
-    result = _lifecycle_from_parsed(parsed, usage)
 
     all_chunk_contents: list[str] = []
     from app.models import Chunk
