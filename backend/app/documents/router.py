@@ -563,6 +563,7 @@ async def ingest_archive(
     results: list[ArchiveFileResult] = []
     accepted = 0
     skipped = 0
+    replaced = 0
     errors = 0
 
     async with async_session() as session:
@@ -603,17 +604,22 @@ async def ingest_archive(
             try:
                 entry_hash = hashlib.sha256(entry_data).hexdigest()
 
-                if not force:
-                    existing = await _find_by_hash(session, entry_hash)
-                    if existing is not None:
-                        skipped += 1
-                        results.append(ArchiveFileResult(
-                            filename=arc_path,
-                            status="skipped",
-                            document_id=existing.id,
-                            message=f"Duplicate of «{existing.title}» (id={existing.id})",
-                        ))
-                        continue
+                existing_by_hash = await _find_by_hash(session, entry_hash, product.id, fw.id)
+                if existing_by_hash is not None:
+                    skipped += 1
+                    results.append(ArchiveFileResult(
+                        filename=arc_path,
+                        status="skipped",
+                        document_id=existing_by_hash.id,
+                        message=f"Unchanged: «{existing_by_hash.title}» (id={existing_by_hash.id})",
+                    ))
+                    continue
+
+                replaced_id = None
+                existing_by_name = await _find_by_filename(session, entry_filename, product.id, fw.id)
+                if existing_by_name is not None:
+                    replaced_id = await _remove_old_document(session, existing_by_name)
+                    replaced += 1
 
                 doc = Document(
                     product_id=product.id,
@@ -642,12 +648,13 @@ async def ingest_archive(
                 task = ingest_document_task.delay(doc.id)
 
                 accepted += 1
+                msg = f"Replaced old document (id={replaced_id})" if replaced_id else "Queued for processing"
                 results.append(ArchiveFileResult(
                     filename=arc_path,
-                    status="pending",
+                    status="replaced" if replaced_id else "pending",
                     document_id=doc.id,
                     task_id=task.id,
-                    message="Queued for processing",
+                    message=msg,
                 ))
 
             except Exception as e:
@@ -670,6 +677,7 @@ async def ingest_archive(
             "total_files": len(entries),
             "accepted": accepted,
             "skipped": skipped,
+            "replaced": replaced,
             "errors": errors,
         },
     )
@@ -679,6 +687,7 @@ async def ingest_archive(
         total_files=len(entries),
         accepted=accepted,
         skipped=skipped,
+        replaced=replaced,
         errors=errors,
         files=results,
     )
@@ -1606,6 +1615,58 @@ async def _find_by_hash(
         ).limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def _find_by_filename(
+    session, original_filename: str, product_id: int, firmware_version_id: int
+) -> Document | None:
+    """Find existing document by filename within same product+version (for replacement)."""
+    result = await session.execute(
+        select(Document).where(
+            Document.original_filename == original_filename,
+            Document.product_id == product_id,
+            Document.firmware_version_id == firmware_version_id,
+        ).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _remove_old_document(session, doc: Document) -> int:
+    """Delete a document and its S3 file. Chunks/lifecycle/annotations cascade in DB.
+
+    Returns the id of the removed document.
+    """
+    old_id = doc.id
+    old_title = doc.title or doc.original_filename
+
+    if doc.s3_key:
+        try:
+            delete_file(doc.s3_key)
+        except Exception:
+            logger.warning("Failed to delete S3 file for replaced document",
+                           extra={"s3_key": doc.s3_key, "document_id": old_id})
+
+    if doc.converted_s3_key:
+        try:
+            delete_file(doc.converted_s3_key)
+        except Exception:
+            logger.warning("Failed to delete converted S3 file for replaced document",
+                           extra={"s3_key": doc.converted_s3_key, "document_id": old_id})
+
+    if doc.celery_task_id:
+        try:
+            from app.celery_app import celery
+            celery.control.revoke(doc.celery_task_id, terminate=True)
+        except Exception:
+            logger.warning("Failed to revoke celery task for replaced document",
+                           extra={"task_id": doc.celery_task_id, "document_id": old_id})
+
+    await session.delete(doc)
+    await session.flush()
+
+    logger.info("Old document removed (replaced by new upload)",
+                extra={"document_id": old_id, "title": old_title})
+    return old_id
 
 
 async def _get_or_create_product(session, name: str, manufacturer: str, *, tenant_id=None):

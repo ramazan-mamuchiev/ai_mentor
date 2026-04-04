@@ -80,6 +80,7 @@ class ArchiveIngestResponse(BaseModel):
     total_files: int
     accepted: int
     skipped: int
+    replaced: int = 0
     errors: int
     files: list[ArchiveFileResult]
 

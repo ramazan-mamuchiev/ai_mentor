@@ -572,7 +572,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     } finally {
       setDeleteLcTarget(null)
     }
-  }, [showToast, t])
+  }, [deleteLcTarget, showToast, t])
 
   const closeDebug = useCallback(() => {
     setDebugPanel(null)
