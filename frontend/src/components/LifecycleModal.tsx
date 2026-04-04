@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  X, Loader2, AlertCircle, Activity, Maximize2, Minimize2,
+  X, Loader2, AlertCircle, Activity, Maximize2, Minimize2, Download,
   Play, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, Trash2,
 } from 'lucide-react'
 import { getDocumentLifecycle, analyzeDocumentLifecycle, deleteDocumentLifecycle } from '../api/documents'
@@ -93,6 +93,37 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
     finally { setDeleting(false) }
   }
 
+  const handleDownload = () => {
+    if (!lc) return
+    const payload = {
+      document: documentTitle,
+      status: lc.status,
+      phases: lc.phases,
+      unique_patterns: lc.unique_patterns,
+      dependency_chains: lc.dependency_chains,
+      code_skeleton: lc.code_skeleton,
+      doc_issues: lc.doc_issues,
+      data_models: lc.data_models,
+      error_catalog: lc.error_catalog,
+      prerequisites: lc.prerequisites,
+      data_access_patterns: lc.data_access_patterns,
+      endpoint_coverage: lc.endpoint_coverage,
+      model: lc.model,
+      analysis_ms: lc.analysis_ms,
+      prompt_tokens: lc.prompt_tokens,
+      completion_tokens: lc.completion_tokens,
+      validation_retries: lc.validation_retries,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const safeName = documentTitle.replace(/[^a-zA-Z0-9_\-а-яА-ЯёЁ ]/g, '').replace(/\s+/g, '_')
+    a.download = `lifecycle_${safeName}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const hasData = lc && lc.status !== 'not_analyzed'
   const hasResults = hasData && !isInProgress(lc?.status)
   const phases = lc?.phases ?? []
@@ -141,14 +172,23 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                   </span>
                 </button>
                 {hasResults && (
-                  <button
-                    className="lc-modal-delete-btn"
-                    onClick={handleDelete}
-                    disabled={deleting || analysisRunning}
-                    title={t('lifecycleModal.delete')}
-                  >
-                    {deleting ? <Loader2 size={13} className="spin-icon" /> : <Trash2 size={13} />}
-                  </button>
+                  <>
+                    <button
+                      className="lc-modal-download-btn"
+                      onClick={handleDownload}
+                      title={t('lifecycleModal.download')}
+                    >
+                      <Download size={13} />
+                    </button>
+                    <button
+                      className="lc-modal-delete-btn"
+                      onClick={handleDelete}
+                      disabled={deleting || analysisRunning}
+                      title={t('lifecycleModal.delete')}
+                    >
+                      {deleting ? <Loader2 size={13} className="spin-icon" /> : <Trash2 size={13} />}
+                    </button>
+                  </>
                 )}
               </>
             )}

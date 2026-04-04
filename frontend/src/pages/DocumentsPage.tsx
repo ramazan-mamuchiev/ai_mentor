@@ -23,6 +23,8 @@ import {
   Key,
   Activity,
   FileSearch,
+  ChevronRight,
+  Play,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
 import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle, deleteDocumentLifecycle } from '../api/documents'
@@ -338,23 +340,34 @@ function DocActions({
               {t('docs.actions.searchKeys')}
             </button>
           )}
-          {doc.status === 'ready' && onAnalyzeLifecycle && (
-            <button className="docs-actions-dropdown-item" onClick={() => { onAnalyzeLifecycle(doc); setOpen(false) }}>
-              <Activity size={15} />
-              {t('docs.actions.analyzeLifecycle')}
-            </button>
-          )}
-          {doc.status === 'ready' && onViewLifecycle && (
-            <button className="docs-actions-dropdown-item" onClick={() => { onViewLifecycle(doc); setOpen(false) }}>
-              <Activity size={15} />
-              {t('docs.actions.viewLifecycle')}
-            </button>
-          )}
-          {doc.lifecycle_status === 'ready' && onDeleteLifecycle && (
-            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDeleteLifecycle(doc); setOpen(false) }}>
-              <Trash2 size={15} />
-              {t('docs.actions.deleteLifecycle')}
-            </button>
+          {doc.status === 'ready' && (onAnalyzeLifecycle || onViewLifecycle) && (
+            <div className="docs-actions-submenu-wrapper">
+              <button className="docs-actions-dropdown-item docs-actions-submenu-trigger">
+                <Activity size={15} />
+                API Lifecycle
+                <ChevronRight size={13} className="docs-actions-submenu-arrow" />
+              </button>
+              <div className="docs-actions-submenu">
+                {onAnalyzeLifecycle && (
+                  <button className="docs-actions-dropdown-item" onClick={() => { onAnalyzeLifecycle(doc); setOpen(false) }}>
+                    <Play size={14} />
+                    {t('docs.actions.analyzeLifecycle')}
+                  </button>
+                )}
+                {onViewLifecycle && (
+                  <button className="docs-actions-dropdown-item" onClick={() => { onViewLifecycle(doc); setOpen(false) }}>
+                    <FileSearch size={14} />
+                    {t('docs.actions.viewLifecycle')}
+                  </button>
+                )}
+                {doc.lifecycle_status === 'ready' && onDeleteLifecycle && (
+                  <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDeleteLifecycle(doc); setOpen(false) }}>
+                    <Trash2 size={14} />
+                    {t('docs.actions.deleteLifecycle')}
+                  </button>
+                )}
+              </div>
+            </div>
           )}
           {onDelete && (
             <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>

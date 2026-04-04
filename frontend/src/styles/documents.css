@@ -1356,6 +1356,55 @@ button.docs-lc-badge--error:hover {
   opacity: 0.7;
 }
 
+/* ── Lifecycle submenu ── */
+.docs-actions-submenu-wrapper {
+  position: relative;
+}
+
+.docs-actions-submenu-trigger {
+  justify-content: flex-start;
+}
+
+.docs-actions-submenu-arrow {
+  margin-left: auto;
+  opacity: 0.5;
+}
+
+.docs-actions-submenu {
+  display: none;
+  position: absolute;
+  top: -4px;
+  left: 100%;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 10000;
+}
+
+.docs-actions-submenu-wrapper:hover > .docs-actions-submenu {
+  display: block;
+}
+
+.docs-actions-submenu-wrapper:hover > .docs-actions-submenu-trigger {
+  background: var(--surface-hover);
+}
+
+[data-theme='dark'] .docs-actions-submenu {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Flip submenu left when too close to right edge (handled by JS if needed, 
+   but also fallback: if submenu overflows viewport, flip direction) */
+@media (max-width: 600px) {
+  .docs-actions-submenu {
+    left: auto;
+    right: 100%;
+  }
+}
+
 .docs-actions-backdrop {
   position: fixed;
   inset: 0;
@@ -3301,6 +3350,24 @@ button.docs-lc-badge--error:hover {
   padding: 8px 20px;
   font-size: 14px;
   border-radius: 8px;
+}
+
+.lc-modal-download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.lc-modal-download-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .lc-modal-delete-btn {

@@ -568,8 +568,12 @@ async def tool_get_api_endpoint(
     if not results:
         response_text = f"No documentation found for endpoint '{endpoint}'. Try search_documentation with a broader query."
     else:
+        lifecycle_prefix = await _get_lifecycle_prefix_for_results(results)
+
         seen_parents: set[str] = set()
         parts: list[str] = []
+        if lifecycle_prefix:
+            parts.append(lifecycle_prefix)
         for i, r in enumerate(results, 1):
             match_type = r.get("match_type", "vector")
             meta = _format_mcp_meta(i, r)
@@ -646,7 +650,7 @@ async def tool_list_products(
 
     Args:
         category: Filter by category slug.
-            Examples: "video_surveillance", "access_control", "intercom", "perimeter_security", "protocols", "software"
+            Examples: "video_surveillance", "access_control", "intercom", "perimeter_security", "software", "platform", "internal_docs", "protocols"
         query: Search products by name or manufacturer.
             Examples: "Hikvision", "Axxon", "DS-2CD"
     """
@@ -1100,6 +1104,7 @@ async def tool_get_code_examples(
                 c.doc_type,
                 c.entities,
                 d.title AS doc_title,
+                p.id AS product_id,
                 p.name AS product_name,
                 fw.version AS firmware_version
             FROM chunks c
@@ -1129,11 +1134,16 @@ async def tool_get_code_examples(
             fallback_hint = f" Try search_documentation with query '{topic} example code'."
         response_text = f"No code examples found for '{product}'.{fallback_hint}"
     else:
+        row_dicts = [dict(row) for row in rows]
+        lifecycle_prefix = await _get_lifecycle_prefix_for_results(row_dicts)
+
         seen_parents: set[str] = set()
         parts: list[str] = []
-        for i, row in enumerate(rows, 1):
-            meta = _format_mcp_meta(i, dict(row))
-            body = _format_mcp_body(dict(row), seen_parents)
+        if lifecycle_prefix:
+            parts.append(lifecycle_prefix)
+        for i, rd in enumerate(row_dicts, 1):
+            meta = _format_mcp_meta(i, rd)
+            body = _format_mcp_body(rd, seen_parents)
             parts.append(f"{meta}\n\n{body}")
         response_text = "\n\n---\n\n".join(parts)
 
