@@ -526,12 +526,19 @@ def _validate_lifecycle(
 
 def _extract_lifecycle(doc_text: str, usage: LifecycleUsage) -> LifecycleResult:
     """Single LLM call to extract lifecycle from document text."""
+    logger.info("Lifecycle extraction LLM call starting",
+                extra={"doc_len": len(doc_text), "model": settings.lifecycle_analysis_model})
     raw, llm_usage, call_ms = _call_llm_sync(_EXTRACTION_PROMPT, doc_text)
     usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
     usage.completion_tokens += llm_usage.get("completion_tokens", 0)
     usage.thinking_tokens += llm_usage.get("thinking_tokens", 0)
     usage.llm_ms += call_ms
     usage.llm_calls += 1
+    logger.info("Lifecycle extraction LLM call completed",
+                extra={"call_ms": call_ms,
+                        "prompt_tokens": llm_usage.get("prompt_tokens", 0),
+                        "completion_tokens": llm_usage.get("completion_tokens", 0),
+                        "response_len": len(raw) if raw else 0})
 
     parsed = _parse_lifecycle_json(raw)
     if parsed is None:

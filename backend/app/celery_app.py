@@ -2895,6 +2895,9 @@ def analyze_api_lifecycle_task(self, document_id: int):
     from app.billing.usage_writer import write_usage_log_sync
     from app.billing.pricing import calculate_llm_cogs, calculate_llm_charge
 
+    logger.info("Lifecycle analysis STARTED",
+                extra={"document_id": document_id, "task_id": self.request.id})
+
     if not settings.lifecycle_analysis_enabled:
         return {"status": "skipped", "reason": "lifecycle_analysis_enabled=False"}
 
@@ -3042,10 +3045,17 @@ def analyze_api_lifecycle_task(self, document_id: int):
             logger.info("Lifecycle analysis completed",
                         extra={
                             "document_id": document_id,
+                            "status": effective_status,
                             "phases": len(result.phases),
+                            "data_models": len(result.data_models),
+                            "errors_catalog": len(result.error_catalog),
+                            "prerequisites": len(result.prerequisites),
+                            "endpoint_coverage": len(result.endpoint_coverage),
                             "patterns": len(result.unique_patterns),
                             "doc_issues": len(doc_issues),
                             "retries": result.validation_retries,
+                            "prompt_tokens": result.usage.prompt_tokens,
+                            "completion_tokens": result.usage.completion_tokens,
                             "analysis_ms": result.usage.analysis_ms,
                         })
             return {"status": "ok", "document_id": document_id, "phases": len(result.phases)}
@@ -3063,6 +3073,9 @@ def analyze_api_lifecycle_task(self, document_id: int):
              soft_time_limit=300, time_limit=360)
 def merge_product_lifecycle_task(self, product_id: int):
     """Merge all document-level lifecycles for a product into one."""
+    logger.info("Product lifecycle merge STARTED",
+                extra={"product_id": product_id, "task_id": self.request.id})
+
     from datetime import datetime, timezone as _tz
     from app.models import Base, ApiLifecycle, DocIssueAnnotation, Product
     from app.ingestion.lifecycle_analyzer import merge_product_lifecycle_sync
