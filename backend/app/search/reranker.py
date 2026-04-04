@@ -199,7 +199,7 @@ async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResul
         if scores is not None:
             break
         if attempt < _MAX_RERANK_ATTEMPTS - 1:
-            logger.info("Retrying rerank after parse failure", extra={"attempt": attempt + 1})
+            logger.warning("Retrying rerank after parse failure", extra={"attempt": attempt + 1})
 
     if scores is None:
         logger.warning("Gemini rerank failed after retries, falling back to original order")
