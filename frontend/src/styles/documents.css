@@ -4132,3 +4132,60 @@ button.docs-lc-badge--partial:hover {
 .lc-modal-collapse-btn:hover {
   color: var(--text-primary); border-color: var(--text-secondary);
 }
+
+/* --- Integration Data Flows --- */
+.lc-data-flows {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.lc-data-flows-diagram {
+  background: var(--docs-card-bg, #fff);
+  border: 1px solid var(--docs-table-border, #e0e0e0);
+  border-radius: 8px; padding: 16px; overflow-x: auto;
+  text-align: center;
+}
+.lc-data-flows-diagram svg { max-width: 100%; height: auto; }
+[data-theme="dark"] .lc-data-flows-diagram { background: rgba(255,255,255,.04); }
+.lc-mermaid-error {
+  color: #fa5252; font-size: 11px; padding: 8px; white-space: pre-wrap;
+}
+.lc-mermaid-placeholder {
+  color: var(--text-secondary); font-size: 12px; padding: 12px; text-align: center;
+}
+.lc-data-flows-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.lc-data-flows-table th {
+  text-align: left; padding: 6px 8px; font-weight: 600; font-size: 11px;
+  color: var(--text-secondary); border-bottom: 1px solid var(--docs-table-border, #e0e0e0);
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.lc-data-flows-table td {
+  padding: 5px 8px; border-bottom: 1px solid var(--docs-table-border, #eee);
+  vertical-align: top;
+}
+.lc-data-flows-table code { font-size: 11px; }
+.lc-df-arrow {
+  text-align: center; font-weight: bold; color: var(--docs-accent, #228be6);
+  padding: 5px 2px !important; width: 20px;
+}
+.lc-df-type {
+  display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px;
+  font-weight: 500; text-transform: uppercase; letter-spacing: .3px;
+}
+.lc-df-type--external { background: #e3fafc; color: #0c8599; }
+.lc-df-type--service { background: #e8f5e9; color: #2e7d32; }
+.lc-df-type--gateway { background: #fff3e0; color: #e65100; }
+.lc-df-type--hardware { background: #fce4ec; color: #c62828; }
+.lc-df-type--storage { background: #ede7f6; color: #4527a0; }
+.lc-df-type--queue { background: #fff8e1; color: #f57f17; }
+[data-theme="dark"] .lc-df-type--external { background: rgba(12,133,153,.2); color: #63e6be; }
+[data-theme="dark"] .lc-df-type--service { background: rgba(46,125,50,.2); color: #69db7c; }
+[data-theme="dark"] .lc-df-type--gateway { background: rgba(230,81,0,.2); color: #ffa94d; }
+[data-theme="dark"] .lc-df-type--hardware { background: rgba(198,40,40,.2); color: #ff8787; }
+[data-theme="dark"] .lc-df-type--storage { background: rgba(69,39,160,.2); color: #b197fc; }
+[data-theme="dark"] .lc-df-type--queue { background: rgba(245,127,23,.2); color: #ffd43b; }
+.lc-df-protocol {
+  display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  background: rgba(0,0,0,.06); color: var(--text-secondary); font-weight: 500;
+}
+[data-theme="dark"] .lc-df-protocol { background: rgba(255,255,255,.08); }

@@ -11,6 +11,7 @@ import {
 import type { ProductLifecycle, LifecyclePayload } from '../api/products'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ShareModal } from './ShareModal'
+import { MermaidDiagram } from './MermaidDiagram'
 
 const POLL_INTERVAL = 4000
 
@@ -50,7 +51,7 @@ interface LifecycleContentProps {
 export function LifecycleContent({ lc, issues = [], aggregatedUsage }: LifecycleContentProps) {
   const { t } = useTranslation()
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    prereqs: true, phases: true, dataModels: true, errors: true,
+    prereqs: true, dataFlows: true, phases: true, dataModels: true, errors: true,
     accessPatterns: true, patterns: true, deps: true, skeleton: false,
     coverage: true, issues: true,
   })
@@ -64,6 +65,10 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
   const prereqs = lc.prerequisites ?? []
   const accessPatterns = lc.data_access_patterns ?? []
   const coverage = lc.endpoint_coverage ?? []
+  const dataFlows = lc.integration_data_flows ?? {}
+  const flowComponents = dataFlows.components ?? []
+  const flowEdges = dataFlows.flows ?? []
+  const flowMermaid = dataFlows.diagram_mermaid ?? ''
   const avgCompleteness = coverage.length > 0
     ? Math.round(coverage.reduce((s: number, e: { completeness?: number }) => s + (e.completeness ?? 0), 0) / coverage.length * 100)
     : null
@@ -151,6 +156,51 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
                       {p.how_to_obtain && <div className="lc-modal-prereq-how">{p.how_to_obtain}</div>}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(flowComponents.length > 0 || flowEdges.length > 0) && (
+            <div className="lc-modal-section">
+              <button className="lc-modal-section-toggle" onClick={() => toggle('dataFlows')}>
+                {openSections.dataFlows ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                <span>{t('lifecycle.dataFlows', 'Integration Data Flows')}</span>
+                <span className="lc-modal-count">{flowComponents.length} / {flowEdges.length}</span>
+              </button>
+              {openSections.dataFlows && (
+                <div className="lc-data-flows">
+                  {flowMermaid && <MermaidDiagram chart={flowMermaid} className="lc-data-flows-diagram" />}
+                  {flowComponents.length > 0 && (
+                    <table className="lc-data-flows-table">
+                      <thead><tr><th>{t('lifecycle.dfComponent', 'Component')}</th><th>{t('lifecycle.dfType', 'Type')}</th><th>{t('lifecycle.dfDescription', 'Description')}</th></tr></thead>
+                      <tbody>
+                        {flowComponents.map((c, i) => (
+                          <tr key={i}>
+                            <td><strong>{c.name}</strong></td>
+                            <td><span className={`lc-df-type lc-df-type--${c.type}`}>{c.type}</span></td>
+                            <td>{c.description}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {flowEdges.length > 0 && (
+                    <table className="lc-data-flows-table">
+                      <thead><tr><th>{t('lifecycle.dfFrom', 'From')}</th><th></th><th>{t('lifecycle.dfTo', 'To')}</th><th>{t('lifecycle.dfLabel', 'Data')}</th><th>{t('lifecycle.dfProtocol', 'Protocol')}</th></tr></thead>
+                      <tbody>
+                        {flowEdges.map((f, i) => (
+                          <tr key={i}>
+                            <td><code>{f.from}</code></td>
+                            <td className="lc-df-arrow">→</td>
+                            <td><code>{f.to}</code></td>
+                            <td>{f.label}</td>
+                            <td><span className="lc-df-protocol">{f.protocol}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               )}
             </div>
