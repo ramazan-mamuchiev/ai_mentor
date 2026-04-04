@@ -677,10 +677,23 @@ _TASK_NAME_MAP = {
 }
 
 
+import time as _time
+import threading as _threading
+
+_inspect_cache: dict[str, tuple[float, dict]] = {}
+_inspect_lock = _threading.Lock()
+_INSPECT_TTL = 5.0
+
+
 def _inspect_with_timeout(method: str, timeout: float = 2.0):
-    """Call Celery inspect method with timeout. Returns {} if workers offline."""
-    import asyncio
+    """Call Celery inspect method with a short TTL cache to avoid repeated slow round-trips."""
     from app.celery_app import celery
+
+    now = _time.monotonic()
+    with _inspect_lock:
+        cached = _inspect_cache.get(method)
+        if cached and (now - cached[0]) < _INSPECT_TTL:
+            return cached[1]
 
     inspector = celery.control.inspect(timeout=timeout)
     fn = getattr(inspector, method, None)
@@ -690,7 +703,12 @@ def _inspect_with_timeout(method: str, timeout: float = 2.0):
         result = fn()
     except Exception:
         result = None
-    return result or {}
+    data = result or {}
+
+    with _inspect_lock:
+        _inspect_cache[method] = (now, data)
+
+    return data
 
 
 @router.get("/tasks", response_model=TaskListResponse)
