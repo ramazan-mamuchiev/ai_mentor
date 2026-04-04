@@ -2804,6 +2804,12 @@ button.docs-lc-badge--partial:hover {
   .md-preview-download-btn {
     padding: 6px 8px;
   }
+  .lc-modal-run-btn span {
+    display: none;
+  }
+  .lc-modal-run-btn {
+    padding: 4px 8px;
+  }
 }
 
 /* ── Document Debug Panel ── */

@@ -942,7 +942,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                   ))}
                 </div>
               )}
-              {(canEdit || canDebug || canReindex || canSync || canDelete) && (
+              {(canEdit || canDebug || canReindex || canSync || canDelete || canLifecycle) && (
                 <div className="docs-card-actions" onClick={e => e.stopPropagation()}>
                   {canEdit && (
                     <button className="docs-action-btn" onClick={() => setEditTarget(p)}>
@@ -962,6 +962,15 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                   {canSync && (
                     <button className="docs-action-btn" onClick={() => setSyncTarget(p)}>
                       <CloudDownload size={16} />
+                    </button>
+                  )}
+                  {canLifecycle && (
+                    <button
+                      className="docs-action-btn"
+                      onClick={() => (p.has_merged_lifecycle || p.lifecycle_ready_documents > 0) ? setLifecycleTarget(p) : handleAnalyzeLifecycle(p)}
+                      title={(p.has_merged_lifecycle || p.lifecycle_ready_documents > 0) ? t('docs.actions.viewLifecycle') : t('docs.actions.analyzeLifecycle')}
+                    >
+                      <Activity size={16} />
                     </button>
                   )}
                   {canDelete && (
