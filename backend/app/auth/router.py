@@ -65,9 +65,14 @@ async def register(body: RegisterRequest, response: Response, session: AsyncSess
 
     try:
         from app.auth.jwt import create_email_verify_token
-        from app.email.service import send_email_verification
+        from app.auth.service import is_guest_email
+        from app.email.service import send_email_verification, send_guest_approval_request
         token = create_email_verify_token(tenant.id)
-        send_email_verification(tenant.email, token)
+
+        if is_guest_email(tenant.email) and settings.guest_approval_email:
+            send_guest_approval_request(settings.guest_approval_email, tenant.email, token)
+        else:
+            send_email_verification(tenant.email, token)
     except Exception:
         pass  # non-critical; user can resend later
 
@@ -160,9 +165,14 @@ async def resend_verification(
         await redis_client.aclose()
 
     from app.auth.jwt import create_email_verify_token
-    from app.email.service import send_email_verification
+    from app.auth.service import is_guest_email
+    from app.email.service import send_email_verification, send_guest_approval_request
     token = create_email_verify_token(tenant.id)
-    send_email_verification(tenant.email, token)
+
+    if is_guest_email(tenant.email) and settings.guest_approval_email:
+        send_guest_approval_request(settings.guest_approval_email, tenant.email, token)
+    else:
+        send_email_verification(tenant.email, token)
 
     return {"ok": True}
 

@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Key, Loader2, Play, RefreshCw, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Key, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getProductDebug, getProductUsageStats, getProductLifecycle, analyzeProductLifecycle } from '../api/products'
+import { getProductDebug, getProductUsageStats } from '../api/products'
 import type { ProductDebugInfo, ProductUsageStats } from '../types'
-import type { ProductLifecycle } from '../api/products'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 import { SearchKeysModal } from './SearchKeysModal'
 import { fmtUsd } from '../utils/format'
@@ -56,170 +55,6 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
           />
         )
       })}
-    </div>
-  )
-}
-
-function ProductLifecycleSection({ productId }: { productId: number }) {
-  const { t } = useTranslation()
-  const [lc, setLc] = useState<ProductLifecycle | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [running, setRunning] = useState(false)
-  const [expanded, setExpanded] = useState(false)
-  const [skeletonExpanded, setSkeletonExpanded] = useState(false)
-
-  const load = useCallback(() => {
-    setLoading(true)
-    getProductLifecycle(productId)
-      .then(setLc)
-      .catch(() => setLc(null))
-      .finally(() => setLoading(false))
-  }, [productId])
-
-  useEffect(() => { load() }, [load])
-
-  const handleRun = async () => {
-    setRunning(true)
-    try {
-      await analyzeProductLifecycle(productId)
-      setTimeout(load, 5000)
-    } catch { /* ignore */ }
-    finally { setRunning(false) }
-  }
-
-  if (loading) return null
-
-  const merged = lc?.merged
-  const hasData = merged && merged.status === 'ready'
-  const phases = merged?.phases ?? []
-  const patterns = merged?.unique_patterns ?? []
-  const deps = merged?.dependency_chains ?? []
-  const docLcs = lc?.document_lifecycles ?? []
-  const issues = lc?.doc_issues ?? []
-
-  return (
-    <div className="doc-debug-section lifecycle-section">
-      <div className="doc-debug-section-title lifecycle-section-header">
-        <span>{t('lifecycle.title')}</span>
-        <button
-          className="lifecycle-run-btn"
-          onClick={handleRun}
-          disabled={running}
-          title={hasData ? t('lifecycle.rerun') : t('lifecycle.run')}
-        >
-          {running ? <Loader2 size={12} className="spin-icon" /> :
-           hasData ? <RefreshCw size={12} /> : <Play size={12} />}
-          {hasData ? t('lifecycle.rerunAll') : t('lifecycle.runAll')}
-        </button>
-      </div>
-
-      {docLcs.length > 0 && (
-        <div className="doc-debug-row">
-          <span>{t('lifecycle.docAnalyses')}</span>
-          <code>{docLcs.filter(d => d.status === 'ready').length} / {docLcs.length}</code>
-        </div>
-      )}
-
-      {!hasData && !merged && (
-        <div className="doc-debug-row">
-          <span>{t('lifecycle.notAnalyzed')}</span>
-        </div>
-      )}
-
-      {merged && merged.status === 'error' && (
-        <div className="doc-debug-row doc-debug-row--warning">
-          <span>{t('lifecycle.error')}</span>
-          <code>{t('lifecycle.mergeFailed')}</code>
-        </div>
-      )}
-
-      {hasData && merged && (
-        <>
-          <div className="doc-debug-row">
-            <span>{t('lifecycle.statusLabel')}</span>
-            <span className="lifecycle-status lifecycle-status--ready">
-              <CheckCircle size={12} /> {t('lifecycle.status.ready')}
-            </span>
-          </div>
-
-          {phases.length > 0 && (
-            <div className="lifecycle-subsection">
-              <button className="lifecycle-toggle" onClick={() => setExpanded(!expanded)}>
-                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {t('lifecycle.phases')} ({phases.length})
-              </button>
-              {expanded && (
-                <div className="lifecycle-phases">
-                  {[...phases].sort((a, b) => a.step_order - b.step_order).map((p, i) => (
-                    <div key={i} className={`lifecycle-phase lifecycle-phase--${p.phase_name}`}>
-                      <div className="lifecycle-phase-header">
-                        <span className="lifecycle-phase-order">{p.step_order}</span>
-                        <span className="lifecycle-phase-action">{p.action}</span>
-                        {p.is_required && <span className="lifecycle-phase-required">REQ</span>}
-                      </div>
-                      {p.api_call && <code className="lifecycle-phase-api">{p.api_call}</code>}
-                      {p.notes && <div className="lifecycle-phase-notes">{p.notes}</div>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {patterns.length > 0 && (
-            <div className="lifecycle-subsection">
-              <div className="lifecycle-subsection-title">{t('lifecycle.patterns')} ({patterns.length})</div>
-              {patterns.map((p, i) => (
-                <div key={i} className="lifecycle-pattern">
-                  <strong>{p.pattern}</strong>: {p.description}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {deps.length > 0 && (
-            <div className="lifecycle-subsection">
-              <div className="lifecycle-subsection-title">{t('lifecycle.dependencies')} ({deps.length})</div>
-              {deps.map((d, i) => (
-                <div key={i} className="lifecycle-dep">
-                  {d.from_action} → {d.to_action}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {merged.code_skeleton && (
-            <div className="lifecycle-subsection">
-              <button className="lifecycle-toggle" onClick={() => setSkeletonExpanded(!skeletonExpanded)}>
-                {skeletonExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {t('lifecycle.codeSkeleton')}
-              </button>
-              {skeletonExpanded && (
-                <pre className="lifecycle-code-skeleton">{merged.code_skeleton}</pre>
-              )}
-            </div>
-          )}
-
-          {issues.length > 0 && (
-            <div className="lifecycle-subsection">
-              <div className="lifecycle-subsection-title lifecycle-issues-title">
-                <AlertTriangle size={14} /> {t('lifecycle.docIssues')} ({issues.length})
-              </div>
-              {issues.map((issue, i) => (
-                <div key={i} className={`lifecycle-issue lifecycle-issue--${issue.severity}`}>
-                  <span className="lifecycle-issue-type">{issue.issue_type}</span>
-                  <span>{issue.description}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="doc-debug-row"><span>{t('lifecycle.analysisTime')}</span><code>{fmtMs(merged.analysis_ms)}</code></div>
-          <div className="doc-debug-row"><span>{t('lifecycle.promptTokens')}</span><code>{fmt(merged.prompt_tokens)}</code></div>
-          <div className="doc-debug-row"><span>{t('lifecycle.completionTokens')}</span><code>{fmt(merged.completion_tokens)}</code></div>
-          {merged.model && <div className="doc-debug-row"><span>{t('lifecycle.model')}</span><code className="doc-debug-embed-model">{merged.model}</code></div>}
-        </>
-      )}
     </div>
   )
 }
@@ -413,8 +248,6 @@ export function ProductDebugContent({ productId, initialDebug, initialUsage }: C
             <div className="doc-debug-row"><span>{t('docDebug.noUsageData')}</span><code>—</code></div>
           )}
         </div>
-
-        <ProductLifecycleSection productId={debug.product_id} />
 
         {docsSummary && (
           <div className="doc-debug-section">

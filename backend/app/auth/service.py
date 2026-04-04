@@ -49,8 +49,20 @@ def _generate_api_key() -> tuple[str, str, str]:
     return raw, key_hash, prefix
 
 
+def is_guest_email(email: str) -> bool:
+    """Check if email is in the guest allowlist (outside the primary domain)."""
+    raw = settings.guest_allowed_emails
+    if not raw:
+        return False
+    allowed = {e.strip().lower() for e in raw.split(",") if e.strip()}
+    return email.strip().lower() in allowed
+
+
 def _validate_email_domain(email: str) -> None:
-    """Raise 403 if email domain is not in the allow-list."""
+    """Raise 403 if email domain is not in the allow-list and not an approved guest."""
+    if is_guest_email(email):
+        return
+
     domain = settings.allowed_email_domain
     if domain and not email.lower().endswith(f"@{domain.lower()}"):
         from fastapi import HTTPException, status

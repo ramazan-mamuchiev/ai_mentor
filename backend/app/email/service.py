@@ -60,6 +60,33 @@ def send_email_verification(to: str, token: str) -> None:
         logger.warning("Failed to send verification email", exc_info=True)
 
 
+def send_guest_approval_request(admin_email: str, guest_email: str, token: str) -> None:
+    """Send a verification/approval link to the admin for a guest account."""
+    _init_resend()
+    if not settings.resend_api_key:
+        logger.warning("Resend API key not configured, skipping guest approval email")
+        return
+    verify_url = f"{settings.app_base_url}/verify-email?token={token}"
+    try:
+        resend.Emails.send({
+            "from": settings.email_from,
+            "to": [admin_email],
+            "subject": f"Lexiro: approve registration for {guest_email}",
+            "html": (
+                f"<h2>Guest Registration Approval</h2>"
+                f"<p>A new guest account has requested access:</p>"
+                f"<p><strong>{guest_email}</strong></p>"
+                f"<p>Click below to approve and verify this account:</p>"
+                f"<p><a href=\"{verify_url}\">Approve Registration</a></p>"
+                f"<p>This link expires in 24 hours. "
+                f"If you didn't expect this request, ignore this email.</p>"
+            ),
+        })
+        logger.info("Guest approval email sent", extra={"admin": admin_email, "guest": guest_email})
+    except Exception:
+        logger.warning("Failed to send guest approval email", exc_info=True)
+
+
 def send_password_reset(to: str, token: str) -> None:
     _init_resend()
     if not settings.resend_api_key:

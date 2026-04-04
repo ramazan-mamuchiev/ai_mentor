@@ -154,6 +154,8 @@ class Settings(BaseSettings):
 
     oauth_enabled: bool = False  # master switch — disables all OAuth providers when False
     allowed_email_domain: str = "axxonsoft.dev"  # only emails ending with this domain can register; empty = no restriction
+    guest_allowed_emails: str = ""  # comma-separated emails allowed outside allowed_email_domain, e.g. "test@lexiro.io,qa@lexiro.io"
+    guest_approval_email: str = ""  # admin email that receives verification links for guest accounts
 
     app_base_url: str = "http://localhost:80"
 
