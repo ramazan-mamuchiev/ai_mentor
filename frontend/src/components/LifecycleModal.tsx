@@ -85,6 +85,14 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
   const patterns = lc?.unique_patterns ?? []
   const deps = lc?.dependency_chains ?? []
   const issues = lc?.doc_issues ?? []
+  const dataModels = lc?.data_models ?? []
+  const errorCatalog = lc?.error_catalog ?? []
+  const prereqs = lc?.prerequisites ?? []
+  const accessPatterns = lc?.data_access_patterns ?? []
+  const coverage = lc?.endpoint_coverage ?? []
+  const avgCompleteness = coverage.length > 0
+    ? Math.round(coverage.reduce((s, e) => s + (e.completeness ?? 0), 0) / coverage.length * 100)
+    : null
 
   return (
     <div className="confirm-overlay" onClick={onClose}>
@@ -169,6 +177,11 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
             <div className="lc-modal-content">
               <div className="lc-modal-meta">
                 <StatusBadge status={lc.status} />
+                {avgCompleteness !== null && (
+                  <span className={`lc-modal-quality lc-modal-quality--${avgCompleteness >= 80 ? 'good' : avgCompleteness >= 50 ? 'partial' : 'low'}`}>
+                    Doc quality: {avgCompleteness}%
+                  </span>
+                )}
                 {lc.model && <span className="lc-modal-model">{lc.model}</span>}
                 {lc.analysis_ms != null && <span className="lc-modal-time">{(lc.analysis_ms / 1000).toFixed(1)}s</span>}
                 {lc.prompt_tokens != null && (
@@ -182,6 +195,23 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
               {lc.error_message && (
                 <div className="lc-modal-error-msg">
                   <AlertCircle size={14} /> {lc.error_message}
+                </div>
+              )}
+
+              {prereqs.length > 0 && (
+                <div className="lc-modal-section">
+                  <div className="lc-modal-section-title">Prerequisites <span className="lc-modal-count">{prereqs.length}</span></div>
+                  <div className="lc-modal-prereqs">
+                    {prereqs.map((p, i) => (
+                      <div key={i} className="lc-modal-prereq">
+                        <span className="lc-modal-prereq-name">{p.name}</span>
+                        <span className={`lc-modal-prereq-type lc-modal-prereq-type--${p.type}`}>{p.type}</span>
+                        <span className="lc-modal-prereq-desc">{p.description}</span>
+                        {p.example_value && <code className="lc-modal-prereq-example">{p.example_value}</code>}
+                        {p.how_to_obtain && <div className="lc-modal-prereq-how">{p.how_to_obtain}</div>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -202,16 +232,101 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                             <span className="lc-modal-phase-action">{p.action}</span>
                             {p.is_required && <span className="lc-modal-phase-req">REQ</span>}
                           </div>
-                          {p.api_call && <code className="lc-modal-phase-api">{p.api_call}</code>}
+                          {p.api_call && (
+                            <code className="lc-modal-phase-api">
+                              {p.http_method ? `${p.http_method} ` : ''}{p.api_call}
+                              {p.content_type ? ` (${p.content_type})` : ''}
+                            </code>
+                          )}
                           {p.notes && <div className="lc-modal-phase-notes">{p.notes}</div>}
                           <div className="lc-modal-phase-io">
-                            {p.inputs.length > 0 && <span className="lc-modal-io-in">← {p.inputs.join(', ')}</span>}
-                            {p.outputs.length > 0 && <span className="lc-modal-io-out">→ {p.outputs.join(', ')}</span>}
+                            {p.inputs?.length > 0 && <span className="lc-modal-io-in">← {p.inputs.join(', ')}</span>}
+                            {p.outputs?.length > 0 && <span className="lc-modal-io-out">→ {p.outputs.join(', ')}</span>}
                           </div>
+                          {p.request_example && (
+                            <details className="lc-modal-phase-example">
+                              <summary>Request body</summary>
+                              <pre>{p.request_example}</pre>
+                            </details>
+                          )}
+                          {p.response_example && (
+                            <details className="lc-modal-phase-example">
+                              <summary>Response</summary>
+                              <pre>{p.response_example}</pre>
+                            </details>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {dataModels.length > 0 && (
+                <div className="lc-modal-section">
+                  <div className="lc-modal-section-title">Data Models <span className="lc-modal-count">{dataModels.length}</span></div>
+                  <div className="lc-modal-models">
+                    {dataModels.map((m, i) => (
+                      <details key={i} className="lc-modal-model-card">
+                        <summary>
+                          <strong>{m.model_name}</strong>
+                          <span className={`lc-modal-direction lc-modal-direction--${m.direction}`}>{m.direction}</span>
+                          {m.content_type && <span className="lc-modal-ct">{m.content_type}</span>}
+                          <span className="lc-modal-count">{m.fields?.length ?? 0} fields</span>
+                        </summary>
+                        {m.used_in?.length > 0 && <div className="lc-modal-model-used">Used by: {m.used_in.join(', ')}</div>}
+                        <table className="lc-modal-fields-table">
+                          <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Description</th></tr></thead>
+                          <tbody>
+                            {(m.fields || []).map((f, j) => (
+                              <tr key={j}>
+                                <td><code>{f.name}</code></td>
+                                <td>{f.type}{f.constraints ? <small> ({f.constraints})</small> : ''}</td>
+                                <td>{f.required ? '✓' : ''}</td>
+                                <td>{f.description}{f.example_value ? <> — <code>{f.example_value}</code></> : ''}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </details>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {errorCatalog.length > 0 && (
+                <div className="lc-modal-section">
+                  <div className="lc-modal-section-title">Error Handling <span className="lc-modal-count">{errorCatalog.length}</span></div>
+                  <table className="lc-modal-errors-table">
+                    <thead><tr><th>Status</th><th>Code</th><th>Meaning</th><th>Recovery</th></tr></thead>
+                    <tbody>
+                      {errorCatalog.map((e, i) => (
+                        <tr key={i}>
+                          <td><strong>{e.http_status}</strong></td>
+                          <td>{e.error_code || '—'}</td>
+                          <td>{e.meaning}</td>
+                          <td><span className={`lc-modal-recovery lc-modal-recovery--${e.recovery_action}`}>{e.recovery_action}</span>
+                            {e.retry_after_seconds ? ` (${e.retry_after_seconds}s)` : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {accessPatterns.length > 0 && (
+                <div className="lc-modal-section">
+                  <div className="lc-modal-section-title">Data Access Patterns <span className="lc-modal-count">{accessPatterns.length}</span></div>
+                  <div className="lc-modal-patterns">
+                    {accessPatterns.map((p, i) => (
+                      <div key={i} className="lc-modal-pattern">
+                        <strong className="lc-modal-pattern-type">{p.pattern_type}</strong>
+                        <code>{p.endpoint}</code>
+                        <span>{p.mechanism}</span>
+                        {p.code_hint && <pre className="lc-modal-pattern-code">{p.code_hint}</pre>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -259,6 +374,31 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                   {skeletonOpen && (
                     <pre className="lc-modal-skeleton">{lc.code_skeleton}</pre>
                   )}
+                </div>
+              )}
+
+              {coverage.length > 0 && (
+                <div className="lc-modal-section">
+                  <div className="lc-modal-section-title">Endpoint Coverage <span className="lc-modal-count">{coverage.length}</span></div>
+                  <table className="lc-modal-coverage-table">
+                    <thead><tr><th>Endpoint</th><th>Req</th><th>Resp</th><th>Err</th><th>Ex</th><th>Score</th></tr></thead>
+                    <tbody>
+                      {coverage.map((e, i) => (
+                        <tr key={i} className={e.completeness < 0.5 ? 'lc-modal-coverage-low' : ''}>
+                          <td><code>{e.method} {e.endpoint}</code></td>
+                          <td>{e.has_request_body_docs ? '✓' : '✗'}</td>
+                          <td>{e.has_response_docs ? '✓' : '✗'}</td>
+                          <td>{e.has_error_docs ? '✓' : '✗'}</td>
+                          <td>{e.has_example ? '✓' : '✗'}</td>
+                          <td>
+                            <div className="lc-modal-coverage-bar">
+                              <div className={`lc-modal-coverage-fill lc-modal-coverage-fill--${e.completeness >= 0.75 ? 'good' : e.completeness >= 0.5 ? 'partial' : 'low'}`} style={{ width: `${e.completeness * 100}%` }} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 

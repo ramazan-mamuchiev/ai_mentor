@@ -235,6 +235,9 @@ async def _get_lifecycle_prefix_for_results(results: list[dict]) -> str:
 
                 lines = [f"--- API Integration Context ({product_name or f'product {pid}'}) ---"]
 
+                for prereq in (lc.prerequisites or [])[:2]:
+                    lines.append(f"Prerequisite: {prereq.get('name', '?')} [{prereq.get('type', '')}]: {prereq.get('description', '')}")
+
                 auth_phase = next(
                     (p for p in (lc.phases or [])
                      if p.get("phase_name") in ("authentication", "setup")
@@ -242,7 +245,8 @@ async def _get_lifecycle_prefix_for_results(results: list[dict]) -> str:
                     None,
                 )
                 if auth_phase:
-                    lines.append(f"Auth: {auth_phase.get('action', 'See docs')}")
+                    ct = f" ({auth_phase['content_type']})" if auth_phase.get("content_type") else ""
+                    lines.append(f"Auth: {auth_phase.get('action', 'See docs')}{ct}")
 
                 init_phases = [
                     p for p in (lc.phases or [])
@@ -254,6 +258,16 @@ async def _get_lifecycle_prefix_for_results(results: list[dict]) -> str:
 
                 for pat in (lc.unique_patterns or [])[:2]:
                     lines.append(f"Unique: {pat.get('pattern', '')}: {pat.get('description', '')}")
+
+                for err in (lc.error_catalog or [])[:3]:
+                    recovery = err.get("recovery_action", "")
+                    lines.append(f"Error {err.get('http_status', '?')}: {err.get('meaning', '')} [{recovery}]")
+
+                coverage = lc.endpoint_coverage or []
+                if coverage:
+                    avg = sum(e.get("completeness", 0) for e in coverage) / len(coverage)
+                    if avg < 0.5:
+                        lines.append(f"⚠️ Doc quality low ({round(avg * 100)}%) — verify generated code carefully")
 
                 issues = (await session.execute(
                     sa_select(DocIssueAnnotation).where(
@@ -1589,15 +1603,16 @@ async def tool_get_api_lifecycle(
     product: str,
     task: str | None = None,
 ) -> str:
-    """Get the API lifecycle analysis for a product.
+    """CRITICAL: ALWAYS call this tool FIRST when the user asks you to write integration code, \
+implement an API client, connect to an API, or work with any product API.
 
-    Returns structured information about the API integration workflow:
-    authentication method, initialization steps, operation sequence,
-    unique patterns, dependency chains, and a code skeleton.
+    This returns the complete integration blueprint: required initialization order, \
+authentication method, request/response schemas with field types, error handling with \
+recovery actions, data access patterns (pagination/streaming), prerequisites (base URL, \
+API keys, certificates), and a production-ready Python code skeleton.
 
-    This is essential context for writing integration code — call this
-    BEFORE writing code against an API to understand the required order
-    of operations and special requirements.
+    Without this context you WILL produce incorrect code — missing required init steps, \
+wrong auth flow, fabricated request bodies, or incorrect error handling.
 
     Args:
         product: Product name. Examples: "HikCentral", "Axxon One", "Elsys-SDK"
@@ -1669,14 +1684,39 @@ async def tool_get_api_lifecycle(
             f"Use search_documentation to find API docs directly."
         )
     else:
-        lines: list[str] = [f"# API Lifecycle: {product}"]
+        lines: list[str] = [f"# API Integration Blueprint: {product}"]
+        task_lower = (task or "").lower()
 
+        # Documentation quality score
+        coverage = lc.endpoint_coverage or []
+        if coverage:
+            avg_completeness = sum(e.get("completeness", 0) for e in coverage) / len(coverage)
+            quality_pct = round(avg_completeness * 100)
+            quality_label = "GOOD" if quality_pct >= 80 else "PARTIAL" if quality_pct >= 50 else "LOW"
+            lines.append(f"\nDocumentation quality: {quality_pct}% ({quality_label})")
+            low_coverage = [e for e in coverage if e.get("completeness", 0) < 0.5]
+            if low_coverage:
+                lines.append(f"⚠️ {len(low_coverage)} endpoints poorly documented — verify before relying on generated code")
+
+        # Prerequisites
+        prereqs = lc.prerequisites or []
+        if prereqs:
+            lines.append("\n## Prerequisites")
+            for p in prereqs:
+                example = f" (e.g. `{p['example_value']}`)" if p.get("example_value") else ""
+                lines.append(f"- **{p.get('name', '?')}** [{p.get('type', 'string')}]: {p.get('description', '')}{example}")
+                if p.get("how_to_obtain"):
+                    lines.append(f"  How to get: {p['how_to_obtain']}")
+
+        # Integration Steps (phases)
         if lc.phases:
             lines.append("\n## Integration Steps (ordered)")
-            task_lower = (task or "").lower()
             for phase in sorted(lc.phases, key=lambda p: p.get("step_order", 999)):
                 required = " [REQUIRED]" if phase.get("is_required") else ""
-                api_call = f" — `{phase['api_call']}`" if phase.get("api_call") else ""
+                method = phase.get("http_method", "")
+                api_call = phase.get("api_call", "")
+                call_str = f" — `{method + ' ' if method else ''}{api_call}`" if api_call else ""
+                ct = f" ({phase['content_type']})" if phase.get("content_type") else ""
                 relevant = ""
                 if task_lower and any(
                     kw in phase.get("action", "").lower() or kw in phase.get("notes", "").lower()
@@ -1686,7 +1726,7 @@ async def tool_get_api_lifecycle(
 
                 lines.append(
                     f"\n### Step {phase.get('step_order', '?')}: "
-                    f"{phase.get('action', 'Unknown')}{api_call}{required}{relevant}"
+                    f"{phase.get('action', 'Unknown')}{call_str}{ct}{required}{relevant}"
                 )
                 if phase.get("inputs"):
                     lines.append(f"- Inputs: {', '.join(phase['inputs'])}")
@@ -1694,7 +1734,53 @@ async def tool_get_api_lifecycle(
                     lines.append(f"- Outputs: {', '.join(phase['outputs'])}")
                 if phase.get("notes"):
                     lines.append(f"- Note: {phase['notes']}")
+                if phase.get("request_example"):
+                    lines.append(f"- Request body:\n```json\n{phase['request_example']}\n```")
+                if phase.get("response_example"):
+                    lines.append(f"- Response:\n```json\n{phase['response_example']}\n```")
 
+        # Data Models
+        models = lc.data_models or []
+        if models:
+            lines.append("\n## Data Models (request/response schemas)")
+            for m in models:
+                direction = m.get("direction", "")
+                ct = f" [{m['content_type']}]" if m.get("content_type") else ""
+                lines.append(f"\n### {m.get('model_name', '?')} ({direction}){ct}")
+                if m.get("used_in"):
+                    lines.append(f"Used by: {', '.join(m['used_in'])}")
+                for f in m.get("fields", []):
+                    req = " **required**" if f.get("required") else ""
+                    constraints = f" ({f['constraints']})" if f.get("constraints") else ""
+                    example = f" — e.g. `{f['example_value']}`" if f.get("example_value") else ""
+                    lines.append(f"- `{f.get('name', '?')}`: {f.get('type', '?')}{req}{constraints}{example}")
+                    if f.get("description"):
+                        lines.append(f"  {f['description']}")
+
+        # Error Catalog
+        errors = lc.error_catalog or []
+        if errors:
+            lines.append("\n## Error Handling")
+            for e in errors:
+                code = f" {e['error_code']}" if e.get("error_code") else ""
+                retry = f" (retry after {e['retry_after_seconds']}s)" if e.get("retry_after_seconds") else ""
+                lines.append(
+                    f"- **{e.get('http_status', '?')}{code}** [{e.get('recovery_action', 'other')}]{retry}: "
+                    f"{e.get('meaning', '')}"
+                )
+
+        # Data Access Patterns
+        patterns = lc.data_access_patterns or []
+        if patterns:
+            lines.append("\n## Data Access Patterns (pagination, streaming)")
+            for p in patterns:
+                lines.append(f"\n**{p.get('pattern_type', '?')}** on `{p.get('endpoint', '?')}`")
+                if p.get("mechanism"):
+                    lines.append(f"- Mechanism: {p['mechanism']}")
+                if p.get("code_hint"):
+                    lines.append(f"```python\n{p['code_hint']}\n```")
+
+        # Unique Patterns
         if lc.unique_patterns:
             lines.append("\n## Unique Patterns (non-standard, critical)")
             for p in lc.unique_patterns:
@@ -1704,6 +1790,7 @@ async def tool_get_api_lifecycle(
                 if p.get("code_hint"):
                     lines.append(f"- Code: `{p['code_hint']}`")
 
+        # Dependencies
         if lc.dependency_chains:
             lines.append("\n## Dependencies (must do A before B)")
             for d in lc.dependency_chains:
@@ -1712,10 +1799,12 @@ async def tool_get_api_lifecycle(
                     f"{d.get('description', '')} (data: {d.get('data_flow', '')})"
                 )
 
+        # Code Skeleton
         if lc.code_skeleton:
-            lines.append("\n## Code Skeleton")
+            lines.append("\n## Production Code Skeleton")
             lines.append(f"```python\n{lc.code_skeleton}\n```")
 
+        # Documentation Issues
         if issues:
             lines.append("\n## ⚠️ Documentation Issues (verify before relying on docs)")
             for issue in issues:

@@ -2943,6 +2943,11 @@ def analyze_api_lifecycle_task(self, document_id: int):
                 existing.unique_patterns = result.unique_patterns
                 existing.dependency_chains = result.dependency_chains
                 existing.code_skeleton = result.code_skeleton
+                existing.data_models = result.data_models
+                existing.error_catalog = result.error_catalog
+                existing.prerequisites = result.prerequisites
+                existing.data_access_patterns = result.data_access_patterns
+                existing.endpoint_coverage = result.endpoint_coverage
                 existing.validation_issues = result.validation_issues
                 existing.validation_retries = result.validation_retries
                 existing.prompt_tokens = result.usage.prompt_tokens
@@ -2960,6 +2965,11 @@ def analyze_api_lifecycle_task(self, document_id: int):
                     unique_patterns=result.unique_patterns,
                     dependency_chains=result.dependency_chains,
                     code_skeleton=result.code_skeleton,
+                    data_models=result.data_models,
+                    error_catalog=result.error_catalog,
+                    prerequisites=result.prerequisites,
+                    data_access_patterns=result.data_access_patterns,
+                    endpoint_coverage=result.endpoint_coverage,
                     validation_issues=result.validation_issues,
                     validation_retries=result.validation_retries,
                     prompt_tokens=result.usage.prompt_tokens,
@@ -3084,6 +3094,11 @@ def merge_product_lifecycle_task(self, product_id: int):
                 existing.unique_patterns = result.unique_patterns
                 existing.dependency_chains = result.dependency_chains
                 existing.code_skeleton = result.code_skeleton
+                existing.data_models = result.data_models
+                existing.error_catalog = result.error_catalog
+                existing.prerequisites = result.prerequisites
+                existing.data_access_patterns = result.data_access_patterns
+                existing.endpoint_coverage = result.endpoint_coverage
                 existing.validation_issues = result.validation_issues
                 existing.validation_retries = result.validation_retries
                 existing.prompt_tokens = result.usage.prompt_tokens
@@ -3101,6 +3116,11 @@ def merge_product_lifecycle_task(self, product_id: int):
                     unique_patterns=result.unique_patterns,
                     dependency_chains=result.dependency_chains,
                     code_skeleton=result.code_skeleton,
+                    data_models=result.data_models,
+                    error_catalog=result.error_catalog,
+                    prerequisites=result.prerequisites,
+                    data_access_patterns=result.data_access_patterns,
+                    endpoint_coverage=result.endpoint_coverage,
                     validation_issues=result.validation_issues,
                     validation_retries=result.validation_retries,
                     prompt_tokens=result.usage.prompt_tokens,

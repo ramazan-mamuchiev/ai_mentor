@@ -381,6 +381,9 @@ async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]
 
         lines = [f"--- API Integration Context ({product_name or f'product {pid}'}) ---"]
 
+        for prereq in (lc.prerequisites or [])[:2]:
+            lines.append(f"Prerequisite: {prereq.get('name', '?')} [{prereq.get('type', '')}]: {prereq.get('description', '')}")
+
         auth_phase = next(
             (p for p in (lc.phases or [])
              if p.get("phase_name") in ("authentication", "setup")
@@ -388,7 +391,8 @@ async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]
             None,
         )
         if auth_phase:
-            lines.append(f"Auth: {auth_phase.get('action', 'See docs')}")
+            ct = f" ({auth_phase['content_type']})" if auth_phase.get("content_type") else ""
+            lines.append(f"Auth: {auth_phase.get('action', 'See docs')}{ct}")
 
         init_phases = [p for p in (lc.phases or []) if p.get("phase_name") == "initialization"]
         if init_phases:
@@ -397,6 +401,16 @@ async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]
 
         for pat in (lc.unique_patterns or [])[:3]:
             lines.append(f"Unique: {pat.get('pattern', '')}: {pat.get('description', '')}")
+
+        for err in (lc.error_catalog or [])[:3]:
+            recovery = err.get("recovery_action", "")
+            lines.append(f"Error {err.get('http_status', '?')}: {err.get('meaning', '')} [{recovery}]")
+
+        coverage = lc.endpoint_coverage or []
+        if coverage:
+            avg = sum(e.get("completeness", 0) for e in coverage) / len(coverage)
+            if avg < 0.5:
+                lines.append(f"Doc quality low ({round(avg * 100)}%) — verify generated code carefully")
 
         issues = (await db.execute(
             sa_select(DocIssueAnnotation).where(

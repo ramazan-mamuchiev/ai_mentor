@@ -740,6 +740,11 @@ CREATE TABLE IF NOT EXISTS api_lifecycles (
     unique_patterns JSONB NOT NULL DEFAULT '[]',
     dependency_chains JSONB NOT NULL DEFAULT '[]',
     code_skeleton TEXT,
+    data_models JSONB NOT NULL DEFAULT '[]',
+    error_catalog JSONB NOT NULL DEFAULT '[]',
+    prerequisites JSONB NOT NULL DEFAULT '[]',
+    data_access_patterns JSONB NOT NULL DEFAULT '[]',
+    endpoint_coverage JSONB NOT NULL DEFAULT '[]',
     validation_issues JSONB NOT NULL DEFAULT '[]',
     validation_retries INT NOT NULL DEFAULT 0,
     prompt_tokens INT NOT NULL DEFAULT 0,
@@ -751,6 +756,12 @@ CREATE TABLE IF NOT EXISTS api_lifecycles (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS data_models JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS error_catalog JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS prerequisites JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS data_access_patterns JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS endpoint_coverage JSONB NOT NULL DEFAULT '[]';
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_api_lifecycles_doc
     ON api_lifecycles(document_id) WHERE document_id IS NOT NULL;

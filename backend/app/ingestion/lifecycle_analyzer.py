@@ -61,6 +61,11 @@ class LifecycleResult:
     dependency_chains: list[dict] = field(default_factory=list)
     code_skeleton: str = ""
     source_doc_issues: list[dict] = field(default_factory=list)
+    data_models: list[dict] = field(default_factory=list)
+    error_catalog: list[dict] = field(default_factory=list)
+    prerequisites: list[dict] = field(default_factory=list)
+    data_access_patterns: list[dict] = field(default_factory=list)
+    endpoint_coverage: list[dict] = field(default_factory=list)
     validation_issues: list[dict] = field(default_factory=list)
     validation_retries: int = 0
     usage: LifecycleUsage = field(default_factory=LifecycleUsage)
@@ -71,28 +76,32 @@ class LifecycleResult:
 # ---------------------------------------------------------------------------
 
 _EXTRACTION_PROMPT = """\
-You are an API lifecycle analyst. You are given the FULL documentation of a product API.
-Your task is to extract the LIFECYCLE — the ordered sequence of steps a developer must follow
-to use this API from scratch.
+You are an API integration analyst. You are given the FULL documentation of a product API.
+Your task is to extract EVERYTHING a developer needs to write production integration code
+from scratch — the complete integration blueprint.
 
 IMPORTANT: ALL output text MUST be in English, regardless of the source document language.
 If the documentation is in Chinese, Russian, or any other language, translate all free-text
-fields (action, description, notes, suggestion, code_hint, impact, code_skeleton) into English.
-Keep original API endpoint paths, parameter names, and code identifiers unchanged.
+fields into English. Keep original API endpoint paths, parameter names, code identifiers,
+and header names unchanged.
 
-Analyze the document and return a JSON object with these sections:
+Analyze the document and return a JSON object with ALL of the following sections:
 
 ## 1. phases
-An ordered array of steps. Each step:
+An ordered array of integration steps. Each step:
 - phase_name: "setup" | "authentication" | "initialization" | "operation" | "cleanup" | "other"
-- step_order: integer (global ordering)
+- step_order: integer (global ordering across all phases)
 - action: what the developer does (human-readable)
-- api_call: the specific endpoint/method if any (e.g. "POST /auth/token", "rpc Login"). Empty string if no API call.
+- api_call: the specific endpoint/method (e.g. "POST /auth/token", "rpc Login"). Empty string if no API call.
+- http_method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "" (empty if not HTTP)
+- content_type: request content type (e.g. "application/json", "multipart/form-data"). Empty string if not applicable.
 - inputs: array of what this step needs (from previous steps or external config)
 - outputs: array of what this step produces (tokens, session IDs, object IDs)
 - output_used_by: array of later step actions that consume this output
 - is_required: boolean
 - notes: unique details, gotchas, quirks specific to THIS API
+- request_example: minimal but complete request body/params as a string (JSON, form fields, or query params). Empty string if no request body.
+- response_example: key fields of the response as a string (JSON with important fields). Empty string if unknown.
 
 ## 2. unique_patterns
 Array of things that make this API different from a standard REST/gRPC API:
@@ -102,7 +111,8 @@ Array of things that make this API different from a standard REST/gRPC API:
 - code_hint: one-line code suggestion
 
 Focus on: non-standard auth, required initialization rituals, unusual data flow,
-idempotency, rate limiting, required headers, binary protocols, mixed transport.
+idempotency, rate limiting, required headers, binary protocols, mixed transport,
+session affinity, mandatory request ordering, custom error formats.
 
 ## 3. dependency_chains
 Array of explicit "A must happen before B" relationships:
@@ -112,23 +122,117 @@ Array of explicit "A must happen before B" relationships:
 - description: why the dependency exists
 
 ## 4. code_skeleton
-A minimal but complete Python pseudocode showing the full lifecycle from setup to cleanup.
-Use real endpoint paths from the documentation. Include error handling for auth token refresh.
+A PRODUCTION-READY Python script using httpx that demonstrates the full lifecycle from
+setup to cleanup. Requirements:
+- Use real endpoint paths and parameter names from the documentation
+- Include proper headers (Authorization, Content-Type, custom headers)
+- Include actual request body structure (not placeholders)
+- Parse response JSON and extract needed fields by name
+- Handle authentication token refresh
+- Handle specific HTTP error codes mentioned in the docs (not generic try/except)
+- Include retry with exponential backoff for transient errors (429, 503)
+- Handle pagination if the API uses it
+- Include cleanup/logout if the API requires it
+- Add type hints and brief comments for non-obvious steps
 
 ## 5. source_doc_issues
-Array of issues you found IN THE SOURCE DOCUMENTATION (not in your analysis):
-- issue_type: "phantom_endpoint" | "contradictory_params" | "missing_auth_docs" | "broken_reference" | "deprecated_undocumented" | "inconsistent_model"
-- severity: "info" | "warning" | "error"
+Array of issues found IN THE SOURCE DOCUMENTATION (not in your analysis).
+Be thorough — check every endpoint for completeness.
+
+- issue_type: one of:
+  "phantom_endpoint" — endpoint mentioned but never described
+  "contradictory_params" — parameter described differently in different places
+  "missing_auth_docs" — authentication mentioned but not documented
+  "broken_reference" — reference to non-existent section/endpoint
+  "deprecated_undocumented" — deprecated without being marked as such
+  "inconsistent_model" — data model fields don't match between sections
+  "missing_error_docs" — endpoint described without error responses
+  "missing_request_body" — POST/PUT/PATCH endpoint without request body description
+  "missing_response_schema" — endpoint without response format description
+  "ambiguous_type" — parameter type is vague (e.g. "string" for what is clearly an enum, "object" without field descriptions)
+  "missing_pagination_docs" — list endpoint without pagination description
+  "version_mismatch" — documentation references API version that doesn't match the described behavior
+  "undocumented_header" — header used in examples but never described
+  "incomplete_example" — code example is truncated, missing imports, or uses unexplained placeholders
+  "stale_url" — URL in documentation that appears non-functional (http instead of https, placeholder domain)
+  "missing_rate_limit_docs" — rate limiting mentioned but specific limits not documented
+
+- severity: "error" | "warning" | "info"
+  error: API integration WILL fail without this info (phantom_endpoint, contradictory_params, missing_auth_docs)
+  warning: code will be incorrect/fragile (missing_request_body, missing_response_schema, missing_error_docs, incomplete_example)
+  info: inconvenience or potential issue (ambiguous_type, stale_url, version_mismatch, undocumented_header, missing_pagination_docs, missing_rate_limit_docs)
+
 - description: what the issue is
 - affected_entity: which endpoint/model/section is affected
 - suggestion: how to resolve it
+
+## 6. data_models
+Array of request/response data structures used by the API:
+- model_name: descriptive name (e.g. "CreateCameraRequest", "AuthTokenResponse")
+- used_in: array of api_call strings that use this model (must match phase api_call values)
+- direction: "request" | "response" | "both"
+- content_type: "application/json" | "multipart/form-data" | "application/x-www-form-urlencoded" | "application/xml" | other
+- fields: array of:
+  - name: field name
+  - type: data type ("string", "integer", "boolean", "array<string>", "object", "float", etc.)
+  - required: boolean
+  - description: what this field does
+  - constraints: validation rules if any (min/max, regex pattern, enum values like "enum: active|inactive|deleted")
+  - example_value: a realistic example value as a string
+
+Extract ALL models you can find in the documentation, even if incomplete. For each
+POST/PUT/PATCH endpoint, there should be at least a request model. For each endpoint
+returning data, there should be at least a response model.
+
+## 7. error_catalog
+Array of error responses the API can return:
+- http_status: integer (e.g. 400, 401, 403, 404, 409, 429, 500, 503)
+- error_code: API-specific error code string if any (e.g. "CAMERA_OFFLINE", "TOKEN_EXPIRED"). Empty string if none.
+- meaning: what this error means in context of this API
+- phase: which phase_name this error is most likely in ("authentication", "operation", etc.)
+- recovery_action: "retry" | "re_auth" | "abort" | "wait" | "other"
+- retry_after_seconds: integer or null (e.g. 60 for rate limiting)
+
+Extract ALL error codes/statuses mentioned anywhere in the documentation.
+
+## 8. prerequisites
+Array of things a developer needs BEFORE making any API call:
+- name: identifier (e.g. "BASE_URL", "API_KEY", "CLIENT_CERTIFICATE", "SDK_LIBRARY")
+- type: "url" | "secret" | "file" | "enum" | "string" | "sdk"
+- description: what it is and why it's needed
+- example_value: a realistic example (use placeholder domains like "example.com" for URLs, "your-api-key-here" for secrets)
+- how_to_obtain: where/how the developer gets this (admin panel, registration, download, etc.)
+
+## 9. data_access_patterns
+Array of patterns for retrieving collections/streams of data:
+- pattern_type: "pagination_offset" | "pagination_cursor" | "streaming_sse" | "websocket" | "long_polling" | "batch" | "callback_webhook" | "none"
+- endpoint: which endpoint uses this pattern
+- mechanism: how it works (parameter names, header names, response fields for next page, etc.)
+- code_hint: 2-3 line Python code showing the pattern
+
+If the API has list endpoints but pagination is not documented, still include an entry
+with pattern_type "none" and note it in source_doc_issues as "missing_pagination_docs".
+
+## 10. endpoint_coverage
+Array assessing documentation completeness for EACH endpoint found in the docs:
+- endpoint: the endpoint path (e.g. "/api/v1/cameras")
+- method: HTTP method (e.g. "POST")
+- has_request_body_docs: boolean — is the request body/params described?
+- has_response_docs: boolean — is the response format described?
+- has_error_docs: boolean — are error responses described?
+- has_example: boolean — is there a code example or curl command?
+- completeness: float 0.0-1.0 (average of the 4 boolean fields above)
+- missing: array of strings describing what's missing (e.g. ["request_body", "error_codes", "example"])
+
+Be honest and strict in this assessment. This helps developers know which parts
+of the documentation to trust and where they need to be careful.
 
 Return ONLY valid JSON. Do NOT include any text outside the JSON object.
 """
 
 _MERGE_PROMPT = """\
-You are an API lifecycle analyst. You have lifecycle analyses from {count} separate documentation \
-files for the same product. Merge them into a single coherent product lifecycle.
+You are an API integration analyst. You have lifecycle analyses from {count} separate documentation \
+files for the same product. Merge them into a single coherent product integration blueprint.
 
 IMPORTANT: ALL output text MUST be in English. Translate any non-English content into English.
 
@@ -136,12 +240,18 @@ Rules:
 - Deduplicate phases that appear in multiple documents (same endpoint = same phase).
 - Order phases into a coherent lifecycle: setup -> authentication -> initialization -> operations -> cleanup.
 - Merge unique_patterns from all documents, deduplicating by pattern name.
+- Merge data_models: deduplicate by model_name, combine fields from different docs, keep the most complete version.
+- Merge error_catalog: deduplicate by (http_status, error_code), keep the most detailed description.
+- Merge prerequisites: deduplicate by name, keep the most complete description.
+- Merge data_access_patterns: deduplicate by (endpoint, pattern_type).
+- Merge endpoint_coverage: deduplicate by (endpoint, method), combine coverage info (if one doc has request_body and another has error_docs, the merged entry should have both).
 - Build a unified code_skeleton covering the full API (all documents combined).
 - If documents contradict each other (different auth methods, conflicting params), report in source_doc_issues.
 - Preserve all unique information from each document.
 
 Return the same JSON structure as the individual analyses (phases, unique_patterns, \
-dependency_chains, code_skeleton, source_doc_issues).
+dependency_chains, code_skeleton, source_doc_issues, data_models, error_catalog, \
+prerequisites, data_access_patterns, endpoint_coverage).
 
 Here are the individual lifecycle analyses:
 
@@ -151,7 +261,7 @@ Return ONLY valid JSON. Do NOT include any text outside the JSON object.
 """
 
 _CORRECTION_PROMPT = """\
-Your previous API lifecycle analysis had these errors:
+Your previous API integration analysis had these errors:
 
 {errors}
 
@@ -161,7 +271,8 @@ Here is your previous result:
 Fix ONLY the identified errors. Keep everything else unchanged.
 All output text MUST remain in English.
 Return the corrected full JSON object with the same structure (phases, unique_patterns, \
-dependency_chains, code_skeleton, source_doc_issues).
+dependency_chains, code_skeleton, source_doc_issues, data_models, error_catalog, \
+prerequisites, data_access_patterns, endpoint_coverage).
 
 Return ONLY valid JSON. Do NOT include any text outside the JSON object.
 """
@@ -185,7 +296,7 @@ def _call_llm_sync(system: str, user: str, *, json_mode: bool = True) -> tuple[s
             {"role": "user", "content": user},
         ],
         "temperature": 0,
-        "max_tokens": 16384,
+        "max_tokens": settings.lifecycle_analysis_max_output_tokens,
     }
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
@@ -354,6 +465,49 @@ def _validate_lifecycle(
                         f"not found in phases or source documentation."
                     )
 
+    # --- New validations for enhanced analysis ---
+
+    # Endpoint coverage check: at least 80% of known endpoints should be covered
+    if known_endpoints and result.endpoint_coverage:
+        covered = {_normalize_endpoint(ec.get("endpoint", "") + " " + ec.get("method", ""))
+                   for ec in result.endpoint_coverage if ec.get("endpoint")}
+        coverage_ratio = len(covered & known_endpoints) / len(known_endpoints) if known_endpoints else 1.0
+        if coverage_ratio < 0.5:
+            lifecycle_errors.append(
+                f"endpoint_coverage only covers {coverage_ratio:.0%} of endpoints found in the document. "
+                f"Add coverage entries for ALL endpoints mentioned in the documentation."
+            )
+    elif known_endpoints and not result.endpoint_coverage:
+        lifecycle_errors.append(
+            "endpoint_coverage is empty but the document contains API endpoints. "
+            "Add a coverage assessment for each endpoint."
+        )
+
+    # Request example check: POST/PUT/PATCH phases should have request_example
+    mutating_methods = {"post", "put", "patch"}
+    phases_missing_examples = []
+    for phase in result.phases:
+        method = phase.get("http_method", "").lower()
+        api_call = phase.get("api_call", "")
+        if api_call and (method in mutating_methods or
+                         any(api_call.upper().startswith(m.upper()) for m in mutating_methods)):
+            if not phase.get("request_example"):
+                phases_missing_examples.append(phase.get("action", api_call))
+    if phases_missing_examples and len(phases_missing_examples) <= 5:
+        lifecycle_errors.append(
+            f"These POST/PUT/PATCH phases are missing request_example: "
+            f"{', '.join(phases_missing_examples)}. Add request body examples."
+        )
+
+    # Data models check: if doc contains JSON structures, data_models shouldn't be empty
+    full_text = " ".join(chunk_contents)
+    has_json_structures = '{"' in full_text or "'{" in full_text or '"type"' in full_text.lower()
+    if has_json_structures and not result.data_models:
+        lifecycle_errors.append(
+            "The documentation contains JSON data structures but data_models is empty. "
+            "Extract request/response models with their fields."
+        )
+
     for issue in result.source_doc_issues:
         doc_issues.append(DocIssue(
             issue_type=issue.get("issue_type", "other"),
@@ -386,12 +540,23 @@ def _extract_lifecycle(doc_text: str, usage: LifecycleUsage) -> LifecycleResult:
             usage=usage,
         )
 
+    return _lifecycle_from_parsed(parsed, usage)
+
+
+def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: LifecycleResult | None = None) -> LifecycleResult:
+    """Build LifecycleResult from parsed JSON, with optional fallback for corrections."""
+    fb = fallback or LifecycleResult()
     return LifecycleResult(
-        phases=parsed.get("phases", []),
-        unique_patterns=parsed.get("unique_patterns", []),
-        dependency_chains=parsed.get("dependency_chains", []),
-        code_skeleton=parsed.get("code_skeleton", ""),
-        source_doc_issues=parsed.get("source_doc_issues", []),
+        phases=parsed.get("phases", fb.phases),
+        unique_patterns=parsed.get("unique_patterns", fb.unique_patterns),
+        dependency_chains=parsed.get("dependency_chains", fb.dependency_chains),
+        code_skeleton=parsed.get("code_skeleton", fb.code_skeleton),
+        source_doc_issues=parsed.get("source_doc_issues", fb.source_doc_issues),
+        data_models=parsed.get("data_models", fb.data_models),
+        error_catalog=parsed.get("error_catalog", fb.error_catalog),
+        prerequisites=parsed.get("prerequisites", fb.prerequisites),
+        data_access_patterns=parsed.get("data_access_patterns", fb.data_access_patterns),
+        endpoint_coverage=parsed.get("endpoint_coverage", fb.endpoint_coverage),
         usage=usage,
     )
 
@@ -407,6 +572,11 @@ def _retry_with_corrections(
         "unique_patterns": previous.unique_patterns,
         "dependency_chains": previous.dependency_chains,
         "code_skeleton": previous.code_skeleton,
+        "data_models": previous.data_models,
+        "error_catalog": previous.error_catalog,
+        "prerequisites": previous.prerequisites,
+        "data_access_patterns": previous.data_access_patterns,
+        "endpoint_coverage": previous.endpoint_coverage,
     }, indent=2, ensure_ascii=False)
 
     prompt = _CORRECTION_PROMPT.format(
@@ -415,7 +585,7 @@ def _retry_with_corrections(
     )
 
     raw, llm_usage, call_ms = _call_llm_sync(
-        "You are an API lifecycle analyst. Fix the errors in the previous analysis.",
+        "You are an API integration analyst. Fix the errors in the previous analysis.",
         prompt,
     )
     usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
@@ -428,14 +598,7 @@ def _retry_with_corrections(
     if parsed is None:
         return previous
 
-    return LifecycleResult(
-        phases=parsed.get("phases", previous.phases),
-        unique_patterns=parsed.get("unique_patterns", previous.unique_patterns),
-        dependency_chains=parsed.get("dependency_chains", previous.dependency_chains),
-        code_skeleton=parsed.get("code_skeleton", previous.code_skeleton),
-        source_doc_issues=parsed.get("source_doc_issues", []),
-        usage=usage,
-    )
+    return _lifecycle_from_parsed(parsed, usage, fallback=previous)
 
 
 def _validate_and_correct(
@@ -606,6 +769,11 @@ def merge_product_lifecycle_sync(
             unique_patterns=lc.unique_patterns or [],
             dependency_chains=lc.dependency_chains or [],
             code_skeleton=lc.code_skeleton or "",
+            data_models=lc.data_models or [],
+            error_catalog=lc.error_catalog or [],
+            prerequisites=lc.prerequisites or [],
+            data_access_patterns=lc.data_access_patterns or [],
+            endpoint_coverage=lc.endpoint_coverage or [],
             usage=usage,
         )
         usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -619,6 +787,11 @@ def merge_product_lifecycle_sync(
             "unique_patterns": lc.unique_patterns or [],
             "dependency_chains": lc.dependency_chains or [],
             "code_skeleton": lc.code_skeleton or "",
+            "data_models": lc.data_models or [],
+            "error_catalog": lc.error_catalog or [],
+            "prerequisites": lc.prerequisites or [],
+            "data_access_patterns": lc.data_access_patterns or [],
+            "endpoint_coverage": lc.endpoint_coverage or [],
         })
 
     merge_prompt = _MERGE_PROMPT.format(
@@ -627,7 +800,7 @@ def merge_product_lifecycle_sync(
     )
 
     raw, llm_usage, call_ms = _call_llm_sync(
-        "You are an API lifecycle analyst. Merge multiple lifecycle analyses into one.",
+        "You are an API integration analyst. Merge multiple lifecycle analyses into one.",
         merge_prompt,
     )
     usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
@@ -643,14 +816,7 @@ def merge_product_lifecycle_sync(
             usage=usage,
         ), []
 
-    result = LifecycleResult(
-        phases=parsed.get("phases", []),
-        unique_patterns=parsed.get("unique_patterns", []),
-        dependency_chains=parsed.get("dependency_chains", []),
-        code_skeleton=parsed.get("code_skeleton", ""),
-        source_doc_issues=parsed.get("source_doc_issues", []),
-        usage=usage,
-    )
+    result = _lifecycle_from_parsed(parsed, usage)
 
     all_chunk_contents: list[str] = []
     from app.models import Chunk

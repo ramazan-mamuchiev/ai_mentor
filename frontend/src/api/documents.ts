@@ -158,11 +158,37 @@ export interface DocumentLifecycle {
   status: string
   phases?: Array<{
     phase_name: string; step_order: number; action: string; api_call: string
+    http_method?: string; content_type?: string
     inputs: string[]; outputs: string[]; is_required: boolean; notes: string
+    request_example?: string; response_example?: string
   }>
   unique_patterns?: Array<{ pattern: string; description: string; impact: string; code_hint: string }>
   dependency_chains?: Array<{ from_action: string; to_action: string; data_flow: string; description: string }>
   code_skeleton?: string
+  data_models?: Array<{
+    model_name: string; used_in: string[]; direction: string; content_type?: string
+    fields: Array<{
+      name: string; type: string; required: boolean; description: string
+      constraints?: string; example_value?: string
+    }>
+  }>
+  error_catalog?: Array<{
+    http_status: number; error_code?: string; meaning: string
+    phase?: string; recovery_action: string; retry_after_seconds?: number | null
+  }>
+  prerequisites?: Array<{
+    name: string; type: string; description: string
+    example_value?: string; how_to_obtain?: string
+  }>
+  data_access_patterns?: Array<{
+    pattern_type: string; endpoint: string; mechanism: string; code_hint?: string
+  }>
+  endpoint_coverage?: Array<{
+    endpoint: string; method: string
+    has_request_body_docs: boolean; has_response_docs: boolean
+    has_error_docs: boolean; has_example: boolean
+    completeness: number; missing: string[]
+  }>
   validation_issues?: Array<{ error: string }>
   validation_retries?: number
   prompt_tokens?: number
