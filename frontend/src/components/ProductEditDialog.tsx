@@ -10,6 +10,7 @@ const CATEGORIES = [
   'access_control',
   'intercom',
   'alarm_intrusion',
+  'perimeter_security',
   'building_automation',
   'software',
   'protocols',

@@ -632,7 +632,7 @@ async def tool_list_products(
 
     Args:
         category: Filter by category slug.
-            Examples: "video_surveillance", "access_control", "intercom", "protocols", "software"
+            Examples: "video_surveillance", "access_control", "intercom", "perimeter_security", "protocols", "software"
         query: Search products by name or manufacturer.
             Examples: "Hikvision", "Axxon", "DS-2CD"
     """
