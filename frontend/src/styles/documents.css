@@ -753,16 +753,18 @@
 .docs-name-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .docs-card-title-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
   min-width: 0;
   flex: 1;
+  flex-wrap: wrap;
 }
 
 .docs-lc-badge {
@@ -3591,6 +3593,12 @@ button.docs-lc-badge--partial:hover {
   color: #ffd43b;
 }
 
+.lc-modal-date {
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: default;
+}
+
 .lc-modal-model {
   padding: 2px 6px;
   background: var(--bg-secondary, #f1f3f5);
@@ -4038,3 +4046,17 @@ button.docs-lc-badge--partial:hover {
 .lc-modal-coverage-fill--good { background: #40c057; }
 .lc-modal-coverage-fill--partial { background: #fab005; }
 .lc-modal-coverage-fill--low { background: #fa5252; }
+
+/* --- Collapse all / Expand all bar --- */
+.lc-modal-collapse-bar {
+  display: flex; justify-content: flex-end; margin: 2px 0 4px;
+}
+.lc-modal-collapse-btn {
+  display: flex; align-items: center; gap: 4px;
+  background: none; border: 1px solid var(--docs-table-border); border-radius: 4px;
+  padding: 3px 10px; font-size: 11px; color: var(--text-secondary);
+  cursor: pointer; transition: color .15s, border-color .15s;
+}
+.lc-modal-collapse-btn:hover {
+  color: var(--text-primary); border-color: var(--text-secondary);
+}

@@ -603,6 +603,8 @@
   "lifecycleModal.download": "Скачать результаты (JSON)",
   "lifecycleModal.delete": "Удалить результаты анализа",
   "lifecycleModal.confirmDelete": "Удалить результаты API Lifecycle анализа? Это действие необратимо.",
+  "lifecycleModal.collapseAll": "Свернуть все",
+  "lifecycleModal.expandAll": "Развернуть все",
 
   "products.lifecycle.started": "Анализ API Lifecycle запущен для «{{name}}»",
   "products.lifecycle.error": "Не удалось запустить анализ API Lifecycle для продукта",

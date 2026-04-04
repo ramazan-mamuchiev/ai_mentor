@@ -41,8 +41,12 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
   const [fullscreen, setFullscreen] = useState(false)
   const [launching, setLaunching] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [phasesOpen, setPhasesOpen] = useState(true)
-  const [skeletonOpen, setSkeletonOpen] = useState(false)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    prereqs: true, phases: true, dataModels: true, errors: true,
+    accessPatterns: true, patterns: true, deps: true, skeleton: false,
+    coverage: true, issues: true,
+  })
+  const toggle = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback((silent = false) => {
@@ -243,6 +247,16 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
             <div className="lc-modal-content">
               <div className="lc-modal-meta">
                 <StatusBadge status={lc.status} />
+                {(lc.updated_at || lc.created_at) && (() => {
+                  const d = new Date(lc.updated_at || lc.created_at!)
+                  const datePart = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+                  const timePart = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                  return (
+                    <span className="lc-modal-date" title={d.toLocaleString()}>
+                      {datePart} {timePart}
+                    </span>
+                  )
+                })()}
                 {avgCompleteness !== null && (
                   <span className={`lc-modal-quality lc-modal-quality--${avgCompleteness >= 80 ? 'good' : avgCompleteness >= 50 ? 'partial' : 'low'}`}>
                     Doc quality: {avgCompleteness}%
@@ -264,31 +278,55 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                 </div>
               )}
 
+              <div className="lc-modal-collapse-bar">
+                <button
+                  className="lc-modal-collapse-btn"
+                  onClick={() => {
+                    const allOpen = Object.values(openSections).every(Boolean)
+                    const next: Record<string, boolean> = {}
+                    for (const k of Object.keys(openSections)) next[k] = !allOpen
+                    setOpenSections(next)
+                  }}
+                >
+                  {Object.values(openSections).every(Boolean) ? (
+                    <><ChevronUp size={14} /> {t('lifecycleModal.collapseAll', 'Свернуть все')}</>
+                  ) : (
+                    <><ChevronDown size={14} /> {t('lifecycleModal.expandAll', 'Развернуть все')}</>
+                  )}
+                </button>
+              </div>
+
               {prereqs.length > 0 && (
                 <div className="lc-modal-section">
-                  <div className="lc-modal-section-title">Prerequisites <span className="lc-modal-count">{prereqs.length}</span></div>
-                  <div className="lc-modal-prereqs">
-                    {prereqs.map((p, i) => (
-                      <div key={i} className="lc-modal-prereq">
-                        <span className="lc-modal-prereq-name">{p.name}</span>
-                        <span className={`lc-modal-prereq-type lc-modal-prereq-type--${p.type}`}>{p.type}</span>
-                        <span className="lc-modal-prereq-desc">{p.description}</span>
-                        {p.example_value && <code className="lc-modal-prereq-example">{p.example_value}</code>}
-                        {p.how_to_obtain && <div className="lc-modal-prereq-how">{p.how_to_obtain}</div>}
-                      </div>
-                    ))}
-                  </div>
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('prereqs')}>
+                    {openSections.prereqs ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span>Prerequisites</span>
+                    <span className="lc-modal-count">{prereqs.length}</span>
+                  </button>
+                  {openSections.prereqs && (
+                    <div className="lc-modal-prereqs">
+                      {prereqs.map((p, i) => (
+                        <div key={i} className="lc-modal-prereq">
+                          <span className="lc-modal-prereq-name">{p.name}</span>
+                          <span className={`lc-modal-prereq-type lc-modal-prereq-type--${p.type}`}>{p.type}</span>
+                          <span className="lc-modal-prereq-desc">{p.description}</span>
+                          {p.example_value && <code className="lc-modal-prereq-example">{p.example_value}</code>}
+                          {p.how_to_obtain && <div className="lc-modal-prereq-how">{p.how_to_obtain}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {phases.length > 0 && (
                 <div className="lc-modal-section">
-                  <button className="lc-modal-section-toggle" onClick={() => setPhasesOpen(v => !v)}>
-                    {phasesOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('phases')}>
+                    {openSections.phases ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     <span>{t('lifecycle.phases')}</span>
                     <span className="lc-modal-count">{phases.length}</span>
                   </button>
-                  {phasesOpen && (
+                  {openSections.phases && (
                     <div className="lc-modal-phases">
                       {[...phases].sort((a, b) => a.step_order - b.step_order).map((p, i) => (
                         <div key={i} className={`lc-modal-phase lc-modal-phase--${p.phase_name}`}>
@@ -330,114 +368,140 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
 
               {dataModels.length > 0 && (
                 <div className="lc-modal-section">
-                  <div className="lc-modal-section-title">Data Models <span className="lc-modal-count">{dataModels.length}</span></div>
-                  <div className="lc-modal-models">
-                    {dataModels.map((m, i) => (
-                      <details key={i} className="lc-modal-model-card">
-                        <summary>
-                          <strong>{m.model_name}</strong>
-                          <span className={`lc-modal-direction lc-modal-direction--${m.direction}`}>{m.direction}</span>
-                          {m.content_type && <span className="lc-modal-ct">{m.content_type}</span>}
-                          <span className="lc-modal-count">{m.fields?.length ?? 0} fields</span>
-                        </summary>
-                        {m.used_in?.length > 0 && <div className="lc-modal-model-used">Used by: {m.used_in.join(', ')}</div>}
-                        <table className="lc-modal-fields-table">
-                          <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Description</th></tr></thead>
-                          <tbody>
-                            {(m.fields || []).map((f, j) => (
-                              <tr key={j}>
-                                <td><code>{f.name}</code></td>
-                                <td>{f.type}{f.constraints ? <small> ({f.constraints})</small> : ''}</td>
-                                <td>{f.required ? '✓' : ''}</td>
-                                <td>{f.description}{f.example_value ? <> — <code>{f.example_value}</code></> : ''}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </details>
-                    ))}
-                  </div>
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('dataModels')}>
+                    {openSections.dataModels ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span>Data Models</span>
+                    <span className="lc-modal-count">{dataModels.length}</span>
+                  </button>
+                  {openSections.dataModels && (
+                    <div className="lc-modal-models">
+                      {dataModels.map((m, i) => (
+                        <details key={i} className="lc-modal-model-card">
+                          <summary>
+                            <strong>{m.model_name}</strong>
+                            <span className={`lc-modal-direction lc-modal-direction--${m.direction}`}>{m.direction}</span>
+                            {m.content_type && <span className="lc-modal-ct">{m.content_type}</span>}
+                            <span className="lc-modal-count">{m.fields?.length ?? 0} fields</span>
+                          </summary>
+                          {m.used_in?.length > 0 && <div className="lc-modal-model-used">Used by: {m.used_in.join(', ')}</div>}
+                          <table className="lc-modal-fields-table">
+                            <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Description</th></tr></thead>
+                            <tbody>
+                              {(m.fields || []).map((f, j) => (
+                                <tr key={j}>
+                                  <td><code>{f.name}</code></td>
+                                  <td>{f.type}{f.constraints ? <small> ({f.constraints})</small> : ''}</td>
+                                  <td>{f.required ? '✓' : ''}</td>
+                                  <td>{f.description}{f.example_value ? <> — <code>{f.example_value}</code></> : ''}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </details>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {errorCatalog.length > 0 && (
                 <div className="lc-modal-section">
-                  <div className="lc-modal-section-title">Error Handling <span className="lc-modal-count">{errorCatalog.length}</span></div>
-                  <table className="lc-modal-errors-table">
-                    <thead><tr><th>Status</th><th>Code</th><th>Meaning</th><th>Recovery</th></tr></thead>
-                    <tbody>
-                      {errorCatalog.map((e, i) => (
-                        <tr key={i}>
-                          <td><strong>{e.http_status}</strong></td>
-                          <td>{e.error_code || '—'}</td>
-                          <td>{e.meaning}</td>
-                          <td><span className={`lc-modal-recovery lc-modal-recovery--${e.recovery_action}`}>{e.recovery_action}</span>
-                            {e.retry_after_seconds ? ` (${e.retry_after_seconds}s)` : ''}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('errors')}>
+                    {openSections.errors ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span>Error Handling</span>
+                    <span className="lc-modal-count">{errorCatalog.length}</span>
+                  </button>
+                  {openSections.errors && (
+                    <table className="lc-modal-errors-table">
+                      <thead><tr><th>Status</th><th>Code</th><th>Meaning</th><th>Recovery</th></tr></thead>
+                      <tbody>
+                        {errorCatalog.map((e, i) => (
+                          <tr key={i}>
+                            <td><strong>{e.http_status}</strong></td>
+                            <td>{e.error_code || '—'}</td>
+                            <td>{e.meaning}</td>
+                            <td><span className={`lc-modal-recovery lc-modal-recovery--${e.recovery_action}`}>{e.recovery_action}</span>
+                              {e.retry_after_seconds ? ` (${e.retry_after_seconds}s)` : ''}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               )}
 
               {accessPatterns.length > 0 && (
                 <div className="lc-modal-section">
-                  <div className="lc-modal-section-title">Data Access Patterns <span className="lc-modal-count">{accessPatterns.length}</span></div>
-                  <div className="lc-modal-patterns">
-                    {accessPatterns.map((p, i) => (
-                      <div key={i} className="lc-modal-pattern">
-                        <strong className="lc-modal-pattern-type">{p.pattern_type}</strong>
-                        <code>{p.endpoint}</code>
-                        <span>{p.mechanism}</span>
-                        {p.code_hint && <pre className="lc-modal-pattern-code">{p.code_hint}</pre>}
-                      </div>
-                    ))}
-                  </div>
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('accessPatterns')}>
+                    {openSections.accessPatterns ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span>Data Access Patterns</span>
+                    <span className="lc-modal-count">{accessPatterns.length}</span>
+                  </button>
+                  {openSections.accessPatterns && (
+                    <div className="lc-modal-patterns">
+                      {accessPatterns.map((p, i) => (
+                        <div key={i} className="lc-modal-pattern">
+                          <strong className="lc-modal-pattern-type">{p.pattern_type}</strong>
+                          <code>{p.endpoint}</code>
+                          <span>{p.mechanism}</span>
+                          {p.code_hint && <pre className="lc-modal-pattern-code">{p.code_hint}</pre>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {patterns.length > 0 && (
                 <div className="lc-modal-section">
-                  <div className="lc-modal-section-title">
-                    {t('lifecycle.patterns')} <span className="lc-modal-count">{patterns.length}</span>
-                  </div>
-                  <div className="lc-modal-patterns">
-                    {patterns.map((p, i) => (
-                      <div key={i} className="lc-modal-pattern">
-                        <strong>{p.pattern}</strong>
-                        <span>{p.description}</span>
-                        {p.code_hint && <code className="lc-modal-code-hint">{p.code_hint}</code>}
-                      </div>
-                    ))}
-                  </div>
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('patterns')}>
+                    {openSections.patterns ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span>{t('lifecycle.patterns')}</span>
+                    <span className="lc-modal-count">{patterns.length}</span>
+                  </button>
+                  {openSections.patterns && (
+                    <div className="lc-modal-patterns">
+                      {patterns.map((p, i) => (
+                        <div key={i} className="lc-modal-pattern">
+                          <strong>{p.pattern}</strong>
+                          <span>{p.description}</span>
+                          {p.code_hint && <code className="lc-modal-code-hint">{p.code_hint}</code>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {deps.length > 0 && (
                 <div className="lc-modal-section">
-                  <div className="lc-modal-section-title">
-                    {t('lifecycle.dependencies')} <span className="lc-modal-count">{deps.length}</span>
-                  </div>
-                  <div className="lc-modal-deps">
-                    {deps.map((d, i) => (
-                      <div key={i} className="lc-modal-dep">
-                        <span className="lc-modal-dep-from">{d.from_action}</span>
-                        <span className="lc-modal-dep-arrow">→</span>
-                        <span className="lc-modal-dep-to">{d.to_action}</span>
-                        <span className="lc-modal-dep-flow">{d.data_flow}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('deps')}>
+                    {openSections.deps ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span>{t('lifecycle.dependencies')}</span>
+                    <span className="lc-modal-count">{deps.length}</span>
+                  </button>
+                  {openSections.deps && (
+                    <div className="lc-modal-deps">
+                      {deps.map((d, i) => (
+                        <div key={i} className="lc-modal-dep">
+                          <span className="lc-modal-dep-from">{d.from_action}</span>
+                          <span className="lc-modal-dep-arrow">→</span>
+                          <span className="lc-modal-dep-to">{d.to_action}</span>
+                          <span className="lc-modal-dep-flow">{d.data_flow}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {lc.code_skeleton && (
                 <div className="lc-modal-section">
-                  <button className="lc-modal-section-toggle" onClick={() => setSkeletonOpen(v => !v)}>
-                    {skeletonOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('skeleton')}>
+                    {openSections.skeleton ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     <span>{t('lifecycle.codeSkeleton')}</span>
                   </button>
-                  {skeletonOpen && (
+                  {openSections.skeleton && (
                     <pre className="lc-modal-skeleton">{lc.code_skeleton}</pre>
                   )}
                 </div>
@@ -445,44 +509,54 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
 
               {coverage.length > 0 && (
                 <div className="lc-modal-section">
-                  <div className="lc-modal-section-title">Endpoint Coverage <span className="lc-modal-count">{coverage.length}</span></div>
-                  <table className="lc-modal-coverage-table">
-                    <thead><tr><th>Endpoint</th><th>Req</th><th>Resp</th><th>Err</th><th>Ex</th><th>Score</th></tr></thead>
-                    <tbody>
-                      {coverage.map((e, i) => (
-                        <tr key={i} className={e.completeness < 0.5 ? 'lc-modal-coverage-low' : ''}>
-                          <td><code>{e.method} {e.endpoint}</code></td>
-                          <td>{e.has_request_body_docs ? '✓' : '✗'}</td>
-                          <td>{e.has_response_docs ? '✓' : '✗'}</td>
-                          <td>{e.has_error_docs ? '✓' : '✗'}</td>
-                          <td>{e.has_example ? '✓' : '✗'}</td>
-                          <td>
-                            <div className="lc-modal-coverage-bar">
-                              <div className={`lc-modal-coverage-fill lc-modal-coverage-fill--${e.completeness >= 0.75 ? 'good' : e.completeness >= 0.5 ? 'partial' : 'low'}`} style={{ width: `${e.completeness * 100}%` }} />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <button className="lc-modal-section-toggle" onClick={() => toggle('coverage')}>
+                    {openSections.coverage ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span>Endpoint Coverage</span>
+                    <span className="lc-modal-count">{coverage.length}</span>
+                  </button>
+                  {openSections.coverage && (
+                    <table className="lc-modal-coverage-table">
+                      <thead><tr><th>Endpoint</th><th>Req</th><th>Resp</th><th>Err</th><th>Ex</th><th>Score</th></tr></thead>
+                      <tbody>
+                        {coverage.map((e, i) => (
+                          <tr key={i} className={e.completeness < 0.5 ? 'lc-modal-coverage-low' : ''}>
+                            <td><code>{e.method} {e.endpoint}</code></td>
+                            <td>{e.has_request_body_docs ? '✓' : '✗'}</td>
+                            <td>{e.has_response_docs ? '✓' : '✗'}</td>
+                            <td>{e.has_error_docs ? '✓' : '✗'}</td>
+                            <td>{e.has_example ? '✓' : '✗'}</td>
+                            <td>
+                              <div className="lc-modal-coverage-bar">
+                                <div className={`lc-modal-coverage-fill lc-modal-coverage-fill--${e.completeness >= 0.75 ? 'good' : e.completeness >= 0.5 ? 'partial' : 'low'}`} style={{ width: `${e.completeness * 100}%` }} />
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               )}
 
               {issues.length > 0 && (
                 <div className="lc-modal-section">
-                  <div className="lc-modal-section-title lc-modal-issues-title">
+                  <button className="lc-modal-section-toggle lc-modal-issues-title" onClick={() => toggle('issues')}>
+                    {openSections.issues ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     <AlertTriangle size={15} />
-                    {t('lifecycle.docIssues')} <span className="lc-modal-count">{issues.length}</span>
-                  </div>
-                  <div className="lc-modal-issues">
-                    {issues.map((issue, i) => (
-                      <div key={i} className={`lc-modal-issue lc-modal-issue--${issue.severity}`}>
-                        <span className="lc-modal-issue-type">{issue.issue_type}</span>
-                        <span>{issue.description}</span>
-                        {issue.suggestion && <div className="lc-modal-issue-suggestion">→ {issue.suggestion}</div>}
-                      </div>
-                    ))}
-                  </div>
+                    <span>{t('lifecycle.docIssues')}</span>
+                    <span className="lc-modal-count">{issues.length}</span>
+                  </button>
+                  {openSections.issues && (
+                    <div className="lc-modal-issues">
+                      {issues.map((issue, i) => (
+                        <div key={i} className={`lc-modal-issue lc-modal-issue--${issue.severity}`}>
+                          <span className="lc-modal-issue-type">{issue.issue_type}</span>
+                          <span>{issue.description}</span>
+                          {issue.suggestion && <div className="lc-modal-issue-suggestion">→ {issue.suggestion}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
