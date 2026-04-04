@@ -189,6 +189,11 @@ export interface DocumentLifecycle {
     has_error_docs: boolean; has_example: boolean
     completeness: number; missing: string[]
   }>
+  integration_data_flows?: {
+    components?: Array<{ id: string; name: string; type: string; description: string }>
+    flows?: Array<{ from: string; to: string; label: string; protocol: string; data_type: string; direction: string }>
+    diagram_mermaid?: string
+  }
   validation_issues?: Array<{ error: string }>
   validation_retries?: number
   prompt_tokens?: number

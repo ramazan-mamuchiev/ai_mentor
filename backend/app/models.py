@@ -324,6 +324,7 @@ class ApiLifecycle(Base):
     prerequisites: Mapped[list] = mapped_column(JSONB, default=list)
     data_access_patterns: Mapped[list] = mapped_column(JSONB, default=list)
     endpoint_coverage: Mapped[list] = mapped_column(JSONB, default=list)
+    integration_data_flows: Mapped[dict] = mapped_column(JSONB, default=dict)
     validation_issues: Mapped[list] = mapped_column(JSONB, default=list)
     validation_retries: Mapped[int] = mapped_column(Integer, default=0)
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)

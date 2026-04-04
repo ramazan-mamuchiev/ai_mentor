@@ -98,6 +98,11 @@ export interface LifecyclePayload {
     has_request_body_docs: boolean; has_response_docs: boolean
     has_error_docs: boolean; has_example: boolean
   }>
+  integration_data_flows?: {
+    components?: Array<{ id: string; name: string; type: string; description: string }>
+    flows?: Array<{ from: string; to: string; label: string; protocol: string; data_type: string; direction: string }>
+    diagram_mermaid?: string
+  }
   code_skeleton: string
   validation_issues: Array<{ error: string }>
   validation_retries: number

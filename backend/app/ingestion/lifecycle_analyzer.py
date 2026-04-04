@@ -66,6 +66,7 @@ class LifecycleResult:
     prerequisites: list[dict] = field(default_factory=list)
     data_access_patterns: list[dict] = field(default_factory=list)
     endpoint_coverage: list[dict] = field(default_factory=list)
+    integration_data_flows: dict = field(default_factory=dict)
     validation_issues: list[dict] = field(default_factory=list)
     validation_retries: int = 0
     usage: LifecycleUsage = field(default_factory=LifecycleUsage)
@@ -227,6 +228,36 @@ Array assessing documentation completeness for EACH endpoint found in the docs:
 Be honest and strict in this assessment. This helps developers know which parts
 of the documentation to trust and where they need to be careful.
 
+## 11. integration_data_flows
+An object describing the architectural data-flow graph between system components.
+This helps developers understand the overall topology BEFORE writing code.
+
+### components
+Array of system components (nodes of the graph):
+- id: short snake_case identifier (e.g. "client", "auth_server", "video_module", "camera_hw")
+- name: human-readable name
+- type: "external" (the developer's code) | "service" | "gateway" | "hardware" | "storage" | "queue"
+- description: what this component does (1 sentence)
+
+There MUST be at least one component with type "external" representing the integration client.
+
+### flows
+Array of directed data flows (edges of the graph):
+- from: component id (must match a component)
+- to: component id (must match a component)
+- label: what is transferred (e.g. "POST /auth/login (credentials)", "MJPEG video stream")
+- protocol: "HTTP" | "HTTPS" | "gRPC" | "WebSocket" | "SSE" | "RTSP" | "MQTT" | "TCP" | "UDP" | "other"
+- data_type: semantic type (e.g. "credentials", "token", "config", "video_stream", "events", "command")
+- direction: "request" | "response" | "bidirectional"
+
+Include BOTH request and response flows where applicable (e.g. client sends credentials,
+auth_server returns token — these are 2 separate flows).
+
+### diagram_mermaid
+A Mermaid graph (LR direction) representing the flows. Use descriptive node labels.
+Use `-->|label|` syntax for edge labels. Keep labels short (max ~30 chars).
+Example: `graph LR\n  client[Client] -->|POST /login| auth[Auth Server]\n  auth -->|JWT token| client`
+
 Return ONLY valid JSON. Do NOT include any text outside the JSON object.
 """
 
@@ -245,13 +276,14 @@ Rules:
 - Merge prerequisites: deduplicate by name, keep the most complete description.
 - Merge data_access_patterns: deduplicate by (endpoint, pattern_type).
 - Merge endpoint_coverage: deduplicate by (endpoint, method), combine coverage info (if one doc has request_body and another has error_docs, the merged entry should have both).
+- Merge integration_data_flows: combine all components (deduplicate by id), combine all flows (deduplicate by from+to+label), rebuild diagram_mermaid to reflect the full system.
 - Build a unified code_skeleton covering the full API (all documents combined).
 - If documents contradict each other (different auth methods, conflicting params), report in source_doc_issues.
 - Preserve all unique information from each document.
 
 Return the same JSON structure as the individual analyses (phases, unique_patterns, \
 dependency_chains, code_skeleton, source_doc_issues, data_models, error_catalog, \
-prerequisites, data_access_patterns, endpoint_coverage).
+prerequisites, data_access_patterns, endpoint_coverage, integration_data_flows).
 
 Here are the individual lifecycle analyses:
 
@@ -272,7 +304,7 @@ Fix ONLY the identified errors. Keep everything else unchanged.
 All output text MUST remain in English.
 Return the corrected full JSON object with the same structure (phases, unique_patterns, \
 dependency_chains, code_skeleton, source_doc_issues, data_models, error_catalog, \
-prerequisites, data_access_patterns, endpoint_coverage).
+prerequisites, data_access_patterns, endpoint_coverage, integration_data_flows).
 
 Return ONLY valid JSON. Do NOT include any text outside the JSON object.
 """
@@ -532,6 +564,36 @@ def _validate_lifecycle(
             f"{', '.join(phases_missing_examples)}. Add request body examples."
         )
 
+    # Integration data flows check
+    idf = result.integration_data_flows
+    if isinstance(idf, dict) and idf:
+        components = idf.get("components", [])
+        flows = idf.get("flows", [])
+        comp_ids = {c.get("id") for c in components if c.get("id")}
+        has_external = any(c.get("type") == "external" for c in components)
+        if components and not has_external:
+            lifecycle_errors.append(
+                "integration_data_flows.components must include at least one component "
+                "with type 'external' representing the integration client."
+            )
+        for fl in flows:
+            if fl.get("from") and fl["from"] not in comp_ids:
+                lifecycle_errors.append(
+                    f"integration_data_flows flow references unknown component '{fl['from']}'. "
+                    f"Add it to components or fix the id."
+                )
+            if fl.get("to") and fl["to"] not in comp_ids:
+                lifecycle_errors.append(
+                    f"integration_data_flows flow references unknown component '{fl['to']}'. "
+                    f"Add it to components or fix the id."
+                )
+    elif not idf or not isinstance(idf, dict):
+        if result.phases:
+            lifecycle_errors.append(
+                "integration_data_flows is empty. Identify the system components "
+                "(client, servers, gateways, hardware) and the data flows between them."
+            )
+
     # Data models check: if doc contains JSON structures, data_models shouldn't be empty
     full_text = " ".join(chunk_contents)
     has_json_structures = '{"' in full_text or "'{" in full_text or '"type"' in full_text.lower()
@@ -597,6 +659,7 @@ def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: Lifecy
         prerequisites=parsed.get("prerequisites", fb.prerequisites),
         data_access_patterns=parsed.get("data_access_patterns", fb.data_access_patterns),
         endpoint_coverage=parsed.get("endpoint_coverage", fb.endpoint_coverage),
+        integration_data_flows=parsed.get("integration_data_flows", fb.integration_data_flows),
         usage=usage,
     )
 
@@ -617,6 +680,7 @@ def _retry_with_corrections(
         "prerequisites": previous.prerequisites,
         "data_access_patterns": previous.data_access_patterns,
         "endpoint_coverage": previous.endpoint_coverage,
+        "integration_data_flows": previous.integration_data_flows,
     }, indent=2, ensure_ascii=False)
 
     prompt = _CORRECTION_PROMPT.format(

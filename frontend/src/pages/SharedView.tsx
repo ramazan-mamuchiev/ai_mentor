@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Loader2, FileText, Layers } from 'lucide-react'
@@ -153,6 +153,21 @@ function SharedLifecycleView({ data }: { data: SharedLifecycleContentResponse })
   const issues = (data.doc_issues ?? []) as Array<{ document_id: number; issue_type: string; severity: string; description: string; affected_entity?: string; suggestion?: string }>
   const showTabs = merged && readyDocLcs.length > 0
 
+  const totalUsage = useMemo(() => {
+    let pt = 0, ct = 0, ms = 0
+    for (const dl of readyDocLcs) {
+      pt += (dl as unknown as Record<string, number>).prompt_tokens ?? 0
+      ct += (dl as unknown as Record<string, number>).completion_tokens ?? 0
+      ms += (dl as unknown as Record<string, number>).analysis_ms ?? 0
+    }
+    if (merged) {
+      pt += merged.prompt_tokens ?? 0
+      ct += merged.completion_tokens ?? 0
+      ms += merged.analysis_ms ?? 0
+    }
+    return { prompt_tokens: pt, completion_tokens: ct, analysis_ms: ms }
+  }, [readyDocLcs, merged])
+
   const activeDocLc = activeTab !== 'merged'
     ? docLcs.find(d => `doc-${d.document_id}` === activeTab) ?? null
     : null
@@ -206,13 +221,13 @@ function SharedLifecycleView({ data }: { data: SharedLifecycleContentResponse })
         )}
 
         {showTabs && activeTab === 'merged' && merged && (
-          <LifecycleContent lc={merged} issues={activeIssues} />
+          <LifecycleContent lc={merged} issues={activeIssues} aggregatedUsage={totalUsage} />
         )}
         {showTabs && activeTab !== 'merged' && activeDocLc && (
           <LifecycleContent lc={activeDocLc} issues={activeIssues} />
         )}
         {!showTabs && merged && (
-          <LifecycleContent lc={merged} issues={issues} />
+          <LifecycleContent lc={merged} issues={issues} aggregatedUsage={totalUsage} />
         )}
         {!showTabs && !merged && readyDocLcs.length === 1 && (
           <LifecycleContent lc={readyDocLcs[0]} issues={activeIssues} />

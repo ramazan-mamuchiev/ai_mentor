@@ -263,6 +263,12 @@ async def _get_lifecycle_prefix_for_results(results: list[dict]) -> str:
                     recovery = err.get("recovery_action", "")
                     lines.append(f"Error {err.get('http_status', '?')}: {err.get('meaning', '')} [{recovery}]")
 
+                idf = lc.integration_data_flows or {}
+                idf_comps = idf.get("components", [])
+                if idf_comps:
+                    comp_names = [f"{c.get('name', '?')} ({c.get('type', '')})" for c in idf_comps[:5]]
+                    lines.append(f"Architecture: {' → '.join(comp_names)}")
+
                 coverage = lc.endpoint_coverage or []
                 if coverage:
                     avg = sum(e.get("completeness", 0) for e in coverage) / len(coverage)
@@ -1808,6 +1814,25 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
                     f"- {d.get('from_action', '?')} → {d.get('to_action', '?')}: "
                     f"{d.get('description', '')} (data: {d.get('data_flow', '')})"
                 )
+
+        # Integration Data Flows
+        idf = lc.integration_data_flows or {}
+        idf_components = idf.get("components", [])
+        idf_flows = idf.get("flows", [])
+        if idf_components or idf_flows:
+            lines.append("\n## System Architecture — Integration Data Flows")
+            if idf_components:
+                lines.append("\n### Components")
+                for c in idf_components:
+                    lines.append(f"- **{c.get('name', '?')}** [{c.get('type', '?')}]: {c.get('description', '')}")
+            if idf_flows:
+                lines.append("\n### Data Flows")
+                for fl in idf_flows:
+                    proto = f" ({fl['protocol']})" if fl.get("protocol") else ""
+                    lines.append(f"- {fl.get('from', '?')} → {fl.get('to', '?')}: {fl.get('label', '')}{proto}")
+            mermaid = idf.get("diagram_mermaid", "")
+            if mermaid:
+                lines.append(f"\n### Architecture Diagram\n```mermaid\n{mermaid}\n```")
 
         # Code Skeleton
         if lc.code_skeleton:

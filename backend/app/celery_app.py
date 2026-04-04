@@ -3022,6 +3022,7 @@ def analyze_api_lifecycle_task(self, document_id: int):
                 existing.prerequisites = result.prerequisites
                 existing.data_access_patterns = result.data_access_patterns
                 existing.endpoint_coverage = result.endpoint_coverage
+                existing.integration_data_flows = result.integration_data_flows
                 existing.validation_issues = result.validation_issues
                 existing.validation_retries = result.validation_retries
                 existing.prompt_tokens = result.usage.prompt_tokens
@@ -3044,6 +3045,7 @@ def analyze_api_lifecycle_task(self, document_id: int):
                     prerequisites=result.prerequisites,
                     data_access_patterns=result.data_access_patterns,
                     endpoint_coverage=result.endpoint_coverage,
+                    integration_data_flows=result.integration_data_flows,
                     validation_issues=result.validation_issues,
                     validation_retries=result.validation_retries,
                     prompt_tokens=result.usage.prompt_tokens,
@@ -3202,6 +3204,7 @@ def merge_product_lifecycle_task(self, product_id: int):
                 existing.prerequisites = result.prerequisites
                 existing.data_access_patterns = result.data_access_patterns
                 existing.endpoint_coverage = result.endpoint_coverage
+                existing.integration_data_flows = result.integration_data_flows
                 existing.validation_issues = result.validation_issues
                 existing.validation_retries = result.validation_retries
                 existing.prompt_tokens = result.usage.prompt_tokens
@@ -3224,6 +3227,7 @@ def merge_product_lifecycle_task(self, product_id: int):
                     prerequisites=result.prerequisites,
                     data_access_patterns=result.data_access_patterns,
                     endpoint_coverage=result.endpoint_coverage,
+                    integration_data_flows=result.integration_data_flows,
                     validation_issues=result.validation_issues,
                     validation_retries=result.validation_retries,
                     prompt_tokens=result.usage.prompt_tokens,

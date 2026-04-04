@@ -754,6 +754,7 @@ async def get_product_lifecycle(product_id: int):
                 "prerequisites": lc.prerequisites or [],
                 "data_access_patterns": lc.data_access_patterns or [],
                 "endpoint_coverage": lc.endpoint_coverage or [],
+                "integration_data_flows": lc.integration_data_flows or {},
                 "validation_issues": lc.validation_issues or [],
                 "validation_retries": lc.validation_retries,
                 "prompt_tokens": lc.prompt_tokens,

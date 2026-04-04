@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   X, Loader2, AlertCircle, Activity, Maximize2, Minimize2, Share2,
@@ -35,12 +35,19 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+interface AggregatedUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  analysis_ms: number
+}
+
 interface LifecycleContentProps {
   lc: LifecyclePayload
   issues?: Array<{ document_id: number; issue_type: string; severity: string; description: string; affected_entity?: string; suggestion?: string }>
+  aggregatedUsage?: AggregatedUsage
 }
 
-export function LifecycleContent({ lc, issues = [] }: LifecycleContentProps) {
+export function LifecycleContent({ lc, issues = [], aggregatedUsage }: LifecycleContentProps) {
   const { t } = useTranslation()
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     prereqs: true, phases: true, dataModels: true, errors: true,
@@ -81,10 +88,19 @@ export function LifecycleContent({ lc, issues = [] }: LifecycleContentProps) {
           </span>
         )}
         {lc.model && <span className="lc-modal-model">{lc.model}</span>}
-        {lc.analysis_ms != null && <span className="lc-modal-time">{(lc.analysis_ms / 1000).toFixed(1)}s</span>}
-        {lc.prompt_tokens != null && (
-          <span className="lc-modal-tokens">{lc.prompt_tokens.toLocaleString()} + {(lc.completion_tokens ?? 0).toLocaleString()} tokens</span>
-        )}
+        {(() => {
+          const ms = aggregatedUsage?.analysis_ms ?? lc.analysis_ms
+          const pt = aggregatedUsage?.prompt_tokens ?? lc.prompt_tokens
+          const ct = aggregatedUsage?.completion_tokens ?? lc.completion_tokens
+          return (
+            <>
+              {ms != null && ms > 0 && <span className="lc-modal-time">{(ms / 1000).toFixed(1)}s</span>}
+              {pt != null && pt > 0 && (
+                <span className="lc-modal-tokens">{pt.toLocaleString()} + {(ct ?? 0).toLocaleString()} tokens</span>
+              )}
+            </>
+          )
+        })()}
         {lc.validation_retries != null && lc.validation_retries > 0 && (
           <span className="lc-modal-retries">{lc.validation_retries} {t('lifecycleModal.retries')}</span>
         )}
@@ -448,6 +464,21 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
 
   const showTabs = hasResults && readyDocLcs.length > 0
 
+  const totalUsage: AggregatedUsage = useMemo(() => {
+    let pt = 0, ct = 0, ms = 0
+    for (const dl of readyDocLcs) {
+      pt += dl.prompt_tokens ?? 0
+      ct += dl.completion_tokens ?? 0
+      ms += dl.analysis_ms ?? 0
+    }
+    if (m) {
+      pt += m.prompt_tokens ?? 0
+      ct += m.completion_tokens ?? 0
+      ms += m.analysis_ms ?? 0
+    }
+    return { prompt_tokens: pt, completion_tokens: ct, analysis_ms: ms }
+  }, [readyDocLcs, m])
+
   const activeDocLc = activeTab !== 'merged'
     ? docLcs.find(d => `doc-${d.document_id}` === activeTab) ?? null
     : null
@@ -620,7 +651,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
               )}
 
               {showTabs && activeTab === 'merged' && m && (
-                <LifecycleContent lc={m} issues={activeIssues} />
+                <LifecycleContent lc={m} issues={activeIssues} aggregatedUsage={totalUsage} />
               )}
 
               {showTabs && activeTab !== 'merged' && activeDocLc && (
@@ -628,7 +659,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
               )}
 
               {!showTabs && m && (
-                <LifecycleContent lc={m} issues={issues} />
+                <LifecycleContent lc={m} issues={issues} aggregatedUsage={totalUsage} />
               )}
             </div>
           )}

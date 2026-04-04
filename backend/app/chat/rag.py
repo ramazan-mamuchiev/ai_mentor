@@ -406,6 +406,12 @@ async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]
             recovery = err.get("recovery_action", "")
             lines.append(f"Error {err.get('http_status', '?')}: {err.get('meaning', '')} [{recovery}]")
 
+        idf = lc.integration_data_flows or {}
+        idf_comps = idf.get("components", [])
+        if idf_comps:
+            comp_names = [f"{c.get('name', '?')} ({c.get('type', '')})" for c in idf_comps[:5]]
+            lines.append(f"Architecture: {' → '.join(comp_names)}")
+
         coverage = lc.endpoint_coverage or []
         if coverage:
             avg = sum(e.get("completeness", 0) for e in coverage) / len(coverage)
