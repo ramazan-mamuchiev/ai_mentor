@@ -651,7 +651,7 @@ async def cancel_product_ingestion(product_id: int):
     }
 
 
-@router.post("/{product_id}/analyze-lifecycle", status_code=202, dependencies=[Depends(require_permission("debug"))])
+@router.post("/{product_id}/analyze-lifecycle", status_code=202, dependencies=[Depends(require_permission("lifecycle.run"))])
 async def analyze_product_lifecycle(product_id: int):
     """Manually trigger API lifecycle analysis for all documents of a product, then merge.
 

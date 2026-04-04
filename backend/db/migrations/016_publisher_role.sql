@@ -26,7 +26,8 @@ VALUES (
         "settings": true,
         "admin": false,
         "mcp": true,
-        "debug": true
+        "debug": true,
+        "lifecycle.run": true
       },
       "limits": {
         "max_documents": 500,

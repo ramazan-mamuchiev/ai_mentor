@@ -374,6 +374,7 @@ const DEFAULT_COLUMN_ORDER = ['title', 'format', 'status', 'size', 'chunks', 'pr
 export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, productId, headerSlot }: Props) {
   const { t } = useTranslation()
   const canDebug = usePermission('debug')
+  const canLifecycle = usePermission('lifecycle.run')
   const canDelete = usePermission('documents.delete')
   const canReindex = usePermission('documents.reindex')
   const canSync = usePermission('documents.sync')
@@ -728,12 +729,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onSync={canSync ? setSyncTarget : undefined}
           onDelete={canDelete ? setDeleteTarget : undefined}
           onSearchKeys={setSearchKeysTarget}
-          onAnalyzeLifecycle={canDebug ? handleAnalyzeLifecycle : undefined}
+          onAnalyzeLifecycle={canLifecycle ? handleAnalyzeLifecycle : undefined}
           onViewLifecycle={setLifecycleTarget}
         />
       ),
     },
-  ], [t, handleDownload, openDebug, canDebug, canDelete, canReindex, canSync, handleAnalyzeLifecycle])
+  ], [t, handleDownload, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle])
 
   const {
     table,
@@ -998,7 +999,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                     <Key size={16} />
                   </button>
                 )}
-                {doc.status === 'ready' && canDebug && (
+                {doc.status === 'ready' && canLifecycle && (
                   <button className="docs-action-btn" onClick={() => handleAnalyzeLifecycle(doc)} title={t('docs.actions.analyzeLifecycle')}>
                     <Activity size={16} />
                   </button>
@@ -1101,7 +1102,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         <LifecycleModal
           documentId={lifecycleTarget.id}
           documentTitle={lifecycleTarget.title}
-          canRun={canDebug}
+          canRun={canLifecycle}
           onClose={() => setLifecycleTarget(null)}
         />
       )}

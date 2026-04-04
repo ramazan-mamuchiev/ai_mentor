@@ -1063,7 +1063,7 @@ async def preview_markdown(document_id: int):
         )
 
 
-@router.post("/{document_id}/analyze-lifecycle", status_code=202, dependencies=[Depends(require_permission("debug"))])
+@router.post("/{document_id}/analyze-lifecycle", status_code=202, dependencies=[Depends(require_permission("lifecycle.run"))])
 async def analyze_document_lifecycle(document_id: int):
     """Manually trigger API lifecycle analysis for a document.
 
