@@ -236,6 +236,76 @@ def _set_tenant_log_context(tenant_id, session):
     tenant_name_ctx.set(tenant.name if tenant and tenant.name else "-")
 
 
+def _find_existing_by_filename_sync(session, original_filename: str, product_id: int, firmware_version_id: int):
+    """Find existing document by filename within same product+version (sync)."""
+    from app.models import Document
+    return session.execute(
+        sa_select(Document).where(
+            Document.original_filename == original_filename,
+            Document.product_id == product_id,
+            Document.firmware_version_id == firmware_version_id,
+        ).limit(1)
+    ).scalar_one_or_none()
+
+
+def _find_existing_by_source_path_sync(session, source_path: str, product_id: int, firmware_version_id: int):
+    """Find existing document by source URL within same product+version (for crawlers)."""
+    from app.models import Document
+    return session.execute(
+        sa_select(Document).where(
+            Document.source_path == source_path,
+            Document.product_id == product_id,
+            Document.firmware_version_id == firmware_version_id,
+        ).limit(1)
+    ).scalar_one_or_none()
+
+
+def _remove_old_document_sync(session, doc) -> int:
+    """Delete old document and its S3 file. Chunks/lifecycle/annotations cascade in DB.
+
+    Returns the id of the removed document.
+    """
+    from app.s3 import delete_file as s3_delete
+
+    old_id = doc.id
+    old_title = doc.title or doc.original_filename
+
+    if doc.s3_key:
+        try:
+            s3_delete(doc.s3_key)
+        except Exception:
+            logger.warning("Failed to delete S3 file for replaced document",
+                           extra={"s3_key": doc.s3_key, "document_id": old_id})
+
+    if doc.converted_s3_key:
+        try:
+            s3_delete(doc.converted_s3_key)
+        except Exception:
+            logger.warning("Failed to delete converted S3 file for replaced document",
+                           extra={"s3_key": doc.converted_s3_key, "document_id": old_id})
+
+    if doc.celery_task_id:
+        try:
+            celery.control.revoke(doc.celery_task_id, terminate=True)
+        except Exception:
+            logger.warning("Failed to revoke celery task for replaced document",
+                           extra={"task_id": doc.celery_task_id, "document_id": old_id})
+
+    from app.models import Chunk
+    existing_chunks = session.execute(
+        sa_select(Chunk).where(Chunk.document_id == doc.id)
+    ).scalars().all()
+    for c in existing_chunks:
+        session.delete(c)
+
+    session.delete(doc)
+    session.flush()
+
+    logger.info("Old document removed (replaced by new upload)",
+                extra={"document_id": old_id, "title": old_title})
+    return old_id
+
+
 @celery.task(name="ingest_document", bind=True, max_retries=2, default_retry_delay=30,
              soft_time_limit=2700, time_limit=3000)
 def ingest_document_task(self, document_id: int):
@@ -377,22 +447,25 @@ def _create_proto_bundle_docs(
         md_bytes = markdown.encode("utf-8")
         md_hash = hashlib.sha256(md_bytes).hexdigest()
 
-        if not force:
-            dup = session.execute(
-                sa_select(Document).where(
-                    Document.source_hash == md_hash,
-                    Document.product_id == product_id,
-                    Document.firmware_version_id == firmware_version_id,
-                ).limit(1)
-            ).scalar_one_or_none()
-            if dup is not None:
-                logger.info("Proto bundle duplicate skipped", extra={
-                    "domain": domain_name, "existing_id": dup.id,
-                })
-                continue
+        dup = session.execute(
+            sa_select(Document).where(
+                Document.source_hash == md_hash,
+                Document.product_id == product_id,
+                Document.firmware_version_id == firmware_version_id,
+            ).limit(1)
+        ).scalar_one_or_none()
+        if dup is not None and not force:
+            logger.info("Proto bundle unchanged, skipped", extra={
+                "domain": domain_name, "existing_id": dup.id,
+            })
+            continue
 
         title = f"gRPC API: {domain_name}"
         filename = f"{domain_name}.md"
+
+        old_doc = _find_existing_by_filename_sync(session, filename, product_id, firmware_version_id)
+        if old_doc is not None:
+            _remove_old_document_sync(session, old_doc)
 
         doc = Document(
             product_id=product_id,
@@ -546,19 +619,22 @@ def ingest_archive_task(
             entry_folder = os.path.dirname(arc_path).replace("\\", "/")
             entry_hash = hashlib.sha256(entry_data).hexdigest()
 
-            if not force:
-                dup = session.execute(
-                    sa_select(Document).where(
-                        Document.source_hash == entry_hash,
-                        Document.product_id == product_row.id,
-                        Document.firmware_version_id == fw_row.id,
-                    ).limit(1)
-                ).scalar_one_or_none()
-                if dup is not None:
-                    logger.info("Archive entry duplicate skipped", extra={
-                        "entry": arc_path, "existing_id": dup.id,
-                    })
-                    continue
+            dup = session.execute(
+                sa_select(Document).where(
+                    Document.source_hash == entry_hash,
+                    Document.product_id == product_row.id,
+                    Document.firmware_version_id == fw_row.id,
+                ).limit(1)
+            ).scalar_one_or_none()
+            if dup is not None and not force:
+                logger.info("Archive entry unchanged, skipped", extra={
+                    "entry": arc_path, "existing_id": dup.id,
+                })
+                continue
+
+            old_doc = _find_existing_by_filename_sync(session, entry_filename, product_row.id, fw_row.id)
+            if old_doc is not None:
+                _remove_old_document_sync(session, old_doc)
 
             child_doc = Document(
                 product_id=product_row.id,
@@ -705,19 +781,22 @@ def ingest_archive_from_s3_task(
             entry_folder = os.path.dirname(arc_path).replace("\\", "/")
             entry_hash = hashlib.sha256(entry_data).hexdigest()
 
-            if not force:
-                dup = session.execute(
-                    sa_select(Document).where(
-                        Document.source_hash == entry_hash,
-                        Document.product_id == product_row.id,
-                        Document.firmware_version_id == fw_row.id,
-                    ).limit(1)
-                ).scalar_one_or_none()
-                if dup is not None:
-                    logger.info("Archive entry duplicate skipped", extra={
-                        "entry": arc_path, "existing_id": dup.id,
-                    })
-                    continue
+            dup = session.execute(
+                sa_select(Document).where(
+                    Document.source_hash == entry_hash,
+                    Document.product_id == product_row.id,
+                    Document.firmware_version_id == fw_row.id,
+                ).limit(1)
+            ).scalar_one_or_none()
+            if dup is not None and not force:
+                logger.info("Archive entry unchanged, skipped", extra={
+                    "entry": arc_path, "existing_id": dup.id,
+                })
+                continue
+
+            old_doc = _find_existing_by_filename_sync(session, entry_filename, product_row.id, fw_row.id)
+            if old_doc is not None:
+                _remove_old_document_sync(session, old_doc)
 
             child_doc = Document(
                 product_id=product_row.id,
@@ -1111,16 +1190,20 @@ def ingest_confluence_task(self, document_id: int, max_pages: int | None = None,
             source_hash = hashlib.sha256(md_bytes).hexdigest()
 
             with Session(engine) as s:
-                existing = s.execute(
+                existing_by_hash = s.execute(
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
                         Document.product_id == product_id,
                         Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
-                if existing is not None:
+                if existing_by_hash is not None:
                     skipped += 1
                     return
+
+                old_doc = _find_existing_by_source_path_sync(s, page.url, product_id, firmware_version_id)
+                if old_doc is not None:
+                    _remove_old_document_sync(s, old_doc)
 
                 doc = Document(
                     product_id=product_id,
@@ -1472,16 +1555,20 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
             source_hash = hashlib.sha256(md_bytes).hexdigest()
 
             with Session(engine) as s:
-                existing = s.execute(
+                existing_by_hash = s.execute(
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
                         Document.product_id == product_id,
                         Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
-                if existing is not None:
+                if existing_by_hash is not None:
                     skipped += 1
                     return
+
+                old_doc = _find_existing_by_source_path_sync(s, page.url, product_id, firmware_version_id)
+                if old_doc is not None:
+                    _remove_old_document_sync(s, old_doc)
 
                 doc = Document(
                     product_id=product_id,
@@ -1544,15 +1631,19 @@ def ingest_site_task(self, document_id: int, max_depth: int | None = None, max_p
             fmt = crawled_file.format
 
             with Session(engine) as s:
-                existing = s.execute(
+                existing_by_hash = s.execute(
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
                         Document.product_id == product_id,
                         Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
-                if existing is not None:
+                if existing_by_hash is not None:
                     return
+
+                old_doc = _find_existing_by_source_path_sync(s, crawled_file.url, product_id, firmware_version_id)
+                if old_doc is not None:
+                    _remove_old_document_sync(s, old_doc)
 
                 doc = Document(
                     product_id=product_id,
@@ -1916,16 +2007,20 @@ def ingest_github_task(self, document_id: int, branch: str = "main"):
             fmt = gh_file.format
 
             with Session(engine) as s:
-                existing = s.execute(
+                existing_by_hash = s.execute(
                     sa_select(Document).where(
                         Document.source_hash == source_hash,
                         Document.product_id == product_id,
                         Document.firmware_version_id == firmware_version_id,
                     ).limit(1)
                 ).scalar_one_or_none()
-                if existing is not None:
+                if existing_by_hash is not None:
                     skipped += 1
                     return
+
+                old_doc = _find_existing_by_source_path_sync(s, gh_file.url, product_id, firmware_version_id)
+                if old_doc is not None:
+                    _remove_old_document_sync(s, old_doc)
 
                 doc = Document(
                     product_id=product_id,

@@ -371,7 +371,10 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
     For archives: no Document is created for the archive itself. Instead, the
     Celery task extracts inner files and creates Documents for each one.
     """
-    from app.documents.router import _find_by_hash, _get_or_create_firmware, _get_or_create_product
+    from app.documents.router import (
+        _find_by_hash, _find_by_filename, _remove_old_document,
+        _get_or_create_firmware, _get_or_create_product,
+    )
 
     upload_tenant_id = us.tenant_id
 
@@ -402,6 +405,10 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
                 },
             )
             return existing.id
+
+    old_doc = await _find_by_filename(session, us.filename, product.id, fw.id)
+    if old_doc is not None:
+        await _remove_old_document(session, old_doc)
 
     doc = Document(
         product_id=product.id,

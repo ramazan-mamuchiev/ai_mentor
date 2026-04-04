@@ -104,29 +104,34 @@ async def ingest_document(
         fw = await _get_or_create_firmware(session, product.id, firmware_version)
 
         if not force:
-            existing = await _find_by_hash(session, source_hash, product.id, fw.id)
-            if existing is not None:
+            existing_by_hash = await _find_by_hash(session, source_hash, product.id, fw.id)
+            if existing_by_hash is not None:
                 logger.info(
                     "Duplicate document skipped",
                     extra={
                         "source_hash": source_hash,
-                        "existing_document_id": existing.id,
-                        "existing_title": existing.title,
+                        "existing_document_id": existing_by_hash.id,
+                        "existing_title": existing_by_hash.title,
                         "uploaded_filename": original_filename,
                     },
                 )
                 return IngestResponse(
-                    document_id=existing.id,
+                    document_id=existing_by_hash.id,
                     status="skipped",
                     message=(
                         f"Документ с таким содержимым уже загружен: "
-                        f"«{existing.title}» (id={existing.id}, "
-                        f"файл: {existing.original_filename}). "
+                        f"«{existing_by_hash.title}» (id={existing_by_hash.id}, "
+                        f"файл: {existing_by_hash.original_filename}). "
                         f"Повторная загрузка пропущена."
                     ),
-                    existing_document_id=existing.id,
-                    existing_document_title=existing.title,
+                    existing_document_id=existing_by_hash.id,
+                    existing_document_title=existing_by_hash.title,
                 )
+
+        replaced_id = None
+        existing_by_name = await _find_by_filename(session, original_filename, product.id, fw.id)
+        if existing_by_name is not None:
+            replaced_id = await _remove_old_document(session, existing_by_name)
 
         doc = Document(
             product_id=product.id,
@@ -155,6 +160,7 @@ async def ingest_document(
         doc.celery_task_id = task.id
         await session.commit()
 
+        msg = f"Document replaced old version (id={replaced_id})" if replaced_id else "Document uploaded and queued for processing"
         logger.info(
             "Document ingestion queued",
             extra={
@@ -163,13 +169,14 @@ async def ingest_document(
                 "s3_key": s3_key,
                 "file_size_bytes": file_size,
                 "client_ip": client_ip,
+                "replaced_document_id": replaced_id,
             },
         )
 
         return IngestResponse(
             document_id=doc.id,
-            status="pending",
-            message="Document uploaded and queued for processing",
+            status="replaced" if replaced_id else "pending",
+            message=msg,
             task_id=task.id,
         )
 
@@ -470,13 +477,16 @@ async def _create_proto_bundle_docs_async(
         md_bytes = markdown.encode("utf-8")
         md_hash = hashlib.sha256(md_bytes).hexdigest()
 
-        if not force:
-            existing = await _find_by_hash(session, md_hash)
-            if existing is not None:
-                continue
+        existing_by_hash = await _find_by_hash(session, md_hash, product_id, firmware_version_id)
+        if existing_by_hash is not None and not force:
+            continue
 
         title = f"gRPC API: {domain_name}"
         filename = f"{domain_name}.md"
+
+        old_doc = await _find_by_filename(session, filename, product_id, firmware_version_id)
+        if old_doc is not None:
+            await _remove_old_document(session, old_doc)
 
         doc = Document(
             product_id=product_id,
