@@ -708,7 +708,7 @@ async def analyze_product_lifecycle(product_id: int):
 
 @router.get("/{product_id}/lifecycle")
 async def get_product_lifecycle(product_id: int):
-    """Get merged lifecycle analysis for a product."""
+    """Get merged lifecycle analysis for a product, plus individual per-document lifecycles."""
     from app.models import ApiLifecycle, DocIssueAnnotation
     async with async_session() as session:
         product = await _get_product(session, product_id)
@@ -721,16 +721,20 @@ async def get_product_lifecycle(product_id: int):
         )).scalar_one_or_none()
 
         doc_lifecycles = (await session.execute(
-            select(
-                ApiLifecycle.document_id,
-                ApiLifecycle.status,
-                ApiLifecycle.analysis_ms,
-                ApiLifecycle.created_at,
-            ).where(
+            select(ApiLifecycle).where(
                 ApiLifecycle.product_id == product_id,
                 ApiLifecycle.document_id.isnot(None),
             )
-        )).all()
+        )).scalars().all()
+
+        doc_ids = [dl.document_id for dl in doc_lifecycles if dl.document_id]
+        doc_names: dict[int, str] = {}
+        if doc_ids:
+            rows = (await session.execute(
+                select(Document.id, Document.title, Document.original_filename)
+                .where(Document.id.in_(doc_ids))
+            )).all()
+            doc_names = {r.id: r.title or r.original_filename or f"Document {r.id}" for r in rows}
 
         issues = (await session.execute(
             select(DocIssueAnnotation).where(
@@ -738,41 +742,43 @@ async def get_product_lifecycle(product_id: int):
             )
         )).scalars().all()
 
+        def _lifecycle_payload(lc: ApiLifecycle) -> dict:
+            return {
+                "status": lc.status,
+                "phases": lc.phases or [],
+                "unique_patterns": lc.unique_patterns or [],
+                "dependency_chains": lc.dependency_chains or [],
+                "code_skeleton": lc.code_skeleton or "",
+                "data_models": lc.data_models or [],
+                "error_catalog": lc.error_catalog or [],
+                "prerequisites": lc.prerequisites or [],
+                "data_access_patterns": lc.data_access_patterns or [],
+                "endpoint_coverage": lc.endpoint_coverage or [],
+                "validation_issues": lc.validation_issues or [],
+                "validation_retries": lc.validation_retries,
+                "prompt_tokens": lc.prompt_tokens,
+                "completion_tokens": lc.completion_tokens,
+                "analysis_ms": lc.analysis_ms,
+                "model": lc.model,
+                "created_at": lc.created_at.isoformat() if lc.created_at else None,
+                "updated_at": lc.updated_at.isoformat() if lc.updated_at else None,
+            }
+
         result: dict = {
             "product_id": product_id,
             "product_name": product.name,
             "document_lifecycles": [
                 {
                     "document_id": dl.document_id,
-                    "status": dl.status,
-                    "analysis_ms": dl.analysis_ms,
-                    "created_at": dl.created_at.isoformat() if dl.created_at else None,
+                    "document_name": doc_names.get(dl.document_id, f"Document {dl.document_id}") if dl.document_id else None,
+                    **_lifecycle_payload(dl),
                 }
                 for dl in doc_lifecycles
             ],
         }
 
         if merged:
-            result["merged"] = {
-                "status": merged.status,
-                "phases": merged.phases,
-                "unique_patterns": merged.unique_patterns,
-                "dependency_chains": merged.dependency_chains,
-                "code_skeleton": merged.code_skeleton,
-                "data_models": merged.data_models or [],
-                "error_catalog": merged.error_catalog or [],
-                "prerequisites": merged.prerequisites or [],
-                "data_access_patterns": merged.data_access_patterns or [],
-                "endpoint_coverage": merged.endpoint_coverage or [],
-                "validation_issues": merged.validation_issues,
-                "validation_retries": merged.validation_retries,
-                "prompt_tokens": merged.prompt_tokens,
-                "completion_tokens": merged.completion_tokens,
-                "analysis_ms": merged.analysis_ms,
-                "model": merged.model,
-                "created_at": merged.created_at.isoformat() if merged.created_at else None,
-                "updated_at": merged.updated_at.isoformat() if merged.updated_at else None,
-            }
+            result["merged"] = _lifecycle_payload(merged)
         else:
             result["merged"] = None
 

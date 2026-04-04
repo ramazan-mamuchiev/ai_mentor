@@ -72,40 +72,49 @@ export async function analyzeProductLifecycle(productId: number): Promise<{ prod
   return apiFetch(`/products/${productId}/analyze-lifecycle`, { method: 'POST' })
 }
 
+export interface LifecyclePayload {
+  status: string
+  phases: Array<{
+    phase_name: string; step_order: number; action: string; api_call: string
+    http_method?: string; content_type?: string
+    inputs: string[]; outputs: string[]; output_used_by?: string[]; is_required: boolean; notes: string
+    request_example?: string; response_example?: string
+  }>
+  unique_patterns: Array<{ pattern: string; description: string; impact: string; code_hint: string }>
+  dependency_chains: Array<{ from_action: string; to_action: string; data_flow: string; description: string }>
+  data_models: Array<{
+    model_name: string; direction: string; content_type?: string
+    used_in?: string[]
+    fields?: Array<{ name: string; type: string; constraints?: string; required?: boolean; description?: string; example_value?: string }>
+  }>
+  error_catalog: Array<{
+    http_status: number; error_code?: string; meaning: string
+    recovery_action: string; retry_after_seconds?: number
+  }>
+  prerequisites: Array<{ name: string; type: string; description: string; example_value?: string; how_to_obtain?: string }>
+  data_access_patterns: Array<{ pattern_type: string; endpoint: string; mechanism: string; code_hint?: string }>
+  endpoint_coverage: Array<{
+    method: string; endpoint: string; completeness: number
+    has_request_body_docs: boolean; has_response_docs: boolean
+    has_error_docs: boolean; has_example: boolean
+  }>
+  code_skeleton: string
+  validation_issues: Array<{ error: string }>
+  validation_retries: number
+  prompt_tokens: number; completion_tokens: number; analysis_ms: number; model: string
+  created_at: string | null; updated_at: string | null
+}
+
+export interface DocumentLifecycle extends LifecyclePayload {
+  document_id: number
+  document_name: string | null
+}
+
 export interface ProductLifecycle {
   product_id: number
   product_name: string
-  document_lifecycles: Array<{ document_id: number; status: string; analysis_ms: number; created_at: string | null }>
-  merged: null | {
-    status: string
-    phases: Array<{
-      phase_name: string; step_order: number; action: string; api_call: string
-      inputs: string[]; outputs: string[]; is_required: boolean; notes: string
-    }>
-    unique_patterns: Array<{ pattern: string; description: string; impact: string; code_hint: string }>
-    dependency_chains: Array<{ from_action: string; to_action: string; data_flow: string; description: string }>
-    data_models: Array<{
-      model_name: string; direction: string; content_type?: string
-      used_in?: string[]
-      fields?: Array<{ name: string; type: string; constraints?: string; required?: boolean; description?: string; example_value?: string }>
-    }>
-    error_catalog: Array<{
-      http_status: number; error_code?: string; meaning: string
-      recovery_action: string; retry_after_seconds?: number
-    }>
-    prerequisites: Array<{ name: string; type: string; description: string; example_value?: string; how_to_obtain?: string }>
-    data_access_patterns: Array<{ pattern_type: string; endpoint: string; mechanism: string; code_hint?: string }>
-    endpoint_coverage: Array<{
-      method: string; endpoint: string; completeness: number
-      has_request_body_docs: boolean; has_response_docs: boolean
-      has_error_docs: boolean; has_example: boolean
-    }>
-    code_skeleton: string
-    validation_issues: Array<{ error: string }>
-    validation_retries: number
-    prompt_tokens: number; completion_tokens: number; analysis_ms: number; model: string
-    created_at: string | null; updated_at: string | null
-  }
+  document_lifecycles: DocumentLifecycle[]
+  merged: LifecyclePayload | null
   doc_issues: Array<{
     document_id: number; issue_type: string; severity: string; description: string
     affected_entity?: string; suggestion?: string

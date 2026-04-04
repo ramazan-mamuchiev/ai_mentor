@@ -874,6 +874,50 @@ button.docs-lc-badge--partial:hover {
 .plc-doc-error { color: #e03131; font-weight: 600; }
 .plc-doc-total { color: var(--text-tertiary); }
 
+.plc-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 0 2px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: thin;
+}
+
+.plc-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  max-width: 200px;
+}
+
+.plc-tab:hover {
+  color: var(--text);
+  background: var(--bg-secondary);
+}
+
+.plc-tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.plc-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .plc-modal-doc-progress {
   display: flex;
   align-items: center;
@@ -3493,6 +3537,30 @@ button.docs-lc-badge--partial:hover {
 .lc-modal-empty p {
   font-size: 14px;
   margin: 0;
+}
+
+.lc-modal-error-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--danger, #e03131);
+}
+.lc-modal-error-block-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.lc-modal-error-block-msg {
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 500px;
+  margin: 0;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .lc-modal-in-progress {

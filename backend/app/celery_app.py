@@ -3132,12 +3132,31 @@ def analyze_api_lifecycle_task(self, document_id: int):
             return {"status": "ok", "document_id": document_id, "phases": len(result.phases)}
 
         except Exception as exc:
+            error_msg = f"{type(exc).__name__}: {str(exc)[:500]}"
             doc.lifecycle_status = "error"
+
+            existing_lc = session.execute(
+                sa_select(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
+            ).scalar_one_or_none()
+            if existing_lc:
+                existing_lc.status = "error"
+                existing_lc.error_message = error_msg
+                existing_lc.updated_at = datetime.now(_tz.utc)
+            else:
+                session.add(ApiLifecycle(
+                    document_id=document_id,
+                    product_id=doc.product_id,
+                    status="error",
+                    error_message=error_msg,
+                ))
+
             session.commit()
             logger.error("Lifecycle analysis failed",
                          extra={"document_id": document_id, "error_type": type(exc).__name__},
                          exc_info=True)
-            raise self.retry(exc=exc)
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=exc)
+            return {"status": "error", "document_id": document_id, "error": error_msg}
 
 
 @celery.task(name="merge_product_lifecycle", bind=True, max_retries=1,
@@ -3244,9 +3263,31 @@ def merge_product_lifecycle_task(self, product_id: int):
             return {"status": "ok", "product_id": product_id, "phases": len(result.phases)}
 
         except Exception as exc:
+            error_msg = f"{type(exc).__name__}: {str(exc)[:500]}"
+            existing_lc = session.execute(
+                sa_select(ApiLifecycle).where(
+                    ApiLifecycle.product_id == product_id,
+                    ApiLifecycle.document_id.is_(None),
+                )
+            ).scalar_one_or_none()
+            if existing_lc:
+                existing_lc.status = "error"
+                existing_lc.error_message = error_msg
+                existing_lc.updated_at = datetime.now(_tz.utc)
+            else:
+                session.add(ApiLifecycle(
+                    document_id=None,
+                    product_id=product_id,
+                    status="error",
+                    error_message=error_msg,
+                ))
+            session.commit()
+
             logger.error("Product lifecycle merge failed",
                          extra={"product_id": product_id, "error_type": type(exc).__name__},
                          exc_info=True)
-            raise self.retry(exc=exc)
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=exc)
+            return {"status": "error", "product_id": product_id, "error": error_msg}
 
 

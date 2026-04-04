@@ -608,6 +608,8 @@
   "lifecycleModal.confirmDelete": "Удалить результаты API Lifecycle анализа? Это действие необратимо.",
   "lifecycleModal.collapseAll": "Свернуть все",
   "lifecycleModal.expandAll": "Развернуть все",
+  "lifecycleModal.analysisFailed": "Анализ завершился с ошибкой",
+  "lifecycleModal.tabMerged": "Объединённый",
 
   "products.lifecycle.started": "Анализ API Lifecycle запущен для «{{name}}»",
   "products.lifecycle.error": "Не удалось запустить анализ API Lifecycle для продукта",

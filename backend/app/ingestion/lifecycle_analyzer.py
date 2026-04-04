@@ -305,11 +305,44 @@ def _call_llm_sync(system: str, user: str, *, json_mode: bool = True) -> tuple[s
         "Authorization": f"Bearer {settings.gemini_api_key}",
     }
 
+    max_retries = 3
+    retry_delays = [5, 15, 30]
+    retryable_statuses = {429, 500, 502, 503, 504}
+
     t0 = time.perf_counter()
     with httpx.Client(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
-        resp = client.post(url, json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+        last_exc: Exception | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                resp = client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                last_exc = None
+                break
+            except httpx.HTTPStatusError as e:
+                last_exc = e
+                if e.response.status_code in retryable_statuses and attempt < max_retries:
+                    delay = retry_delays[min(attempt, len(retry_delays) - 1)]
+                    logger.warning(
+                        "LLM call got %s, retrying in %ds (attempt %d/%d)",
+                        e.response.status_code, delay, attempt + 1, max_retries,
+                    )
+                    time.sleep(delay)
+                else:
+                    raise
+            except (httpx.ConnectError, httpx.ReadTimeout) as e:
+                last_exc = e
+                if attempt < max_retries:
+                    delay = retry_delays[min(attempt, len(retry_delays) - 1)]
+                    logger.warning(
+                        "LLM call network error: %s, retrying in %ds (attempt %d/%d)",
+                        type(e).__name__, delay, attempt + 1, max_retries,
+                    )
+                    time.sleep(delay)
+                else:
+                    raise
+        if last_exc is not None:
+            raise last_exc
     llm_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     text = data["choices"][0]["message"]["content"].strip()

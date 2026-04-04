@@ -130,7 +130,7 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
   }
 
   const hasData = lc && lc.status !== 'not_analyzed'
-  const hasResults = hasData && !isInProgress(lc?.status)
+  const hasResults = hasData && lc?.status === 'ready'
   const phases = lc?.phases ?? []
   const patterns = lc?.unique_patterns ?? []
   const deps = lc?.dependency_chains ?? []
@@ -228,6 +228,20 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                 <button className="lc-modal-run-btn lc-modal-run-btn--large" onClick={handleRun} disabled={!canLaunch}>
                   {launching ? <Loader2 size={14} className="spin-icon" /> : <Play size={14} />}
                   {t('lifecycle.run')}
+                </button>
+              )}
+            </div>
+          )}
+
+          {!loading && !error && hasData && lc?.status === 'error' && !analysisRunning && (
+            <div className="lc-modal-error-block">
+              <AlertCircle size={40} />
+              <p className="lc-modal-error-block-title">{t('lifecycleModal.analysisFailed')}</p>
+              {lc?.error_message && <p className="lc-modal-error-block-msg">{lc.error_message}</p>}
+              {canRun && (
+                <button className="lc-modal-run-btn lc-modal-run-btn--large" onClick={handleRun} disabled={!canLaunch}>
+                  <RefreshCw size={14} />
+                  {t('lifecycle.rerun')}
                 </button>
               )}
             </div>
