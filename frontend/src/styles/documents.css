@@ -1373,7 +1373,7 @@ button.docs-lc-badge--error:hover {
 .docs-actions-submenu {
   position: absolute;
   top: -4px;
-  left: 100%;
+  left: calc(100% + 4px);
   min-width: 200px;
   padding: 4px;
   background: var(--surface);
@@ -1385,7 +1385,7 @@ button.docs-lc-badge--error:hover {
 
 .docs-actions-submenu--left {
   left: auto;
-  right: 100%;
+  right: calc(100% + 4px);
 }
 
 .docs-actions-submenu-wrapper:hover > .docs-actions-submenu-trigger {
