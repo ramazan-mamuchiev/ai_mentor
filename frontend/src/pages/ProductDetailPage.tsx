@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Activity } from 'lucide-react'
 import { getProductBySlug } from '../api/products'
 import { DocumentsPage } from './DocumentsPage'
+import { ProductLifecycleModal } from '../components/ProductLifecycleModal'
+import { usePermission } from '../auth/usePermission'
 import type { ProductDetail } from '../types'
 import type { ProductContext } from '../components/FileUpload'
 
@@ -16,8 +18,10 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
   const { t } = useTranslation()
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
+  const canLifecycle = usePermission('lifecycle.run')
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showLifecycle, setShowLifecycle] = useState(false)
 
   useEffect(() => {
     if (!slug) return
@@ -63,10 +67,20 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
         <ArrowLeft size={18} />
         {t('products.title')}
       </button>
-      <h1 className="product-detail-title">
-        {product.name}
-        {product.manufacturer && <span className="product-manufacturer"> — {product.manufacturer}</span>}
-      </h1>
+      <div className="product-detail-title-row">
+        <h1 className="product-detail-title">
+          {product.name}
+          {product.manufacturer && <span className="product-manufacturer"> — {product.manufacturer}</span>}
+        </h1>
+        <button
+          className="product-lifecycle-btn"
+          onClick={() => setShowLifecycle(true)}
+          title={t('lifecycleModal.title')}
+        >
+          <Activity size={14} />
+          API Lifecycle
+        </button>
+      </div>
       {product.firmware_versions.length > 0 && (
         <div className="product-versions">
           {product.firmware_versions.map(v => (
@@ -78,11 +92,21 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
   )
 
   return (
-    <DocumentsPage
-      onUploadClick={onUploadClick ? handleUploadClick : undefined}
-      onUrlImportClick={onUrlImportClick ? handleUrlImportClick : undefined}
-      productId={product.id}
-      headerSlot={productHeader}
-    />
+    <>
+      <DocumentsPage
+        onUploadClick={onUploadClick ? handleUploadClick : undefined}
+        onUrlImportClick={onUrlImportClick ? handleUrlImportClick : undefined}
+        productId={product.id}
+        headerSlot={productHeader}
+      />
+      {showLifecycle && (
+        <ProductLifecycleModal
+          productId={product.id}
+          productName={product.name}
+          canRun={canLifecycle}
+          onClose={() => setShowLifecycle(false)}
+        />
+      )}
+    </>
   )
 }
