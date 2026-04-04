@@ -153,6 +153,15 @@ export function TaskQueuePage() {
     }
   }, [autoRefresh, fetchData])
 
+  useEffect(() => {
+    if (!confirmAction) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setConfirmAction(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [confirmAction])
+
   const handleCancel = useCallback(async (taskId: string) => {
     try {
       await cancelTask(taskId)
