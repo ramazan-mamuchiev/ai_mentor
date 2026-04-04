@@ -7,6 +7,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { TASK_QUEUE_REFRESH_INTERVAL } from './constants'
 import {
   listTasks, listWorkers, cancelTask, retryTask, rescueStaleTasks, bulkCancelTasks,
   deleteTask, bulkDeleteTasks,
@@ -147,7 +148,7 @@ export function TaskQueuePage() {
 
   useEffect(() => {
     if (autoRefresh) {
-      intervalRef.current = setInterval(() => fetchData(), 10000)
+      intervalRef.current = setInterval(() => fetchData(), TASK_QUEUE_REFRESH_INTERVAL)
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)

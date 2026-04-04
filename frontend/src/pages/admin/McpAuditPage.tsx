@@ -13,6 +13,7 @@ import { RightPanel } from '../../components/RightPanel'
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
 import { TIME_RANGES, timeRangeToISO, fmtTs, fmtMs, fmtUsd, highlightSearch, downloadBlob, exportItemsJSON, exportItemsCSV } from '../../utils/auditUtils'
 import type { McpSourceInfo } from '../../types'
+import { AUDIT_REFRESH_INTERVAL } from './constants'
 
 const TOOLS = ['', 'search_documentation', 'get_api_endpoint', 'list_products'] as const
 
@@ -187,7 +188,7 @@ export function McpAuditPage() {
 
   useEffect(() => {
     if (autoRefresh) {
-      intervalRef.current = setInterval(load, 5000)
+      intervalRef.current = setInterval(load, AUDIT_REFRESH_INTERVAL)
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [autoRefresh, load])

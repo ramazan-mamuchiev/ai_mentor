@@ -15,6 +15,7 @@ import { RightPanel } from '../../components/RightPanel'
 import { TenantFilterCombo } from '../../components/TenantFilterCombo'
 import { TIME_RANGES, timeRangeToISO, fmtTsShort, fmtDuration, fmtUsd, highlightSearch, downloadBlob, exportItemsJSON, exportItemsCSV } from '../../utils/auditUtils'
 import type { SourceInfo, DebugInfo } from '../../types'
+import { AUDIT_REFRESH_INTERVAL } from './constants'
 
 function toSourceInfos(sources: AdminChatMessage['sources']): SourceInfo[] {
   if (!sources || !Array.isArray(sources)) return []
@@ -338,7 +339,7 @@ function SessionListView() {
 
   useEffect(() => {
     if (autoRefresh) {
-      intervalRef.current = setInterval(load, 5000)
+      intervalRef.current = setInterval(load, AUDIT_REFRESH_INTERVAL)
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [autoRefresh, load])

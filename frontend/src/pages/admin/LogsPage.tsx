@@ -18,6 +18,7 @@ const LEVELS = [
 ] as const
 
 import { timeRangeToISO, highlightSearch } from '../../utils/auditUtils'
+import { LOGS_REFRESH_INTERVAL } from './constants'
 
 const TIME_RANGES = [
   { value: '15m', label: '15m' },
@@ -262,7 +263,7 @@ export function LogsPage() {
 
   useEffect(() => {
     if (autoRefresh) {
-      intervalRef.current = setInterval(load, 3000)
+      intervalRef.current = setInterval(load, LOGS_REFRESH_INTERVAL)
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)

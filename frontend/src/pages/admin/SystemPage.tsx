@@ -5,6 +5,7 @@ import {
   Clock, Loader, AlertTriangle, Zap, MessageSquare, Users, Radio,
 } from 'lucide-react'
 import { getSystemInfo, type SystemInfo } from '../../api/admin'
+import { SYSTEM_REFRESH_INTERVAL } from './constants'
 
 function fmtBytes(b: number) {
   if (b < 1024) return `${b} B`
@@ -118,7 +119,7 @@ export function SystemPage() {
 
   useEffect(() => {
     if (autoRefresh) {
-      intervalRef.current = setInterval(() => fetchData(), 30000)
+      intervalRef.current = setInterval(() => fetchData(), SYSTEM_REFRESH_INTERVAL)
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
