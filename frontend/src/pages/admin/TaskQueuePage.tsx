@@ -25,6 +25,23 @@ function fmtTime(date: Date) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffH = diffMs / 3600000
+
+  if (diffH < 24) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+  if (diffH < 48) {
+    return 'вчера ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short' }) +
+    ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 function statusBadgeClass(status: string): string {
   switch (status) {
     case 'active': return 'badge--blue'
@@ -357,8 +374,8 @@ export function TaskQueuePage() {
                   <th>{t('admin.tasks.col.task')}</th>
                   <th>{t('admin.tasks.col.target')}</th>
                   <th>{t('admin.tasks.col.progress')}</th>
+                  <th>{t('admin.tasks.col.created')}</th>
                   <th>{t('admin.tasks.col.worker')}</th>
-                  <th>{t('admin.tasks.col.runtime')}</th>
                   <th>{t('admin.tasks.col.actions')}</th>
                 </tr>
               </thead>
@@ -424,6 +441,16 @@ export function TaskQueuePage() {
                       )}
                     </td>
                     <td>
+                      <div className="tq-created-cell">
+                        <span className="mono" style={{ fontSize: 12 }}>
+                          {fmtDate(item.created_at)}
+                        </span>
+                        {item.status === 'active' && item.runtime_sec != null && (
+                          <span className="tq-runtime-sub">{fmtRuntime(item.runtime_sec)}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
                       {item.worker ? (
                         <span className="mono" style={{ fontSize: 12 }}>{item.worker}</span>
                       ) : item.status === 'reserved' ? (
@@ -433,17 +460,6 @@ export function TaskQueuePage() {
                       ) : (
                         <span style={{ color: 'var(--text-muted)' }}>—</span>
                       )}
-                    </td>
-                    <td>
-                      <span
-                        className="mono"
-                        style={{
-                          fontSize: 12,
-                          color: item.status === 'stale' ? 'var(--danger, #ef4444)' : undefined,
-                        }}
-                      >
-                        {fmtRuntime(item.runtime_sec)}
-                      </span>
                     </td>
                     <td>
                       <div className="tq-actions">

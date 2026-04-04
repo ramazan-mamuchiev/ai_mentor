@@ -556,6 +556,7 @@ class TaskItem(BaseModel):
     status: str
     source: str
     worker: str | None = None
+    created_at: str | None = None
     started_at: str | None = None
     runtime_sec: float | None = None
     progress_percent: float | None = None

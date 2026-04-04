@@ -1050,6 +1050,7 @@ export interface TaskItem {
   status: string
   source: string
   worker: string | null
+  created_at: string | null
   started_at: string | null
   runtime_sec: number | null
   progress_percent: number | null

@@ -3464,6 +3464,19 @@
   font-weight: 500;
 }
 
+/* Created cell */
+.tq-created-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tq-runtime-sub {
+  font-size: 10px;
+  color: var(--accent2, #7c3aed);
+  font-family: var(--font-mono);
+}
+
 /* Target cell */
 .tq-target-cell {
   display: flex;
