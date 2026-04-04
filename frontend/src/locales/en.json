@@ -1330,6 +1330,8 @@
   "category.perimeter_security": "Perimeter Security",
   "category.building_automation": "Building Automation",
   "category.software": "Software & VMS",
+  "category.platform": "Platform",
+  "category.internal_docs": "Internal documentation",
   "category.protocols": "Protocols & Standards",
 
   "help.btn": "Page help",

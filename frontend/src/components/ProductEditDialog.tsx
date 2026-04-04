@@ -13,6 +13,8 @@ const CATEGORIES = [
   'perimeter_security',
   'building_automation',
   'software',
+  'platform',
+  'internal_docs',
   'protocols',
 ] as const
 
