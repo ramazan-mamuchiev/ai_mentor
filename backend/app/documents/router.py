@@ -1155,6 +1155,36 @@ async def get_document_lifecycle(document_id: int):
         }
 
 
+@router.delete("/{document_id}/lifecycle", dependencies=[Depends(require_permission("lifecycle.run"))])
+async def delete_document_lifecycle(document_id: int):
+    """Delete lifecycle analysis for a document and its associated doc issue annotations."""
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    from sqlalchemy import delete as sa_delete
+    async with async_session() as session:
+        doc = (await session.execute(
+            select(Document).where(Document.id == document_id)
+        )).scalar_one_or_none()
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        result = await session.execute(
+            sa_delete(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
+        )
+        await session.execute(
+            sa_delete(DocIssueAnnotation).where(
+                DocIssueAnnotation.document_id == document_id,
+                DocIssueAnnotation.detected_by == "lifecycle_analysis",
+            )
+        )
+        doc.lifecycle_status = None
+        await session.commit()
+
+    return {
+        "document_id": document_id,
+        "deleted": result.rowcount > 0,
+    }
+
+
 @router.post("/{document_id}/cancel", status_code=200)
 async def cancel_document(document_id: int):
     """Cancel ingestion of a pending or processing document.

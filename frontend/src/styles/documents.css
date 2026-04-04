@@ -3303,6 +3303,30 @@ button.docs-lc-badge--error:hover {
   border-radius: 8px;
 }
 
+.lc-modal-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: #c92a2a;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.lc-modal-delete-btn:hover:not(:disabled) {
+  background: #fff5f5;
+  border-color: #c92a2a;
+}
+[data-theme="dark"] .lc-modal-delete-btn:hover:not(:disabled) {
+  background: rgba(201, 42, 42, 0.15);
+}
+.lc-modal-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .lc-modal-empty {
   display: flex;
   flex-direction: column;

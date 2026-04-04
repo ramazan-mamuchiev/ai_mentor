@@ -207,3 +207,7 @@ export interface DocumentLifecycle {
 export async function getDocumentLifecycle(documentId: number): Promise<DocumentLifecycle> {
   return apiFetch<DocumentLifecycle>(`/documents/${documentId}/lifecycle`)
 }
+
+export async function deleteDocumentLifecycle(documentId: number): Promise<{ document_id: number; deleted: boolean }> {
+  return apiFetch(`/documents/${documentId}/lifecycle`, { method: 'DELETE' })
+}

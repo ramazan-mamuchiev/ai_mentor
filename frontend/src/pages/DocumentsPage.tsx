@@ -25,7 +25,7 @@ import {
   FileSearch,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
-import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle } from '../api/documents'
+import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle, deleteDocumentLifecycle } from '../api/documents'
 import { usePermission } from '../auth/usePermission'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
@@ -224,6 +224,7 @@ function DocActions({
   onSearchKeys,
   onAnalyzeLifecycle,
   onViewLifecycle,
+  onDeleteLifecycle,
 }: {
   doc: DocumentListItem
   onDebug?: (d: DocumentListItem) => void
@@ -235,6 +236,7 @@ function DocActions({
   onSearchKeys?: (d: DocumentListItem) => void
   onAnalyzeLifecycle?: (d: DocumentListItem) => void
   onViewLifecycle?: (d: DocumentListItem) => void
+  onDeleteLifecycle?: (d: DocumentListItem) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -346,6 +348,12 @@ function DocActions({
             <button className="docs-actions-dropdown-item" onClick={() => { onViewLifecycle(doc); setOpen(false) }}>
               <Activity size={15} />
               {t('docs.actions.viewLifecycle')}
+            </button>
+          )}
+          {doc.lifecycle_status === 'ready' && onDeleteLifecycle && (
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDeleteLifecycle(doc); setOpen(false) }}>
+              <Trash2 size={15} />
+              {t('docs.actions.deleteLifecycle')}
             </button>
           )}
           {onDelete && (
@@ -510,6 +518,17 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       showToast(t('docs.lifecycle.started', { title: doc.title }), 'success')
     } catch {
       showToast(t('docs.lifecycle.error'), 'error')
+    }
+  }, [showToast, t])
+
+  const handleDeleteLifecycle = useCallback(async (doc: DocumentListItem) => {
+    if (!confirm(t('lifecycleModal.confirmDelete'))) return
+    try {
+      await deleteDocumentLifecycle(doc.id)
+      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, lifecycle_status: undefined } : d))
+      showToast(t('docs.lifecycle.deleted', { title: doc.title }), 'success')
+    } catch {
+      showToast(t('docs.lifecycle.deleteError'), 'error')
     }
   }, [showToast, t])
 
@@ -731,10 +750,11 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onSearchKeys={setSearchKeysTarget}
           onAnalyzeLifecycle={canLifecycle ? handleAnalyzeLifecycle : undefined}
           onViewLifecycle={setLifecycleTarget}
+          onDeleteLifecycle={canLifecycle ? handleDeleteLifecycle : undefined}
         />
       ),
     },
-  ], [t, handleDownload, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle])
+  ], [t, handleDownload, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle, handleDeleteLifecycle])
 
   const {
     table,
@@ -1104,6 +1124,9 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           documentTitle={lifecycleTarget.title}
           canRun={canLifecycle}
           onClose={() => setLifecycleTarget(null)}
+          onDeleted={() => {
+            setDocuments(prev => prev.map(d => d.id === lifecycleTarget.id ? { ...d, lifecycle_status: undefined } : d))
+          }}
         />
       )}
       </div>

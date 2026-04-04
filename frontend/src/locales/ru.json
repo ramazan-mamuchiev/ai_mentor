@@ -445,6 +445,9 @@
   "docs.actions.viewLifecycle": "API Lifecycle: результаты",
   "docs.lifecycle.started": "Анализ API Lifecycle запущен для «{{title}}»",
   "docs.lifecycle.error": "Не удалось запустить анализ API Lifecycle",
+  "docs.lifecycle.deleted": "Результаты API Lifecycle удалены для «{{title}}»",
+  "docs.lifecycle.deleteError": "Не удалось удалить результаты API Lifecycle",
+  "docs.actions.deleteLifecycle": "API Lifecycle: удалить",
   "docs.lifecycle.statusPending": "Lifecycle-анализ выполняется…",
   "docs.lifecycle.statusReady": "Lifecycle-анализ завершён",
   "docs.lifecycle.statusError": "Ошибка lifecycle-анализа",
@@ -597,6 +600,8 @@
   "lifecycleModal.alreadyRunning": "Анализ уже выполняется",
   "lifecycleModal.inProgress": "Анализ выполняется…",
   "lifecycleModal.inProgressHint": "Это может занять 1–3 минуты. Вы можете закрыть окно и вернуться позже.",
+  "lifecycleModal.delete": "Удалить результаты анализа",
+  "lifecycleModal.confirmDelete": "Удалить результаты API Lifecycle анализа? Это действие необратимо.",
 
   "urlImport.button": "Импорт URL",
   "urlImport.title": "Импорт веб-документации",

@@ -770,6 +770,36 @@ async def get_product_lifecycle(product_id: int):
         return result
 
 
+@router.delete("/{product_id}/lifecycle", dependencies=[Depends(require_permission("lifecycle.run"))])
+async def delete_product_lifecycle(product_id: int):
+    """Delete ALL lifecycle analyses for a product (merged + per-document) and related annotations."""
+    from app.models import ApiLifecycle, DocIssueAnnotation, Document
+    from sqlalchemy import delete as sa_delete, update as sa_update
+    async with async_session() as session:
+        product = await _get_product(session, product_id)
+
+        result = await session.execute(
+            sa_delete(ApiLifecycle).where(ApiLifecycle.product_id == product_id)
+        )
+        await session.execute(
+            sa_delete(DocIssueAnnotation).where(
+                DocIssueAnnotation.product_id == product_id,
+                DocIssueAnnotation.detected_by == "lifecycle_analysis",
+            )
+        )
+        await session.execute(
+            sa_update(Document)
+            .where(Document.product_id == product_id, Document.lifecycle_status.isnot(None))
+            .values(lifecycle_status=None)
+        )
+        await session.commit()
+
+    return {
+        "product_id": product_id,
+        "deleted_count": result.rowcount,
+    }
+
+
 @router.get("/{product_id}/debug", response_model=ProductDebugInfo, dependencies=[Depends(require_permission("debug"))])
 async def get_product_debug(product_id: int):
     """Get aggregated debug/analytics info for all documents of a product."""

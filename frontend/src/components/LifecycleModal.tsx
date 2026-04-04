@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   X, Loader2, AlertCircle, Activity, Maximize2, Minimize2,
-  Play, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle,
+  Play, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, Trash2,
 } from 'lucide-react'
-import { getDocumentLifecycle, analyzeDocumentLifecycle } from '../api/documents'
+import { getDocumentLifecycle, analyzeDocumentLifecycle, deleteDocumentLifecycle } from '../api/documents'
 import type { DocumentLifecycle } from '../api/documents'
 
 const POLL_INTERVAL = 3000
@@ -14,6 +14,7 @@ interface Props {
   documentTitle: string
   canRun?: boolean
   onClose: () => void
+  onDeleted?: () => void
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -32,13 +33,14 @@ function isInProgress(status?: string): boolean {
   return status === 'pending' || status === 'processing'
 }
 
-export function LifecycleModal({ documentId, documentTitle, canRun = false, onClose }: Props) {
+export function LifecycleModal({ documentId, documentTitle, canRun = false, onClose, onDeleted }: Props) {
   const { t } = useTranslation()
   const [lc, setLc] = useState<DocumentLifecycle | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [launching, setLaunching] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [phasesOpen, setPhasesOpen] = useState(true)
   const [skeletonOpen, setSkeletonOpen] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -79,6 +81,18 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
     finally { setLaunching(false) }
   }
 
+  const handleDelete = async () => {
+    if (!confirm(t('lifecycleModal.confirmDelete'))) return
+    setDeleting(true)
+    try {
+      await deleteDocumentLifecycle(documentId)
+      setLc(null)
+      onDeleted?.()
+      onClose()
+    } catch { /* ignore */ }
+    finally { setDeleting(false) }
+  }
+
   const hasData = lc && lc.status !== 'not_analyzed'
   const hasResults = hasData && !isInProgress(lc?.status)
   const phases = lc?.phases ?? []
@@ -111,20 +125,32 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
           </div>
           <div className="md-preview-header-actions">
             {canRun && !loading && !error && (
-              <button
-                className="lc-modal-run-btn"
-                onClick={handleRun}
-                disabled={!canLaunch}
-                title={analysisRunning ? t('lifecycleModal.alreadyRunning') :
-                       hasResults ? t('lifecycle.rerun') : t('lifecycle.run')}
-              >
-                {analysisRunning ? <Loader2 size={13} className="spin-icon" /> :
-                 hasResults ? <RefreshCw size={13} /> : <Play size={13} />}
-                <span>
-                  {analysisRunning ? t('lifecycleModal.running') :
-                   hasResults ? t('lifecycle.rerun') : t('lifecycle.run')}
-                </span>
-              </button>
+              <>
+                <button
+                  className="lc-modal-run-btn"
+                  onClick={handleRun}
+                  disabled={!canLaunch}
+                  title={analysisRunning ? t('lifecycleModal.alreadyRunning') :
+                         hasResults ? t('lifecycle.rerun') : t('lifecycle.run')}
+                >
+                  {analysisRunning ? <Loader2 size={13} className="spin-icon" /> :
+                   hasResults ? <RefreshCw size={13} /> : <Play size={13} />}
+                  <span>
+                    {analysisRunning ? t('lifecycleModal.running') :
+                     hasResults ? t('lifecycle.rerun') : t('lifecycle.run')}
+                  </span>
+                </button>
+                {hasResults && (
+                  <button
+                    className="lc-modal-delete-btn"
+                    onClick={handleDelete}
+                    disabled={deleting || analysisRunning}
+                    title={t('lifecycleModal.delete')}
+                  >
+                    {deleting ? <Loader2 size={13} className="spin-icon" /> : <Trash2 size={13} />}
+                  </button>
+                )}
+              </>
             )}
             <button className="md-preview-close-btn" onClick={() => setFullscreen(f => !f)}>
               {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
