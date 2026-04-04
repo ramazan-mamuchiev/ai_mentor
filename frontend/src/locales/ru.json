@@ -568,7 +568,7 @@
 
   "lifecycle.title": "API Lifecycle",
   "lifecycle.run": "Анализ",
-  "lifecycle.rerun": "Повторить",
+  "lifecycle.rerun": "Пересчитать",
   "lifecycle.runAll": "Анализ всех",
   "lifecycle.rerunAll": "Повторить всё",
   "lifecycle.notAnalyzed": "Анализ не выполнялся",
