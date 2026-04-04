@@ -74,7 +74,7 @@ const TASK_ICONS: Record<string, typeof Globe> = {
 
 function TaskIcon({ name }: { name: string }) {
   const Icon = TASK_ICONS[name] || FileText
-  return <Icon size={14} />
+  return <Icon size={14} style={{ opacity: 0.35 }} />
 }
 
 function HealthDot({ status }: { status: string }) {
