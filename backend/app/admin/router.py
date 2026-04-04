@@ -1018,7 +1018,7 @@ async def retry_task(
 async def rescue_stale_tasks(
     session: AsyncSession = Depends(get_session),
 ):
-    """Manually trigger rescue for orphaned/stale documents and reindex jobs."""
+    """Manually trigger rescue for orphaned/stale/error documents and reindex jobs."""
     from datetime import datetime, timezone, timedelta
     from sqlalchemy import select as sa_select
     from app.models import Document, ReindexJob
@@ -1045,7 +1045,13 @@ async def rescue_stale_tasks(
         ).limit(200)
     )).scalars().all()
 
-    orphaned = list(pending_docs)
+    error_docs = (await session.execute(
+        sa_select(Document).where(
+            Document.status == "error",
+        ).limit(200)
+    )).scalars().all()
+
+    orphaned = list(pending_docs) + list(error_docs)
     for doc in processing_docs:
         if not doc.celery_task_id:
             orphaned.append(doc)
