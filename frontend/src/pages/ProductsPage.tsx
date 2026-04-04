@@ -896,10 +896,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
             >
               <div className="docs-card-header">
                 <div className="docs-card-title-row">
-                  <div className="docs-card-title">
-                    {p.display_name || p.name}
-                    {p.manufacturer && <div className="docs-filename">{p.manufacturer}</div>}
-                  </div>
+                  <span className="docs-card-title">{p.display_name || p.name}</span>
                   {p.has_merged_lifecycle && (
                     <button
                       className="docs-lc-badge docs-lc-badge--ready"
@@ -921,6 +918,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
                 </div>
                 <ProductStatusBadge product={p} onCancel={() => setCancelTarget(p)} />
               </div>
+              {p.manufacturer && <div className="docs-card-manufacturer">{p.manufacturer}</div>}
               <div className="docs-card-meta">
                 <span>{t('products.table.documents')}: {p.total_documents}</span>
                 <span>{formatBytes(p.total_file_size_bytes)}</span>

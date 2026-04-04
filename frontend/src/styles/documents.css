@@ -2126,7 +2126,14 @@ button.docs-lc-badge--partial:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  min-width: 0;
+}
+
+.docs-card-manufacturer {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: -6px;
+  margin-bottom: 6px;
 }
 
 .docs-card-meta {

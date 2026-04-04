@@ -1001,7 +1001,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
             <div className="docs-card" key={doc.id}>
               <div className="docs-card-header">
                 <div className="docs-card-title-row">
-                  <div className="docs-card-title">{doc.title}</div>
+                  <span className="docs-card-title">{doc.title}</span>
                   {doc.lifecycle_status === 'ready' && (
                     <button
                       className="docs-lc-badge docs-lc-badge--ready"
