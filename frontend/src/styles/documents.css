@@ -1934,29 +1934,24 @@ button.docs-lc-badge--partial:hover {
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  border: none;
+  border: 1px solid var(--docs-table-border);
   border-radius: 6px;
-  background: linear-gradient(135deg, #12b886, #20c997);
-  color: #fff;
+  background: var(--bg-card, #fff);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: box-shadow 0.15s;
-  box-shadow: 0 0 6px rgba(18, 184, 134, 0.3);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
 .product-lifecycle-btn:hover {
-  box-shadow: 0 0 14px rgba(18, 184, 134, 0.5);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
 }
 
 [data-theme="dark"] .product-lifecycle-btn {
-  background: linear-gradient(135deg, #087f5b, #0ca678);
-  box-shadow: 0 0 8px rgba(12, 166, 120, 0.4);
-}
-
-[data-theme="dark"] .product-lifecycle-btn:hover {
-  box-shadow: 0 0 18px rgba(12, 166, 120, 0.6);
+  background: var(--bg-card, #1e1e1e);
 }
 
 .product-back-btn {
@@ -3477,6 +3472,7 @@ button.docs-lc-badge--partial:hover {
   border-radius: 8px;
 }
 
+.lc-modal-share-btn,
 .lc-modal-download-btn {
   display: inline-flex;
   align-items: center;
@@ -3489,6 +3485,7 @@ button.docs-lc-badge--partial:hover {
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
+.lc-modal-share-btn:hover,
 .lc-modal-download-btn:hover {
   background: var(--surface-hover);
   border-color: var(--primary);
