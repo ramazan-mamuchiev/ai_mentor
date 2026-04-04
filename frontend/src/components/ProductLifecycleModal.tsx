@@ -8,6 +8,7 @@ import {
   getProductLifecycle, analyzeProductLifecycle, deleteProductLifecycle,
 } from '../api/products'
 import type { ProductLifecycle } from '../api/products'
+import { ConfirmDialog } from './ConfirmDialog'
 
 const POLL_INTERVAL = 4000
 
@@ -40,6 +41,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
   const [fullscreen, setFullscreen] = useState(false)
   const [launching, setLaunching] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     prereqs: true, phases: true, dataModels: true, errors: true,
     accessPatterns: true, patterns: true, deps: true, skeleton: false,
@@ -89,7 +91,6 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
   }
 
   const handleDelete = async () => {
-    if (!confirm(t('products.lifecycle.confirmDelete'))) return
     setDeleting(true)
     try {
       await deleteProductLifecycle(productId)
@@ -186,7 +187,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                     )}
                     <button
                       className="lc-modal-delete-btn"
-                      onClick={handleDelete}
+                      onClick={() => setShowDeleteConfirm(true)}
                       disabled={deleting || analysisRunning}
                       title={t('lifecycleModal.delete')}
                     >
@@ -559,6 +560,19 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
           )}
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          title={t('products.lifecycle.deleteTitle')}
+          message={t('products.lifecycle.deleteMessage')}
+          details={productName}
+          confirmLabel={t('products.lifecycle.deleteConfirm')}
+          cancelLabel={t('products.delete.cancel', 'Отмена')}
+          variant="danger"
+          onConfirm={() => { setShowDeleteConfirm(false); handleDelete() }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   )
 }

@@ -385,6 +385,7 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
   const [reingestTarget, setReingestTarget] = useState<ProductListItem | null>(null)
   const [syncTarget, setSyncTarget] = useState<ProductListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<ProductListItem | null>(null)
+  const [deleteLcTarget, setDeleteLcTarget] = useState<ProductListItem | null>(null)
   const [debugPanel, setDebugPanel] = useState<ProductListItem | null>(null)
   const [lifecycleTarget, setLifecycleTarget] = useState<ProductListItem | null>(null)
   const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' | 'info' } | null>(null)
@@ -481,15 +482,22 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
     }
   }, [showToast, t, fetchProducts])
 
-  const handleDeleteLifecycle = useCallback(async (p: ProductListItem) => {
+  const handleDeleteLifecycle = useCallback((p: ProductListItem) => {
+    setDeleteLcTarget(p)
+  }, [])
+
+  const handleDeleteLcConfirm = useCallback(async () => {
+    if (!deleteLcTarget) return
     try {
-      await deleteProductLifecycle(p.id)
-      setProducts(prev => prev.map(pr => pr.id === p.id ? { ...pr, lifecycle_ready_documents: 0, has_merged_lifecycle: false } : pr))
-      showToast(t('products.lifecycle.deleted', { name: p.name }), 'success')
+      await deleteProductLifecycle(deleteLcTarget.id)
+      setProducts(prev => prev.map(pr => pr.id === deleteLcTarget.id ? { ...pr, lifecycle_ready_documents: 0, has_merged_lifecycle: false } : pr))
+      showToast(t('products.lifecycle.deleted', { name: deleteLcTarget.name }), 'success')
     } catch {
       showToast(t('products.lifecycle.deleteError'), 'error')
+    } finally {
+      setDeleteLcTarget(null)
     }
-  }, [showToast, t])
+  }, [deleteLcTarget, showToast, t])
 
   const lifecycleReadyCount = useMemo(() =>
     products.filter(p => p.has_merged_lifecycle || p.lifecycle_ready_documents > 0).length
@@ -1027,6 +1035,19 @@ export function ProductsPage({ onUploadClick, onUrlImportClick, refreshKey }: Pr
           variant="danger"
           onConfirm={handleCancelConfirm}
           onCancel={() => setCancelTarget(null)}
+        />
+      )}
+
+      {deleteLcTarget && (
+        <ConfirmDialog
+          title={t('products.lifecycle.deleteTitle')}
+          message={t('products.lifecycle.deleteMessage')}
+          details={deleteLcTarget.name}
+          confirmLabel={t('products.lifecycle.deleteConfirm')}
+          cancelLabel={t('products.delete.cancel')}
+          variant="danger"
+          onConfirm={handleDeleteLcConfirm}
+          onCancel={() => setDeleteLcTarget(null)}
         />
       )}
 

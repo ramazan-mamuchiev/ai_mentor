@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { getDocumentLifecycle, analyzeDocumentLifecycle, deleteDocumentLifecycle } from '../api/documents'
 import type { DocumentLifecycle } from '../api/documents'
+import { ConfirmDialog } from './ConfirmDialog'
 
 const POLL_INTERVAL = 3000
 
@@ -41,6 +42,7 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
   const [fullscreen, setFullscreen] = useState(false)
   const [launching, setLaunching] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     prereqs: true, phases: true, dataModels: true, errors: true,
     accessPatterns: true, patterns: true, deps: true, skeleton: false,
@@ -86,7 +88,6 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
   }
 
   const handleDelete = async () => {
-    if (!confirm(t('lifecycleModal.confirmDelete'))) return
     setDeleting(true)
     try {
       await deleteDocumentLifecycle(documentId)
@@ -186,7 +187,7 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                     </button>
                     <button
                       className="lc-modal-delete-btn"
-                      onClick={handleDelete}
+                      onClick={() => setShowDeleteConfirm(true)}
                       disabled={deleting || analysisRunning}
                       title={t('lifecycleModal.delete')}
                     >
@@ -563,6 +564,19 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
           )}
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          title={t('docs.lifecycle.deleteTitle')}
+          message={t('docs.lifecycle.deleteMessage')}
+          details={documentTitle}
+          confirmLabel={t('docs.lifecycle.deleteConfirm')}
+          cancelLabel={t('docs.delete.cancel', 'Отмена')}
+          variant="danger"
+          onConfirm={() => { setShowDeleteConfirm(false); handleDelete() }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   )
 }

@@ -449,6 +449,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [reingestTarget, setReingestTarget] = useState<DocumentListItem | null>(null)
   const [syncTarget, setSyncTarget] = useState<DocumentListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<DocumentListItem | null>(null)
+  const [deleteLcTarget, setDeleteLcTarget] = useState<DocumentListItem | null>(null)
   const [previewTarget, setPreviewTarget] = useState<DocumentListItem | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
   const [debugPanel, setDebugPanel] = useState<DocumentListItem | null>(null)
@@ -578,14 +579,20 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     }
   }, [showToast, t])
 
-  const handleDeleteLifecycle = useCallback(async (doc: DocumentListItem) => {
-    if (!confirm(t('lifecycleModal.confirmDelete'))) return
+  const handleDeleteLifecycle = useCallback((doc: DocumentListItem) => {
+    setDeleteLcTarget(doc)
+  }, [])
+
+  const handleDeleteLcConfirm = useCallback(async () => {
+    if (!deleteLcTarget) return
     try {
-      await deleteDocumentLifecycle(doc.id)
-      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, lifecycle_status: '' } : d))
-      showToast(t('docs.lifecycle.deleted', { title: doc.title }), 'success')
+      await deleteDocumentLifecycle(deleteLcTarget.id)
+      setDocuments(prev => prev.map(d => d.id === deleteLcTarget.id ? { ...d, lifecycle_status: '' } : d))
+      showToast(t('docs.lifecycle.deleted', { title: deleteLcTarget.title }), 'success')
     } catch {
       showToast(t('docs.lifecycle.deleteError'), 'error')
+    } finally {
+      setDeleteLcTarget(null)
     }
   }, [showToast, t])
 
@@ -1155,6 +1162,19 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           variant="danger"
           onConfirm={handleCancelConfirm}
           onCancel={() => setCancelTarget(null)}
+        />
+      )}
+
+      {deleteLcTarget && (
+        <ConfirmDialog
+          title={t('docs.lifecycle.deleteTitle')}
+          message={t('docs.lifecycle.deleteMessage')}
+          details={deleteLcTarget.title}
+          confirmLabel={t('docs.lifecycle.deleteConfirm')}
+          cancelLabel={t('docs.delete.cancel')}
+          variant="danger"
+          onConfirm={handleDeleteLcConfirm}
+          onCancel={() => setDeleteLcTarget(null)}
         />
       )}
 
