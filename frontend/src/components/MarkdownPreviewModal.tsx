@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Download, Loader2, AlertCircle, FileText, Maximize2, Minimize2, AlertTriangle, Search, ChevronUp, ChevronDown } from 'lucide-react'
+import { X, Loader2, AlertCircle, FileText, Maximize2, Minimize2, AlertTriangle, Search, ChevronUp, ChevronDown, Share2 } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { previewMarkdown } from '../api/documents'
+import { ShareModal } from './ShareModal'
 import type { DocumentMarkdownPreview } from '../types'
 
 interface Props {
@@ -212,16 +213,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
     setMatchInfo({ total: 0, current: 0 })
   }, [])
 
-  const handleDownload = useCallback(() => {
-    if (!data) return
-    const blob = new Blob([data.markdown], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${data.title || `document-${documentId}`}.md`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [data, documentId])
+  const [showShare, setShowShare] = useState(false)
 
   const showSpinner = loading
   const isLargeFile = data != null && data.size_bytes > LARGE_FILE_THRESHOLD && !largeFileConfirmed
@@ -247,8 +239,12 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
                 <span className="md-preview-meta">
                   {formatBytes(data.size_bytes)} &middot; {SOURCE_LABELS[data.source] || data.source}
                 </span>
-                <button className="md-preview-download-btn" onClick={handleDownload}>
-                  <Download size={16} />
+                <button
+                  className="lc-modal-share-btn"
+                  onClick={() => setShowShare(true)}
+                  title={t('share.shareDocument', 'Share')}
+                >
+                  <Share2 size={13} />
                 </button>
               </>
             )}
@@ -325,11 +321,7 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
               <AlertTriangle size={32} />
               <span>{t('docs.preview.largeFile', { size: formatBytes(data!.size_bytes) })}</span>
               <div className="md-preview-large-actions">
-                <button className="md-preview-large-btn md-preview-large-btn--primary" onClick={handleDownload}>
-                  <Download size={16} />
-                  {t('docs.preview.download')}
-                </button>
-                <button className="md-preview-large-btn" onClick={() => setLargeFileConfirmed(true)}>
+                <button className="md-preview-large-btn md-preview-large-btn--primary" onClick={() => setLargeFileConfirmed(true)}>
                   {t('docs.preview.openAnyway')}
                 </button>
               </div>
@@ -342,6 +334,10 @@ export function MarkdownPreviewModal({ documentId, documentTitle, onClose }: Pro
           )}
         </div>
       </div>
+
+      {showShare && (
+        <ShareModal type="document_preview" id={documentId} onClose={() => setShowShare(false)} />
+      )}
     </div>
   )
 }

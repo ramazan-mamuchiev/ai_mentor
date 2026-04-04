@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  X, Loader2, AlertCircle, Activity, Maximize2, Minimize2, Download, Share2,
+  X, Loader2, AlertCircle, Activity, Maximize2, Minimize2, Share2,
   Play, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, Trash2,
   FileText, Layers,
 } from 'lucide-react'
@@ -435,24 +435,6 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
     finally { setDeleting(false) }
   }
 
-  const handleDownload = () => {
-    if (!data?.merged) return
-    const payload = {
-      product: productName,
-      ...data.merged,
-      document_lifecycles: data.document_lifecycles,
-      doc_issues: data.doc_issues,
-    }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const safeName = productName.replace(/[^a-zA-Z0-9_\-а-яА-ЯёЁ ]/g, '').replace(/\s+/g, '_')
-    a.download = `lifecycle_product_${safeName}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   const m = data?.merged
   const hasResults = m && m.status === 'ready'
   const docLcs = data?.document_lifecycles ?? []
@@ -510,22 +492,13 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                 {hasAnything && (
                   <>
                     {hasResults && (
-                      <>
-                        <button
-                          className="lc-modal-share-btn"
-                          onClick={() => setShowShare(true)}
-                          title={t('share.shareLifecycle')}
-                        >
-                          <Share2 size={13} />
-                        </button>
-                        <button
-                          className="lc-modal-download-btn"
-                          onClick={handleDownload}
-                          title={t('lifecycleModal.download')}
-                        >
-                          <Download size={13} />
-                        </button>
-                      </>
+                      <button
+                        className="lc-modal-share-btn"
+                        onClick={() => setShowShare(true)}
+                        title={t('share.shareLifecycle')}
+                      >
+                        <Share2 size={13} />
+                      </button>
                     )}
                     <button
                       className="lc-modal-delete-btn"

@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Loader2, FileText, Layers } from 'lucide-react'
 import { getSharedContent } from '../api/share'
-import type { SharedContentResponse, SharedDebugContentResponse, SharedLifecycleContentResponse, DebugInfo, DocumentDebugInfo, DocumentUsageStats, ProductDebugInfo, ProductUsageStats } from '../types'
+import type { SharedContentResponse, SharedDebugContentResponse, SharedDocumentPreviewResponse, SharedLifecycleContentResponse, DebugInfo, DocumentDebugInfo, DocumentUsageStats, ProductDebugInfo, ProductUsageStats } from '../types'
 import type { LifecyclePayload, DocumentLifecycle } from '../api/products'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { DebugPanelContent } from '../components/RightPanel'
@@ -11,10 +11,14 @@ import { DocumentDebugContent } from '../components/DocumentDebugPanel'
 import { ProductDebugContent } from '../components/ProductDebugPanel'
 import { LifecycleContent } from '../components/ProductLifecycleModal'
 
-type SharedData = SharedContentResponse | SharedDebugContentResponse | SharedLifecycleContentResponse
+type SharedData = SharedContentResponse | SharedDebugContentResponse | SharedDocumentPreviewResponse | SharedLifecycleContentResponse
 
 function isDebugResponse(data: SharedData): data is SharedDebugContentResponse {
   return data.share_type.startsWith('debug_')
+}
+
+function isDocumentPreviewResponse(data: SharedData): data is SharedDocumentPreviewResponse {
+  return data.share_type === 'document_preview'
 }
 
 function isLifecycleResponse(data: SharedData): data is SharedLifecycleContentResponse {
@@ -82,6 +86,10 @@ export function SharedView() {
         </div>
       </div>
     )
+  }
+
+  if (isDocumentPreviewResponse(data)) {
+    return <SharedDocumentPreviewView data={data} />
   }
 
   if (isLifecycleResponse(data)) {
@@ -209,6 +217,37 @@ function SharedLifecycleView({ data }: { data: SharedLifecycleContentResponse })
         {!showTabs && !merged && readyDocLcs.length === 1 && (
           <LifecycleContent lc={readyDocLcs[0]} issues={activeIssues} />
         )}
+      </div>
+
+      <div className="shared-view-footer">
+        <span>{t('share.poweredBy')}</span>
+      </div>
+    </div>
+  )
+}
+
+
+function SharedDocumentPreviewView({ data }: { data: SharedDocumentPreviewResponse }) {
+  const { t } = useTranslation()
+  return (
+    <div className="shared-view shared-view--document">
+      <div className="shared-view-header">
+        <Link to="/" className="shared-view-logo">
+          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+        </Link>
+        <div className="shared-view-meta">
+          <FileText size={18} />
+          <h1 className="shared-view-title">{data.title}</h1>
+        </div>
+        <Link to="/app" className="shared-view-cta">
+          <ExternalLink size={14} />
+          {t('share.tryIt')}
+        </Link>
+      </div>
+
+      <div className="shared-view-document-content">
+        <MarkdownRenderer content={data.markdown} />
       </div>
 
       <div className="shared-view-footer">

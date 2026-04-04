@@ -42,6 +42,16 @@ class SharedDebugContentResponse(BaseModel):
     expires_at: datetime | None = None
 
 
+class SharedDocumentPreviewResponse(BaseModel):
+    share_type: str
+    title: str
+    markdown: str
+    source: str
+    size_bytes: int
+    created_at: datetime
+    view_count: int
+
+
 class SharedLifecycleContentResponse(BaseModel):
     share_type: str
     title: str

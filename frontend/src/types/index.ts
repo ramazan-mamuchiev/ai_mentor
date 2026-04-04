@@ -191,6 +191,16 @@ export interface SharedDebugContentResponse {
   expires_at: string | null
 }
 
+export interface SharedDocumentPreviewResponse {
+  share_type: 'document_preview'
+  title: string
+  markdown: string
+  source: string
+  size_bytes: number
+  created_at: string
+  view_count: number
+}
+
 export interface SharedLifecycleContentResponse {
   share_type: 'lifecycle'
   title: string

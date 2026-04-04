@@ -325,6 +325,55 @@ async def share_debug_product(product_id: int, request: Request):
     return _link_response(link, request)
 
 
+# ── Document preview share endpoint ──
+
+
+@router.post("/share/document/{document_id}", response_model=SharedLinkResponse, status_code=201)
+async def share_document_preview(document_id: int, request: Request):
+    """Create a public snapshot of document markdown preview."""
+    from app.documents.router import preview_markdown
+
+    async with async_session() as db:
+        doc = await db.get(Document, document_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+    try:
+        preview = await preview_markdown(document_id)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to generate markdown preview")
+
+    snapshot = {
+        "version": 1,
+        "share_type": "document_preview",
+        "document_id": document_id,
+        "title": preview.title or doc.original_filename or f"Document {document_id}",
+        "markdown": preview.markdown,
+        "source": preview.source,
+        "size_bytes": preview.size_bytes,
+    }
+
+    token = _generate_token()
+    title = preview.title or doc.original_filename or f"Document {document_id}"
+
+    async with async_session() as db:
+        link = SharedLink(
+            token=token,
+            session_id=None,
+            share_type="document_preview",
+            title=title[:200],
+            snapshot_json=snapshot,
+        )
+        db.add(link)
+        await db.commit()
+        await db.refresh(link)
+
+    logger.info("Shared document_preview", extra={"document_id": document_id, "token": token})
+    return _link_response(link, request)
+
+
 # ── Lifecycle share endpoint ──
 
 

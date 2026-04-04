@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { SharedContentResponse, SharedDebugContentResponse, SharedLinkResponse } from '../types'
+import type { SharedContentResponse, SharedDebugContentResponse, SharedDocumentPreviewResponse, SharedLinkResponse } from '../types'
 
 export async function shareSession(sessionId: string): Promise<SharedLinkResponse> {
   return apiFetch<SharedLinkResponse>(`/share/session/${sessionId}`, {
@@ -36,6 +36,13 @@ export async function shareDebugProduct(productId: number): Promise<SharedLinkRe
   })
 }
 
+export async function shareDocumentPreview(documentId: number): Promise<SharedLinkResponse> {
+  return apiFetch<SharedLinkResponse>(`/share/document/${documentId}`, {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
 export async function shareLifecycle(productId: number): Promise<SharedLinkResponse> {
   return apiFetch<SharedLinkResponse>(`/share/lifecycle/${productId}`, {
     method: 'POST',
@@ -43,8 +50,8 @@ export async function shareLifecycle(productId: number): Promise<SharedLinkRespo
   })
 }
 
-export async function getSharedContent(token: string): Promise<SharedContentResponse | SharedDebugContentResponse> {
-  return apiFetch<SharedContentResponse | SharedDebugContentResponse>(`/s/${token}`)
+export async function getSharedContent(token: string): Promise<SharedContentResponse | SharedDebugContentResponse | SharedDocumentPreviewResponse> {
+  return apiFetch<SharedContentResponse | SharedDebugContentResponse | SharedDocumentPreviewResponse>(`/s/${token}`)
 }
 
 export async function deleteSharedLink(token: string): Promise<void> {

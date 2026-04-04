@@ -5,7 +5,6 @@ import {
   FileText,
   Upload,
   Globe,
-  Download,
   RefreshCw,
   CloudDownload,
   Trash2,
@@ -27,7 +26,7 @@ import {
   Play,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
-import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle, deleteDocumentLifecycle } from '../api/documents'
+import { listDocuments, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle, deleteDocumentLifecycle } from '../api/documents'
 import { usePermission } from '../auth/usePermission'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
@@ -283,7 +282,6 @@ function DocActions({
   doc,
   onDebug,
   onPreview,
-  onDownload,
   onReingest,
   onSync,
   onDelete,
@@ -295,7 +293,6 @@ function DocActions({
   doc: DocumentListItem
   onDebug?: (d: DocumentListItem) => void
   onPreview: (d: DocumentListItem) => void
-  onDownload: (d: DocumentListItem) => void
   onReingest?: (d: DocumentListItem) => void
   onSync?: (d: DocumentListItem) => void
   onDelete?: (d: DocumentListItem) => void
@@ -378,12 +375,6 @@ function DocActions({
             <button className="docs-actions-dropdown-item" onClick={() => { onDebug(doc); setOpen(false) }}>
               <Bug size={15} />
               {t('docs.actions.debug')}
-            </button>
-          )}
-          {doc.status === 'ready' && (
-            <button className="docs-actions-dropdown-item" onClick={() => { onDownload(doc); setOpen(false) }}>
-              <Download size={15} />
-              {t('docs.actions.download')}
             </button>
           )}
           {canAct && !isPlaceholder && onReingest && (
@@ -492,19 +483,6 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [documents, fetchDocs])
-
-  const handleDownload = useCallback(async (doc: DocumentListItem) => {
-    try {
-      const result = await previewMarkdown(doc.id)
-      const blob = new Blob([result.markdown], { type: 'text/markdown;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${result.title || `document-${doc.id}`}.md`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch { /* ignore */ }
-  }, [])
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return
@@ -807,7 +785,6 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           doc={row.original}
           onDebug={canDebug ? openDebug : undefined}
           onPreview={setPreviewTarget}
-          onDownload={handleDownload}
           onReingest={canReindex ? setReingestTarget : undefined}
           onSync={canSync ? setSyncTarget : undefined}
           onDelete={canDelete ? setDeleteTarget : undefined}
@@ -818,7 +795,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         />
       ),
     },
-  ], [t, handleDownload, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle, handleDeleteLifecycle])
+  ], [t, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle, handleDeleteLifecycle])
 
   const {
     table,
@@ -1071,11 +1048,6 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                 {doc.status === 'ready' && (
                   <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)}>
                     <Eye size={16} />
-                  </button>
-                )}
-                {doc.status === 'ready' && (
-                  <button className="docs-action-btn" onClick={() => handleDownload(doc)}>
-                    <Download size={16} />
                   </button>
                 )}
                 {doc.status === 'ready' && (
