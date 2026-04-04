@@ -215,6 +215,70 @@ const docGlobalFilter: FilterFn<DocumentListItem> = (row, _columnId, filterValue
   )
 }
 
+function LifecycleSubmenu({
+  doc, onAnalyzeLifecycle, onViewLifecycle, onDeleteLifecycle, onClose,
+}: {
+  doc: DocumentListItem
+  onAnalyzeLifecycle?: (d: DocumentListItem) => void
+  onViewLifecycle?: (d: DocumentListItem) => void
+  onDeleteLifecycle?: (d: DocumentListItem) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const subRef = useRef<HTMLDivElement>(null)
+  const [subOpen, setSubOpen] = useState(false)
+  const [flipLeft, setFlipLeft] = useState(false)
+
+  useEffect(() => {
+    if (!subOpen || !wrapperRef.current || !subRef.current) return
+    const wrapperRect = wrapperRef.current.getBoundingClientRect()
+    const subW = subRef.current.offsetWidth || 200
+    const spaceRight = window.innerWidth - wrapperRect.right
+    setFlipLeft(spaceRight < subW + 8)
+  }, [subOpen])
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="docs-actions-submenu-wrapper"
+      onMouseEnter={() => setSubOpen(true)}
+      onMouseLeave={() => setSubOpen(false)}
+    >
+      <button className="docs-actions-dropdown-item docs-actions-submenu-trigger">
+        <Activity size={15} />
+        API Lifecycle
+        <ChevronRight size={13} className="docs-actions-submenu-arrow" />
+      </button>
+      {subOpen && (
+        <div
+          ref={subRef}
+          className={`docs-actions-submenu${flipLeft ? ' docs-actions-submenu--left' : ''}`}
+        >
+          {onAnalyzeLifecycle && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onAnalyzeLifecycle(doc); onClose() }}>
+              <Play size={14} />
+              {t('docs.actions.analyzeLifecycle')}
+            </button>
+          )}
+          {onViewLifecycle && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onViewLifecycle(doc); onClose() }}>
+              <FileSearch size={14} />
+              {t('docs.actions.viewLifecycle')}
+            </button>
+          )}
+          {doc.lifecycle_status === 'ready' && onDeleteLifecycle && (
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDeleteLifecycle(doc); onClose() }}>
+              <Trash2 size={14} />
+              {t('docs.actions.deleteLifecycle')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DocActions({
   doc,
   onDebug,
@@ -341,33 +405,13 @@ function DocActions({
             </button>
           )}
           {doc.status === 'ready' && (onAnalyzeLifecycle || onViewLifecycle) && (
-            <div className="docs-actions-submenu-wrapper">
-              <button className="docs-actions-dropdown-item docs-actions-submenu-trigger">
-                <Activity size={15} />
-                API Lifecycle
-                <ChevronRight size={13} className="docs-actions-submenu-arrow" />
-              </button>
-              <div className="docs-actions-submenu">
-                {onAnalyzeLifecycle && (
-                  <button className="docs-actions-dropdown-item" onClick={() => { onAnalyzeLifecycle(doc); setOpen(false) }}>
-                    <Play size={14} />
-                    {t('docs.actions.analyzeLifecycle')}
-                  </button>
-                )}
-                {onViewLifecycle && (
-                  <button className="docs-actions-dropdown-item" onClick={() => { onViewLifecycle(doc); setOpen(false) }}>
-                    <FileSearch size={14} />
-                    {t('docs.actions.viewLifecycle')}
-                  </button>
-                )}
-                {doc.lifecycle_status === 'ready' && onDeleteLifecycle && (
-                  <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDeleteLifecycle(doc); setOpen(false) }}>
-                    <Trash2 size={14} />
-                    {t('docs.actions.deleteLifecycle')}
-                  </button>
-                )}
-              </div>
-            </div>
+            <LifecycleSubmenu
+              doc={doc}
+              onAnalyzeLifecycle={onAnalyzeLifecycle}
+              onViewLifecycle={onViewLifecycle}
+              onDeleteLifecycle={onDeleteLifecycle}
+              onClose={() => setOpen(false)}
+            />
           )}
           {onDelete && (
             <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>

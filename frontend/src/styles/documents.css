@@ -1371,7 +1371,6 @@ button.docs-lc-badge--error:hover {
 }
 
 .docs-actions-submenu {
-  display: none;
   position: absolute;
   top: -4px;
   left: 100%;
@@ -1384,8 +1383,9 @@ button.docs-lc-badge--error:hover {
   z-index: 10000;
 }
 
-.docs-actions-submenu-wrapper:hover > .docs-actions-submenu {
-  display: block;
+.docs-actions-submenu--left {
+  left: auto;
+  right: 100%;
 }
 
 .docs-actions-submenu-wrapper:hover > .docs-actions-submenu-trigger {
@@ -1394,15 +1394,6 @@ button.docs-lc-badge--error:hover {
 
 [data-theme='dark'] .docs-actions-submenu {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-
-/* Flip submenu left when too close to right edge (handled by JS if needed, 
-   but also fallback: if submenu overflows viewport, flip direction) */
-@media (max-width: 600px) {
-  .docs-actions-submenu {
-    left: auto;
-    right: 100%;
-  }
 }
 
 .docs-actions-backdrop {
