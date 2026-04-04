@@ -102,6 +102,7 @@ export interface LifecyclePayload {
   validation_issues: Array<{ error: string }>
   validation_retries: number
   prompt_tokens: number; completion_tokens: number; analysis_ms: number; model: string
+  error_message?: string | null
   created_at: string | null; updated_at: string | null
 }
 
