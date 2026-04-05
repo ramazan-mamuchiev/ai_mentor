@@ -3017,6 +3017,54 @@ def backfill_chunk_languages_task(self):
 # API Lifecycle Analysis Tasks
 # ---------------------------------------------------------------------------
 
+
+def _convert_all_skeleton_languages(lc_row, session):
+    """Convert the Python code skeleton to all supported languages in parallel.
+
+    Runs after the main analysis is committed. Failures are logged but don't
+    break the analysis — the user can still convert on-demand via the API.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from app.ingestion.lifecycle_analyzer import (
+        SUPPORTED_SKELETON_LANGUAGES,
+        convert_skeleton_sync,
+    )
+
+    if not lc_row.code_skeleton:
+        return
+
+    non_python = [lang for lang in SUPPORTED_SKELETON_LANGUAGES if lang != "python"]
+    translations: dict[str, str] = dict(lc_row.code_skeleton_translations or {})
+    to_convert = [lang for lang in non_python if lang not in translations]
+
+    if not to_convert:
+        return
+
+    def _convert_one(lang: str) -> tuple[str, str | None]:
+        try:
+            return lang, convert_skeleton_sync(lc_row.code_skeleton, lang)
+        except Exception as exc:
+            logger.warning("Skeleton conversion to %s failed: %s", lang, exc)
+            return lang, None
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = {pool.submit(_convert_one, lang): lang for lang in to_convert}
+        for future in as_completed(futures):
+            lang, code = future.result()
+            if code:
+                translations[lang] = code
+
+    if translations:
+        lc_row.code_skeleton_translations = translations
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(lc_row, "code_skeleton_translations")
+        session.commit()
+        logger.info(
+            "Pre-converted skeleton to %d languages",
+            len([l for l in to_convert if l in translations]),
+        )
+
+
 @celery.task(name="analyze_api_lifecycle", bind=True, max_retries=1,
              soft_time_limit=600, time_limit=660)
 def analyze_api_lifecycle_task(self, document_id: int):
@@ -3146,7 +3194,14 @@ def analyze_api_lifecycle_task(self, document_id: int):
             doc.lifecycle_completion_tokens = result.usage.completion_tokens
             doc.lifecycle_ms = result.usage.analysis_ms
             doc.lifecycle_status = effective_status
+            lc_row = existing or lc
             session.commit()
+
+            if effective_status == "ready" and result.code_skeleton:
+                try:
+                    _convert_all_skeleton_languages(lc_row, session)
+                except Exception:
+                    logger.warning("Skeleton pre-conversion failed (doc %s)", document_id, exc_info=True)
 
             import uuid
             model = settings.lifecycle_analysis_model
@@ -3323,7 +3378,14 @@ def merge_product_lifecycle_task(self, product_id: int):
                     detected_by="lifecycle_merge",
                 ))
 
+            lc_row = existing or lc
             session.commit()
+
+            if result.code_skeleton:
+                try:
+                    _convert_all_skeleton_languages(lc_row, session)
+                except Exception:
+                    logger.warning("Skeleton pre-conversion failed (merge product %s)", product_id, exc_info=True)
 
             if result.usage.prompt_tokens > 0:
                 import uuid
