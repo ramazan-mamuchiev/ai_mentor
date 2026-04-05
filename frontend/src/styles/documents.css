@@ -4151,6 +4151,64 @@ button.docs-lc-badge--partial:hover {
 }
 .lc-data-flows-diagram svg { max-width: 100%; height: auto; }
 [data-theme="dark"] .lc-data-flows-diagram { background: rgba(255,255,255,.04); }
+.lc-mermaid-wrapper {
+  position: relative;
+}
+.lc-mermaid-fullscreen-btn {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  background: var(--docs-card-bg, #fff); border: 1px solid var(--docs-table-border, #e0e0e0);
+  border-radius: 6px; padding: 4px 6px; cursor: pointer;
+  color: var(--text-secondary); opacity: 0; transition: opacity .15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.lc-mermaid-wrapper:hover .lc-mermaid-fullscreen-btn { opacity: 1; }
+.lc-mermaid-fullscreen-btn:hover { color: var(--text-primary); background: var(--hover-bg, #f5f5f5); }
+[data-theme="dark"] .lc-mermaid-fullscreen-btn { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); }
+[data-theme="dark"] .lc-mermaid-fullscreen-btn:hover { background: rgba(255,255,255,.15); }
+
+.lc-mermaid-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn .15s ease;
+}
+.lc-mermaid-overlay-content {
+  background: var(--docs-card-bg, #fff); border-radius: 12px;
+  width: 95vw; height: 92vh; max-width: 1800px;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+[data-theme="dark"] .lc-mermaid-overlay-content { background: var(--bg-primary, #1e1e2e); }
+.lc-mermaid-overlay-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px 0; flex-shrink: 0;
+}
+.lc-mermaid-overlay-controls {
+  display: flex; gap: 4px;
+}
+.lc-mermaid-ctrl-btn {
+  background: var(--docs-card-bg, #f5f5f5); border: 1px solid var(--docs-table-border, #e0e0e0);
+  border-radius: 6px; padding: 5px 7px; cursor: pointer;
+  color: var(--text-secondary); display: flex; align-items: center; justify-content: center;
+  transition: background .12s, color .12s;
+}
+.lc-mermaid-ctrl-btn:hover { color: var(--text-primary); background: var(--hover-bg, #eee); }
+[data-theme="dark"] .lc-mermaid-ctrl-btn { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); }
+[data-theme="dark"] .lc-mermaid-ctrl-btn:hover { background: rgba(255,255,255,.15); }
+.lc-mermaid-overlay-close {
+  background: none; border: none; cursor: pointer; padding: 6px;
+  color: var(--text-secondary); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.lc-mermaid-overlay-close:hover { background: var(--hover-bg, #f0f0f0); color: var(--text-primary); }
+[data-theme="dark"] .lc-mermaid-overlay-close:hover { background: rgba(255,255,255,.1); }
+.lc-mermaid-overlay-diagram {
+  flex: 1; overflow: hidden; padding: 0;
+  cursor: grab;
+}
+.lc-mermaid-overlay-diagram:active { cursor: grabbing; }
+.lc-mermaid-overlay-diagram svg { width: 100%; height: 100%; }
+
 .lc-mermaid-error {
   color: #fa5252; font-size: 11px; padding: 8px; white-space: pre-wrap;
 }

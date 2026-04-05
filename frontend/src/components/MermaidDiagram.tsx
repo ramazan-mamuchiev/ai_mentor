@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { Maximize2, X, ZoomIn, ZoomOut, Maximize } from 'lucide-react'
+import svgPanZoom from 'svg-pan-zoom'
 import mermaid from 'mermaid'
 
 mermaid.initialize({
@@ -25,8 +27,11 @@ let counter = 0
 
 export function MermaidDiagram({ chart, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const overlayDiagramRef = useRef<HTMLDivElement>(null)
+  const panZoomRef = useRef<ReturnType<typeof svgPanZoom> | null>(null)
   const [svg, setSvg] = useState<string>('')
   const [error, setError] = useState<string>('')
+  const [fullscreen, setFullscreen] = useState(false)
   const safeChart = useMemo(() => sanitizeMermaid(chart), [chart])
 
   useEffect(() => {
@@ -41,6 +46,53 @@ export function MermaidDiagram({ chart, className }: Props) {
     return () => { cancelled = true }
   }, [safeChart])
 
+  useEffect(() => {
+    if (!fullscreen || !overlayDiagramRef.current) return
+
+    const svgEl = overlayDiagramRef.current.querySelector('svg')
+    if (!svgEl) return
+
+    svgEl.setAttribute('width', '100%')
+    svgEl.setAttribute('height', '100%')
+
+    const instance = svgPanZoom(svgEl, {
+      zoomEnabled: true,
+      panEnabled: true,
+      controlIconsEnabled: false,
+      fit: true,
+      center: true,
+      minZoom: 0.3,
+      maxZoom: 10,
+      zoomScaleSensitivity: 0.3,
+      dblClickZoomEnabled: true,
+    })
+
+    panZoomRef.current = instance
+
+    return () => {
+      try { instance.destroy() } catch { /* unmounted */ }
+      panZoomRef.current = null
+    }
+  }, [fullscreen, svg])
+
+  const handleEsc = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') setFullscreen(false)
+  }, [])
+
+  useEffect(() => {
+    if (fullscreen) {
+      window.addEventListener('keydown', handleEsc)
+      return () => window.removeEventListener('keydown', handleEsc)
+    }
+  }, [fullscreen, handleEsc])
+
+  const handleZoomIn = useCallback(() => panZoomRef.current?.zoomIn(), [])
+  const handleZoomOut = useCallback(() => panZoomRef.current?.zoomOut(), [])
+  const handleFit = useCallback(() => {
+    panZoomRef.current?.fit()
+    panZoomRef.current?.center()
+  }, [])
+
   if (error) {
     return <pre className="lc-mermaid-error">{error}</pre>
   }
@@ -50,10 +102,52 @@ export function MermaidDiagram({ chart, className }: Props) {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={`lc-mermaid ${className ?? ''}`}
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <>
+      <div className={`lc-mermaid-wrapper ${className ?? ''}`}>
+        <button
+          className="lc-mermaid-fullscreen-btn"
+          onClick={() => setFullscreen(true)}
+          title="Fullscreen"
+        >
+          <Maximize2 size={14} />
+        </button>
+        <div
+          ref={containerRef}
+          className="lc-mermaid"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </div>
+
+      {fullscreen && (
+        <div className="lc-mermaid-overlay" onClick={() => setFullscreen(false)}>
+          <div className="lc-mermaid-overlay-content" onClick={e => e.stopPropagation()}>
+            <div className="lc-mermaid-overlay-header">
+              <div className="lc-mermaid-overlay-controls">
+                <button onClick={handleZoomIn} title="Zoom in" className="lc-mermaid-ctrl-btn">
+                  <ZoomIn size={16} />
+                </button>
+                <button onClick={handleZoomOut} title="Zoom out" className="lc-mermaid-ctrl-btn">
+                  <ZoomOut size={16} />
+                </button>
+                <button onClick={handleFit} title="Fit to screen" className="lc-mermaid-ctrl-btn">
+                  <Maximize size={16} />
+                </button>
+              </div>
+              <button
+                className="lc-mermaid-overlay-close"
+                onClick={() => setFullscreen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div
+              ref={overlayDiagramRef}
+              className="lc-mermaid-overlay-diagram"
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
+          </div>
+        </div>
+      )}
+    </>
   )
 }
