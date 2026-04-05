@@ -12,6 +12,7 @@ from app.auth.dependencies import get_current_tenant, require_admin, require_per
 
 from app.database import async_session
 from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Document, Product, SharedLink, Tenant
+from app.products.utils import sanitize_lifecycle_payload
 from app.share.schemas import (
     AdminSharedLinkResponse,
     AdminSharedLinksListResponse,
@@ -431,28 +432,7 @@ async def share_lifecycle(product_id: int, request: Request, tenant: Tenant = De
             )
         )).scalars().all()
 
-        def _lc_dict(lc: ApiLifecycle) -> dict:
-            return {
-                "status": lc.status,
-                "phases": lc.phases or [],
-                "unique_patterns": lc.unique_patterns or [],
-                "dependency_chains": lc.dependency_chains or [],
-                "code_skeleton": lc.code_skeleton or "",
-                "code_skeleton_translations": lc.code_skeleton_translations or {},
-                "data_models": lc.data_models or [],
-                "error_catalog": lc.error_catalog or [],
-                "prerequisites": lc.prerequisites or [],
-                "data_access_patterns": lc.data_access_patterns or [],
-                "endpoint_coverage": lc.endpoint_coverage or [],
-                "validation_issues": lc.validation_issues or [],
-                "validation_retries": lc.validation_retries,
-                "prompt_tokens": lc.prompt_tokens,
-                "completion_tokens": lc.completion_tokens,
-                "analysis_ms": lc.analysis_ms,
-                "model": lc.model,
-                "created_at": lc.created_at.isoformat() if lc.created_at else None,
-                "updated_at": lc.updated_at.isoformat() if lc.updated_at else None,
-            }
+        _lc_dict = sanitize_lifecycle_payload
 
         snapshot = {
             "version": 1,

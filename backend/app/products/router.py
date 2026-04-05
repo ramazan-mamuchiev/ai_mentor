@@ -32,7 +32,7 @@ from app.products.schemas import (
     ProductUsageStats,
     SuggestionChip,
 )
-from app.products.utils import make_product_slug
+from app.products.utils import make_product_slug, sanitize_lifecycle_payload
 
 logger = logging.getLogger(__name__)
 
@@ -731,29 +731,7 @@ async def get_product_lifecycle(product_id: int):
             )
         )).scalars().all()
 
-        def _lifecycle_payload(lc: ApiLifecycle) -> dict:
-            return {
-                "status": lc.status,
-                "phases": lc.phases or [],
-                "unique_patterns": lc.unique_patterns or [],
-                "dependency_chains": lc.dependency_chains or [],
-                "code_skeleton": lc.code_skeleton or "",
-                "code_skeleton_translations": lc.code_skeleton_translations or {},
-                "data_models": lc.data_models or [],
-                "error_catalog": lc.error_catalog or [],
-                "prerequisites": lc.prerequisites or [],
-                "data_access_patterns": lc.data_access_patterns or [],
-                "endpoint_coverage": lc.endpoint_coverage or [],
-                "integration_data_flows": lc.integration_data_flows or {},
-                "validation_issues": lc.validation_issues or [],
-                "validation_retries": lc.validation_retries,
-                "prompt_tokens": lc.prompt_tokens,
-                "completion_tokens": lc.completion_tokens,
-                "analysis_ms": lc.analysis_ms,
-                "model": lc.model,
-                "created_at": lc.created_at.isoformat() if lc.created_at else None,
-                "updated_at": lc.updated_at.isoformat() if lc.updated_at else None,
-            }
+        _lifecycle_payload = sanitize_lifecycle_payload
 
         result: dict = {
             "product_id": product_id,
