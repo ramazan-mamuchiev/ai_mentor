@@ -496,6 +496,8 @@
 /* Service select */
 .logs-select {
   padding: 5px 10px;
+  height: 30px;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
@@ -572,11 +574,13 @@
 .logs-tenant-input {
   width: 100%;
   padding: 5px 26px 5px 28px;
+  height: 30px;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
   color: var(--text);
-  font-size: 13px;
+  font-size: 12px;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -713,6 +717,8 @@
 .logs-search {
   width: 100%;
   padding: 5px 28px 5px 28px;
+  height: 30px;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
