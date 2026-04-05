@@ -242,13 +242,13 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                 })()}
                 {avgCompleteness !== null && (
                   <span className={`lc-modal-quality lc-modal-quality--${avgCompleteness >= 80 ? 'good' : avgCompleteness >= 50 ? 'partial' : 'low'}`}>
-                    Doc quality: {avgCompleteness}%
+                    {t('lifecycle.docQuality', { pct: avgCompleteness })}
                   </span>
                 )}
                 {lc.model && <span className="lc-modal-model">{lc.model}</span>}
                 {lc.analysis_ms != null && <span className="lc-modal-time">{(lc.analysis_ms / 1000).toFixed(1)}s</span>}
                 {lc.prompt_tokens != null && (
-                  <span className="lc-modal-tokens">{lc.prompt_tokens.toLocaleString()} + {(lc.completion_tokens ?? 0).toLocaleString()} tokens</span>
+                  <span className="lc-modal-tokens">{lc.prompt_tokens.toLocaleString()} + {(lc.completion_tokens ?? 0).toLocaleString()} {t('lifecycle.tokens', 'tokens')}</span>
                 )}
                 {lc.validation_retries != null && lc.validation_retries > 0 && (
                   <span className="lc-modal-retries">{lc.validation_retries} {t('lifecycleModal.retries')}</span>
@@ -362,7 +362,7 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                             <span className="lc-modal-phase-order">{p.step_order}</span>
                             <span className="lc-modal-phase-name">{p.phase_name}</span>
                             <span className="lc-modal-phase-action">{p.action}</span>
-                            {p.is_required && <span className="lc-modal-phase-req">REQ</span>}
+                            {p.is_required && <span className="lc-modal-phase-req">{t('lifecycle.required', 'REQ')}</span>}
                           </div>
                           {p.api_call && (
                             <code className="lc-modal-phase-api">
@@ -377,13 +377,13 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                           </div>
                           {p.request_example && (
                             <details className="lc-modal-phase-example">
-                              <summary>Request body</summary>
+                              <summary>{t('lifecycle.requestBody', 'Request body')}</summary>
                               <pre>{p.request_example}</pre>
                             </details>
                           )}
                           {p.response_example && (
                             <details className="lc-modal-phase-example">
-                              <summary>Response</summary>
+                              <summary>{t('lifecycle.responseBody', 'Response')}</summary>
                               <pre>{p.response_example}</pre>
                             </details>
                           )}
@@ -409,11 +409,11 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                             <strong>{m.model_name}</strong>
                             <span className={`lc-modal-direction lc-modal-direction--${m.direction}`}>{m.direction}</span>
                             {m.content_type && <span className="lc-modal-ct">{m.content_type}</span>}
-                            <span className="lc-modal-count">{m.fields?.length ?? 0} fields</span>
+                            <span className="lc-modal-count">{m.fields?.length ?? 0} {t('lifecycle.fields_many', 'fields')}</span>
                           </summary>
-                          {m.used_in?.length > 0 && <div className="lc-modal-model-used">Used by: {m.used_in.join(', ')}</div>}
+                          {m.used_in?.length > 0 && <div className="lc-modal-model-used">{t('lifecycle.usedBy', { list: m.used_in.join(', ') })}</div>}
                           <table className="lc-modal-fields-table">
-                            <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Description</th></tr></thead>
+                            <thead><tr><th>{t('lifecycle.thField', 'Field')}</th><th>{t('lifecycle.thType', 'Type')}</th><th>{t('lifecycle.thReq', 'Req')}</th><th>{t('lifecycle.thDescription', 'Description')}</th></tr></thead>
                             <tbody>
                               {(m.fields || []).map((f, j) => (
                                 <tr key={j}>
@@ -441,7 +441,7 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                   </button>
                   {openSections.errors && (
                     <table className="lc-modal-errors-table">
-                      <thead><tr><th>Status</th><th>Code</th><th>Meaning</th><th>Recovery</th></tr></thead>
+                      <thead><tr><th>{t('lifecycle.thStatus', 'Status')}</th><th>{t('lifecycle.thCode', 'Code')}</th><th>{t('lifecycle.thMeaning', 'Meaning')}</th><th>{t('lifecycle.thRecovery', 'Recovery')}</th></tr></thead>
                       <tbody>
                         {errorCatalog.map((e, i) => (
                           <tr key={i}>
@@ -544,7 +544,7 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                   </button>
                   {openSections.coverage && (
                     <table className="lc-modal-coverage-table">
-                      <thead><tr><th>Endpoint</th><th>Req</th><th>Resp</th><th>Err</th><th>Ex</th><th>Score</th></tr></thead>
+                      <thead><tr><th>{t('lifecycle.thEndpoint', 'Endpoint')}</th><th>{t('lifecycle.thReqBody', 'Req')}</th><th>{t('lifecycle.thResp', 'Resp')}</th><th>{t('lifecycle.thErr', 'Err')}</th><th>{t('lifecycle.thEx', 'Ex')}</th><th>{t('lifecycle.thScore', 'Score')}</th></tr></thead>
                       <tbody>
                         {coverage.map((e, i) => (
                           <tr key={i} className={e.completeness < 0.5 ? 'lc-modal-coverage-low' : ''}>

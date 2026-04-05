@@ -89,7 +89,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
         })()}
         {avgCompleteness !== null && (
           <span className={`lc-modal-quality lc-modal-quality--${avgCompleteness >= 80 ? 'good' : avgCompleteness >= 50 ? 'partial' : 'low'}`}>
-            Doc quality: {avgCompleteness}%
+            {t('lifecycle.docQuality', { pct: avgCompleteness })}
           </span>
         )}
         {lc.model && <span className="lc-modal-model">{lc.model}</span>}
@@ -101,7 +101,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
             <>
               {ms != null && ms > 0 && <span className="lc-modal-time">{(ms / 1000).toFixed(1)}s</span>}
               {pt != null && pt > 0 && (
-                <span className="lc-modal-tokens">{pt.toLocaleString()} + {(ct ?? 0).toLocaleString()} tokens</span>
+                <span className="lc-modal-tokens">{pt.toLocaleString()} + {(ct ?? 0).toLocaleString()} {t('lifecycle.tokens', 'tokens')}</span>
               )}
             </>
           )
@@ -221,7 +221,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
                         <span className="lc-modal-phase-order">{p.step_order}</span>
                         <span className="lc-modal-phase-name">{p.phase_name}</span>
                         <span className="lc-modal-phase-action">{p.action}</span>
-                        {p.is_required && <span className="lc-modal-phase-req">REQ</span>}
+                        {p.is_required && <span className="lc-modal-phase-req">{t('lifecycle.required', 'REQ')}</span>}
                       </div>
                       {p.api_call && <code className="lc-modal-phase-api">{p.api_call}</code>}
                       {p.notes && <div className="lc-modal-phase-notes">{p.notes}</div>}
@@ -251,11 +251,11 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
                         <strong>{md.model_name}</strong>
                         <span className={`lc-modal-direction lc-modal-direction--${md.direction}`}>{md.direction}</span>
                         {md.content_type && <span className="lc-modal-ct">{md.content_type}</span>}
-                        <span className="lc-modal-count">{md.fields?.length ?? 0} fields</span>
+                        <span className="lc-modal-count">{md.fields?.length ?? 0} {t('lifecycle.fields_many', 'fields')}</span>
                       </summary>
-                      {(md.used_in?.length ?? 0) > 0 && <div className="lc-modal-model-used">Used by: {md.used_in!.join(', ')}</div>}
+                      {(md.used_in?.length ?? 0) > 0 && <div className="lc-modal-model-used">{t('lifecycle.usedBy', { list: md.used_in!.join(', ') })}</div>}
                       <table className="lc-modal-fields-table">
-                        <thead><tr><th>Field</th><th>Type</th><th>Req</th><th>Description</th></tr></thead>
+                        <thead><tr><th>{t('lifecycle.thField', 'Field')}</th><th>{t('lifecycle.thType', 'Type')}</th><th>{t('lifecycle.thReq', 'Req')}</th><th>{t('lifecycle.thDescription', 'Description')}</th></tr></thead>
                         <tbody>
                           {(md.fields || []).map((f: { name: string; type: string; constraints?: string; required?: boolean; description?: string; example_value?: string }, j: number) => (
                             <tr key={j}>
@@ -283,7 +283,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
               </button>
               {openSections.errors && (
                 <table className="lc-modal-errors-table">
-                  <thead><tr><th>Status</th><th>Code</th><th>Meaning</th><th>Recovery</th></tr></thead>
+                  <thead><tr><th>{t('lifecycle.thStatus', 'Status')}</th><th>{t('lifecycle.thCode', 'Code')}</th><th>{t('lifecycle.thMeaning', 'Meaning')}</th><th>{t('lifecycle.thRecovery', 'Recovery')}</th></tr></thead>
                   <tbody>
                     {errorCatalog.map((e: { http_status: number; error_code?: string; meaning: string; recovery_action: string; retry_after_seconds?: number }, i: number) => (
                       <tr key={i}>
@@ -386,7 +386,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
               </button>
               {openSections.coverage && (
                 <table className="lc-modal-coverage-table">
-                  <thead><tr><th>Endpoint</th><th>Req</th><th>Resp</th><th>Err</th><th>Ex</th><th>Score</th></tr></thead>
+                  <thead><tr><th>{t('lifecycle.thEndpoint', 'Endpoint')}</th><th>{t('lifecycle.thReqBody', 'Req')}</th><th>{t('lifecycle.thResp', 'Resp')}</th><th>{t('lifecycle.thErr', 'Err')}</th><th>{t('lifecycle.thEx', 'Ex')}</th><th>{t('lifecycle.thScore', 'Score')}</th></tr></thead>
                   <tbody>
                     {coverage.map((e: { method: string; endpoint: string; has_request_body_docs: boolean; has_response_docs: boolean; has_error_docs: boolean; has_example: boolean; completeness: number }, i: number) => (
                       <tr key={i} className={e.completeness < 0.5 ? 'lc-modal-coverage-low' : ''}>
