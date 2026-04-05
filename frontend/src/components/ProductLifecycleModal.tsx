@@ -142,7 +142,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
             <div className="lc-modal-section">
               <button className="lc-modal-section-toggle" onClick={() => toggle('prereqs')}>
                 {openSections.prereqs ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                <span>Prerequisites</span>
+                <span>{t('lifecycle.prerequisites', 'Prerequisites')}</span>
                 <span className="lc-modal-count">{prereqs.length}</span>
               </button>
               {openSections.prereqs && (
@@ -240,7 +240,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
             <div className="lc-modal-section">
               <button className="lc-modal-section-toggle" onClick={() => toggle('dataModels')}>
                 {openSections.dataModels ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                <span>Data Models</span>
+                <span>{t('lifecycle.dataModels', 'Data Models')}</span>
                 <span className="lc-modal-count">{dataModels.length}</span>
               </button>
               {openSections.dataModels && (
@@ -278,7 +278,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
             <div className="lc-modal-section">
               <button className="lc-modal-section-toggle" onClick={() => toggle('errors')}>
                 {openSections.errors ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                <span>Error Handling</span>
+                <span>{t('lifecycle.errorHandling', 'Error Handling')}</span>
                 <span className="lc-modal-count">{errorCatalog.length}</span>
               </button>
               {openSections.errors && (
@@ -304,7 +304,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
             <div className="lc-modal-section">
               <button className="lc-modal-section-toggle" onClick={() => toggle('accessPatterns')}>
                 {openSections.accessPatterns ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                <span>Data Access Patterns</span>
+                <span>{t('lifecycle.accessPatterns', 'Data Access Patterns')}</span>
                 <span className="lc-modal-count">{accessPatterns.length}</span>
               </button>
               {openSections.accessPatterns && (
@@ -381,7 +381,7 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
             <div className="lc-modal-section">
               <button className="lc-modal-section-toggle" onClick={() => toggle('coverage')}>
                 {openSections.coverage ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                <span>Endpoint Coverage</span>
+                <span>{t('lifecycle.endpointCoverage', 'Endpoint Coverage')}</span>
                 <span className="lc-modal-count">{coverage.length}</span>
               </button>
               {openSections.coverage && (
