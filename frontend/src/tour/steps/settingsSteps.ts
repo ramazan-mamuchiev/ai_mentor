@@ -24,5 +24,12 @@ export function getSettingsSteps(t: TFunction): DriveStep[] {
         description: t('help.settings.apikeys.desc'),
       },
     },
+    {
+      element: '.settings-tab:nth-child(3)',
+      popover: {
+        title: t('help.settings.sharedlinks.title'),
+        description: t('help.settings.sharedlinks.desc'),
+      },
+    },
   ]
 }

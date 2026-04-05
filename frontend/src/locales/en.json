@@ -1453,11 +1453,13 @@
   "help.analytics.stats.desc": "Core metrics for the selected period: request count, tokens used, and costs incurred.",
 
   "help.settings.tabs.title": "Settings sections",
-  "help.settings.tabs.desc": "Profile — your name and email. API Keys — for connecting MCP clients (Cursor, VS Code).",
+  "help.settings.tabs.desc": "Profile — your name and email. API Keys — for connecting MCP clients (Cursor, VS Code). Shared Links — manage links you've shared externally.",
   "help.settings.profile.title": "Profile",
   "help.settings.profile.desc": "Change the name displayed in the system.",
   "help.settings.apikeys.title": "API Keys",
   "help.settings.apikeys.desc": "Create an API key to connect Lexiro to your IDE via MCP. The key is shown only once — copy it immediately.",
+  "help.settings.sharedlinks.title": "Shared Links",
+  "help.settings.sharedlinks.desc": "View all links you've shared — chats, answers, documents, and debug info. Copy, open, or deactivate any link to revoke external access.",
 
   "kb.title": "Knowledge Base",
   "kb.description": "Learn how the system works: architecture, processing and search pipelines",

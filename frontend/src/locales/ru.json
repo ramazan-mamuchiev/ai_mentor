@@ -1607,11 +1607,13 @@
   "help.analytics.stats.desc": "Основные показатели за выбранный период: количество запросов, использованные токены и расходы.",
 
   "help.settings.tabs.title": "Разделы настроек",
-  "help.settings.tabs.desc": "Профиль — имя и email. API-ключи — для подключения MCP-клиентов (Cursor, VS Code).",
+  "help.settings.tabs.desc": "Профиль — имя и email. API-ключи — для подключения MCP-клиентов (Cursor, VS Code). Общие ссылки — управление расшаренными ссылками.",
   "help.settings.profile.title": "Профиль",
   "help.settings.profile.desc": "Измените имя, которое будет отображаться в системе.",
   "help.settings.apikeys.title": "API-ключи",
   "help.settings.apikeys.desc": "Создайте API-ключ для подключения Lexiro к вашей IDE через MCP. Ключ показывается только один раз — сразу скопируйте его.",
+  "help.settings.sharedlinks.title": "Общие ссылки",
+  "help.settings.sharedlinks.desc": "Здесь отображаются все ссылки, которые вы расшарили — чаты, ответы, документы и отладочная информация. Можно скопировать, открыть или деактивировать ссылку, чтобы закрыть внешний доступ.",
 
   "kb.title": "База знаний",
   "kb.description": "Узнайте, как устроена система: архитектура, pipeline обработки и поиска",
