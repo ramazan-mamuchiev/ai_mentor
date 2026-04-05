@@ -121,6 +121,7 @@ export interface ProductLifecycle {
   product_name: string
   document_lifecycles: DocumentLifecycle[]
   merged: LifecyclePayload | null
+  processing_documents: number
   doc_issues: Array<{
     document_id: number; issue_type: string; severity: string; description: string
     affected_entity?: string; suggestion?: string

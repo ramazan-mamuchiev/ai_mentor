@@ -662,16 +662,33 @@ async def analyze_product_lifecycle(product_id: int):
         if not docs:
             raise HTTPException(status_code=400, detail="No ready documents in this product")
 
+        already_running = set((await session.execute(
+            select(Document.id).where(
+                Document.id.in_(docs),
+                Document.lifecycle_status.in_(["processing", "pending"]),
+            )
+        )).scalars().all())
+
+    eligible = [d for d in docs if d not in already_running]
+
+    if not eligible:
+        raise HTTPException(
+            status_code=409,
+            detail=f"All {len(docs)} documents are already being analyzed",
+        )
+
     from app.celery_app import celery
     task_ids = []
-    for doc_id in docs:
+    for doc_id in eligible:
         task = celery.send_task("analyze_api_lifecycle", args=[doc_id])
         task_ids.append({"document_id": doc_id, "task_id": task.id})
 
     return {
         "product_id": product_id,
-        "message": f"Lifecycle analysis started for {len(docs)} documents",
+        "message": f"Lifecycle analysis started for {len(eligible)} documents"
+                   + (f" ({len(already_running)} already running, skipped)" if already_running else ""),
         "tasks": task_ids,
+        "skipped_running": len(already_running),
     }
 
 
@@ -763,6 +780,14 @@ async def get_product_lifecycle(product_id: int):
             }
             for i in issues
         ]
+
+        processing_count = (await session.execute(
+            select(func.count()).select_from(Document).where(
+                Document.product_id == product_id,
+                Document.lifecycle_status.in_(["processing", "pending"]),
+            )
+        )).scalar() or 0
+        result["processing_documents"] = processing_count
 
         return result
 

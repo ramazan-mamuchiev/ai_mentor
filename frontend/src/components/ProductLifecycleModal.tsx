@@ -460,9 +460,9 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
 
   useEffect(() => { load() }, [load])
 
-  const hasRunningDocs = data?.document_lifecycles?.some(
+  const hasRunningDocs = (data?.document_lifecycles?.some(
     d => d.status === 'pending' || d.status === 'processing'
-  ) ?? false
+  ) || (data?.processing_documents ?? 0) > 0)
 
   useEffect(() => {
     if (hasRunningDocs) {
@@ -486,8 +486,9 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
       await analyzeProductLifecycle(productId)
       onAnalyzed?.()
       setTimeout(() => load(true), 2000)
-    } catch { /* ignore */ }
-    finally { setLaunching(false) }
+    } catch {
+      load(true)
+    } finally { setLaunching(false) }
   }
 
   const handleDelete = async () => {
@@ -651,12 +652,15 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
               <Loader2 size={40} className="spin-icon" />
               <p className="lc-modal-in-progress-title">{t('lifecycleModal.inProgress')}</p>
               <p className="lc-modal-in-progress-hint">{t('products.lifecycle.inProgressHint')}</p>
-              {docLcs.length > 0 && (
+              {(docLcs.length > 0 || (data?.processing_documents ?? 0) > 0) && (
                 <div className="plc-modal-doc-progress">
                   <span className="plc-doc-ready">{readyDocs} {t('lifecycle.status.ready').toLowerCase()}</span>
-                  {runningDocs > 0 && <span className="plc-doc-running">{runningDocs} {t('lifecycle.status.processing').toLowerCase()}</span>}
+                  {(runningDocs + (data?.processing_documents ?? 0)) > 0 && (
+                    <span className="plc-doc-running">
+                      {runningDocs + (data?.processing_documents ?? 0)} {t('lifecycle.status.processing').toLowerCase()}
+                    </span>
+                  )}
                   {errorDocs > 0 && <span className="plc-doc-error">{errorDocs} {t('lifecycle.status.error').toLowerCase()}</span>}
-                  <span className="plc-doc-total">/ {docLcs.length}</span>
                 </div>
               )}
               <div className="lc-modal-progress-bar">

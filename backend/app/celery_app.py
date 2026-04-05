@@ -3041,6 +3041,10 @@ def analyze_api_lifecycle_task(self, document_id: int):
             return {"status": "error", "error": "Document not found"}
         if doc.status != "ready":
             return {"status": "skipped", "reason": f"Document status is '{doc.status}', not 'ready'"}
+        if doc.lifecycle_status == "processing":
+            logger.info("Skipping lifecycle analysis: already processing",
+                        extra={"document_id": document_id})
+            return {"status": "skipped", "reason": "Already processing"}
 
         _set_tenant_log_context(doc.tenant_id, session)
 
