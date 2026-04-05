@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy, Key, Plus, ShieldOff, Check, User, Save, X, ChevronDown, ChevronUp, Settings, Eye, EyeOff, RotateCcw } from 'lucide-react'
+import { Copy, Key, Link2, Plus, ShieldOff, Check, User, Save, X, ChevronDown, ChevronUp, Settings, Eye, EyeOff, RotateCcw, Trash2, ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { getApiKeys, createApiKey, revokeApiKey, updateMe, getApiKeyUsage, type ApiKeyItem, type ApiKeyCreated, type ApiKeyUsageResponse } from '../auth/api'
+import { listSharedLinks, deleteSharedLink } from '../api/share'
+import type { SharedLinkResponse } from '../types'
 import { useAuth } from '../auth/AuthContext'
 import { usePageTour } from '../hooks/usePageTour'
 import { getSettingsSteps } from '../tour/steps/settingsSteps'
 import { resetAllHelpTours } from '../tour/HelpTourContext'
 import { fmtUsd } from '../utils/format'
 
-type Tab = 'profile' | 'api-keys'
+type Tab = 'profile' | 'api-keys' | 'shared-links'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -37,10 +39,18 @@ export function SettingsPage() {
           <Key size={16} />
           {t('settings.tabApiKeys')}
         </button>
+        <button
+          className={`settings-tab ${activeTab === 'shared-links' ? 'settings-tab--active' : ''}`}
+          onClick={() => setActiveTab('shared-links')}
+        >
+          <Link2 size={16} />
+          {t('settings.tabSharedLinks')}
+        </button>
       </div>
 
       {activeTab === 'profile' && <ProfileTab />}
       {activeTab === 'api-keys' && <ApiKeysTab />}
+      {activeTab === 'shared-links' && <SharedLinksTab />}
     </div>
   )
 }
@@ -398,6 +408,145 @@ function KeyUsagePanel({ usage }: { usage: ApiKeyUsageResponse }) {
     </div>
   )
 }
+
+const SHARE_TYPE_LABELS: Record<string, string> = {
+  session: 'Chat',
+  message: 'Answer',
+  debug_chat: 'Debug (chat)',
+  debug_document: 'Debug (doc)',
+  debug_product: 'Debug (product)',
+  document_preview: 'Document',
+  lifecycle: 'Lifecycle',
+}
+
+function SharedLinksTab() {
+  const { t } = useTranslation()
+  const [links, setLinks] = useState<SharedLinkResponse[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showInactive, setShowInactive] = useState(false)
+  const [revokeToken, setRevokeToken] = useState<string | null>(null)
+  const [copiedToken, setCopiedToken] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await listSharedLinks({ includeInactive: showInactive })
+      setLinks(data)
+    } catch { /* ignore */ }
+    setLoading(false)
+  }, [showInactive])
+
+  useEffect(() => { setLoading(true); load() }, [load])
+
+  const handleRevoke = async (token: string) => {
+    try {
+      await deleteSharedLink(token)
+      setLinks(prev => prev.map(l => l.token === token ? { ...l, is_active: false } : l))
+    } catch { /* ignore */ }
+    setRevokeToken(null)
+  }
+
+  const handleCopy = (url: string, token: string) => {
+    navigator.clipboard.writeText(url)
+    setCopiedToken(token)
+    setTimeout(() => setCopiedToken(null), 2000)
+  }
+
+  return (
+    <section className="settings-section">
+      <p className="settings-hint">{t('settings.sharedLinksHint')}</p>
+
+      <label className="show-revoked-toggle">
+        <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} />
+        {showInactive ? <Eye size={14} /> : <EyeOff size={14} />}
+        {t('settings.showInactive')}
+      </label>
+
+      {loading ? (
+        <p className="settings-loading">{t('settings.loading')}</p>
+      ) : links.length === 0 ? (
+        <p className="settings-empty">{t('settings.noSharedLinks')}</p>
+      ) : (
+        <table className="api-keys-table shared-links-table">
+          <thead>
+            <tr>
+              <th>{t('settings.sharedLinkTitle')}</th>
+              <th>{t('settings.sharedLinkType')}</th>
+              <th className="hide-mobile">{t('settings.sharedLinkViews')}</th>
+              <th className="hide-mobile">{t('settings.keyCreated')}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {links.map(link => (
+              <tr key={link.token} className={!link.is_active ? 'row-revoked' : ''}>
+                <td className="shared-link-title-cell">
+                  <span className="shared-link-title-text">{link.title || '—'}</span>
+                </td>
+                <td>
+                  <span className={`shared-link-type-badge shared-link-type--${link.share_type}`}>
+                    {SHARE_TYPE_LABELS[link.share_type] || link.share_type}
+                  </span>
+                </td>
+                <td className="hide-mobile">{link.view_count}</td>
+                <td className="hide-mobile">{new Date(link.created_at).toLocaleDateString()}</td>
+                <td className="shared-link-actions">
+                  <button
+                    className="btn-icon"
+                    onClick={() => handleCopy(link.url, link.token)}
+                    title={t('share.copyLink')}
+                  >
+                    {copiedToken === link.token ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
+                  <a
+                    className="btn-icon"
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={t('settings.sharedLinkOpen')}
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                  {link.is_active && (
+                    <button
+                      className="btn-icon btn-danger"
+                      onClick={() => setRevokeToken(link.token)}
+                      title={t('share.deactivate')}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                  {!link.is_active && (
+                    <span className="revoked-badge">{t('settings.sharedLinkInactive')}</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {revokeToken && (
+        <div className="api-key-modal-overlay" onClick={() => setRevokeToken(null)}>
+          <div className="api-key-modal api-key-modal--small" onClick={e => e.stopPropagation()}>
+            <div className="api-key-modal-header">
+              <h3>{t('settings.revokeSharedLinkTitle')}</h3>
+              <button onClick={() => setRevokeToken(null)} className="btn-icon"><X size={18} /></button>
+            </div>
+            <p className="confirm-delete-text">{t('settings.revokeSharedLinkConfirm')}</p>
+            <div className="api-key-modal-footer">
+              <button onClick={() => setRevokeToken(null)} className="btn-secondary">{t('settings.cancel')}</button>
+              <button onClick={() => handleRevoke(revokeToken)} className="btn-danger-solid">
+                <Trash2 size={16} />
+                {t('share.deactivate')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 
 function NewKeyModal({ newKey, onClose }: { newKey: ApiKeyCreated; onClose: () => void }) {
   const { t } = useTranslation()

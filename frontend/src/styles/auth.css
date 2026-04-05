@@ -1075,6 +1075,58 @@
   accent-color: var(--accent);
 }
 
+/* Shared links table (settings) */
+.shared-links-table {
+  table-layout: fixed;
+}
+
+.shared-link-title-cell {
+  max-width: 280px;
+}
+
+.shared-link-title-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-link-type-badge {
+  display: inline-block;
+  padding: 0.15em 0.5em;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.shared-link-type--session { background: #e8f4fd; color: #1a73e8; }
+.shared-link-type--message { background: #e6f4ea; color: #1e8e3e; }
+.shared-link-type--debug_chat,
+.shared-link-type--debug_document,
+.shared-link-type--debug_product { background: #fef7e0; color: #b06000; }
+.shared-link-type--document_preview { background: #f3e8fd; color: #8430ce; }
+.shared-link-type--lifecycle { background: #fce8e6; color: #c5221f; }
+
+.shared-link-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.row-revoked td {
+  opacity: 0.5;
+}
+
+.revoked-badge {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .revoke-reason-field {
   margin: 0.75rem 0;
 }

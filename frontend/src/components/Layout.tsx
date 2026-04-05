@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  MessageSquare, Box, BarChart3, Settings, X, Shield, Plug,
+  MessageSquare, Box, BarChart3, Settings, X, Shield, Plug, Link2,
   LayoutDashboard, Users, FileText, ScrollText, KeyRound, MessageSquareCode,
   ArrowLeft, Activity, BookOpen, Target, HelpCircle, ListTodo,
 } from 'lucide-react'
@@ -73,6 +73,7 @@ const ADMIN_SUB_NAV: readonly { path: string; icon: typeof LayoutDashboard; labe
   { path: '/app/admin/system', icon: Activity, labelKey: 'admin.nav.system' },
   { path: '/app/admin/tasks', icon: ListTodo, labelKey: 'admin.nav.taskQueue' },
   { path: '/app/admin/rag-eval', icon: Target, labelKey: 'admin.nav.ragEval' },
+  { path: '/app/admin/shared-links', icon: Link2, labelKey: 'admin.nav.sharedLinks' },
 ]
 
 interface Props {

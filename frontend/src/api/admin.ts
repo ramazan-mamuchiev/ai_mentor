@@ -1042,6 +1042,60 @@ export async function getLatestRagEval(): Promise<RagEvalRunDetail | null> {
 }
 
 
+// --- Shared Links (Admin) ---
+
+export interface AdminSharedLinkItem {
+  id: number
+  token: string
+  url: string
+  share_type: string
+  title: string
+  view_count: number
+  is_active: boolean
+  tenant_email: string | null
+  tenant_name: string | null
+  created_at: string
+  expires_at: string | null
+}
+
+export interface AdminSharedLinksListResponse {
+  items: AdminSharedLinkItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export async function listSharedLinksAdmin(params: {
+  page?: number
+  page_size?: number
+  tenant_id?: string
+  share_type?: string
+  is_active?: boolean
+  search?: string
+} = {}): Promise<AdminSharedLinksListResponse> {
+  const sp = new URLSearchParams()
+  if (params.page) sp.set('page', String(params.page))
+  if (params.page_size) sp.set('page_size', String(params.page_size))
+  if (params.tenant_id) sp.set('tenant_id', params.tenant_id)
+  if (params.share_type) sp.set('share_type', params.share_type)
+  if (params.is_active !== undefined) sp.set('is_active', String(params.is_active))
+  if (params.search) sp.set('search', params.search)
+  const res = await fetch(`/api/v1/share/admin/links?${sp}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function deactivateSharedLinkAdmin(token: string): Promise<void> {
+  const res = await fetch(`/api/v1/share/admin/${token}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+}
+
+
 // --- Task Queue ---
 
 export interface TaskItem {

@@ -5,14 +5,16 @@ import uuid as _uuid
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import select, func
 
-from app.auth.dependencies import require_permission
+from app.auth.dependencies import get_current_tenant, require_admin, require_permission
 
 from app.database import async_session
-from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Document, Product, SharedLink
+from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Document, Product, SharedLink, Tenant
 from app.share.schemas import (
+    AdminSharedLinkResponse,
+    AdminSharedLinksListResponse,
     SharedContentResponse,
     SharedDebugContentResponse,
     SharedLinkResponse,
@@ -57,7 +59,7 @@ def _build_message_snapshot(msg: ChatMessage) -> dict:
 
 
 @router.post("/share/session/{session_uuid}", response_model=SharedLinkResponse, status_code=201)
-async def share_session(session_uuid: _uuid.UUID, request: Request):
+async def share_session(session_uuid: _uuid.UUID, request: Request, tenant: Tenant = Depends(get_current_tenant)):
     """Create a public snapshot link for an entire chat session."""
     async with async_session() as db:
         chat_session = (await db.execute(
@@ -91,6 +93,7 @@ async def share_session(session_uuid: _uuid.UUID, request: Request):
         title = chat_session.title or (messages[0].content[:80] if messages else "")
 
         link = SharedLink(
+            tenant_id=tenant.id,
             token=token,
             session_id=chat_session.id,
             share_type="session",
@@ -106,7 +109,7 @@ async def share_session(session_uuid: _uuid.UUID, request: Request):
 
 
 @router.post("/share/message/{message_id}", response_model=SharedLinkResponse, status_code=201)
-async def share_message(message_id: int, request: Request):
+async def share_message(message_id: int, request: Request, tenant: Tenant = Depends(get_current_tenant)):
     """Create a public snapshot link for a single answer (user question + assistant response)."""
     async with async_session() as db:
         target_msg = await db.get(ChatMessage, message_id)
@@ -162,6 +165,7 @@ async def share_message(message_id: int, request: Request):
 
         token = _generate_token()
         link = SharedLink(
+            tenant_id=tenant.id,
             token=token,
             session_id=target_msg.session_id,
             message_id=message_id,
@@ -181,7 +185,7 @@ async def share_message(message_id: int, request: Request):
 
 
 @router.post("/share/debug/message/{message_id}", response_model=SharedLinkResponse, status_code=201, dependencies=[Depends(require_permission("debug"))])
-async def share_debug_message(message_id: int, request: Request):
+async def share_debug_message(message_id: int, request: Request, tenant: Tenant = Depends(get_current_tenant)):
     """Create a public snapshot of chat message debug info."""
     async with async_session() as db:
         analytics_result = await db.execute(
@@ -210,6 +214,7 @@ async def share_debug_message(message_id: int, request: Request):
         title = f"Debug S#{analytics.session_id} M#{message_id}"
 
         link = SharedLink(
+            tenant_id=tenant.id,
             token=token,
             session_id=analytics.session_id,
             message_id=message_id,
@@ -227,7 +232,7 @@ async def share_debug_message(message_id: int, request: Request):
 
 
 @router.post("/share/debug/document/{document_id}", response_model=SharedLinkResponse, status_code=201, dependencies=[Depends(require_permission("debug"))])
-async def share_debug_document(document_id: int, request: Request):
+async def share_debug_document(document_id: int, request: Request, tenant: Tenant = Depends(get_current_tenant)):
     """Create a public snapshot of document debug info."""
     from app.documents.router import get_document_debug, get_document_usage_stats
 
@@ -258,6 +263,7 @@ async def share_debug_document(document_id: int, request: Request):
 
     async with async_session() as db:
         link = SharedLink(
+            tenant_id=tenant.id,
             token=token,
             session_id=None,
             share_type="debug_document",
@@ -279,7 +285,7 @@ async def share_debug_document(document_id: int, request: Request):
     status_code=201,
     dependencies=[Depends(require_permission("debug"))],
 )
-async def share_debug_product(product_id: int, request: Request):
+async def share_debug_product(product_id: int, request: Request, tenant: Tenant = Depends(get_current_tenant)):
     """Create a public snapshot of product debug info."""
     from app.products.router import get_product_debug, get_product_usage_stats
 
@@ -310,6 +316,7 @@ async def share_debug_product(product_id: int, request: Request):
 
     async with async_session() as db:
         link = SharedLink(
+            tenant_id=tenant.id,
             token=token,
             session_id=None,
             share_type="debug_product",
@@ -329,7 +336,7 @@ async def share_debug_product(product_id: int, request: Request):
 
 
 @router.post("/share/document/{document_id}", response_model=SharedLinkResponse, status_code=201)
-async def share_document_preview(document_id: int, request: Request):
+async def share_document_preview(document_id: int, request: Request, tenant: Tenant = Depends(get_current_tenant)):
     """Create a public snapshot of document markdown preview."""
     from app.documents.router import preview_markdown
 
@@ -360,6 +367,7 @@ async def share_document_preview(document_id: int, request: Request):
 
     async with async_session() as db:
         link = SharedLink(
+            tenant_id=tenant.id,
             token=token,
             session_id=None,
             share_type="document_preview",
@@ -378,7 +386,7 @@ async def share_document_preview(document_id: int, request: Request):
 
 
 @router.post("/share/lifecycle/{product_id}", response_model=SharedLinkResponse, status_code=201)
-async def share_lifecycle(product_id: int, request: Request):
+async def share_lifecycle(product_id: int, request: Request, tenant: Tenant = Depends(get_current_tenant)):
     """Create a public snapshot of the full product lifecycle analysis."""
     from app.models import ApiLifecycle, DocIssueAnnotation
 
@@ -475,6 +483,7 @@ async def share_lifecycle(product_id: int, request: Request):
         title = f"API Lifecycle: {product.name}"
 
         link = SharedLink(
+            tenant_id=tenant.id,
             token=token,
             session_id=None,
             share_type="lifecycle",
@@ -493,11 +502,11 @@ async def share_lifecycle(product_id: int, request: Request):
 
 
 @router.delete("/share/{token}", status_code=204)
-async def deactivate_shared_link(token: str):
+async def deactivate_shared_link(token: str, tenant: "Tenant" = Depends(get_current_tenant)):
     """Deactivate a shared link (revoke access)."""
     async with async_session() as db:
         result = await db.execute(
-            select(SharedLink).where(SharedLink.token == token)
+            select(SharedLink).where(SharedLink.token == token, SharedLink.tenant_id == tenant.id)
         )
         link = result.scalar_one_or_none()
         if not link:
@@ -510,10 +519,17 @@ async def deactivate_shared_link(token: str):
 
 
 @router.get("/share/links", response_model=list[SharedLinkResponse])
-async def list_shared_links(request: Request, session_uuid: _uuid.UUID | None = None):
-    """List all active shared links, optionally filtered by session UUID."""
+async def list_shared_links(
+    request: Request,
+    session_uuid: _uuid.UUID | None = None,
+    include_inactive: bool = False,
+    tenant: "Tenant" = Depends(get_current_tenant),
+):
+    """List shared links for the current tenant."""
     async with async_session() as db:
-        query = select(SharedLink).where(SharedLink.is_active.is_(True))
+        query = select(SharedLink).where(SharedLink.tenant_id == tenant.id)
+        if not include_inactive:
+            query = query.where(SharedLink.is_active.is_(True))
         if session_uuid is not None:
             cs = (await db.execute(
                 select(ChatSession.id).where(ChatSession.uuid == session_uuid)
@@ -527,3 +543,95 @@ async def list_shared_links(request: Request, session_uuid: _uuid.UUID | None = 
         links = result.scalars().all()
 
         return [_link_response(link, request) for link in links]
+
+
+# ── Admin endpoints ──
+
+
+def _admin_link_response(link: SharedLink, request: Request, email: str | None, name: str | None) -> AdminSharedLinkResponse:
+    return AdminSharedLinkResponse(
+        id=link.id,
+        token=link.token,
+        url=_build_url(request, link.token),
+        share_type=link.share_type,
+        title=link.title,
+        view_count=link.view_count,
+        is_active=link.is_active,
+        tenant_email=email,
+        tenant_name=name,
+        created_at=link.created_at,
+        expires_at=link.expires_at,
+    )
+
+
+@router.get(
+    "/share/admin/links",
+    response_model=AdminSharedLinksListResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def admin_list_shared_links(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    tenant_id: _uuid.UUID | None = None,
+    share_type: str | None = None,
+    is_active: bool | None = None,
+    search: str | None = None,
+):
+    """Admin: list all shared links with filters."""
+    async with async_session() as db:
+        query = select(SharedLink, Tenant.email, Tenant.name).outerjoin(
+            Tenant, SharedLink.tenant_id == Tenant.id
+        )
+
+        if tenant_id is not None:
+            query = query.where(SharedLink.tenant_id == tenant_id)
+        if share_type:
+            query = query.where(SharedLink.share_type == share_type)
+        if is_active is not None:
+            query = query.where(SharedLink.is_active.is_(is_active))
+        if search:
+            like = f"%{search}%"
+            query = query.where(
+                SharedLink.title.ilike(like)
+                | Tenant.email.ilike(like)
+                | Tenant.name.ilike(like)
+            )
+
+        total = (await db.execute(
+            select(func.count()).select_from(query.subquery())
+        )).scalar() or 0
+
+        query = query.order_by(SharedLink.created_at.desc())
+        query = query.offset((page - 1) * page_size).limit(page_size)
+
+        rows = (await db.execute(query)).all()
+        items = [
+            _admin_link_response(link, request, email, name)
+            for link, email, name in rows
+        ]
+
+        return AdminSharedLinksListResponse(
+            items=items, total=total, page=page, page_size=page_size,
+        )
+
+
+@router.delete(
+    "/share/admin/{token}",
+    status_code=204,
+    dependencies=[Depends(require_admin)],
+)
+async def admin_deactivate_shared_link(token: str):
+    """Admin: deactivate any shared link."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(SharedLink).where(SharedLink.token == token)
+        )
+        link = result.scalar_one_or_none()
+        if not link:
+            raise HTTPException(status_code=404, detail="Shared link not found")
+
+        link.is_active = False
+        await db.commit()
+
+        logger.info("Admin deactivated shared link", extra={"token": token})

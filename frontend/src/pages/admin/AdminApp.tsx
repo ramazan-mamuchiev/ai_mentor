@@ -16,6 +16,7 @@ import { PromptEditorPage } from './PromptEditorPage'
 import { SystemPage } from './SystemPage'
 import { TaskQueuePage } from './TaskQueuePage'
 import { RagEvalPage } from './RagEvalPage'
+import { SharedLinksPage } from './SharedLinksPage'
 
 export default function AdminApp() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -48,6 +49,7 @@ export default function AdminApp() {
           <Route path="system" element={<SystemPage />} />
           <Route path="tasks" element={<TaskQueuePage />} />
           <Route path="rag-eval" element={<RagEvalPage />} />
+          <Route path="shared-links" element={<SharedLinksPage />} />
           <Route path="*" element={<Navigate to="/app/admin" replace />} />
         </Routes>
       </div>

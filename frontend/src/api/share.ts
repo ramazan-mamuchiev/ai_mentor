@@ -58,7 +58,13 @@ export async function deleteSharedLink(token: string): Promise<void> {
   return apiFetch<void>(`/share/${token}`, { method: 'DELETE' })
 }
 
-export async function listSharedLinks(sessionId?: string): Promise<SharedLinkResponse[]> {
-  const params = sessionId != null ? `?session_uuid=${sessionId}` : ''
-  return apiFetch<SharedLinkResponse[]>(`/share/links${params}`)
+export async function listSharedLinks(params?: {
+  sessionId?: string
+  includeInactive?: boolean
+}): Promise<SharedLinkResponse[]> {
+  const sp = new URLSearchParams()
+  if (params?.sessionId) sp.set('session_uuid', params.sessionId)
+  if (params?.includeInactive) sp.set('include_inactive', 'true')
+  const qs = sp.toString()
+  return apiFetch<SharedLinkResponse[]>(`/share/links${qs ? `?${qs}` : ''}`)
 }
