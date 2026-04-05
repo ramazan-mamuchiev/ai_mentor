@@ -1,5 +1,6 @@
 """MCP tools for Lexiro: semantic search over product documentation for writing integration code."""
 
+import asyncio
 import hashlib
 import logging
 import time
@@ -1637,6 +1638,7 @@ async def tool_get_product_info(
 async def tool_get_api_lifecycle(
     product: str,
     task: str | None = None,
+    language: str | None = None,
 ) -> str:
     """CRITICAL: ALWAYS call this tool FIRST when the user asks you to write integration code, \
 implement an API client, connect to an API, or work with any product API.
@@ -1644,7 +1646,7 @@ implement an API client, connect to an API, or work with any product API.
     This returns the complete integration blueprint: required initialization order, \
 authentication method, request/response schemas with field types, error handling with \
 recovery actions, data access patterns (pagination/streaming), prerequisites (base URL, \
-API keys, certificates), and a production-ready Python code skeleton.
+API keys, certificates), and a production-ready code skeleton.
 
     Without this context you WILL produce incorrect code — missing required init steps, \
 wrong auth flow, fabricated request bodies, or incorrect error handling.
@@ -1654,6 +1656,9 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
         task: Optional description of what you need to implement.
             If provided, the response highlights the most relevant phases.
             Example: "add a camera and get its live stream URL"
+        language: Programming language for the code skeleton.
+            Default is "python". Supported: "python", "csharp", "java", "javascript",
+            "go", "cpp", "curl". The skeleton is translated from Python to the target language.
     """
     from app.models import ApiLifecycle, DocIssueAnnotation
     from sqlalchemy import select as sa_select
@@ -1862,8 +1867,26 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
 
         # Code Skeleton
         if lc.code_skeleton:
-            lines.append("\n## Production Code Skeleton")
-            lines.append(f"```python\n{lc.code_skeleton}\n```")
+            target_lang = (language or "python").lower().strip()
+            skeleton_code = lc.code_skeleton
+            skeleton_lang_label = "python"
+
+            if target_lang != "python":
+                from app.ingestion.lifecycle_analyzer import (
+                    SUPPORTED_SKELETON_LANGUAGES,
+                    convert_skeleton_sync,
+                )
+                if target_lang in SUPPORTED_SKELETON_LANGUAGES:
+                    try:
+                        skeleton_code = await asyncio.get_event_loop().run_in_executor(
+                            None, convert_skeleton_sync, lc.code_skeleton, target_lang,
+                        )
+                        skeleton_lang_label = target_lang
+                    except Exception:
+                        logger.warning("Skeleton conversion to %s failed, returning Python", target_lang, exc_info=True)
+
+            lines.append(f"\n## Production Code Skeleton ({skeleton_lang_label})")
+            lines.append(f"```{skeleton_lang_label}\n{skeleton_code}\n```")
 
         # Documentation Issues
         if issues:
