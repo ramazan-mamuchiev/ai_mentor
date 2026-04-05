@@ -68,24 +68,32 @@ export function MermaidDiagram({ chart, className }: Props) {
     svgEl.style.height = '100%'
 
     let instance: ReturnType<typeof svgPanZoom> | null = null
-    // Wait one frame so the container has its final layout dimensions.
-    const raf = requestAnimationFrame(() => {
-      instance = svgPanZoom(svgEl, {
-        zoomEnabled: true,
-        panEnabled: true,
-        controlIconsEnabled: false,
-        fit: true,
-        center: true,
-        minZoom: 0.1,
-        maxZoom: 20,
-        zoomScaleSensitivity: 0.3,
-        dblClickZoomEnabled: true,
+    let raf2 = 0
+    // Double-rAF: first frame lets the overlay settle its layout,
+    // second frame initialises pan-zoom with correct dimensions.
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        instance = svgPanZoom(svgEl, {
+          zoomEnabled: true,
+          panEnabled: true,
+          controlIconsEnabled: false,
+          fit: false,
+          center: false,
+          minZoom: 0.1,
+          maxZoom: 20,
+          zoomScaleSensitivity: 0.3,
+          dblClickZoomEnabled: true,
+        })
+        instance.resize()
+        instance.fit()
+        instance.center()
+        panZoomRef.current = instance
       })
-      panZoomRef.current = instance
     })
 
     return () => {
-      cancelAnimationFrame(raf)
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
       try { instance?.destroy() } catch { /* unmounted */ }
       panZoomRef.current = null
     }
