@@ -1076,8 +1076,13 @@
 }
 
 /* Shared links table (settings) */
+.shared-links-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .shared-links-table {
-  table-layout: fixed;
+  min-width: 420px;
 }
 
 .shared-link-title-cell {
@@ -1223,6 +1228,24 @@
 
   .settings-page {
     padding: 1.25rem;
+  }
+
+  .shared-links-table {
+    min-width: 340px;
+    font-size: 0.8rem;
+  }
+
+  .shared-link-title-cell {
+    max-width: 140px;
+  }
+
+  .shared-links-table th,
+  .shared-links-table td {
+    padding: 0.4rem 0.5rem;
+  }
+
+  .shared-link-actions {
+    gap: 0.15rem;
   }
 
   .analytics-page {

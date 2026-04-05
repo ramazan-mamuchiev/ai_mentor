@@ -466,63 +466,65 @@ function SharedLinksTab() {
       ) : links.length === 0 ? (
         <p className="settings-empty">{t('settings.noSharedLinks')}</p>
       ) : (
-        <table className="api-keys-table shared-links-table">
-          <thead>
-            <tr>
-              <th>{t('settings.sharedLinkTitle')}</th>
-              <th>{t('settings.sharedLinkType')}</th>
-              <th className="hide-mobile">{t('settings.sharedLinkViews')}</th>
-              <th className="hide-mobile">{t('settings.keyCreated')}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {links.map(link => (
-              <tr key={link.token} className={!link.is_active ? 'row-revoked' : ''}>
-                <td className="shared-link-title-cell">
-                  <span className="shared-link-title-text">{link.title || '—'}</span>
-                </td>
-                <td>
-                  <span className={`shared-link-type-badge shared-link-type--${link.share_type}`}>
-                    {SHARE_TYPE_LABELS[link.share_type] || link.share_type}
-                  </span>
-                </td>
-                <td className="hide-mobile">{link.view_count}</td>
-                <td className="hide-mobile">{new Date(link.created_at).toLocaleDateString()}</td>
-                <td className="shared-link-actions">
-                  <button
-                    className="btn-icon"
-                    onClick={() => handleCopy(link.url, link.token)}
-                    title={t('share.copyLink')}
-                  >
-                    {copiedToken === link.token ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                  <a
-                    className="btn-icon"
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={t('settings.sharedLinkOpen')}
-                  >
-                    <ExternalLink size={14} />
-                  </a>
-                  {link.is_active && (
-                    <button
-                      className="btn-icon btn-danger"
-                      onClick={() => setRevokeToken(link.token)}
-                      title={t('share.deactivate')}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                  {!link.is_active && (
-                    <span className="revoked-badge">{t('settings.sharedLinkInactive')}</span>
-                  )}
-                </td>
+        <div className="shared-links-scroll">
+          <table className="api-keys-table shared-links-table">
+            <thead>
+              <tr>
+                <th>{t('settings.sharedLinkTitle')}</th>
+                <th>{t('settings.sharedLinkType')}</th>
+                <th className="hide-mobile">{t('settings.sharedLinkViews')}</th>
+                <th className="hide-mobile">{t('settings.keyCreated')}</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {links.map(link => (
+                <tr key={link.token} className={!link.is_active ? 'row-revoked' : ''}>
+                  <td className="shared-link-title-cell">
+                    <span className="shared-link-title-text">{link.title || '—'}</span>
+                  </td>
+                  <td>
+                    <span className={`shared-link-type-badge shared-link-type--${link.share_type}`}>
+                      {SHARE_TYPE_LABELS[link.share_type] || link.share_type}
+                    </span>
+                  </td>
+                  <td className="hide-mobile">{link.view_count}</td>
+                  <td className="hide-mobile">{new Date(link.created_at).toLocaleDateString()}</td>
+                  <td className="shared-link-actions">
+                    <button
+                      className="btn-icon"
+                      onClick={() => handleCopy(link.url, link.token)}
+                      title={t('share.copyLink')}
+                    >
+                      {copiedToken === link.token ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                    <a
+                      className="btn-icon"
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={t('settings.sharedLinkOpen')}
+                    >
+                      <ExternalLink size={14} />
+                    </a>
+                    {link.is_active && (
+                      <button
+                        className="btn-icon btn-danger"
+                        onClick={() => setRevokeToken(link.token)}
+                        title={t('share.deactivate')}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                    {!link.is_active && (
+                      <span className="revoked-badge">{t('settings.sharedLinkInactive')}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {revokeToken && (
