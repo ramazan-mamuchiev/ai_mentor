@@ -3701,3 +3701,17 @@
 .shared-links-admin-table .row-revoked td {
   opacity: 0.5;
 }
+
+@media (max-width: 767px) {
+  .shared-links-admin-table {
+    min-width: 0;
+  }
+
+  .shared-links-admin-table .shared-link-title-cell {
+    max-width: 160px;
+  }
+
+  .shared-links-admin-table .shared-link-actions {
+    gap: 0.15rem;
+  }
+}

@@ -152,13 +152,14 @@ export function SharedLinksPage() {
         <div className="admin-empty">{t('admin.sharedLinks.noLinks')}</div>
       ) : (
         <>
-          <div className="admin-table-wrap">
+          <div className="admin-table-wrapper">
+           <div className="admin-table-scroll">
             <table className="admin-table shared-links-admin-table">
               <thead>
                 <tr>
                   <th>{t('admin.sharedLinks.colTitle')}</th>
                   <th>{t('admin.sharedLinks.colType')}</th>
-                  <th>{t('admin.sharedLinks.colTenant')}</th>
+                  <th className="hide-mobile">{t('admin.sharedLinks.colTenant')}</th>
                   <th className="hide-mobile">{t('admin.sharedLinks.colViews')}</th>
                   <th className="hide-mobile">{t('admin.sharedLinks.colStatus')}</th>
                   <th className="hide-mobile">{t('admin.sharedLinks.colCreated')}</th>
@@ -176,7 +177,7 @@ export function SharedLinksPage() {
                         {SHARE_TYPES.find(st => st.value === link.share_type)?.label || link.share_type}
                       </span>
                     </td>
-                    <td className="shared-link-tenant-cell">
+                    <td className="shared-link-tenant-cell hide-mobile">
                       <span>{link.tenant_email || '—'}</span>
                     </td>
                     <td className="hide-mobile">{link.view_count}</td>
@@ -219,6 +220,7 @@ export function SharedLinksPage() {
                 ))}
               </tbody>
             </table>
+           </div>
           </div>
 
           {totalPages > 1 && (
