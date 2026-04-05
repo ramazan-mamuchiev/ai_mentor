@@ -49,28 +49,44 @@ export function MermaidDiagram({ chart, className }: Props) {
   useEffect(() => {
     if (!fullscreen || !overlayDiagramRef.current) return
 
-    const svgEl = overlayDiagramRef.current.querySelector('svg')
+    const container = overlayDiagramRef.current
+    const svgEl = container.querySelector('svg')
     if (!svgEl) return
 
-    svgEl.setAttribute('width', '100%')
-    svgEl.setAttribute('height', '100%')
+    // Ensure viewBox exists so svg-pan-zoom can compute the initial fit.
+    // Mermaid sometimes sets width/height in px but omits viewBox.
+    if (!svgEl.getAttribute('viewBox')) {
+      const w = svgEl.width.baseVal.value || svgEl.getBoundingClientRect().width
+      const h = svgEl.height.baseVal.value || svgEl.getBoundingClientRect().height
+      if (w && h) svgEl.setAttribute('viewBox', `0 0 ${w} ${h}`)
+    }
 
-    const instance = svgPanZoom(svgEl, {
-      zoomEnabled: true,
-      panEnabled: true,
-      controlIconsEnabled: false,
-      fit: true,
-      center: true,
-      minZoom: 0.3,
-      maxZoom: 10,
-      zoomScaleSensitivity: 0.3,
-      dblClickZoomEnabled: true,
+    svgEl.removeAttribute('width')
+    svgEl.removeAttribute('height')
+    svgEl.removeAttribute('style')
+    svgEl.style.width = '100%'
+    svgEl.style.height = '100%'
+
+    let instance: ReturnType<typeof svgPanZoom> | null = null
+    // Wait one frame so the container has its final layout dimensions.
+    const raf = requestAnimationFrame(() => {
+      instance = svgPanZoom(svgEl, {
+        zoomEnabled: true,
+        panEnabled: true,
+        controlIconsEnabled: false,
+        fit: true,
+        center: true,
+        minZoom: 0.1,
+        maxZoom: 20,
+        zoomScaleSensitivity: 0.3,
+        dblClickZoomEnabled: true,
+      })
+      panZoomRef.current = instance
     })
 
-    panZoomRef.current = instance
-
     return () => {
-      try { instance.destroy() } catch { /* unmounted */ }
+      cancelAnimationFrame(raf)
+      try { instance?.destroy() } catch { /* unmounted */ }
       panZoomRef.current = null
     }
   }, [fullscreen, svg])

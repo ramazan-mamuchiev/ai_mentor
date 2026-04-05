@@ -4204,10 +4204,13 @@ button.docs-lc-badge--partial:hover {
 [data-theme="dark"] .lc-mermaid-overlay-close:hover { background: rgba(255,255,255,.1); }
 .lc-mermaid-overlay-diagram {
   flex: 1; overflow: hidden; padding: 0;
-  cursor: grab;
+  cursor: grab; position: relative;
 }
 .lc-mermaid-overlay-diagram:active { cursor: grabbing; }
-.lc-mermaid-overlay-diagram svg { width: 100%; height: 100%; }
+.lc-mermaid-overlay-diagram > svg {
+  display: block; width: 100% !important; height: 100% !important;
+  max-width: none; max-height: none;
+}
 
 .lc-mermaid-error {
   color: #fa5252; font-size: 11px; padding: 8px; white-space: pre-wrap;
