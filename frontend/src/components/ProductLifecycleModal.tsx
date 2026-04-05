@@ -724,6 +724,10 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
               {!showTabs && m && (
                 <LifecycleContent lc={m} productId={productId} issues={issues} aggregatedUsage={totalUsage} />
               )}
+
+              {!showTabs && !m && readyDocLcs.length === 1 && (
+                <LifecycleContent lc={readyDocLcs[0]} productId={productId} documentId={readyDocLcs[0].document_id} issues={activeIssues} aggregatedUsage={totalUsage} />
+              )}
             </div>
           )}
         </div>
