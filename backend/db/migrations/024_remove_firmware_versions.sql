@@ -8,21 +8,30 @@ BEGIN;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS version TEXT NOT NULL DEFAULT '';
 
 -- 2. For each (product, firmware_version) pair, create a separate product row
--- with the version from firmware_versions.
-
--- Single-version products: just update product.version
-UPDATE products p
-SET version = fw.version
-FROM firmware_versions fw
-WHERE fw.product_id = p.id
-AND (SELECT COUNT(*) FROM firmware_versions WHERE product_id = p.id) = 1;
-
--- Multi-version products: create new product rows and reassign documents
+-- with the version from firmware_versions (only if the table still exists).
 DO $$
 DECLARE
     r RECORD;
     new_product_id INT;
+    has_fw_table BOOLEAN;
 BEGIN
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = current_schema() AND table_name = 'firmware_versions'
+    ) INTO has_fw_table;
+
+    IF NOT has_fw_table THEN
+        RETURN;
+    END IF;
+
+    -- Single-version products: just update product.version
+    UPDATE products p
+    SET version = fw.version
+    FROM firmware_versions fw
+    WHERE fw.product_id = p.id
+    AND (SELECT COUNT(*) FROM firmware_versions WHERE product_id = p.id) = 1;
+
+    -- Multi-version products: create new product rows and reassign documents
     FOR r IN (
         SELECT fw.id AS fw_id, fw.product_id, fw.version,
                p.name, p.manufacturer, p.model, p.category, p.tenant_id, p.sync_status,
