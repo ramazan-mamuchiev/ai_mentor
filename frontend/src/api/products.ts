@@ -140,11 +140,11 @@ export async function deleteProductLifecycle(productId: number): Promise<{ produ
 export type SkeletonLanguage = 'python' | 'csharp' | 'cpp' | 'go' | 'curl' | 'java' | 'javascript'
 
 export const SKELETON_LANGUAGES: { id: SkeletonLanguage; label: string; syntaxId: string }[] = [
+  { id: 'curl', label: 'cURL', syntaxId: 'bash' },
   { id: 'python', label: 'Python', syntaxId: 'python' },
   { id: 'csharp', label: 'C#', syntaxId: 'csharp' },
   { id: 'cpp', label: 'C++', syntaxId: 'cpp' },
   { id: 'go', label: 'Go', syntaxId: 'go' },
-  { id: 'curl', label: 'cURL', syntaxId: 'bash' },
   { id: 'java', label: 'Java', syntaxId: 'java' },
   { id: 'javascript', label: 'JavaScript', syntaxId: 'javascript' },
 ]

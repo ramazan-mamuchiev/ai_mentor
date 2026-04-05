@@ -9,6 +9,16 @@ import {
   type SkeletonLanguage,
 } from '../api/products'
 
+const LS_KEY = 'lexiro-skeleton-lang'
+
+function getDefaultLang(available: Set<string>): SkeletonLanguage {
+  try {
+    const saved = localStorage.getItem(LS_KEY) as SkeletonLanguage | null
+    if (saved && available.has(saved)) return saved
+  } catch { /* SSR / private mode */ }
+  return available.has('curl') ? 'curl' : 'python'
+}
+
 interface Props {
   productId?: number
   documentId?: number
@@ -19,11 +29,19 @@ interface Props {
 
 export function SkeletonCodeViewer({ productId, documentId, pythonSkeleton, staticTranslations }: Props) {
   const { t } = useTranslation()
-  const [activeLang, setActiveLang] = useState<SkeletonLanguage>('python')
+  const readOnly = !productId
+
+  const initialCache: Partial<Record<SkeletonLanguage, string>> = {
+    python: pythonSkeleton,
+    ...staticTranslations as Partial<Record<SkeletonLanguage, string>>,
+  }
+  const availableSet = new Set(Object.keys(initialCache).filter(k => initialCache[k as SkeletonLanguage]))
+  if (!readOnly) SKELETON_LANGUAGES.forEach(l => availableSet.add(l.id))
+
+  const [activeLang, setActiveLang] = useState<SkeletonLanguage>(() => getDefaultLang(availableSet))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const readOnly = !productId
 
   const cache = useRef<Partial<Record<SkeletonLanguage, string>>>({
     python: pythonSkeleton,
@@ -49,6 +67,7 @@ export function SkeletonCodeViewer({ productId, documentId, pythonSkeleton, stat
   const handleLangChange = useCallback(async (lang: SkeletonLanguage) => {
     setActiveLang(lang)
     setError(null)
+    try { localStorage.setItem(LS_KEY, lang) } catch { /* ignore */ }
     if (cache.current[lang]) return
 
     if (readOnly || !productId) return
