@@ -989,6 +989,7 @@ async def list_workers():
 @router.post("/tasks/{task_id}/cancel")
 async def cancel_task(
     task_id: str,
+    document_id: int | None = None,
     session: AsyncSession = Depends(get_session),
 ):
     """Cancel a task by revoking it in Celery and updating DB status."""
@@ -1019,6 +1020,14 @@ async def cancel_task(
         await session.commit()
         logger.info("Task cancelled (document)", extra={"task_id": task_id, "document_id": doc.id})
         return {"status": "cancelled", "type": "document", "document_id": doc.id}
+
+    if document_id:
+        lc_doc = await session.get(Document, document_id)
+        if lc_doc and lc_doc.lifecycle_status in ("processing", "pending"):
+            lc_doc.lifecycle_status = ""
+            await session.commit()
+            logger.info("Lifecycle task cancelled", extra={"task_id": task_id, "document_id": document_id})
+            return {"status": "cancelled", "type": "lifecycle", "document_id": document_id}
 
     job = (await session.execute(
         sa_select(ReindexJob).where(ReindexJob.celery_task_id == task_id)
@@ -1233,7 +1242,8 @@ async def delete_task(
     document_id_int: int,
     session: AsyncSession = Depends(get_session),
 ):
-    """Permanently delete a document (any status): revoke celery, remove chunks, S3 file, DB row."""
+    """Delete a task. For ready documents with running lifecycle analysis,
+    only cancel the lifecycle task (don't delete the document itself)."""
     from app.celery_app import celery
     from sqlalchemy import select as sa_select
     from app.models import Document, Chunk
@@ -1242,6 +1252,15 @@ async def delete_task(
     doc = await session.get(Document, document_id_int)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.status == "ready" and doc.lifecycle_status in ("processing", "pending"):
+        doc.lifecycle_status = ""
+        await session.commit()
+        logger.info("Lifecycle task cancelled (document preserved)", extra={
+            "document_id": doc.id,
+            "document_title": doc.title or doc.original_filename,
+        })
+        return {"status": "lifecycle_cancelled", "document_id": doc.id, "chunks_deleted": 0}
 
     if doc.celery_task_id:
         try:
@@ -1308,7 +1327,13 @@ async def bulk_delete_tasks(
     else:
         raise HTTPException(status_code=400, detail="Provide document_ids or filter_status")
 
+    lifecycle_cancelled = 0
     for doc in docs:
+        if doc.status == "ready" and doc.lifecycle_status in ("processing", "pending"):
+            doc.lifecycle_status = ""
+            lifecycle_cancelled += 1
+            continue
+
         if doc.celery_task_id:
             try:
                 celery.control.revoke(doc.celery_task_id, terminate=True)
@@ -1327,8 +1352,8 @@ async def bulk_delete_tasks(
         deleted += 1
 
     await session.commit()
-    logger.info("Bulk delete completed", extra={"deleted": deleted})
-    return {"status": "ok", "deleted": deleted}
+    logger.info("Bulk delete completed", extra={"deleted": deleted, "lifecycle_cancelled": lifecycle_cancelled})
+    return {"status": "ok", "deleted": deleted, "lifecycle_cancelled": lifecycle_cancelled}
 
 
 # ---------------------------------------------------------------------------

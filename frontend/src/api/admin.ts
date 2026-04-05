@@ -1113,8 +1113,9 @@ export async function listWorkers(): Promise<WorkersResponse> {
   return handleResponse(res)
 }
 
-export async function cancelTask(taskId: string): Promise<{ status: string }> {
-  const res = await fetch(`${BASE}/tasks/${taskId}/cancel`, {
+export async function cancelTask(taskId: string, documentId?: number): Promise<{ status: string }> {
+  const params = documentId != null ? `?document_id=${documentId}` : ''
+  const res = await fetch(`${BASE}/tasks/${taskId}/cancel${params}`, {
     method: 'POST',
     credentials: 'include',
   })

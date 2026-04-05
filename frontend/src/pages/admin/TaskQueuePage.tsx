@@ -156,9 +156,9 @@ export function TaskQueuePage() {
   }, [autoRefresh, fetchData])
 
 
-  const handleCancel = useCallback(async (taskId: string) => {
+  const handleCancel = useCallback(async (taskId: string, documentId?: number) => {
     try {
-      await cancelTask(taskId)
+      await cancelTask(taskId, documentId)
       addToast(t('admin.tasks.cancelledOk'))
       fetchData()
     } catch {
@@ -534,7 +534,7 @@ export function TaskQueuePage() {
                         {item.task_id && item.status !== 'error' && (
                           <button
                             className="tq-action-btn tq-action-btn--cancel"
-                            onClick={() => handleCancel(item.task_id!)}
+                            onClick={() => handleCancel(item.task_id!, item.document_id ?? undefined)}
                             title={t('admin.tasks.cancelOne')}
                           >
                             <XCircle size={15} />
