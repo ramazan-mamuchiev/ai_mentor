@@ -104,7 +104,7 @@ An ordered array of integration steps. Each step:
 - phase_name: "setup" | "authentication" | "initialization" | "operation" | "cleanup" | "other"
 - step_order: integer (global ordering across all phases)
 - action: what the developer does (human-readable)
-- api_call: the specific endpoint/method (e.g. "POST /auth/token", "rpc Login"). Empty string if no API call.
+- api_call: the endpoint path WITHOUT the HTTP method prefix (e.g. "/auth/token", "/v1/login", "rpc Login"). The HTTP method goes ONLY in http_method. Empty string if no API call.
 - http_method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "" (empty if not HTTP)
 - content_type: request content type (e.g. "application/json", "multipart/form-data"). Empty string if not applicable.
 - inputs: array of what this step needs (from previous steps or external config)
@@ -116,7 +116,9 @@ An ordered array of integration steps. Each step:
 - response_example: key fields of the response as a string (JSON with important fields). Empty string if unknown.
 
 IMPORTANT for phases:
-- api_call must use the FULL path exactly as in the docs (e.g. "POST /api/v1/cameras", NOT "POST /cameras").
+- api_call must contain ONLY the path, never the HTTP method (e.g. "/api/v1/cameras", NOT "POST /api/v1/cameras").
+  The HTTP method belongs exclusively in the http_method field.
+- api_call must use the FULL path exactly as in the docs (e.g. "/api/v1/cameras", NOT "/cameras").
 - inputs and outputs MUST use consistent names across phases — if phase A outputs "session_token",
   phase B that needs it must list "session_token" in inputs (exact string match).
 - output_used_by must reference real action names from later phases (exact match).
@@ -210,7 +212,7 @@ POST/PUT/PATCH endpoint, there should be at least a request model. For each endp
 returning data, there should be at least a response model.
 
 IMPORTANT for data_models:
-- used_in array must contain EXACT api_call strings from your phases (e.g. "POST /api/v1/cameras").
+- used_in array must contain EXACT api_call strings from your phases (e.g. "/api/v1/cameras", path only, no HTTP method).
 - Include ALL fields mentioned in the documentation, even optional ones.
 - For fields with enum constraints, list ALL enum values found in docs.
 
@@ -903,93 +905,468 @@ def _retry_with_corrections(
     return _lifecycle_from_parsed(parsed, usage, fallback=previous)
 
 
-def _build_grounded_skeleton(result: LifecycleResult) -> str:
+def _build_grounded_skeleton(result: LifecycleResult, language: str = "python") -> str:
     """Build a deterministic code skeleton from validated phases and metadata.
 
     Used as a fallback when LLM-generated skeleton fails validation.
+    Supports: python, csharp, cpp, go, curl, java, javascript.
     """
-    lines: list[str] = ["import httpx", ""]
+    builder = _GROUNDED_SKELETON_BUILDERS.get(language, _build_grounded_skeleton_python)
+    return builder(result)
 
+
+def _prereq_vars(result: LifecycleResult) -> list[tuple[str, str]]:
+    """Extract (VAR_NAME, example_value) pairs from prerequisites."""
+    pairs = []
     for prereq in result.prerequisites:
         name = prereq.get("name", "UNKNOWN").upper().replace(" ", "_")
         example = prereq.get("example_value", "...")
+        pairs.append((name, example))
+    return pairs
+
+
+def _base_url_var(result: LifecycleResult) -> str | None:
+    url_prereq = next(
+        (p for p in result.prerequisites if p.get("type") == "url"),
+        None,
+    )
+    return url_prereq["name"].upper().replace(" ", "_") if url_prereq else None
+
+
+def _sorted_phases(result: LifecycleResult) -> list[dict]:
+    return sorted(result.phases, key=lambda p: p.get("step_order", 999))
+
+
+def _retry_codes(result: LifecycleResult) -> list[int]:
+    return sorted({
+        e.get("http_status") for e in result.error_catalog
+        if e.get("recovery_action") in ("retry", "wait") and e.get("http_status")
+    })
+
+
+def _phase_parts(phase: dict) -> tuple[str, str, str, str]:
+    """Return (action, method, endpoint, req_example) for a phase."""
+    api_call = phase.get("api_call", "")
+    action = phase.get("action", "")
+    method = phase.get("http_method", "GET").upper() or "GET"
+    parts = api_call.strip().split()
+    endpoint = parts[-1] if parts else api_call
+    req_example = phase.get("request_example", "")
+    return action, method, endpoint, req_example
+
+
+# --- Python ---
+def _build_grounded_skeleton_python(result: LifecycleResult) -> str:
+    lines: list[str] = ["import httpx", ""]
+    for name, example in _prereq_vars(result):
         lines.append(f'{name} = "{example}"')
     if result.prerequisites:
         lines.append("")
 
     lines.append("client = httpx.Client(")
-    url_prereq = next(
-        (p for p in result.prerequisites if p.get("type") == "url"),
-        None,
-    )
-    if url_prereq:
-        lines.append(f'    base_url={url_prereq["name"].upper().replace(" ", "_")},')
+    base = _base_url_var(result)
+    if base:
+        lines.append(f"    base_url={base},")
     lines.append("    timeout=30.0,")
     lines.append(")")
     lines.append("headers: dict[str, str] = {}")
     lines.append("")
 
-    sorted_phases = sorted(result.phases, key=lambda p: p.get("step_order", 999))
-
-    for phase in sorted_phases:
-        api_call = phase.get("api_call", "")
-        if not api_call:
+    for phase in _sorted_phases(result):
+        if not phase.get("api_call"):
             lines.append(f"# Step {phase.get('step_order', '?')}: {phase.get('action', '?')}")
             if phase.get("notes"):
                 lines.append(f"# Note: {phase['notes']}")
             lines.append("")
             continue
 
-        action = phase.get("action", "")
-        method = phase.get("http_method", "GET").upper() or "GET"
-        parts = api_call.strip().split()
-        endpoint = parts[-1] if parts else api_call
-
+        action, method, endpoint, req_example = _phase_parts(phase)
         lines.append(f"# Step {phase.get('step_order', '?')}: {action}")
         if phase.get("notes"):
             lines.append(f"# {phase['notes']}")
 
-        call_kwargs: list[str] = [f'"{endpoint}"']
-        call_kwargs.append("headers=headers")
-
-        req_example = phase.get("request_example", "")
+        call_kwargs = [f'"{endpoint}"', "headers=headers"]
         if req_example and method in ("POST", "PUT", "PATCH"):
             call_kwargs.append(f"json={req_example}")
 
-        method_lower = method.lower()
-        call_args = ", ".join(call_kwargs)
-        lines.append(f"response = client.{method_lower}({call_args})")
+        lines.append(f"response = client.{method.lower()}({', '.join(call_kwargs)})")
         lines.append("response.raise_for_status()")
 
         outputs = phase.get("outputs", [])
-        resp_example = phase.get("response_example", "")
-        if outputs and resp_example:
+        if outputs:
             lines.append("data = response.json()")
+            suffix = "" if phase.get("response_example") else "  # TODO: verify field name"
             for out in outputs[:3]:
-                var_name = out.lower().replace(" ", "_").replace("-", "_")
-                lines.append(f'{var_name} = data.get("{out}")')
-        elif outputs:
-            lines.append("data = response.json()")
-            for out in outputs[:3]:
-                var_name = out.lower().replace(" ", "_").replace("-", "_")
-                lines.append(f'{var_name} = data.get("{out}")  # TODO: verify field name')
+                var = out.lower().replace(" ", "_").replace("-", "_")
+                lines.append(f'{var} = data.get("{out}"){suffix}')
 
         if phase.get("phase_name") == "authentication":
             lines.append('headers["Authorization"] = f"Bearer {data.get(\'token\', \'\')}"')
-
         lines.append("")
 
-    # Error handling from catalog
-    retry_codes = sorted({
-        e.get("http_status") for e in result.error_catalog
-        if e.get("recovery_action") in ("retry", "wait") and e.get("http_status")
-    })
-    if retry_codes:
-        lines.append(f"# Retryable HTTP status codes: {retry_codes}")
+    codes = _retry_codes(result)
+    if codes:
+        lines.append(f"# Retryable HTTP status codes: {codes}")
         lines.append("")
-
     lines.append("client.close()")
     return "\n".join(lines)
+
+
+# --- C# ---
+def _build_grounded_skeleton_csharp(result: LifecycleResult) -> str:
+    lines = [
+        "using System;",
+        "using System.Net.Http;",
+        "using System.Net.Http.Headers;",
+        "using System.Text;",
+        "using System.Text.Json;",
+        "",
+        "class Program",
+        "{",
+        "    static async Task Main(string[] args)",
+        "    {",
+    ]
+    for name, example in _prereq_vars(result):
+        lines.append(f'        var {name} = "{example}";')
+    lines.append("")
+
+    base = _base_url_var(result)
+    if base:
+        lines.append(f"        using var client = new HttpClient {{ BaseAddress = new Uri({base}) }};")
+    else:
+        lines.append("        using var client = new HttpClient();")
+    lines.append("        client.Timeout = TimeSpan.FromSeconds(30);")
+    lines.append("")
+
+    for phase in _sorted_phases(result):
+        if not phase.get("api_call"):
+            lines.append(f"        // Step {phase.get('step_order', '?')}: {phase.get('action', '?')}")
+            lines.append("")
+            continue
+
+        action, method, endpoint, req_example = _phase_parts(phase)
+        lines.append(f"        // Step {phase.get('step_order', '?')}: {action}")
+
+        cs_method = {"GET": "GetAsync", "POST": "PostAsync", "PUT": "PutAsync",
+                     "DELETE": "DeleteAsync", "PATCH": "PatchAsync"}.get(method, "SendAsync")
+
+        if req_example and method in ("POST", "PUT", "PATCH"):
+            lines.append(f'        var content = new StringContent(@"{req_example}", Encoding.UTF8, "application/json");')
+            lines.append(f'        var response = await client.{cs_method}("{endpoint}", content);')
+        else:
+            lines.append(f'        var response = await client.{cs_method}("{endpoint}");')
+        lines.append("        response.EnsureSuccessStatusCode();")
+
+        outputs = phase.get("outputs", [])
+        if outputs:
+            lines.append("        var json = await response.Content.ReadAsStringAsync();")
+            lines.append("        var data = JsonSerializer.Deserialize<JsonElement>(json);")
+            for out in outputs[:3]:
+                var = out[0].lower() + out[1:].replace(" ", "").replace("-", "")
+                lines.append(f'        var {var} = data.GetProperty("{out}");')
+
+        if phase.get("phase_name") == "authentication":
+            lines.append('        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", data.GetProperty("token").GetString());')
+        lines.append("")
+
+    lines.append("    }")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+# --- C++ ---
+def _build_grounded_skeleton_cpp(result: LifecycleResult) -> str:
+    lines = [
+        "#include <iostream>",
+        "#include <string>",
+        "#include <curl/curl.h>",
+        '#include <nlohmann/json.hpp>',
+        "",
+        "using json = nlohmann::json;",
+        "",
+        "static size_t write_callback(void* contents, size_t size, size_t nmemb, std::string* out) {",
+        "    out->append(static_cast<char*>(contents), size * nmemb);",
+        "    return size * nmemb;",
+        "}",
+        "",
+        "int main() {",
+        "    curl_global_init(CURL_GLOBAL_DEFAULT);",
+        "    CURL* curl = curl_easy_init();",
+        "    if (!curl) return 1;",
+        "",
+    ]
+    for name, example in _prereq_vars(result):
+        lines.append(f'    std::string {name} = "{example}";')
+    lines.append('    std::string auth_header;')
+    lines.append("")
+
+    base = _base_url_var(result)
+    base_expr = base if base else '""'
+
+    for phase in _sorted_phases(result):
+        if not phase.get("api_call"):
+            lines.append(f"    // Step {phase.get('step_order', '?')}: {phase.get('action', '?')}")
+            lines.append("")
+            continue
+
+        action, method, endpoint, req_example = _phase_parts(phase)
+        lines.append(f"    // Step {phase.get('step_order', '?')}: {action}")
+        lines.append("    {")
+        lines.append("        std::string response_body;")
+        lines.append(f'        curl_easy_setopt(curl, CURLOPT_URL, ({base_expr} + "{endpoint}").c_str());')
+        if method != "GET":
+            lines.append(f'        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "{method}");')
+        lines.append("        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);")
+        lines.append("        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);")
+        lines.append("        struct curl_slist* headers = nullptr;")
+        lines.append('        headers = curl_slist_append(headers, "Content-Type: application/json");')
+        lines.append("        if (!auth_header.empty())")
+        lines.append('            headers = curl_slist_append(headers, ("Authorization: " + auth_header).c_str());')
+        if req_example and method in ("POST", "PUT", "PATCH"):
+            lines.append(f'        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, R"({req_example})");')
+        lines.append("        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);")
+        lines.append("        CURLcode res = curl_easy_perform(curl);")
+        lines.append("        curl_slist_free_all(headers);")
+        lines.append('        if (res != CURLE_OK) { std::cerr << curl_easy_strerror(res) << std::endl; return 1; }')
+
+        outputs = phase.get("outputs", [])
+        if outputs:
+            lines.append("        auto data = json::parse(response_body);")
+            for out in outputs[:3]:
+                var = out.lower().replace(" ", "_").replace("-", "_")
+                lines.append(f'        auto {var} = data.value("{out}", "");')
+
+        if phase.get("phase_name") == "authentication":
+            lines.append('        auth_header = "Bearer " + data.value("token", "");')
+        lines.append("    }")
+        lines.append("")
+
+    lines.append("    curl_easy_cleanup(curl);")
+    lines.append("    curl_global_cleanup();")
+    lines.append("    return 0;")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+# --- Go ---
+def _build_grounded_skeleton_go(result: LifecycleResult) -> str:
+    lines = [
+        "package main",
+        "",
+        "import (",
+        '\t"bytes"',
+        '\t"encoding/json"',
+        '\t"fmt"',
+        '\t"io"',
+        '\t"net/http"',
+        '\t"time"',
+        ")",
+        "",
+        "func main() {",
+    ]
+    for name, example in _prereq_vars(result):
+        lines.append(f'\t{name} := "{example}"')
+    lines.append(f"\tclient := &http.Client{{Timeout: 30 * time.Second}}")
+    lines.append(f'\tauthToken := ""')
+    base = _base_url_var(result)
+    base_expr = base if base else '""'
+    lines.append("")
+
+    for phase in _sorted_phases(result):
+        if not phase.get("api_call"):
+            lines.append(f"\t// Step {phase.get('step_order', '?')}: {phase.get('action', '?')}")
+            lines.append("")
+            continue
+
+        action, method, endpoint, req_example = _phase_parts(phase)
+        lines.append(f"\t// Step {phase.get('step_order', '?')}: {action}")
+
+        if req_example and method in ("POST", "PUT", "PATCH"):
+            lines.append(f'\tbody := bytes.NewBufferString(`{req_example}`)')
+            lines.append(f'\treq, err := http.NewRequest("{method}", {base_expr}+"{endpoint}", body)')
+        else:
+            lines.append(f'\treq, err := http.NewRequest("{method}", {base_expr}+"{endpoint}", nil)')
+        lines.append('\tif err != nil { panic(err) }')
+        lines.append('\treq.Header.Set("Content-Type", "application/json")')
+        lines.append('\tif authToken != "" { req.Header.Set("Authorization", "Bearer "+authToken) }')
+        lines.append("\tresp, err := client.Do(req)")
+        lines.append("\tif err != nil { panic(err) }")
+        lines.append("\tdefer resp.Body.Close()")
+        lines.append('\trespBody, _ := io.ReadAll(resp.Body)')
+
+        outputs = phase.get("outputs", [])
+        if outputs:
+            lines.append("\tvar data map[string]interface{}")
+            lines.append("\tjson.Unmarshal(respBody, &data)")
+            for out in outputs[:3]:
+                var = out.lower().replace(" ", "_").replace("-", "_")
+                lines.append(f'\t{var} := data["{out}"]')
+
+        if phase.get("phase_name") == "authentication":
+            lines.append('\tauthToken = fmt.Sprintf("%v", data["token"])')
+        lines.append("")
+
+    lines.append("}")
+    return "\n".join(lines)
+
+
+# --- cURL ---
+def _build_grounded_skeleton_curl(result: LifecycleResult) -> str:
+    lines = ["#!/bin/bash", "set -euo pipefail", ""]
+    for name, example in _prereq_vars(result):
+        lines.append(f'{name}="{example}"')
+    lines.append('TOKEN=""')
+    base = _base_url_var(result)
+    base_var = f"${{{base}}}" if base else ""
+    lines.append("")
+
+    for phase in _sorted_phases(result):
+        if not phase.get("api_call"):
+            lines.append(f"# Step {phase.get('step_order', '?')}: {phase.get('action', '?')}")
+            lines.append("")
+            continue
+
+        action, method, endpoint, req_example = _phase_parts(phase)
+        lines.append(f"# Step {phase.get('step_order', '?')}: {action}")
+        parts = [
+            "RESPONSE=$(curl -s",
+            f'  -X {method}',
+            f'  "{base_var}{endpoint}"',
+            '  -H "Content-Type: application/json"',
+            '  -H "Authorization: Bearer $TOKEN"',
+        ]
+        if req_example and method in ("POST", "PUT", "PATCH"):
+            parts.append(f"  -d '{req_example}'")
+        parts.append(")")
+        lines.extend(parts)
+
+        outputs = phase.get("outputs", [])
+        for out in outputs[:3]:
+            var = out.upper().replace(" ", "_").replace("-", "_")
+            lines.append(f'{var}=$(echo "$RESPONSE" | jq -r \'.{out}\')')
+
+        if phase.get("phase_name") == "authentication":
+            lines.append("TOKEN=$(echo \"$RESPONSE\" | jq -r '.token')")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+# --- Java ---
+def _build_grounded_skeleton_java(result: LifecycleResult) -> str:
+    lines = [
+        "import java.net.URI;",
+        "import java.net.http.HttpClient;",
+        "import java.net.http.HttpRequest;",
+        "import java.net.http.HttpResponse;",
+        "import java.time.Duration;",
+        "import com.google.gson.JsonParser;",
+        "",
+        "public class ApiClient {",
+        "    public static void main(String[] args) throws Exception {",
+    ]
+    for name, example in _prereq_vars(result):
+        lines.append(f'        String {name} = "{example}";')
+    lines.append('        String authToken = "";')
+    lines.append("        var client = HttpClient.newBuilder()")
+    lines.append("            .connectTimeout(Duration.ofSeconds(30))")
+    lines.append("            .build();")
+    base = _base_url_var(result)
+    lines.append("")
+
+    for phase in _sorted_phases(result):
+        if not phase.get("api_call"):
+            lines.append(f"        // Step {phase.get('step_order', '?')}: {phase.get('action', '?')}")
+            lines.append("")
+            continue
+
+        action, method, endpoint, req_example = _phase_parts(phase)
+        base_expr = f"{base} + " if base else ""
+        lines.append(f"        // Step {phase.get('step_order', '?')}: {action}")
+        lines.append(f"        var req{phase.get('step_order', 0)} = HttpRequest.newBuilder()")
+        lines.append(f'            .uri(URI.create({base_expr}"{endpoint}"))')
+        lines.append('            .header("Content-Type", "application/json")')
+        lines.append('            .header("Authorization", "Bearer " + authToken)')
+        if req_example and method in ("POST", "PUT", "PATCH"):
+            lines.append(f'            .method("{method}", HttpRequest.BodyPublishers.ofString("{req_example}"))')
+        else:
+            lines.append(f"            .{method}()")
+        lines.append("            .build();")
+        lines.append(f"        var resp{phase.get('step_order', 0)} = client.send(req{phase.get('step_order', 0)}, HttpResponse.BodyHandlers.ofString());")
+
+        outputs = phase.get("outputs", [])
+        if outputs:
+            lines.append(f"        var json{phase.get('step_order', 0)} = JsonParser.parseString(resp{phase.get('step_order', 0)}.body()).getAsJsonObject();")
+            for out in outputs[:3]:
+                var = out[0].lower() + out[1:].replace(" ", "").replace("-", "")
+                lines.append(f'        var {var} = json{phase.get("step_order", 0)}.get("{out}");')
+
+        if phase.get("phase_name") == "authentication":
+            lines.append(f'        authToken = json{phase.get("step_order", 0)}.get("token").getAsString();')
+        lines.append("")
+
+    lines.append("    }")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+# --- JavaScript ---
+def _build_grounded_skeleton_javascript(result: LifecycleResult) -> str:
+    lines = ["// Using fetch API (Node 18+ / Browser)", ""]
+    for name, example in _prereq_vars(result):
+        lines.append(f'const {name} = "{example}";')
+    lines.append('let authToken = "";')
+    base = _base_url_var(result)
+    lines.append("")
+    lines.append("async function main() {")
+
+    for phase in _sorted_phases(result):
+        if not phase.get("api_call"):
+            lines.append(f"  // Step {phase.get('step_order', '?')}: {phase.get('action', '?')}")
+            lines.append("")
+            continue
+
+        action, method, endpoint, req_example = _phase_parts(phase)
+        base_expr = f"${{{base}}}" if base else ""
+        lines.append(f"  // Step {phase.get('step_order', '?')}: {action}")
+        fetch_opts = [f'    method: "{method}"']
+        fetch_opts.append("    headers: {")
+        fetch_opts.append('      "Content-Type": "application/json",')
+        fetch_opts.append('      "Authorization": `Bearer ${authToken}`,')
+        fetch_opts.append("    },")
+        if req_example and method in ("POST", "PUT", "PATCH"):
+            fetch_opts.append(f"    body: JSON.stringify({req_example}),")
+        lines.append(f"  const resp = await fetch(`{base_expr}{endpoint}`, {{")
+        lines.extend(fetch_opts)
+        lines.append("  });")
+        lines.append("  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);")
+
+        outputs = phase.get("outputs", [])
+        if outputs:
+            lines.append("  const data = await resp.json();")
+            for out in outputs[:3]:
+                var = out.replace(" ", "_").replace("-", "_")
+                lines.append(f'  const {var} = data.{out};')
+
+        if phase.get("phase_name") == "authentication":
+            lines.append("  authToken = data.token;")
+        lines.append("")
+
+    lines.append("}")
+    lines.append("")
+    lines.append("main().catch(console.error);")
+    return "\n".join(lines)
+
+
+_GROUNDED_SKELETON_BUILDERS: dict[str, callable] = {
+    "python": _build_grounded_skeleton_python,
+    "csharp": _build_grounded_skeleton_csharp,
+    "cpp": _build_grounded_skeleton_cpp,
+    "go": _build_grounded_skeleton_go,
+    "curl": _build_grounded_skeleton_curl,
+    "java": _build_grounded_skeleton_java,
+    "javascript": _build_grounded_skeleton_javascript,
+}
 
 
 def _validate_and_correct(
@@ -1338,3 +1715,96 @@ def merge_product_lifecycle_sync(
     result.usage = usage
 
     return result, doc_issues
+
+
+# ---------------------------------------------------------------------------
+# Code skeleton language conversion
+# ---------------------------------------------------------------------------
+
+SUPPORTED_SKELETON_LANGUAGES = ("python", "csharp", "cpp", "go", "curl", "java", "javascript")
+
+_SKELETON_LANG_META: dict[str, dict[str, str]] = {
+    "python": {"label": "Python", "lib": "httpx"},
+    "csharp": {"label": "C#", "lib": "HttpClient (System.Net.Http)"},
+    "cpp": {"label": "C++", "lib": "libcurl or cpr"},
+    "go": {"label": "Go", "lib": "net/http"},
+    "curl": {"label": "cURL", "lib": "curl CLI"},
+    "java": {"label": "Java", "lib": "java.net.http.HttpClient (Java 11+)"},
+    "javascript": {"label": "JavaScript", "lib": "fetch API"},
+}
+
+_SKELETON_CONVERT_PROMPT = """\
+You are an expert polyglot programmer. Convert the following Python (httpx) API integration \
+skeleton into idiomatic {label} code using {lib}.
+
+Requirements:
+- Preserve the EXACT same API endpoints, HTTP methods, headers, request bodies, and response parsing.
+- Use idiomatic patterns for {label}: proper error handling, resource cleanup, naming conventions.
+- Keep all comments that explain non-obvious steps.
+- Do NOT add, remove, or change any API calls — this is a 1:1 translation.
+- Output ONLY the code, no markdown fences, no explanations.
+
+{extra_instructions}
+
+Python skeleton to convert:
+
+{skeleton}
+"""
+
+_SKELETON_EXTRA_INSTRUCTIONS: dict[str, str] = {
+    "python": "",
+    "csharp": "Use async/await with HttpClient. Use System.Text.Json for JSON serialization. "
+              "Wrap in a static async Task Main. Dispose HttpClient properly.",
+    "cpp": "Use libcurl (C API) with proper RAII cleanup via curl_easy_cleanup. "
+           "Parse JSON with nlohmann/json or rapidjson. Include all necessary #includes.",
+    "go": "Use net/http standard library. Use encoding/json for JSON. "
+          "Always check and handle errors. Use defer for cleanup. Follow Go naming conventions.",
+    "curl": "Output a bash script using curl CLI. Use -X for method, -H for headers, -d for body. "
+            "Use jq to parse JSON responses and extract fields. Add -s (silent) flag. "
+            "Use variables for tokens and base URLs.",
+    "java": "Use java.net.http.HttpClient (Java 11+). Use HttpRequest/HttpResponse. "
+            "Parse JSON with com.google.gson.Gson or org.json. Use try-with-resources.",
+    "javascript": "Use the fetch API (browser/Node 18+). Use async/await. "
+                  "Parse responses with response.json(). Use try/catch for error handling.",
+}
+
+
+def convert_skeleton_sync(python_skeleton: str, target_language: str) -> str:
+    """Convert a Python httpx skeleton to another language via LLM.
+
+    Returns the converted code as a string.
+    Raises ValueError for unsupported languages.
+    """
+    if target_language not in SUPPORTED_SKELETON_LANGUAGES:
+        raise ValueError(f"Unsupported language: {target_language}")
+
+    if target_language == "python":
+        return python_skeleton
+
+    meta = _SKELETON_LANG_META[target_language]
+    prompt = _SKELETON_CONVERT_PROMPT.format(
+        label=meta["label"],
+        lib=meta["lib"],
+        extra_instructions=_SKELETON_EXTRA_INSTRUCTIONS.get(target_language, ""),
+        skeleton=python_skeleton,
+    )
+
+    text, usage, llm_ms = _call_llm_sync(
+        system="You are a code translator. Output only code, no markdown.",
+        user=prompt,
+        json_mode=False,
+    )
+
+    code = text.strip()
+    if code.startswith("```"):
+        first_nl = code.index("\n") if "\n" in code else len(code)
+        code = code[first_nl + 1:]
+    if code.endswith("```"):
+        code = code[:-3].rstrip()
+
+    logger.info(
+        "Skeleton converted to %s in %.0fms (%d prompt + %d completion tokens)",
+        target_language, llm_ms,
+        usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0),
+    )
+    return code

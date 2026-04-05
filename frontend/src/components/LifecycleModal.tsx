@@ -8,6 +8,7 @@ import { getDocumentLifecycle, analyzeDocumentLifecycle, deleteDocumentLifecycle
 import type { DocumentLifecycle } from '../api/documents'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MermaidDiagram } from './MermaidDiagram'
+import { SkeletonCodeViewer } from './SkeletonCodeViewer'
 
 const POLL_INTERVAL = 3000
 
@@ -523,14 +524,18 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                 </div>
               )}
 
-              {lc.code_skeleton && (
+              {lc.code_skeleton && lc.product_id && (
                 <div className="lc-modal-section">
                   <button className="lc-modal-section-toggle" onClick={() => toggle('skeleton')}>
                     {openSections.skeleton ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     <span>{t('lifecycle.codeSkeleton')}</span>
                   </button>
                   {openSections.skeleton && (
-                    <pre className="lc-modal-skeleton">{lc.code_skeleton}</pre>
+                    <SkeletonCodeViewer
+                      productId={lc.product_id}
+                      documentId={documentId}
+                      pythonSkeleton={lc.code_skeleton}
+                    />
                   )}
                 </div>
               )}

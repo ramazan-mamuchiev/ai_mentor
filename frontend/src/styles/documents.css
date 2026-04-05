@@ -3933,6 +3933,131 @@ button.docs-lc-badge--partial:hover {
   background: var(--bg-secondary, #1a1a2e);
 }
 
+/* Skeleton language viewer */
+.skeleton-viewer {
+  margin-top: 4px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+[data-theme="dark"] .skeleton-viewer {
+  border-color: var(--border-color, #2d3748);
+}
+
+.skeleton-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--bg-tertiary, #edf2f7);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+[data-theme="dark"] .skeleton-viewer-toolbar {
+  background: var(--bg-tertiary, #1e2433);
+  border-bottom-color: var(--border-color, #2d3748);
+}
+
+.skeleton-lang-tabs {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.skeleton-lang-tab {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, #718096);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.skeleton-lang-tab:hover:not(:disabled) {
+  background: var(--bg-secondary, #e2e8f0);
+  color: var(--text-primary, #2d3748);
+}
+
+.skeleton-lang-tab--active {
+  background: var(--accent-bg, #3182ce);
+  color: #fff;
+}
+
+.skeleton-lang-tab--active:hover:not(:disabled) {
+  background: var(--accent-bg-hover, #2b6cb0);
+  color: #fff;
+}
+
+.skeleton-lang-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.skeleton-viewer-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.skeleton-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, #718096);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.skeleton-action-btn:hover {
+  background: var(--bg-secondary, #e2e8f0);
+  color: var(--text-primary, #2d3748);
+}
+
+[data-theme="dark"] .skeleton-action-btn:hover {
+  background: var(--bg-secondary, #2d3748);
+  color: var(--text-primary, #e2e8f0);
+}
+
+.skeleton-viewer-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  font-size: 12px;
+  color: var(--text-secondary, #718096);
+}
+
+.skeleton-viewer-error {
+  padding: 12px 16px;
+  font-size: 12px;
+  color: var(--error-color, #e53e3e);
+  background: var(--error-bg, #fff5f5);
+}
+
+[data-theme="dark"] .skeleton-viewer-error {
+  background: var(--error-bg, #2d1b1b);
+}
+
+.skeleton-viewer-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary, #718096);
+}
+
 .lc-modal-issues-title {
   color: #e67700;
 }

@@ -154,6 +154,7 @@ export async function analyzeDocumentLifecycle(documentId: number): Promise<{ do
 
 export interface DocumentLifecycle {
   document_id: number
+  product_id?: number
   status: string
   phases?: Array<{
     phase_name: string; step_order: number; action: string; api_call: string

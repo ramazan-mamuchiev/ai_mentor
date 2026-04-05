@@ -735,6 +735,7 @@ async def get_product_lifecycle(product_id: int):
                 "unique_patterns": lc.unique_patterns or [],
                 "dependency_chains": lc.dependency_chains or [],
                 "code_skeleton": lc.code_skeleton or "",
+                "code_skeleton_translations": lc.code_skeleton_translations or {},
                 "data_models": lc.data_models or [],
                 "error_catalog": lc.error_catalog or [],
                 "prerequisites": lc.prerequisites or [],
@@ -790,6 +791,75 @@ async def get_product_lifecycle(product_id: int):
         result["processing_documents"] = processing_count
 
         return result
+
+
+@router.post("/{product_id}/lifecycle/skeleton-convert")
+async def convert_lifecycle_skeleton(product_id: int, body: dict):
+    """Convert the merged code skeleton to a different programming language.
+
+    Accepts {"target_language": "csharp"|"cpp"|"go"|"curl"|"java"|"javascript"|"python",
+             "document_id": optional int}.
+    Returns cached translation if available, otherwise converts via LLM and caches.
+    """
+    from app.ingestion.lifecycle_analyzer import (
+        SUPPORTED_SKELETON_LANGUAGES,
+        convert_skeleton_sync,
+    )
+
+    target = body.get("target_language", "").lower()
+    if target not in SUPPORTED_SKELETON_LANGUAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported language: {target}. Supported: {', '.join(SUPPORTED_SKELETON_LANGUAGES)}",
+        )
+
+    doc_id = body.get("document_id")
+
+    async with async_session() as session:
+        await _get_product(session, product_id)
+
+        if doc_id:
+            lc = (await session.execute(
+                select(ApiLifecycle).where(
+                    ApiLifecycle.product_id == product_id,
+                    ApiLifecycle.document_id == doc_id,
+                )
+            )).scalar_one_or_none()
+        else:
+            lc = (await session.execute(
+                select(ApiLifecycle).where(
+                    ApiLifecycle.product_id == product_id,
+                    ApiLifecycle.document_id.is_(None),
+                )
+            )).scalar_one_or_none()
+
+        if not lc or not lc.code_skeleton:
+            raise HTTPException(status_code=404, detail="No code skeleton available")
+
+        if target == "python":
+            return {"language": target, "code": lc.code_skeleton, "cached": True}
+
+        translations = lc.code_skeleton_translations or {}
+        if target in translations:
+            return {"language": target, "code": translations[target], "cached": True}
+
+        import asyncio
+        loop = asyncio.get_event_loop()
+        try:
+            converted = await loop.run_in_executor(
+                None, convert_skeleton_sync, lc.code_skeleton, target,
+            )
+        except Exception as e:
+            logger.error("Skeleton conversion failed: %s", e)
+            raise HTTPException(status_code=500, detail=f"Conversion failed: {e}")
+
+        translations[target] = converted
+        lc.code_skeleton_translations = translations
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(lc, "code_skeleton_translations")
+        await session.commit()
+
+        return {"language": target, "code": converted, "cached": False}
 
 
 @router.delete("/{product_id}/lifecycle", dependencies=[Depends(require_permission("lifecycle.run"))])

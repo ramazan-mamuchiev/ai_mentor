@@ -6,6 +6,7 @@ import type { DocumentDebugInfo, DocumentUsageStats } from '../types'
 import type { DocumentLifecycle } from '../api/documents'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
 import { SearchKeysModal } from './SearchKeysModal'
+import { SkeletonCodeViewer } from './SkeletonCodeViewer'
 import { fmtUsd } from '../utils/format'
 
 function fmt(n: number | undefined | null): string {
@@ -215,14 +216,18 @@ function LifecycleSection({ documentId }: { documentId: number }) {
             </div>
           )}
 
-          {lc.code_skeleton && (
+          {lc.code_skeleton && lc.product_id && (
             <div className="lifecycle-subsection">
               <button className="lifecycle-toggle" onClick={() => setSkeletonExpanded(!skeletonExpanded)}>
                 {skeletonExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 {t('lifecycle.codeSkeleton')}
               </button>
               {skeletonExpanded && (
-                <pre className="lifecycle-code-skeleton">{lc.code_skeleton}</pre>
+                <SkeletonCodeViewer
+                  productId={lc.product_id}
+                  documentId={documentId}
+                  pythonSkeleton={lc.code_skeleton}
+                />
               )}
             </div>
           )}

@@ -428,6 +428,7 @@ async def share_lifecycle(product_id: int, request: Request):
                 "unique_patterns": lc.unique_patterns or [],
                 "dependency_chains": lc.dependency_chains or [],
                 "code_skeleton": lc.code_skeleton or "",
+                "code_skeleton_translations": lc.code_skeleton_translations or {},
                 "data_models": lc.data_models or [],
                 "error_catalog": lc.error_catalog or [],
                 "prerequisites": lc.prerequisites or [],

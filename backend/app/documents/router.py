@@ -1122,11 +1122,13 @@ async def get_document_lifecycle(document_id: int):
 
         return {
             "document_id": document_id,
+            "product_id": lc.product_id,
             "status": lc.status,
             "phases": lc.phases,
             "unique_patterns": lc.unique_patterns,
             "dependency_chains": lc.dependency_chains,
             "code_skeleton": lc.code_skeleton,
+            "code_skeleton_translations": lc.code_skeleton_translations or {},
             "data_models": lc.data_models or [],
             "error_catalog": lc.error_catalog or [],
             "prerequisites": lc.prerequisites or [],

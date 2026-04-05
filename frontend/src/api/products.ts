@@ -104,6 +104,7 @@ export interface LifecyclePayload {
     diagram_mermaid?: string
   }
   code_skeleton: string
+  code_skeleton_translations?: Record<string, string>
   validation_issues: Array<{ error: string }>
   validation_retries: number
   prompt_tokens: number; completion_tokens: number; analysis_ms: number; model: string
@@ -134,6 +135,38 @@ export async function getProductLifecycle(productId: number): Promise<ProductLif
 
 export async function deleteProductLifecycle(productId: number): Promise<{ product_id: number; deleted_count: number }> {
   return apiFetch(`/products/${productId}/lifecycle`, { method: 'DELETE' })
+}
+
+export type SkeletonLanguage = 'python' | 'csharp' | 'cpp' | 'go' | 'curl' | 'java' | 'javascript'
+
+export const SKELETON_LANGUAGES: { id: SkeletonLanguage; label: string; syntaxId: string }[] = [
+  { id: 'python', label: 'Python', syntaxId: 'python' },
+  { id: 'csharp', label: 'C#', syntaxId: 'csharp' },
+  { id: 'cpp', label: 'C++', syntaxId: 'cpp' },
+  { id: 'go', label: 'Go', syntaxId: 'go' },
+  { id: 'curl', label: 'cURL', syntaxId: 'bash' },
+  { id: 'java', label: 'Java', syntaxId: 'java' },
+  { id: 'javascript', label: 'JavaScript', syntaxId: 'javascript' },
+]
+
+export interface SkeletonConvertResult {
+  language: string
+  code: string
+  cached: boolean
+}
+
+export async function convertSkeletonLanguage(
+  productId: number,
+  targetLanguage: SkeletonLanguage,
+  documentId?: number,
+): Promise<SkeletonConvertResult> {
+  return apiFetch<SkeletonConvertResult>(`/products/${productId}/lifecycle/skeleton-convert`, {
+    method: 'POST',
+    body: JSON.stringify({
+      target_language: targetLanguage,
+      ...(documentId != null && { document_id: documentId }),
+    }),
+  })
 }
 
 export async function suggestProducts(q: string = '', limit: number = 20): Promise<ProductSuggestion[]> {

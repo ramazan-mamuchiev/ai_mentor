@@ -299,6 +299,7 @@ async def tool_search_documentation(
     version: str | None = None,
     doc_type: str | None = None,
     folder: str | None = None,
+    code_language: str | None = None,
     limit: int | None = None,
 ) -> str:
     """Search Lexiro knowledge base for product integration documentation.
@@ -327,6 +328,9 @@ async def tool_search_documentation(
             Examples: "api_reference", "guide", "example", "configuration", "protocol"
         folder: Filter by source folder within an archive.
             Examples: "BL", "INTEGRATION", "MMSS", "axxonsoft/bl/domain"
+        code_language: Filter results to only include chunks containing code in this language.
+            Results are post-filtered to contain code blocks or keywords for the specified language.
+            Examples: "csharp", "python", "java", "curl", "javascript", "xml", "json", "php"
         limit: Number of results (1-20, default 10). Use higher values for broad queries.
     """
     if limit is None:
@@ -372,6 +376,26 @@ async def tool_search_documentation(
     results = [r for r in results if r.get("similarity", 0) >= min_sim]
     if settings.rerank_enabled:
         results = [r for r in results if r.get("rerank_score", 1.0) >= settings.rerank_min_score]
+
+    if code_language:
+        lang_lower = code_language.lower()
+        lang_aliases = {
+            "csharp": ["```csharp", "```cs", "```c#", "using System", "namespace "],
+            "python": ["```python", "```py", "import ", "def ", "class "],
+            "java": ["```java", "import java.", "public class ", "public static void main"],
+            "javascript": ["```javascript", "```js", "```typescript", "```ts", "const ", "function "],
+            "curl": ["```bash", "```shell", "curl ", "curl\n"],
+            "xml": ["```xml", "<?xml", "</ "],
+            "json": ["```json", '{"', '[\n  {'],
+            "php": ["```php", "<?php"],
+            "go": ["```go", "package main", "func main"],
+            "cpp": ["```cpp", "```c++", "#include"],
+        }
+        markers = lang_aliases.get(lang_lower, [f"```{lang_lower}"])
+        results = [
+            r for r in results
+            if any(m in (r.get("content", "") + r.get("parent_content", "")) for m in markers)
+        ]
 
     result_count = len(results)
     top_similarity = results[0]["similarity"] if results else 0.0

@@ -12,6 +12,7 @@ import type { ProductLifecycle, LifecyclePayload } from '../api/products'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ShareModal } from './ShareModal'
 import { MermaidDiagram } from './MermaidDiagram'
+import { SkeletonCodeViewer } from './SkeletonCodeViewer'
 
 const POLL_INTERVAL = 4000
 
@@ -44,11 +45,13 @@ interface AggregatedUsage {
 
 interface LifecycleContentProps {
   lc: LifecyclePayload
+  productId?: number
+  documentId?: number
   issues?: Array<{ document_id: number; issue_type: string; severity: string; description: string; affected_entity?: string; suggestion?: string }>
   aggregatedUsage?: AggregatedUsage
 }
 
-export function LifecycleContent({ lc, issues = [], aggregatedUsage }: LifecycleContentProps) {
+export function LifecycleContent({ lc, productId, documentId, issues = [], aggregatedUsage }: LifecycleContentProps) {
   const { t } = useTranslation()
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     prereqs: true, dataFlows: true, phases: true, dataModels: true, errors: true,
@@ -372,7 +375,12 @@ export function LifecycleContent({ lc, issues = [], aggregatedUsage }: Lifecycle
                 <span>{t('lifecycle.codeSkeleton')}</span>
               </button>
               {openSections.skeleton && (
-                <pre className="lc-modal-skeleton">{lc.code_skeleton}</pre>
+                <SkeletonCodeViewer
+                  productId={productId}
+                  documentId={documentId}
+                  pythonSkeleton={lc.code_skeleton}
+                  staticTranslations={lc.code_skeleton_translations}
+                />
               )}
             </div>
           )}
@@ -708,15 +716,15 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
               )}
 
               {showTabs && activeTab === 'merged' && m && (
-                <LifecycleContent lc={m} issues={activeIssues} aggregatedUsage={totalUsage} />
+                <LifecycleContent lc={m} productId={productId} issues={activeIssues} aggregatedUsage={totalUsage} />
               )}
 
               {showTabs && activeTab !== 'merged' && activeDocLc && (
-                <LifecycleContent lc={activeDocLc} issues={activeIssues} />
+                <LifecycleContent lc={activeDocLc} productId={productId} documentId={activeDocLc.document_id} issues={activeIssues} />
               )}
 
               {!showTabs && m && (
-                <LifecycleContent lc={m} issues={issues} aggregatedUsage={totalUsage} />
+                <LifecycleContent lc={m} productId={productId} issues={issues} aggregatedUsage={totalUsage} />
               )}
             </div>
           )}

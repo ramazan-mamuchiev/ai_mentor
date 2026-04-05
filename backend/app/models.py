@@ -300,6 +300,7 @@ class ApiLifecycle(Base):
     unique_patterns: Mapped[list] = mapped_column(JSONB, default=list)
     dependency_chains: Mapped[list] = mapped_column(JSONB, default=list)
     code_skeleton: Mapped[str | None] = mapped_column(Text, nullable=True)
+    code_skeleton_translations: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     data_models: Mapped[list] = mapped_column(JSONB, default=list)
     error_catalog: Mapped[list] = mapped_column(JSONB, default=list)
     prerequisites: Mapped[list] = mapped_column(JSONB, default=list)
