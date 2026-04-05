@@ -304,6 +304,9 @@ auth_server returns token — these are 2 separate flows).
 ### diagram_mermaid
 A Mermaid graph (LR direction) representing the flows. Use descriptive node labels.
 Use `-->|label|` syntax for edge labels. Keep labels short (max ~30 chars).
+IMPORTANT: Do NOT use parentheses (), curly braces {{}}, or square brackets [] inside
+edge labels or node labels — these are Mermaid syntax characters and will cause parse errors.
+Replace them with nothing or rephrase (e.g. "POST /login credentials" instead of "POST /login (credentials)").
 Example: `graph LR\n  client[Client] -->|POST /login| auth[Auth Server]\n  auth -->|JWT token| client`
 
 Return ONLY valid JSON. Do NOT include any text outside the JSON object.
@@ -469,6 +472,29 @@ def _parse_lifecycle_json(raw: str) -> dict | None:
 def _estimate_tokens(text: str) -> int:
     words = len(text.split())
     return int(words * 1.3)
+
+
+_MERMAID_EDGE_LABEL_RE = re.compile(r"(\-\->|===|~~~|\-\.\->?)\|([^|]+)\|")
+_MERMAID_NODE_LABEL_RE = re.compile(r"\[([^\]]+)\]")
+
+
+def _sanitize_mermaid(diagram: str) -> str:
+    """Remove Mermaid-breaking characters from edge and node labels."""
+    def _clean_edge(m: re.Match) -> str:
+        arrow, label = m.group(1), m.group(2)
+        label = label.replace("(", "").replace(")", "")
+        label = label.replace("{", "").replace("}", "")
+        return f"{arrow}|{label}|"
+
+    def _clean_node(m: re.Match) -> str:
+        label = m.group(1)
+        label = label.replace("(", "").replace(")", "")
+        label = label.replace("{", "").replace("}", "")
+        return f"[{label}]"
+
+    result = _MERMAID_EDGE_LABEL_RE.sub(_clean_edge, diagram)
+    result = _MERMAID_NODE_LABEL_RE.sub(_clean_node, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -817,6 +843,9 @@ def _extract_lifecycle(doc_text: str, usage: LifecycleUsage) -> LifecycleResult:
 def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: LifecycleResult | None = None) -> LifecycleResult:
     """Build LifecycleResult from parsed JSON, with optional fallback for corrections."""
     fb = fallback or LifecycleResult()
+    idf = parsed.get("integration_data_flows", fb.integration_data_flows)
+    if isinstance(idf, dict) and idf.get("diagram_mermaid"):
+        idf["diagram_mermaid"] = _sanitize_mermaid(idf["diagram_mermaid"])
     return LifecycleResult(
         phases=parsed.get("phases", fb.phases),
         unique_patterns=parsed.get("unique_patterns", fb.unique_patterns),
@@ -828,7 +857,7 @@ def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: Lifecy
         prerequisites=parsed.get("prerequisites", fb.prerequisites),
         data_access_patterns=parsed.get("data_access_patterns", fb.data_access_patterns),
         endpoint_coverage=parsed.get("endpoint_coverage", fb.endpoint_coverage),
-        integration_data_flows=parsed.get("integration_data_flows", fb.integration_data_flows),
+        integration_data_flows=idf,
         usage=usage,
     )
 

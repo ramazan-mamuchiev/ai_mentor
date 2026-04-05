@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import mermaid from 'mermaid'
 
 mermaid.initialize({
@@ -7,6 +7,14 @@ mermaid.initialize({
   securityLevel: 'loose',
   flowchart: { curve: 'basis', htmlLabels: true },
 })
+
+function sanitizeMermaid(src: string): string {
+  return src
+    .replace(/(-->|===|~~~|-\.->?)\|([^|]+)\|/g, (_m, arrow, label) =>
+      `${arrow}|${label.replace(/[(){}]/g, '')}|`)
+    .replace(/\[([^\]]+)\]/g, (_m, label) =>
+      `[${label.replace(/[(){}]/g, '')}]`)
+}
 
 interface Props {
   chart: string
@@ -19,18 +27,19 @@ export function MermaidDiagram({ chart, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [svg, setSvg] = useState<string>('')
   const [error, setError] = useState<string>('')
+  const safeChart = useMemo(() => sanitizeMermaid(chart), [chart])
 
   useEffect(() => {
-    if (!chart.trim()) return
+    if (!safeChart.trim()) return
     const id = `mermaid-${++counter}`
 
     let cancelled = false
-    mermaid.render(id, chart).then(
+    mermaid.render(id, safeChart).then(
       ({ svg: rendered }) => { if (!cancelled) setSvg(rendered) },
       (err) => { if (!cancelled) setError(String(err)) },
     )
     return () => { cancelled = true }
-  }, [chart])
+  }, [safeChart])
 
   if (error) {
     return <pre className="lc-mermaid-error">{error}</pre>
