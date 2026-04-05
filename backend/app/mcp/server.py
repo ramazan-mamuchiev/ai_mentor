@@ -1872,18 +1872,23 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
             skeleton_lang_label = "python"
 
             if target_lang != "python":
-                from app.ingestion.lifecycle_analyzer import (
-                    SUPPORTED_SKELETON_LANGUAGES,
-                    convert_skeleton_sync,
-                )
-                if target_lang in SUPPORTED_SKELETON_LANGUAGES:
-                    try:
-                        skeleton_code = await asyncio.get_event_loop().run_in_executor(
-                            None, convert_skeleton_sync, lc.code_skeleton, target_lang,
-                        )
-                        skeleton_lang_label = target_lang
-                    except Exception:
-                        logger.warning("Skeleton conversion to %s failed, returning Python", target_lang, exc_info=True)
+                cached = (lc.code_skeleton_translations or {}).get(target_lang)
+                if cached:
+                    skeleton_code = cached
+                    skeleton_lang_label = target_lang
+                else:
+                    from app.ingestion.lifecycle_analyzer import (
+                        SUPPORTED_SKELETON_LANGUAGES,
+                        convert_skeleton_sync,
+                    )
+                    if target_lang in SUPPORTED_SKELETON_LANGUAGES:
+                        try:
+                            skeleton_code = await asyncio.get_event_loop().run_in_executor(
+                                None, convert_skeleton_sync, lc.code_skeleton, target_lang,
+                            )
+                            skeleton_lang_label = target_lang
+                        except Exception:
+                            logger.warning("Skeleton conversion to %s failed, returning Python", target_lang, exc_info=True)
 
             lines.append(f"\n## Production Code Skeleton ({skeleton_lang_label})")
             lines.append(f"```{skeleton_lang_label}\n{skeleton_code}\n```")
