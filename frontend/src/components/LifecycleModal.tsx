@@ -532,8 +532,6 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                   </button>
                   {openSections.skeleton && (
                     <SkeletonCodeViewer
-                      productId={lc.product_id}
-                      documentId={documentId}
                       pythonSkeleton={lc.code_skeleton}
                     />
                   )}

@@ -1877,26 +1877,20 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
                     skeleton_code = cached
                     skeleton_lang_label = target_lang
                 else:
-                    from app.ingestion.lifecycle_analyzer import (
-                        SUPPORTED_SKELETON_LANGUAGES,
-                        convert_skeleton_sync,
-                    )
-                    if target_lang in SUPPORTED_SKELETON_LANGUAGES:
-                        try:
-                            skeleton_code = await asyncio.get_event_loop().run_in_executor(
-                                None, convert_skeleton_sync, lc.code_skeleton, target_lang,
-                            )
-                            skeleton_lang_label = target_lang
-                        except Exception:
-                            logger.warning("Skeleton conversion to %s failed, returning Python", target_lang, exc_info=True)
+                    logger.info("No cached skeleton for %s, falling back to Python", target_lang)
 
             lines.append(f"\n## Production Code Skeleton ({skeleton_lang_label})")
             lines.append(f"```{skeleton_lang_label}\n{skeleton_code}\n```")
 
-        # Documentation Issues
+        # Documentation Issues (deduplicated)
         if issues:
             lines.append("\n## ⚠️ Documentation Issues (verify before relying on docs)")
+            seen_issues: set[str] = set()
             for issue in issues:
+                dedup_key = (issue.description or "").strip().lower()
+                if dedup_key in seen_issues:
+                    continue
+                seen_issues.add(dedup_key)
                 sev = issue.severity.upper()
                 lines.append(
                     f"- [{sev}] {issue.description}"

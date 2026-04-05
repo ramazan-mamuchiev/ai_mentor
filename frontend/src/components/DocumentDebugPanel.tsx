@@ -224,8 +224,6 @@ function LifecycleSection({ documentId }: { documentId: number }) {
               </button>
               {skeletonExpanded && (
                 <SkeletonCodeViewer
-                  productId={lc.product_id}
-                  documentId={documentId}
                   pythonSkeleton={lc.code_skeleton}
                 />
               )}

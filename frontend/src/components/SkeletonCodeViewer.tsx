@@ -2,9 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { Copy, Check, Download, Loader2 } from 'lucide-react'
+import { Copy, Check, Download } from 'lucide-react'
 import {
-  convertSkeletonLanguage,
   SKELETON_LANGUAGES,
   type SkeletonLanguage,
 } from '../api/products'
@@ -20,26 +19,20 @@ function getDefaultLang(available: Set<string>): SkeletonLanguage {
 }
 
 interface Props {
-  productId?: number
-  documentId?: number
   pythonSkeleton: string
-  /** Pre-cached translations from share snapshot — no API calls when provided */
   staticTranslations?: Partial<Record<string, string>>
 }
 
-export function SkeletonCodeViewer({ productId, documentId, pythonSkeleton, staticTranslations }: Props) {
+export function SkeletonCodeViewer({ pythonSkeleton, staticTranslations }: Props) {
   const { t } = useTranslation()
-  const readOnly = !productId
 
   const initialCache: Partial<Record<SkeletonLanguage, string>> = {
     python: pythonSkeleton,
     ...staticTranslations as Partial<Record<SkeletonLanguage, string>>,
   }
   const availableSet = new Set(Object.keys(initialCache).filter(k => initialCache[k as SkeletonLanguage]))
-  if (!readOnly) SKELETON_LANGUAGES.forEach(l => availableSet.add(l.id))
 
   const [activeLang, setActiveLang] = useState<SkeletonLanguage>(() => getDefaultLang(availableSet))
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -60,28 +53,13 @@ export function SkeletonCodeViewer({ productId, documentId, pythonSkeleton, stat
   const displayedCode = cache.current[activeLang] ?? ''
   const syntaxLang = SKELETON_LANGUAGES.find(l => l.id === activeLang)?.syntaxId ?? 'text'
 
-  const availableLangs = readOnly
-    ? SKELETON_LANGUAGES.filter(l => l.id === 'python' || cache.current[l.id])
-    : SKELETON_LANGUAGES
+  const availableLangs = SKELETON_LANGUAGES.filter(l => l.id === 'python' || cache.current[l.id])
 
-  const handleLangChange = useCallback(async (lang: SkeletonLanguage) => {
+  const handleLangChange = useCallback((lang: SkeletonLanguage) => {
     setActiveLang(lang)
     setError(null)
     try { localStorage.setItem(LS_KEY, lang) } catch { /* ignore */ }
-    if (cache.current[lang]) return
-
-    if (readOnly || !productId) return
-
-    setLoading(true)
-    try {
-      const result = await convertSkeletonLanguage(productId, lang, documentId)
-      cache.current[lang] = result.code
-    } catch (e: any) {
-      setError(e.message ?? t('lifecycle.skeletonConvertError', 'Conversion failed'))
-    } finally {
-      setLoading(false)
-    }
-  }, [productId, documentId, readOnly, t])
+  }, [])
 
   const handleCopy = useCallback(async () => {
     if (!displayedCode) return
@@ -116,7 +94,6 @@ export function SkeletonCodeViewer({ productId, documentId, pythonSkeleton, stat
               key={lang.id}
               className={`skeleton-lang-tab${activeLang === lang.id ? ' skeleton-lang-tab--active' : ''}`}
               onClick={() => handleLangChange(lang.id)}
-              disabled={loading}
             >
               {lang.label}
             </button>
@@ -132,18 +109,11 @@ export function SkeletonCodeViewer({ productId, documentId, pythonSkeleton, stat
         </div>
       </div>
 
-      {loading && (
-        <div className="skeleton-viewer-loading">
-          <Loader2 size={18} className="spin-icon" />
-          <span>{t('lifecycle.skeletonConverting', 'Converting…')}</span>
-        </div>
-      )}
-
-      {error && !loading && (
+      {error && (
         <div className="skeleton-viewer-error">{error}</div>
       )}
 
-      {!loading && !error && displayedCode && (
+      {!error && displayedCode && (
         <SyntaxHighlighter
           language={syntaxLang}
           style={oneDark}
@@ -153,7 +123,7 @@ export function SkeletonCodeViewer({ productId, documentId, pythonSkeleton, stat
         </SyntaxHighlighter>
       )}
 
-      {!loading && !error && !displayedCode && (
+      {!error && !displayedCode && (
         <div className="skeleton-viewer-empty">{t('lifecycle.skeletonEmpty', 'No code available')}</div>
       )}
     </div>

@@ -376,8 +376,6 @@ export function LifecycleContent({ lc, productId, documentId, issues = [], aggre
               </button>
               {openSections.skeleton && (
                 <SkeletonCodeViewer
-                  productId={productId}
-                  documentId={documentId}
                   pythonSkeleton={lc.code_skeleton}
                   staticTranslations={lc.code_skeleton_translations}
                 />

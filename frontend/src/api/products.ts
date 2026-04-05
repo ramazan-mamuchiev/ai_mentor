@@ -149,26 +149,6 @@ export const SKELETON_LANGUAGES: { id: SkeletonLanguage; label: string; syntaxId
   { id: 'javascript', label: 'JavaScript', syntaxId: 'javascript' },
 ]
 
-export interface SkeletonConvertResult {
-  language: string
-  code: string
-  cached: boolean
-}
-
-export async function convertSkeletonLanguage(
-  productId: number,
-  targetLanguage: SkeletonLanguage,
-  documentId?: number,
-): Promise<SkeletonConvertResult> {
-  return apiFetch<SkeletonConvertResult>(`/products/${productId}/lifecycle/skeleton-convert`, {
-    method: 'POST',
-    body: JSON.stringify({
-      target_language: targetLanguage,
-      ...(documentId != null && { document_id: documentId }),
-    }),
-  })
-}
-
 export async function suggestProducts(q: string = '', limit: number = 20): Promise<ProductSuggestion[]> {
   const params = new URLSearchParams()
   if (q) params.set('q', q)

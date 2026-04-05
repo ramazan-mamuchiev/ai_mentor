@@ -795,16 +795,14 @@ async def get_product_lifecycle(product_id: int):
 
 @router.post("/{product_id}/lifecycle/skeleton-convert")
 async def convert_lifecycle_skeleton(product_id: int, body: dict):
-    """Convert the merged code skeleton to a different programming language.
+    """Return a pre-cached code skeleton translation.
 
     Accepts {"target_language": "csharp"|"cpp"|"go"|"curl"|"java"|"javascript"|"python",
              "document_id": optional int}.
-    Returns cached translation if available, otherwise converts via LLM and caches.
+    All translations are pre-generated during lifecycle analysis.
+    Returns 404 if the requested language was not pre-generated.
     """
-    from app.ingestion.lifecycle_analyzer import (
-        SUPPORTED_SKELETON_LANGUAGES,
-        convert_skeleton_sync,
-    )
+    from app.ingestion.lifecycle_analyzer import SUPPORTED_SKELETON_LANGUAGES
 
     target = body.get("target_language", "").lower()
     if target not in SUPPORTED_SKELETON_LANGUAGES:
@@ -843,23 +841,10 @@ async def convert_lifecycle_skeleton(product_id: int, body: dict):
         if target in translations:
             return {"language": target, "code": translations[target], "cached": True}
 
-        import asyncio
-        loop = asyncio.get_event_loop()
-        try:
-            converted = await loop.run_in_executor(
-                None, convert_skeleton_sync, lc.code_skeleton, target,
-            )
-        except Exception as e:
-            logger.error("Skeleton conversion failed: %s", e)
-            raise HTTPException(status_code=500, detail=f"Conversion failed: {e}")
-
-        translations[target] = converted
-        lc.code_skeleton_translations = translations
-        from sqlalchemy.orm.attributes import flag_modified
-        flag_modified(lc, "code_skeleton_translations")
-        await session.commit()
-
-        return {"language": target, "code": converted, "cached": False}
+        raise HTTPException(
+            status_code=404,
+            detail=f"No cached translation for '{target}'. Re-run lifecycle analysis to generate all translations.",
+        )
 
 
 @router.delete("/{product_id}/lifecycle", dependencies=[Depends(require_permission("lifecycle.run"))])

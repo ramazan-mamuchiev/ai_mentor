@@ -135,10 +135,16 @@ idempotency, rate limiting, required headers, binary protocols, mixed transport,
 session affinity, mandatory request ordering, custom error formats.
 
 ## 3. dependency_chains
-Array of explicit "A must happen before B" relationships:
+Array of "A must happen before B" relationships. Include BOTH:
+- Explicit dependencies (e.g. login returns a token required by all other calls)
+- Implicit data dependencies (e.g. if endpoint B requires an ID/parameter that can only
+  be obtained from the response of endpoint A, that is a dependency even if the docs
+  don't state it explicitly)
+
+For each dependency:
 - from_action: action name (must match a phase action)
 - to_action: action name (must match a phase action)
-- data_flow: what data passes between them
+- data_flow: what data passes between them (e.g. "circle_id", "device_id", "access_token")
 - description: why the dependency exists
 
 ## 4. code_skeleton
@@ -177,6 +183,7 @@ Be thorough — check every endpoint for completeness.
   "missing_request_body" — POST/PUT/PATCH endpoint without request body description
   "missing_response_schema" — endpoint without response format description
   "ambiguous_type" — parameter type is vague (e.g. "string" for what is clearly an enum, "object" without field descriptions)
+  "missing_enum_values" — a field that semantically represents a finite set of choices (command names, event types, status codes, device types) is typed as plain "string" or "integer" without listing the allowed values
   "missing_pagination_docs" — list endpoint without pagination description
   "version_mismatch" — documentation references API version that doesn't match the described behavior
   "undocumented_header" — header used in examples but never described
@@ -186,12 +193,16 @@ Be thorough — check every endpoint for completeness.
 
 - severity: "error" | "warning" | "info"
   error: API integration WILL fail without this info (phantom_endpoint, contradictory_params, missing_auth_docs)
-  warning: code will be incorrect/fragile (missing_request_body, missing_response_schema, missing_error_docs, incomplete_example)
+  warning: code will be incorrect/fragile (missing_request_body, missing_response_schema, missing_error_docs, incomplete_example, missing_enum_values)
   info: inconvenience or potential issue (ambiguous_type, stale_url, version_mismatch, undocumented_header, missing_pagination_docs, missing_rate_limit_docs)
 
 - description: what the issue is
 - affected_entity: which endpoint/model/section is affected
 - suggestion: how to resolve it
+
+IMPORTANT: Do NOT repeat the same issue multiple times. Each unique (description, affected_entity)
+pair should appear ONLY ONCE in the array. If the same problem affects multiple endpoints,
+list them together in one entry (e.g. affected_entity: "All endpoints").
 
 ## 6. data_models
 Array of request/response data structures used by the API:
@@ -800,6 +811,30 @@ def _validate_lifecycle(
 
     lifecycle_errors.extend(cross_errors[:10])
 
+    # Detect string fields that should be enums (missing_enum_values)
+    _ENUM_HINT_NAMES = {"command_name", "command", "event_type", "type", "status",
+                        "action", "mode", "state", "direction", "severity", "role"}
+    for model in result.data_models:
+        for fld in model.get("fields", []):
+            fname = (fld.get("name") or "").lower()
+            ftype = (fld.get("type") or "").lower()
+            constraints = fld.get("constraints") or ""
+            if (fname in _ENUM_HINT_NAMES
+                    and ftype in ("string", "integer", "int")
+                    and "enum" not in constraints.lower()
+                    and not constraints.strip()):
+                doc_issues.append(DocIssue(
+                    issue_type="missing_enum_values",
+                    severity="warning",
+                    description=(
+                        f"Field '{fld.get('name')}' in model '{model.get('model_name', '?')}' "
+                        f"is typed as '{fld.get('type')}' but likely represents a finite set of "
+                        f"choices. The allowed values are not documented."
+                    ),
+                    affected_entity=model.get("model_name"),
+                    suggestion=f"Document all valid values for '{fld.get('name')}' as an enum constraint.",
+                ))
+
     for issue in result.source_doc_issues:
         doc_issues.append(DocIssue(
             issue_type=issue.get("issue_type", "other"),
@@ -809,7 +844,16 @@ def _validate_lifecycle(
             suggestion=issue.get("suggestion"),
         ))
 
-    return lifecycle_errors, doc_issues
+    # Deduplicate doc_issues by (description, affected_entity)
+    seen_doc_issues: set[str] = set()
+    unique_doc_issues: list[DocIssue] = []
+    for di in doc_issues:
+        key = (di.description or "").strip().lower() + "|" + (di.affected_entity or "").strip().lower()
+        if key not in seen_doc_issues:
+            seen_doc_issues.add(key)
+            unique_doc_issues.append(di)
+
+    return lifecycle_errors, unique_doc_issues
 
 
 # ---------------------------------------------------------------------------
@@ -842,6 +886,19 @@ def _extract_lifecycle(doc_text: str, usage: LifecycleUsage) -> LifecycleResult:
     return _lifecycle_from_parsed(parsed, usage)
 
 
+def _dedup_source_doc_issues(issues: list[dict]) -> list[dict]:
+    """Deduplicate source_doc_issues by (description, affected_entity)."""
+    seen: set[str] = set()
+    result: list[dict] = []
+    for issue in issues:
+        key = (issue.get("description", "").strip().lower()
+               + "|" + (issue.get("affected_entity") or "").strip().lower())
+        if key not in seen:
+            seen.add(key)
+            result.append(issue)
+    return result
+
+
 def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: LifecycleResult | None = None) -> LifecycleResult:
     """Build LifecycleResult from parsed JSON, with optional fallback for corrections."""
     fb = fallback or LifecycleResult()
@@ -853,7 +910,7 @@ def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: Lifecy
         unique_patterns=parsed.get("unique_patterns", fb.unique_patterns),
         dependency_chains=parsed.get("dependency_chains", fb.dependency_chains),
         code_skeleton=parsed.get("code_skeleton", fb.code_skeleton),
-        source_doc_issues=parsed.get("source_doc_issues", fb.source_doc_issues),
+        source_doc_issues=_dedup_source_doc_issues(parsed.get("source_doc_issues", fb.source_doc_issues)),
         data_models=parsed.get("data_models", fb.data_models),
         error_catalog=parsed.get("error_catalog", fb.error_catalog),
         prerequisites=parsed.get("prerequisites", fb.prerequisites),
