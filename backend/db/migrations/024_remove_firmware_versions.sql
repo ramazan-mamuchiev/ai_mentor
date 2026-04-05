@@ -71,7 +71,13 @@ END $$;
 
 -- 3. Update unique constraint on products
 ALTER TABLE products DROP CONSTRAINT IF EXISTS products_manufacturer_model_key;
-ALTER TABLE products ADD CONSTRAINT products_manufacturer_model_version_key UNIQUE (manufacturer, model, version);
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'products_manufacturer_model_version_key'
+    ) THEN
+        ALTER TABLE products ADD CONSTRAINT products_manufacturer_model_version_key UNIQUE (manufacturer, model, version);
+    END IF;
+END $$;
 
 -- 4. Update product slugs to include version
 UPDATE products SET slug = LOWER(REGEXP_REPLACE(
