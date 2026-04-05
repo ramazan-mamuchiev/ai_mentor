@@ -366,6 +366,7 @@ async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]
             sa_select(ApiLifecycle).where(
                 ApiLifecycle.product_id == pid,
                 ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.batch_index.is_(None),
                 ApiLifecycle.status == "ready",
             )
         )).scalar_one_or_none()

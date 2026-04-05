@@ -1079,7 +1079,10 @@ async def analyze_document_lifecycle(document_id: int):
             raise HTTPException(status_code=409, detail=f"Document status is '{doc.status}', must be 'ready'")
 
         existing = (await session.execute(
-            select(ApiLifecycle.status).where(ApiLifecycle.document_id == document_id)
+            select(ApiLifecycle.status).where(
+                ApiLifecycle.document_id == document_id,
+                ApiLifecycle.batch_index.is_(None),
+            )
         )).scalar_one_or_none()
 
         doc.lifecycle_status = "pending"
@@ -1108,8 +1111,17 @@ async def get_document_lifecycle(document_id: int):
             raise HTTPException(status_code=404, detail="Document not found")
 
         lc = (await session.execute(
-            select(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
+            select(ApiLifecycle).where(
+                ApiLifecycle.document_id == document_id,
+                ApiLifecycle.batch_index.is_(None),
+            )
         )).scalar_one_or_none()
+        if lc is None:
+            lc = (await session.execute(
+                select(ApiLifecycle).where(
+                    ApiLifecycle.document_id == document_id,
+                ).order_by(ApiLifecycle.created_at.desc()).limit(1)
+            )).scalar_one_or_none()
         if lc is None:
             return {"document_id": document_id, "status": "not_analyzed"}
 

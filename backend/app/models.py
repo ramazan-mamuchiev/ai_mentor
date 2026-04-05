@@ -296,6 +296,7 @@ class ApiLifecycle(Base):
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), nullable=False,
     )
+    batch_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     phases: Mapped[list] = mapped_column(JSONB, default=list)
     unique_patterns: Mapped[list] = mapped_column(JSONB, default=list)
     dependency_chains: Mapped[list] = mapped_column(JSONB, default=list)

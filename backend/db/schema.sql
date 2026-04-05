@@ -737,10 +737,13 @@ ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS prerequisites JSONB NOT NULL
 ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS data_access_patterns JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS endpoint_coverage JSONB NOT NULL DEFAULT '[]';
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_api_lifecycles_doc
+ALTER TABLE api_lifecycles ADD COLUMN IF NOT EXISTS batch_index INT;
+
+-- Non-unique: large documents produce multiple lifecycle rows per document_id
+CREATE INDEX IF NOT EXISTS idx_api_lifecycles_doc
     ON api_lifecycles(document_id) WHERE document_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_api_lifecycles_product_merged
-    ON api_lifecycles(product_id) WHERE document_id IS NULL;
+    ON api_lifecycles(product_id) WHERE document_id IS NULL AND batch_index IS NULL;
 CREATE INDEX IF NOT EXISTS idx_api_lifecycles_product ON api_lifecycles(product_id);
 CREATE INDEX IF NOT EXISTS idx_api_lifecycles_status ON api_lifecycles(status);
 

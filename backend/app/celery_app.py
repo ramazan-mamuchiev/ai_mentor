@@ -2648,6 +2648,7 @@ def heal_lifecycle_status_task(self):
             ).where(
                 and_(
                     Document.lifecycle_status.in_(["", None]),
+                    ApiLifecycle.batch_index.is_(None),
                     ApiLifecycle.status.in_(["ready", "error"]),
                 )
             )
@@ -2672,7 +2673,8 @@ def heal_lifecycle_status_task(self):
         for doc in stale_docs:
             has_ready = session.execute(
                 select(ApiLifecycle.status).where(
-                    ApiLifecycle.document_id == doc.id
+                    ApiLifecycle.document_id == doc.id,
+                    ApiLifecycle.batch_index.is_(None),
                 )
             ).scalar_one_or_none()
 
@@ -3066,9 +3068,14 @@ def _convert_all_skeleton_languages(lc_row, session):
 
 
 @celery.task(name="analyze_api_lifecycle", bind=True, max_retries=1,
-             soft_time_limit=600, time_limit=660)
+             soft_time_limit=1800, time_limit=1860)
 def analyze_api_lifecycle_task(self, document_id: int):
-    """Analyze a single document and extract its API lifecycle."""
+    """Analyze a single document and extract its API lifecycle.
+
+    For large documents, produces multiple lifecycle rows (one per batch +
+    one merged). The merged row has batch_index=NULL; batch rows have
+    batch_index=0,1,2,...
+    """
     from datetime import datetime, timezone as _tz
     from app.models import Base, Document, ApiLifecycle, DocIssueAnnotation, Chunk
     from app.ingestion.lifecycle_analyzer import analyze_document_lifecycle_sync
@@ -3109,46 +3116,44 @@ def analyze_api_lifecycle_task(self, document_id: int):
         session.commit()
 
         try:
-            result, doc_issues = analyze_document_lifecycle_sync(document_id, session)
+            results = analyze_document_lifecycle_sync(document_id, session)
 
-            has_content = bool(result.phases)
+            from sqlalchemy import delete as sa_delete
+            session.execute(
+                sa_delete(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
+            )
+            session.execute(
+                sa_delete(DocIssueAnnotation).where(
+                    DocIssueAnnotation.document_id == document_id,
+                    DocIssueAnnotation.detected_by == "lifecycle_analysis",
+                )
+            )
+
+            is_batched = len(results) > 1
+            primary_result = results[-1][0]
+            all_doc_issues = results[-1][1]
+            has_content = bool(primary_result.phases)
+
             if has_content:
                 effective_status = "ready"
                 error_msg = None
             else:
                 effective_status = "error"
                 error_msg = "No API lifecycle phases extracted after all retries"
-                if result.validation_issues:
-                    error_msg += f": {result.validation_issues[0].get('error', '')}"
+                if primary_result.validation_issues:
+                    error_msg += f": {primary_result.validation_issues[0].get('error', '')}"
 
-            existing = session.execute(
-                sa_select(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
-            ).scalar_one_or_none()
+            primary_lc = None
+            for idx, (result, doc_issues) in enumerate(results):
+                if is_batched and idx < len(results) - 1:
+                    batch_idx = idx
+                else:
+                    batch_idx = None
 
-            if existing:
-                existing.phases = result.phases
-                existing.unique_patterns = result.unique_patterns
-                existing.dependency_chains = result.dependency_chains
-                existing.code_skeleton = result.code_skeleton
-                existing.data_models = result.data_models
-                existing.error_catalog = result.error_catalog
-                existing.prerequisites = result.prerequisites
-                existing.data_access_patterns = result.data_access_patterns
-                existing.endpoint_coverage = result.endpoint_coverage
-                existing.integration_data_flows = result.integration_data_flows
-                existing.validation_issues = result.validation_issues
-                existing.validation_retries = result.validation_retries
-                existing.prompt_tokens = result.usage.prompt_tokens
-                existing.completion_tokens = result.usage.completion_tokens
-                existing.analysis_ms = result.usage.analysis_ms
-                existing.model = result.usage.model
-                existing.status = effective_status
-                existing.error_message = error_msg
-                existing.updated_at = datetime.now(_tz.utc)
-            else:
                 lc = ApiLifecycle(
                     document_id=document_id,
                     product_id=doc.product_id,
+                    batch_index=batch_idx,
                     phases=result.phases,
                     unique_patterns=result.unique_patterns,
                     dependency_chains=result.dependency_chains,
@@ -3165,19 +3170,14 @@ def analyze_api_lifecycle_task(self, document_id: int):
                     completion_tokens=result.usage.completion_tokens,
                     analysis_ms=result.usage.analysis_ms,
                     model=result.usage.model,
-                    status=effective_status,
-                    error_message=error_msg,
+                    status=effective_status if batch_idx is None else "ready" if result.phases else "error",
+                    error_message=error_msg if batch_idx is None else None,
                 )
                 session.add(lc)
+                if batch_idx is None:
+                    primary_lc = lc
 
-            from sqlalchemy import delete as sa_delete
-            session.execute(
-                sa_delete(DocIssueAnnotation).where(
-                    DocIssueAnnotation.document_id == document_id,
-                    DocIssueAnnotation.detected_by == "lifecycle_analysis",
-                )
-            )
-            for issue in doc_issues:
+            for issue in all_doc_issues:
                 session.add(DocIssueAnnotation(
                     document_id=document_id,
                     product_id=doc.product_id,
@@ -3190,16 +3190,15 @@ def analyze_api_lifecycle_task(self, document_id: int):
                     detected_by="lifecycle_analysis",
                 ))
 
-            doc.lifecycle_prompt_tokens = result.usage.prompt_tokens
-            doc.lifecycle_completion_tokens = result.usage.completion_tokens
-            doc.lifecycle_ms = result.usage.analysis_ms
+            doc.lifecycle_prompt_tokens = primary_result.usage.prompt_tokens
+            doc.lifecycle_completion_tokens = primary_result.usage.completion_tokens
+            doc.lifecycle_ms = primary_result.usage.analysis_ms
             doc.lifecycle_status = effective_status
-            lc_row = existing or lc
             session.commit()
 
-            if effective_status == "ready" and result.code_skeleton:
+            if primary_lc and effective_status == "ready" and primary_result.code_skeleton:
                 try:
-                    _convert_all_skeleton_languages(lc_row, session)
+                    _convert_all_skeleton_languages(primary_lc, session)
                 except Exception:
                     logger.warning("Skeleton pre-conversion failed (doc %s)", document_id, exc_info=True)
 
@@ -3207,16 +3206,15 @@ def analyze_api_lifecycle_task(self, document_id: int):
             model = settings.lifecycle_analysis_model
             tid = str(doc.tenant_id) if doc.tenant_id else None
             req_id = f"lifecycle-{document_id}-{uuid.uuid4().hex[:8]}"
-            total_billed_tokens = result.usage.prompt_tokens + result.usage.completion_tokens + result.usage.thinking_tokens
             write_usage_log_sync(
                 "ingestion", "lifecycle_analysis", req_id,
                 llm_provider="google", llm_model=model,
-                prompt_tokens=result.usage.prompt_tokens,
-                completion_tokens=result.usage.completion_tokens + result.usage.thinking_tokens,
-                duration_ms=result.usage.analysis_ms,
-                llm_ms=result.usage.llm_ms,
-                cogs_usd=calculate_llm_cogs(model, result.usage.prompt_tokens, result.usage.completion_tokens + result.usage.thinking_tokens),
-                charge_usd=calculate_llm_charge(model, result.usage.prompt_tokens, result.usage.completion_tokens + result.usage.thinking_tokens),
+                prompt_tokens=primary_result.usage.prompt_tokens,
+                completion_tokens=primary_result.usage.completion_tokens + primary_result.usage.thinking_tokens,
+                duration_ms=primary_result.usage.analysis_ms,
+                llm_ms=primary_result.usage.llm_ms,
+                cogs_usd=calculate_llm_cogs(model, primary_result.usage.prompt_tokens, primary_result.usage.completion_tokens + primary_result.usage.thinking_tokens),
+                charge_usd=calculate_llm_charge(model, primary_result.usage.prompt_tokens, primary_result.usage.completion_tokens + primary_result.usage.thinking_tokens),
                 tenant_id=tid,
             )
 
@@ -3225,6 +3223,7 @@ def analyze_api_lifecycle_task(self, document_id: int):
                     sa_select(func.count()).select_from(ApiLifecycle).where(
                         ApiLifecycle.product_id == doc.product_id,
                         ApiLifecycle.document_id.isnot(None),
+                        ApiLifecycle.batch_index.is_(None),
                         ApiLifecycle.status == "ready",
                     )
                 ).scalar() or 0
@@ -3239,31 +3238,33 @@ def analyze_api_lifecycle_task(self, document_id: int):
                         extra={
                             "document_id": document_id,
                             "status": effective_status,
-                            "phases": len(result.phases),
-                            "data_models": len(result.data_models),
-                            "errors_catalog": len(result.error_catalog),
-                            "prerequisites": len(result.prerequisites),
-                            "endpoint_coverage": len(result.endpoint_coverage),
-                            "patterns": len(result.unique_patterns),
-                            "doc_issues": len(doc_issues),
-                            "retries": result.validation_retries,
-                            "prompt_tokens": result.usage.prompt_tokens,
-                            "completion_tokens": result.usage.completion_tokens,
-                            "analysis_ms": result.usage.analysis_ms,
+                            "batches": len(results) - 1 if is_batched else 0,
+                            "phases": len(primary_result.phases),
+                            "data_models": len(primary_result.data_models),
+                            "errors_catalog": len(primary_result.error_catalog),
+                            "prerequisites": len(primary_result.prerequisites),
+                            "endpoint_coverage": len(primary_result.endpoint_coverage),
+                            "patterns": len(primary_result.unique_patterns),
+                            "doc_issues": len(all_doc_issues),
+                            "retries": primary_result.validation_retries,
+                            "prompt_tokens": primary_result.usage.prompt_tokens,
+                            "completion_tokens": primary_result.usage.completion_tokens,
+                            "analysis_ms": primary_result.usage.analysis_ms,
                         })
-            return {"status": "ok", "document_id": document_id, "phases": len(result.phases)}
+            return {"status": "ok", "document_id": document_id, "phases": len(primary_result.phases)}
 
         except Exception as exc:
             error_msg = f"{type(exc).__name__}: {str(exc)[:500]}"
             doc.lifecycle_status = "error"
 
-            existing_lc = session.execute(
+            existing_lcs = session.execute(
                 sa_select(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
-            ).scalar_one_or_none()
-            if existing_lc:
-                existing_lc.status = "error"
-                existing_lc.error_message = error_msg
-                existing_lc.updated_at = datetime.now(_tz.utc)
+            ).scalars().all()
+            if existing_lcs:
+                for existing_lc in existing_lcs:
+                    existing_lc.status = "error"
+                    existing_lc.error_message = error_msg
+                    existing_lc.updated_at = datetime.now(_tz.utc)
             else:
                 session.add(ApiLifecycle(
                     document_id=document_id,
@@ -3311,6 +3312,7 @@ def merge_product_lifecycle_task(self, product_id: int):
                 sa_select(ApiLifecycle).where(
                     ApiLifecycle.product_id == product_id,
                     ApiLifecycle.document_id.is_(None),
+                    ApiLifecycle.batch_index.is_(None),
                 )
             ).scalar_one_or_none()
 
@@ -3418,6 +3420,7 @@ def merge_product_lifecycle_task(self, product_id: int):
                 sa_select(ApiLifecycle).where(
                     ApiLifecycle.product_id == product_id,
                     ApiLifecycle.document_id.is_(None),
+                    ApiLifecycle.batch_index.is_(None),
                 )
             ).scalar_one_or_none()
             error_msg = "Task exceeded soft time limit (15 min)"
@@ -3443,6 +3446,7 @@ def merge_product_lifecycle_task(self, product_id: int):
                 sa_select(ApiLifecycle).where(
                     ApiLifecycle.product_id == product_id,
                     ApiLifecycle.document_id.is_(None),
+                    ApiLifecycle.batch_index.is_(None),
                 )
             ).scalar_one_or_none()
             if existing_lc:

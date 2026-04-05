@@ -401,6 +401,7 @@ async def share_lifecycle(product_id: int, request: Request, tenant: Tenant = De
             select(ApiLifecycle).where(
                 ApiLifecycle.product_id == product_id,
                 ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.batch_index.is_(None),
             )
         )).scalar_one_or_none()
 
@@ -408,6 +409,7 @@ async def share_lifecycle(product_id: int, request: Request, tenant: Tenant = De
             select(ApiLifecycle).where(
                 ApiLifecycle.product_id == product_id,
                 ApiLifecycle.document_id.isnot(None),
+                ApiLifecycle.batch_index.is_(None),
             )
         )).scalars().all()
 

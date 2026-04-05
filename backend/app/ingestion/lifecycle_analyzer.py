@@ -1466,44 +1466,105 @@ def _validate_and_correct(
 
 
 # ---------------------------------------------------------------------------
-# Public API: per-document analysis
+# Batch splitting helpers (for large documents)
 # ---------------------------------------------------------------------------
 
-def analyze_document_lifecycle_sync(
-    document_id: int,
-    session,
-) -> tuple[LifecycleResult, list[DocIssue]]:
-    """Analyze a single document and extract its API lifecycle.
+_SHARED_HEADING_KEYWORDS = frozenset({
+    "auth", "authentication", "authorization", "login", "overview",
+    "introduction", "getting started", "general", "error", "errors",
+    "error code", "status code", "prerequisites", "setup", "configuration",
+    "common", "glossary", "appendix", "rate limit", "pagination",
+})
 
-    Args:
-        document_id: The document to analyze.
-        session: SQLAlchemy sync Session.
 
-    Returns:
-        (LifecycleResult, list of DocIssue annotations)
+def _is_shared_heading(heading: str) -> bool:
+    """Heuristically detect headings that should be shared across all batches."""
+    h_lower = heading.lower().strip()
+    return any(kw in h_lower for kw in _SHARED_HEADING_KEYWORDS)
+
+
+def _group_chunks_by_top_heading(chunks) -> dict[str, list]:
+    """Group chunks by their top-level heading, preserving order."""
+    sections: dict[str, list] = {}
+    for c in chunks:
+        top = c.heading_path.split(" > ")[0] if " > " in c.heading_path else c.heading_path
+        sections.setdefault(top, []).append(c)
+    return sections
+
+
+def _split_chunks_into_batches(
+    chunks,
+    target_tokens: int,
+) -> list[list]:
+    """Split chunks into batches by top-level heading boundaries.
+
+    Shared headings (auth, errors, overview) are prepended to every batch so
+    each batch has enough context for a standalone lifecycle extraction.
     """
-    from sqlalchemy import select as sa_select
-    from app.models import Chunk
+    sections = _group_chunks_by_top_heading(chunks)
 
-    t0 = time.perf_counter()
-    usage = LifecycleUsage(model=settings.lifecycle_analysis_model)
+    shared_chunks: list = []
+    content_sections: list[tuple[str, list]] = []
+    for heading, section_chunks in sections.items():
+        if _is_shared_heading(heading):
+            shared_chunks.extend(section_chunks)
+        else:
+            content_sections.append((heading, section_chunks))
 
-    chunks = session.execute(
-        sa_select(Chunk.heading_path, Chunk.content, Chunk.id)
-        .where(Chunk.document_id == document_id)
-        .order_by(Chunk.chunk_index)
-    ).all()
+    if not content_sections:
+        return [list(chunks)]
 
-    if not chunks:
-        return LifecycleResult(
-            validation_issues=[{"error": "No chunks found for document"}],
-            usage=usage,
-        ), []
+    shared_tokens = sum(_estimate_tokens(c.content) for c in shared_chunks)
+
+    batches: list[list] = []
+    current_batch: list = []
+    current_tokens = 0
+
+    for _heading, section_chunks in content_sections:
+        section_tokens = sum(_estimate_tokens(c.content) for c in section_chunks)
+
+        if current_batch and current_tokens + section_tokens > target_tokens:
+            batches.append(list(shared_chunks) + current_batch)
+            current_batch = []
+            current_tokens = 0
+
+        current_batch.extend(section_chunks)
+        current_tokens += section_tokens
+
+    if current_batch:
+        batches.append(list(shared_chunks) + current_batch)
+
+    if len(batches) == 1 and shared_tokens + current_tokens <= target_tokens * 1.5:
+        return [list(chunks)]
+
+    logger.info(
+        "Split document into %d batches (shared: %d chunks / ~%d tokens, content sections: %d)",
+        len(batches), len(shared_chunks), shared_tokens, len(content_sections),
+    )
+    return batches
+
+
+# ---------------------------------------------------------------------------
+# Single extraction (core logic for one chunk set)
+# ---------------------------------------------------------------------------
+
+def _analyze_chunk_set(
+    chunks,
+    usage: LifecycleUsage,
+    *,
+    validate: bool = True,
+    max_retries: int | None = None,
+) -> tuple[LifecycleResult, list[DocIssue]]:
+    """Extract lifecycle from a set of chunks (single LLM call path).
+
+    Handles summarization for oversized chunk sets, extraction, and
+    optional validation+correction.
+    """
+    if max_retries is None:
+        max_retries = settings.lifecycle_validation_max_retries
 
     chunk_contents = [c.content for c in chunks]
-    doc_text_parts = []
-    for c in chunks:
-        doc_text_parts.append(f"## {c.heading_path}\n{c.content}")
+    doc_text_parts = [f"## {c.heading_path}\n{c.content}" for c in chunks]
     doc_text = "\n\n".join(doc_text_parts)
 
     total_tokens = _estimate_tokens(doc_text)
@@ -1544,15 +1605,142 @@ def analyze_document_lifecycle_sync(
 
     result = _extract_lifecycle(doc_text, usage)
 
-    result, doc_issues = _validate_and_correct(
-        result, chunk_contents, settings.lifecycle_validation_max_retries,
+    if validate:
+        result, doc_issues = _validate_and_correct(result, chunk_contents, max_retries)
+    else:
+        doc_issues = []
+
+    return result, doc_issues
+
+
+# ---------------------------------------------------------------------------
+# Public API: per-document analysis
+# ---------------------------------------------------------------------------
+
+def analyze_document_lifecycle_sync(
+    document_id: int,
+    session,
+) -> list[tuple[LifecycleResult, list[DocIssue]]]:
+    """Analyze a single document and extract its API lifecycle.
+
+    For small documents (< lifecycle_batch_min_chunks), returns a single
+    lifecycle result. For large documents, splits into batches by top-level
+    heading boundaries, extracts a lifecycle per batch, then merges.
+
+    Returns a list of (LifecycleResult, DocIssues) tuples:
+    - Small docs: 1 element
+    - Large docs: N batch results + 1 merged result (last element)
+    """
+    from sqlalchemy import select as sa_select
+    from app.models import Chunk
+
+    t0 = time.perf_counter()
+    usage = LifecycleUsage(model=settings.lifecycle_analysis_model)
+
+    chunks = session.execute(
+        sa_select(Chunk.heading_path, Chunk.content, Chunk.id)
+        .where(Chunk.document_id == document_id)
+        .order_by(Chunk.chunk_index)
+    ).all()
+
+    if not chunks:
+        return [(
+            LifecycleResult(
+                validation_issues=[{"error": "No chunks found for document"}],
+                usage=usage,
+            ),
+            [],
+        )]
+
+    # --- Small document: single extraction (existing behavior) ---
+    if len(chunks) < settings.lifecycle_batch_min_chunks:
+        result, doc_issues = _analyze_chunk_set(chunks, usage)
+        usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
+        usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+        result.usage = usage
+        return [(result, doc_issues)]
+
+    # --- Large document: chunked extraction + merge ---
+    batches = _split_chunks_into_batches(chunks, settings.lifecycle_batch_target_tokens)
+
+    if len(batches) <= 1:
+        result, doc_issues = _analyze_chunk_set(chunks, usage)
+        usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
+        usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+        result.usage = usage
+        return [(result, doc_issues)]
+
+    logger.info(
+        "Large document %d: chunked extraction with %d batches (%d total chunks)",
+        document_id, len(batches), len(chunks),
+    )
+
+    batch_results: list[tuple[LifecycleResult, list[DocIssue]]] = []
+    all_chunk_contents = [c.content for c in chunks]
+
+    for i, batch in enumerate(batches):
+        logger.info("Extracting batch %d/%d (%d chunks)", i + 1, len(batches), len(batch))
+        result, doc_issues = _analyze_chunk_set(
+            batch, usage, validate=True, max_retries=1,
+        )
+        if result.phases:
+            batch_results.append((result, doc_issues))
+        else:
+            logger.warning("Batch %d/%d produced no phases, skipping", i + 1, len(batches))
+
+    if not batch_results:
+        usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
+        return [(
+            LifecycleResult(
+                validation_issues=[{"error": "No batches produced lifecycle phases"}],
+                usage=usage,
+            ),
+            [],
+        )]
+
+    if len(batch_results) == 1:
+        r, di = batch_results[0]
+        usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
+        usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+        r.usage = usage
+        return [(r, di)]
+
+    # Merge all batch results into a unified lifecycle
+    merge_data = [_result_to_merge_dict(r) for r, _ in batch_results]
+
+    if len(merge_data) <= _MERGE_BATCH_SIZE:
+        merged = _merge_batch(merge_data, usage)
+    else:
+        merged = _hierarchical_merge(merge_data, usage)
+
+    if merged is None:
+        merged = batch_results[0][0]
+        merged.validation_issues.append({"error": "Batch merge failed, using first batch only"})
+
+    merged, merge_issues = _validate_and_correct(
+        merged, all_chunk_contents, settings.lifecycle_validation_max_retries,
     )
 
     usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
     usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
-    result.usage = usage
+    merged.usage = usage
 
-    return result, doc_issues
+    all_results = list(batch_results)
+    all_doc_issues: list[DocIssue] = []
+    for _, di in batch_results:
+        all_doc_issues.extend(di)
+    all_doc_issues.extend(merge_issues)
+
+    all_results.append((merged, all_doc_issues))
+
+    logger.info(
+        "Chunked extraction complete: %d batches, merged lifecycle has %d phases, %d endpoints",
+        len(batch_results),
+        len(merged.phases),
+        len(merged.endpoint_coverage),
+    )
+
+    return all_results
 
 
 # ---------------------------------------------------------------------------
@@ -1707,6 +1895,7 @@ def merge_product_lifecycle_sync(
         .where(
             ApiLifecycle.product_id == product_id,
             ApiLifecycle.document_id.isnot(None),
+            ApiLifecycle.batch_index.is_(None),
             ApiLifecycle.status == "ready",
         )
     ).scalars().all()

@@ -227,6 +227,7 @@ async def list_products():
         merged_lc_result = await session.execute(
             select(ApiLifecycle.product_id).where(
                 ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.batch_index.is_(None),
                 ApiLifecycle.status == "ready",
             )
         )
@@ -703,6 +704,7 @@ async def get_product_lifecycle(product_id: int):
             select(ApiLifecycle).where(
                 ApiLifecycle.product_id == product_id,
                 ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.batch_index.is_(None),
             )
         )).scalar_one_or_none()
 
@@ -710,6 +712,7 @@ async def get_product_lifecycle(product_id: int):
             select(ApiLifecycle).where(
                 ApiLifecycle.product_id == product_id,
                 ApiLifecycle.document_id.isnot(None),
+                ApiLifecycle.batch_index.is_(None),
             )
         )).scalars().all()
 
@@ -821,6 +824,7 @@ async def convert_lifecycle_skeleton(product_id: int, body: dict):
                 select(ApiLifecycle).where(
                     ApiLifecycle.product_id == product_id,
                     ApiLifecycle.document_id == doc_id,
+                    ApiLifecycle.batch_index.is_(None),
                 )
             )).scalar_one_or_none()
         else:
@@ -828,6 +832,7 @@ async def convert_lifecycle_skeleton(product_id: int, body: dict):
                 select(ApiLifecycle).where(
                     ApiLifecycle.product_id == product_id,
                     ApiLifecycle.document_id.is_(None),
+                    ApiLifecycle.batch_index.is_(None),
                 )
             )).scalar_one_or_none()
 

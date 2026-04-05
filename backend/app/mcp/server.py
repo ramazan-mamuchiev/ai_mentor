@@ -221,6 +221,7 @@ async def _get_lifecycle_prefix_for_results(results: list[dict]) -> str:
                     sa_select(ApiLifecycle).where(
                         ApiLifecycle.product_id == pid,
                         ApiLifecycle.document_id.is_(None),
+                        ApiLifecycle.batch_index.is_(None),
                         ApiLifecycle.status == "ready",
                     )
                 )).scalar_one_or_none()
@@ -1692,6 +1693,7 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
             sa_select(ApiLifecycle).where(
                 ApiLifecycle.product_id == product_id,
                 ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.batch_index.is_(None),
                 ApiLifecycle.status == "ready",
             )
         )).scalar_one_or_none()
@@ -1703,6 +1705,7 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
                 sa_select(ApiLifecycle).where(
                     ApiLifecycle.product_id == product_id,
                     ApiLifecycle.document_id.isnot(None),
+                    ApiLifecycle.batch_index.is_(None),
                     ApiLifecycle.status == "ready",
                 ).order_by(ApiLifecycle.created_at.desc())
             )).scalars().all()
