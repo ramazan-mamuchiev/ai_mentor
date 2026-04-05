@@ -275,11 +275,20 @@ Array assessing documentation completeness for EACH endpoint found in the docs:
 - endpoint: the endpoint path (e.g. "/api/v1/cameras")
 - method: HTTP method (e.g. "POST")
 - has_request_body_docs: boolean — is the request body/params described?
+  For methods that normally have no body (GET, DELETE, HEAD, OPTIONS) set this to true
+  if query parameters are documented, OR if the method genuinely needs no params.
+  Only set false when the method SHOULD have documented params/body but doesn't.
 - has_response_docs: boolean — is the response format described?
 - has_error_docs: boolean — are error responses described?
-- has_example: boolean — is there a code example or curl command?
-- completeness: float 0.0-1.0 (average of the 4 boolean fields above)
-- missing: array of strings describing what's missing (e.g. ["request_body", "error_codes", "example"])
+- has_example: boolean — is there ANY code example, curl command, SDK sample, or
+  auto-generated code stub (e.g. "Usage and SDK Samples" sections, Swagger/OpenAPI
+  generated examples)? Set true even for boilerplate/generated examples.
+- completeness: float 0.0-1.0 — compute as follows:
+  * For methods with a request body (POST, PUT, PATCH): average of ALL 4 boolean fields.
+  * For methods without a body (GET, DELETE, HEAD, OPTIONS): average of has_response_docs,
+    has_error_docs, and has_example ONLY (3 fields). Do NOT penalise for missing request
+    body docs when the method inherently has no body.
+- missing: array of strings describing what's missing (e.g. ["response_schema", "error_codes", "example"])
 
 Be honest and strict in this assessment. This helps developers know which parts
 of the documentation to trust and where they need to be careful.
@@ -465,6 +474,32 @@ def _call_llm_sync(system: str, user: str, *, json_mode: bool = True) -> tuple[s
     }
 
     return text, usage, llm_ms
+
+
+_NO_BODY_METHODS = frozenset({"GET", "DELETE", "HEAD", "OPTIONS"})
+
+
+def _recalc_endpoint_completeness(coverage: list[dict]) -> list[dict]:
+    """Recalculate completeness scores: GET/DELETE/HEAD/OPTIONS use 3 criteria."""
+    result = []
+    for entry in coverage:
+        if not isinstance(entry, dict):
+            result.append(entry)
+            continue
+        entry = dict(entry)
+        method = (entry.get("method") or "").upper()
+        resp = bool(entry.get("has_response_docs"))
+        errs = bool(entry.get("has_error_docs"))
+        ex = bool(entry.get("has_example"))
+        if method in _NO_BODY_METHODS:
+            entry["completeness"] = round((int(resp) + int(errs) + int(ex)) / 3, 2)
+        else:
+            req = bool(entry.get("has_request_body_docs"))
+            entry["completeness"] = round(
+                (int(req) + int(resp) + int(errs) + int(ex)) / 4, 2,
+            )
+        result.append(entry)
+    return result
 
 
 def _parse_lifecycle_json(raw: str) -> dict | None:
@@ -915,7 +950,9 @@ def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: Lifecy
         error_catalog=parsed.get("error_catalog", fb.error_catalog),
         prerequisites=parsed.get("prerequisites", fb.prerequisites),
         data_access_patterns=parsed.get("data_access_patterns", fb.data_access_patterns),
-        endpoint_coverage=parsed.get("endpoint_coverage", fb.endpoint_coverage),
+        endpoint_coverage=_recalc_endpoint_completeness(
+            parsed.get("endpoint_coverage", fb.endpoint_coverage),
+        ),
         integration_data_flows=idf,
         usage=usage,
     )
