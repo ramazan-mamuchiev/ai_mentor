@@ -1242,25 +1242,15 @@ async def delete_task(
     document_id_int: int,
     session: AsyncSession = Depends(get_session),
 ):
-    """Delete a task. For ready documents with running lifecycle analysis,
-    only cancel the lifecycle task (don't delete the document itself)."""
+    """Remove a task from the queue: revoke Celery task and reset document status.
+    The document itself is never deleted."""
     from app.celery_app import celery
     from sqlalchemy import select as sa_select
     from app.models import Document, Chunk
-    from app.s3 import delete_file
 
     doc = await session.get(Document, document_id_int)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
-
-    if doc.status == "ready" and doc.lifecycle_status in ("processing", "pending"):
-        doc.lifecycle_status = ""
-        await session.commit()
-        logger.info("Lifecycle task cancelled (document preserved)", extra={
-            "document_id": doc.id,
-            "document_title": doc.title or doc.original_filename,
-        })
-        return {"status": "lifecycle_cancelled", "document_id": doc.id, "chunks_deleted": 0}
 
     if doc.celery_task_id:
         try:
@@ -1270,34 +1260,33 @@ async def delete_task(
                 "task_id": doc.celery_task_id, "document_id": doc.id,
             })
 
-    if doc.s3_key:
-        try:
-            delete_file(doc.s3_key)
-        except Exception as e:
-            logger.warning("Failed to delete S3 file", extra={
-                "s3_key": doc.s3_key, "error": str(e),
-            })
+    prev_status = doc.status
+    prev_lifecycle = doc.lifecycle_status
 
-    chunks = (await session.execute(
-        sa_select(Chunk).where(Chunk.document_id == doc.id)
-    )).scalars().all()
-    chunk_count = len(chunks)
-    for chunk in chunks:
-        await session.delete(chunk)
+    if doc.lifecycle_status in ("processing", "pending"):
+        doc.lifecycle_status = ""
 
-    doc_id = doc.id
-    doc_title = doc.title or doc.original_filename
-    doc_status = doc.status
-    await session.delete(doc)
+    if doc.status in ("pending", "processing"):
+        doc.status = "cancelled"
+        doc.progress_percent = 0
+        doc.progress_stage = ""
+        doc.celery_task_id = None
+        chunks = (await session.execute(
+            sa_select(Chunk).where(Chunk.document_id == doc.id)
+        )).scalars().all()
+        for chunk in chunks:
+            await session.delete(chunk)
+        doc.total_chunks = 0
+
     await session.commit()
 
-    logger.info("Task permanently deleted", extra={
-        "document_id": doc_id,
-        "document_title": doc_title,
-        "previous_status": doc_status,
-        "chunks_deleted": chunk_count,
+    logger.info("Task removed from queue (document preserved)", extra={
+        "document_id": doc.id,
+        "document_title": doc.title or doc.original_filename,
+        "previous_status": prev_status,
+        "previous_lifecycle_status": prev_lifecycle,
     })
-    return {"status": "deleted", "document_id": doc_id, "chunks_deleted": chunk_count}
+    return {"status": "cancelled", "document_id": doc.id}
 
 
 @router.post("/tasks/bulk-delete")
@@ -1305,13 +1294,12 @@ async def bulk_delete_tasks(
     body: BulkDeleteRequest,
     session: AsyncSession = Depends(get_session),
 ):
-    """Permanently delete multiple documents by IDs or by status filter."""
+    """Bulk-cancel tasks: revoke Celery tasks and reset statuses. Documents are preserved."""
     from app.celery_app import celery
     from sqlalchemy import select as sa_select, delete as sa_delete
     from app.models import Document, Chunk
-    from app.s3 import delete_file
 
-    deleted = 0
+    cancelled = 0
 
     if body.document_ids:
         docs = (await session.execute(
@@ -1327,33 +1315,31 @@ async def bulk_delete_tasks(
     else:
         raise HTTPException(status_code=400, detail="Provide document_ids or filter_status")
 
-    lifecycle_cancelled = 0
     for doc in docs:
-        if doc.status == "ready" and doc.lifecycle_status in ("processing", "pending"):
-            doc.lifecycle_status = ""
-            lifecycle_cancelled += 1
-            continue
-
         if doc.celery_task_id:
             try:
                 celery.control.revoke(doc.celery_task_id, terminate=True)
             except Exception:
                 pass
-        if doc.s3_key:
-            try:
-                delete_file(doc.s3_key)
-            except Exception:
-                pass
 
-        await session.execute(
-            sa_delete(Chunk).where(Chunk.document_id == doc.id)
-        )
-        await session.delete(doc)
-        deleted += 1
+        if doc.lifecycle_status in ("processing", "pending"):
+            doc.lifecycle_status = ""
+
+        if doc.status in ("pending", "processing"):
+            doc.status = "cancelled"
+            doc.progress_percent = 0
+            doc.progress_stage = ""
+            doc.celery_task_id = None
+            await session.execute(
+                sa_delete(Chunk).where(Chunk.document_id == doc.id)
+            )
+            doc.total_chunks = 0
+
+        cancelled += 1
 
     await session.commit()
-    logger.info("Bulk delete completed", extra={"deleted": deleted, "lifecycle_cancelled": lifecycle_cancelled})
-    return {"status": "ok", "deleted": deleted, "lifecycle_cancelled": lifecycle_cancelled}
+    logger.info("Bulk task cancel completed", extra={"cancelled": cancelled})
+    return {"status": "ok", "deleted": cancelled}
 
 
 # ---------------------------------------------------------------------------
