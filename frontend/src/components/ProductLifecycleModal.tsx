@@ -524,7 +524,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
   const errorDocs = docLcs.filter(d => d.status === 'error').length
   const runningDocs = docLcs.filter(d => d.status === 'pending' || d.status === 'processing').length
 
-  const showTabs = hasResults && readyDocLcs.length > 0
+  const showTabs = hasResults && readyDocLcs.length > 1
 
   const totalUsage: AggregatedUsage = useMemo(() => {
     let pt = 0, ct = 0, ms = 0
