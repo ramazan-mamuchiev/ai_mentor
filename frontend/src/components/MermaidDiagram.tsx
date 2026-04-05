@@ -68,9 +68,8 @@ export function MermaidDiagram({ chart, className }: Props) {
     svgEl.style.height = '100%'
 
     let instance: ReturnType<typeof svgPanZoom> | null = null
+    let fitZoom = 1
     let raf2 = 0
-    // Double-rAF: first frame lets the overlay settle its layout,
-    // second frame initialises pan-zoom with correct dimensions.
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
         instance = svgPanZoom(svgEl, {
@@ -83,10 +82,18 @@ export function MermaidDiagram({ chart, className }: Props) {
           maxZoom: 20,
           zoomScaleSensitivity: 0.3,
           dblClickZoomEnabled: true,
+          onZoom(level: number) {
+            // Auto-center when zoomed back to (or below) the fit level
+            if (instance && level <= fitZoom * 1.05) {
+              instance.fit()
+              instance.center()
+            }
+          },
         })
         instance.resize()
         instance.fit()
         instance.center()
+        fitZoom = instance.getZoom()
         panZoomRef.current = instance
       })
     })
@@ -110,11 +117,24 @@ export function MermaidDiagram({ chart, className }: Props) {
     }
   }, [fullscreen, handleEsc])
 
-  const handleZoomIn = useCallback(() => panZoomRef.current?.zoomIn(), [])
-  const handleZoomOut = useCallback(() => panZoomRef.current?.zoomOut(), [])
+  const handleZoomIn = useCallback(() => {
+    const pz = panZoomRef.current
+    if (!pz) return
+    pz.zoomIn()
+    pz.center()
+  }, [])
+  const handleZoomOut = useCallback(() => {
+    const pz = panZoomRef.current
+    if (!pz) return
+    pz.zoomOut()
+    pz.center()
+  }, [])
   const handleFit = useCallback(() => {
-    panZoomRef.current?.fit()
-    panZoomRef.current?.center()
+    const pz = panZoomRef.current
+    if (!pz) return
+    pz.resetZoom()
+    pz.fit()
+    pz.center()
   }, [])
 
   if (error) {
