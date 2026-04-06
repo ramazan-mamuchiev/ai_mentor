@@ -219,7 +219,7 @@ services:
       ALLOWED_DOMAIN: ${ALLOWED_DOMAIN:-axxonsoft.dev}
       PORT: "3978"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3978/api/messages || exit 1"]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3978/api/messages',r=>{process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 3
