@@ -103,6 +103,7 @@ def sanitize_lifecycle_payload(lc) -> dict:  # noqa: ANN001 – accepts ApiLifec
         "completion_tokens": lc.completion_tokens,
         "analysis_ms": lc.analysis_ms,
         "model": lc.model,
+        "error_message": lc.error_message,
         "created_at": lc.created_at.isoformat() if lc.created_at else None,
         "updated_at": lc.updated_at.isoformat() if lc.updated_at else None,
     }

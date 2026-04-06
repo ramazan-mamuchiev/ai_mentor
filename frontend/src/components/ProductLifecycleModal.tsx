@@ -125,6 +125,12 @@ export function LifecycleContent({ lc, productId, documentId, issues = [], aggre
         <div className="lc-modal-empty">
           <AlertCircle size={28} />
           <p>{t(`lifecycle.status.${lc.status}`, lc.status)}</p>
+          {lc.status === 'error' && lc.error_message && (
+            <details className="lc-error-details" open>
+              <summary>{t('lifecycleModal.errorDetails')}</summary>
+              <code className="lc-error-details-code">{safeStr(lc.error_message)}</code>
+            </details>
+          )}
         </div>
       )}
 
@@ -544,6 +550,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
   const readyDocs = readyDocLcs.length
   const errorDocs = docLcs.filter(d => d.status === 'error').length
   const runningDocs = docLcs.filter(d => d.status === 'pending' || d.status === 'processing').length
+  const hasErrorState = m?.status === 'error' || (!hasResults && docLcs.some(d => d.status === 'error'))
 
   const showTabs = hasResults && readyDocLcs.length > 1
 
@@ -662,49 +669,59 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
             </div>
           )}
 
-          {!loading && !error && !analysisRunning && (
-            m?.status === 'error' || (!hasResults && docLcs.some(d => d.status === 'error'))
-          ) && (
-            <div className="lc-modal-error-block lc-modal-error-block--detailed">
-              <AlertCircle size={40} />
-              <p className="lc-modal-error-block-title">{t('lifecycleModal.analysisFailed')}</p>
+          {!loading && !error && !analysisRunning && hasErrorState && (() => {
+            const errorDocLcs = docLcs.filter(d => d.status === 'error')
+            return (
+              <div className="lc-modal-error-block lc-modal-error-block--detailed">
+                <AlertCircle size={40} />
+                <p className="lc-modal-error-block-title">{t('lifecycleModal.analysisFailed')}</p>
 
-              {m?.error_message && (
-                <details className="lc-error-details" open>
-                  <summary>{t('lifecycleModal.errorDetails')}</summary>
-                  <code className="lc-error-details-code">{safeStr(m.error_message)}</code>
-                </details>
-              )}
+                {docLcs.length > 0 && (
+                  <div className="plc-modal-doc-summary">
+                    <span className="plc-doc-label">{t('products.lifecycle.documentsAnalyzed')}:</span>
+                    <span className="plc-doc-ready">{readyDocs} ✓</span>
+                    {errorDocs > 0 && <span className="plc-doc-error">{errorDocs} ✗</span>}
+                    <span className="plc-doc-total">/ {docLcs.length}</span>
+                  </div>
+                )}
 
-              {docLcs.filter(d => d.status === 'error').length > 0 && (
-                <div className="lc-error-docs">
-                  <p className="lc-error-docs-title">
-                    {t('lifecycleModal.errorDocuments', { count: docLcs.filter(d => d.status === 'error').length })}
-                  </p>
-                  {docLcs.filter(d => d.status === 'error').map(d => (
-                    <details key={d.document_id} className="lc-error-details">
-                      <summary>
-                        <FileText size={13} />
-                        <span>{d.document_name || `Document ${d.document_id}`}</span>
-                      </summary>
-                      {d.error_message ? (
-                        <code className="lc-error-details-code">{safeStr(d.error_message)}</code>
-                      ) : (
-                        <span className="lc-error-details-none">{t('lifecycleModal.noErrorDetails')}</span>
-                      )}
-                    </details>
-                  ))}
-                </div>
-              )}
+                {m?.error_message && (
+                  <details className="lc-error-details" open>
+                    <summary>{t('lifecycleModal.errorDetails')}</summary>
+                    <code className="lc-error-details-code">{safeStr(m.error_message)}</code>
+                  </details>
+                )}
 
-              {canRun && (
-                <button className="lc-modal-run-btn lc-modal-run-btn--large" onClick={handleRun} disabled={analysisRunning}>
-                  <RefreshCw size={14} />
-                  {t('lifecycle.rerun')}
-                </button>
-              )}
-            </div>
-          )}
+                {errorDocLcs.length > 0 && (
+                  <div className="lc-error-docs">
+                    <p className="lc-error-docs-title">
+                      {t('lifecycleModal.errorDocuments', { count: errorDocLcs.length })}
+                    </p>
+                    {errorDocLcs.map(d => (
+                      <details key={d.document_id} className="lc-error-details">
+                        <summary>
+                          <FileText size={13} />
+                          <span>{d.document_name || `Document ${d.document_id}`}</span>
+                        </summary>
+                        {d.error_message ? (
+                          <code className="lc-error-details-code">{safeStr(d.error_message)}</code>
+                        ) : (
+                          <span className="lc-error-details-none">{t('lifecycleModal.noErrorDetails')}</span>
+                        )}
+                      </details>
+                    ))}
+                  </div>
+                )}
+
+                {canRun && (
+                  <button className="lc-modal-run-btn lc-modal-run-btn--large" onClick={handleRun} disabled={analysisRunning}>
+                    <RefreshCw size={14} />
+                    {t('lifecycle.rerun')}
+                  </button>
+                )}
+              </div>
+            )
+          })()}
 
           {!loading && !error && analysisRunning && (
             <div className="lc-modal-in-progress">
@@ -728,9 +745,9 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
             </div>
           )}
 
-          {!loading && !error && (hasResults || hasDocAnalyses) && (
+          {!loading && !error && (hasResults || (hasDocAnalyses && readyDocLcs.length > 0)) && !analysisRunning && (
             <div className="lc-modal-content">
-              {docLcs.length > 0 && (
+              {docLcs.length > 0 && !hasErrorState && (
                 <div className="plc-modal-doc-summary">
                   <span className="plc-doc-label">{t('products.lifecycle.documentsAnalyzed')}:</span>
                   <span className="plc-doc-ready">{readyDocs} ✓</span>
@@ -766,7 +783,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                 </div>
               )}
 
-              {showTabs && activeTab === 'merged' && m && (
+              {showTabs && activeTab === 'merged' && m && m.status === 'ready' && (
                 <LifecycleContent lc={m} productId={productId} issues={activeIssues} aggregatedUsage={totalUsage} />
               )}
 
@@ -774,11 +791,11 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                 <LifecycleContent lc={activeDocLc} productId={productId} documentId={activeDocLc.document_id} issues={activeIssues} />
               )}
 
-              {!showTabs && m && (
+              {!showTabs && m && m.status === 'ready' && (
                 <LifecycleContent lc={m} productId={productId} issues={issues} aggregatedUsage={totalUsage} />
               )}
 
-              {!showTabs && !m && readyDocLcs.length === 1 && (
+              {!showTabs && (!m || m.status !== 'ready') && readyDocLcs.length >= 1 && (
                 <LifecycleContent lc={readyDocLcs[0]} productId={productId} documentId={readyDocLcs[0].document_id} issues={activeIssues} aggregatedUsage={totalUsage} />
               )}
             </div>
