@@ -33,7 +33,7 @@ const MAX_CONCURRENT = 3
 
 const ALLOWED_EXTENSIONS = new Set([
   '.md', '.txt', '.pdf', '.json', '.yaml', '.yml',
-  '.proto', '.wsdl', '.xml',
+  '.proto', '.wsdl', '.xml', '.docx',
   '.zip', '.7z', '.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tar.xz', '.rar',
 ])
 
