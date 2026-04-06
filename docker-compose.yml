@@ -210,7 +210,6 @@ services:
       OPENAI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       OPENAI_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
-      LEXIRO_API_KEY: ${API_KEY:-}
       LEXIRO_MCP_URL: https://lexiro.io/mcp
       LEXIRO_API_KEY: ${API_KEY:-}
       PORT: "3978"
