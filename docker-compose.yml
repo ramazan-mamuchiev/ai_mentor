@@ -214,7 +214,7 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       OPENAI_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
       LEXIRO_MCP_URL: https://lexiro.io/mcp
-      LEXIRO_API_KEY: ${API_KEY:-}
+      LEXIRO_API_KEY: ${TEAMS_BOT_LEXIRO_API_KEY:-}
       ALLOWED_TENANT_ID: ${ALLOWED_TENANT_ID:-}
       ALLOWED_DOMAIN: ${ALLOWED_DOMAIN:-axxonsoft.dev}
       PORT: "3978"
