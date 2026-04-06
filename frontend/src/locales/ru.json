@@ -648,6 +648,9 @@
   "lifecycleModal.collapseAll": "Свернуть все",
   "lifecycleModal.expandAll": "Развернуть все",
   "lifecycleModal.analysisFailed": "Анализ завершился с ошибкой",
+  "lifecycleModal.errorDetails": "Подробности ошибки",
+  "lifecycleModal.errorDocuments": "Документы с ошибками ({{count}})",
+  "lifecycleModal.noErrorDetails": "Нет подробностей об ошибке",
   "lifecycleModal.tabMerged": "Объединённый",
 
   "products.lifecycle.started": "Анализ API Lifecycle запущен для «{{name}}»",

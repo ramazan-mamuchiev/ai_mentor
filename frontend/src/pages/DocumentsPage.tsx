@@ -551,6 +551,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const handleAnalyzeLifecycle = useCallback(async (doc: DocumentListItem) => {
     try {
       await analyzeDocumentLifecycle(doc.id)
+      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, lifecycle_status: 'pending' } : d))
       showToast(t('docs.lifecycle.started', { title: doc.title }), 'success')
     } catch {
       showToast(t('docs.lifecycle.error'), 'error')

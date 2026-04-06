@@ -404,10 +404,10 @@ export function LifecycleContent({ lc, productId, documentId, issues = [], aggre
                     {coverage.map((e: { method: string; endpoint: string; has_request_body_docs: boolean; has_response_docs: boolean; has_error_docs: boolean; has_example: boolean; completeness: number }, i: number) => (
                       <tr key={i} className={e.completeness < 0.5 ? 'lc-modal-coverage-low' : ''}>
                         <td><code>{safeStr(e.method)} {safeStr(e.endpoint)}</code></td>
-                        <td>{e.has_request_body_docs ? '✓' : '✗'}</td>
-                        <td>{e.has_response_docs ? '✓' : '✗'}</td>
-                        <td>{e.has_error_docs ? '✓' : '✗'}</td>
-                        <td>{e.has_example ? '✓' : '✗'}</td>
+                        <td><span className={e.has_request_body_docs ? 'lc-cov-yes' : 'lc-cov-no'}>{e.has_request_body_docs ? '✓' : '✗'}</span></td>
+                        <td><span className={e.has_response_docs ? 'lc-cov-yes' : 'lc-cov-no'}>{e.has_response_docs ? '✓' : '✗'}</span></td>
+                        <td><span className={e.has_error_docs ? 'lc-cov-yes' : 'lc-cov-no'}>{e.has_error_docs ? '✓' : '✗'}</span></td>
+                        <td><span className={e.has_example ? 'lc-cov-yes' : 'lc-cov-no'}>{e.has_example ? '✓' : '✗'}</span></td>
                         <td>
                           <div className="lc-modal-coverage-bar">
                             <div className={`lc-modal-coverage-fill lc-modal-coverage-fill--${e.completeness >= 0.75 ? 'good' : e.completeness >= 0.5 ? 'partial' : 'low'}`} style={{ width: `${e.completeness * 100}%` }} />
@@ -498,10 +498,26 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
     try {
       await analyzeProductLifecycle(productId)
       onAnalyzed?.()
-      setTimeout(() => load(true), 2000)
+      const pollUntilRunning = () => {
+        getProductLifecycle(productId)
+          .then(d => {
+            setData(d)
+            const running = d?.document_lifecycles?.some(
+              dl => dl.status === 'pending' || dl.status === 'processing'
+            ) || (d?.processing_documents ?? 0) > 0
+            if (running) {
+              setLaunching(false)
+            } else {
+              setTimeout(pollUntilRunning, 2000)
+            }
+          })
+          .catch(() => { setLaunching(false) })
+      }
+      setTimeout(pollUntilRunning, 2000)
     } catch {
+      setLaunching(false)
       load(true)
-    } finally { setLaunching(false) }
+    }
   }
 
   const handleDelete = async () => {
@@ -646,11 +662,41 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
             </div>
           )}
 
-          {!loading && !error && m?.status === 'error' && !analysisRunning && (
-            <div className="lc-modal-error-block">
+          {!loading && !error && !analysisRunning && (
+            m?.status === 'error' || (!hasResults && docLcs.some(d => d.status === 'error'))
+          ) && (
+            <div className="lc-modal-error-block lc-modal-error-block--detailed">
               <AlertCircle size={40} />
               <p className="lc-modal-error-block-title">{t('lifecycleModal.analysisFailed')}</p>
-              {m.error_message && <p className="lc-modal-error-block-msg">{safeStr(m.error_message)}</p>}
+
+              {m?.error_message && (
+                <details className="lc-error-details" open>
+                  <summary>{t('lifecycleModal.errorDetails')}</summary>
+                  <code className="lc-error-details-code">{safeStr(m.error_message)}</code>
+                </details>
+              )}
+
+              {docLcs.filter(d => d.status === 'error').length > 0 && (
+                <div className="lc-error-docs">
+                  <p className="lc-error-docs-title">
+                    {t('lifecycleModal.errorDocuments', { count: docLcs.filter(d => d.status === 'error').length })}
+                  </p>
+                  {docLcs.filter(d => d.status === 'error').map(d => (
+                    <details key={d.document_id} className="lc-error-details">
+                      <summary>
+                        <FileText size={13} />
+                        <span>{d.document_name || `Document ${d.document_id}`}</span>
+                      </summary>
+                      {d.error_message ? (
+                        <code className="lc-error-details-code">{safeStr(d.error_message)}</code>
+                      ) : (
+                        <span className="lc-error-details-none">{t('lifecycleModal.noErrorDetails')}</span>
+                      )}
+                    </details>
+                  ))}
+                </div>
+              )}
+
               {canRun && (
                 <button className="lc-modal-run-btn lc-modal-run-btn--large" onClick={handleRun} disabled={analysisRunning}>
                   <RefreshCw size={14} />
@@ -660,7 +706,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
             </div>
           )}
 
-          {!loading && !error && analysisRunning && !hasResults && (
+          {!loading && !error && analysisRunning && (
             <div className="lc-modal-in-progress">
               <Loader2 size={40} className="spin-icon" />
               <p className="lc-modal-in-progress-title">{t('lifecycleModal.inProgress')}</p>
@@ -682,7 +728,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
             </div>
           )}
 
-          {!loading && !error && (hasResults || (hasDocAnalyses && !analysisRunning)) && (
+          {!loading && !error && (hasResults || hasDocAnalyses) && (
             <div className="lc-modal-content">
               {docLcs.length > 0 && (
                 <div className="plc-modal-doc-summary">

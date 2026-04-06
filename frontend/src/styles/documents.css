@@ -3565,6 +3565,73 @@ button.docs-lc-badge--partial:hover {
   line-height: 1.5;
   word-break: break-word;
 }
+.lc-modal-error-block--detailed {
+  align-items: stretch;
+  text-align: left;
+  padding: 32px 24px;
+  gap: 16px;
+}
+.lc-modal-error-block--detailed > svg {
+  align-self: center;
+}
+.lc-modal-error-block--detailed > .lc-modal-error-block-title {
+  text-align: center;
+}
+.lc-modal-error-block--detailed > .lc-modal-run-btn--large {
+  align-self: center;
+}
+.lc-error-details {
+  background: var(--surface-secondary, #f8f9fa);
+  border: 1px solid var(--border, #dee2e6);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.lc-error-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+.lc-error-details > summary:hover {
+  background: var(--surface-hover, #f1f3f5);
+}
+.lc-error-details-code {
+  display: block;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--danger, #e03131);
+  background: var(--surface-tertiary, #fff5f5);
+  border-top: 1px solid var(--border, #dee2e6);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.lc-error-details-none {
+  display: block;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  border-top: 1px solid var(--border, #dee2e6);
+}
+.lc-error-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lc-error-docs-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 4px 0 0;
+}
 
 .lc-modal-in-progress {
   display: flex;
@@ -4249,6 +4316,11 @@ button.docs-lc-badge--partial:hover {
 .lc-modal-coverage-fill--good { background: #40c057; }
 .lc-modal-coverage-fill--partial { background: #fab005; }
 .lc-modal-coverage-fill--low { background: #fa5252; }
+
+.lc-cov-yes { color: #40c057; font-weight: 700; font-size: 14px; }
+.lc-cov-no { color: #fa5252; font-weight: 700; font-size: 14px; }
+[data-theme="dark"] .lc-cov-yes { color: #51cf66; }
+[data-theme="dark"] .lc-cov-no { color: #ff6b6b; }
 
 /* --- Collapse all / Expand all bar --- */
 .lc-modal-collapse-bar {
