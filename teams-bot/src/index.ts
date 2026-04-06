@@ -14,6 +14,29 @@ import { buildAnswerCard, buildErrorCard } from "./cards.js";
 
 const logger = new ConsoleLogger("lexiro-bot", { level: "info" });
 
+const _RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
+const _MAX_RETRIES = 3;
+const _RETRY_BASE_DELAY = 2000;
+
+async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  let lastErr: any;
+  for (let attempt = 0; attempt <= _MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = _RETRY_BASE_DELAY * 2 ** (attempt - 1);
+      logger.warn(`${label}: ${lastErr?.status ?? "?"}, retry ${attempt + 1}/${_MAX_RETRIES + 1} in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const status = err?.status ?? err?.response?.status;
+      if (!_RETRYABLE_STATUS_CODES.has(status) || attempt === _MAX_RETRIES) throw err;
+    }
+  }
+  throw lastErr;
+}
+
 const SYSTEM_PROMPT = `You are Lexiro Bot — a documentation assistant for hardware integration developers.
 Your knowledge base contains API documentation for IP cameras, access controllers, intercoms,
 video management systems (VMS), PSIM platforms, and IoT SDKs.
@@ -46,14 +69,17 @@ const HELP_MESSAGE = `**Lexiro Bot** — AI-ассистент по докуме
 
 Все вопросы и ответы видны участникам чата. В каналах ответы приходят в тред.`;
 
-function createPrompt() {
+const _FALLBACK_MODEL = "gemini-2.5-flash";
+
+function createPrompt(modelOverride?: string) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("Missing OPENAI_API_KEY");
   }
 
+  const model = modelOverride || process.env.OPENAI_MODEL || "gemini-2.5-flash";
   const modelOptions: OpenAIChatModelOptions = {
-    model: process.env.OPENAI_MODEL || "gemini-2.5-flash",
+    model,
     apiKey,
     baseUrl: process.env.OPENAI_BASE_URL,
     logger,
@@ -86,7 +112,21 @@ function createPrompt() {
   return prompt;
 }
 
+const primaryModel = process.env.OPENAI_MODEL || "gemini-2.5-flash";
 const prompt = createPrompt();
+const fallbackPrompt = primaryModel !== _FALLBACK_MODEL ? createPrompt(_FALLBACK_MODEL) : null;
+
+async function sendWithFallback(text: string, label: string) {
+  try {
+    return await withRetry(() => prompt.send(text), label);
+  } catch (err: any) {
+    if (!fallbackPrompt) throw err;
+    const status = err?.status ?? err?.response?.status;
+    if (!_RETRYABLE_STATUS_CODES.has(status)) throw err;
+    logger.warn(`${label}: primary model exhausted retries, falling back to ${_FALLBACK_MODEL}`);
+    return await withRetry(() => fallbackPrompt.send(text), `${label}_fallback`);
+  }
+}
 
 const app = new App({
   logger,
@@ -141,7 +181,7 @@ app.on("message", async ({ send, activity }) => {
   ) {
     await send({ type: "typing" });
     try {
-      const result = await prompt.send("List all available products");
+      const result = await sendWithFallback("List all available products", "list_products");
       await send(result.content || "Не удалось получить список продуктов.");
     } catch (error) {
       logger.error("Error listing products", error);
@@ -153,7 +193,7 @@ app.on("message", async ({ send, activity }) => {
   await send({ type: "typing" });
 
   try {
-    const result = await prompt.send(text);
+    const result = await sendWithFallback(text, "chat");
     const content =
       result.content ||
       "Не удалось найти ответ. Попробуйте переформулировать вопрос.";
