@@ -26,6 +26,8 @@ from app.ingestion.converters.ocr import (
     ocr_enabled,
 )
 
+from app.utils.retry import retry_call
+
 logger = logging.getLogger(__name__)
 
 PARALLEL_THRESHOLD = 10
@@ -80,36 +82,20 @@ def _convert_page_range_with_retry(
     image_path: str | None = None,
 ) -> str:
     """Convert pages with retry logic. Top-level for pickle serialisation."""
-    _logger = logging.getLogger(__name__)
-    for attempt in range(1, MAX_RETRIES + 2):
-        try:
-            kwargs: dict = {"pages": page_range}
-            if image_path:
-                kwargs["write_images"] = True
-                kwargs["image_path"] = image_path
-            return pymupdf4llm.to_markdown(file_path, **kwargs)
-        except Exception as exc:
-            if attempt > MAX_RETRIES:
-                _logger.error(
-                    "PDF page range conversion failed after all retries",
-                    extra={
-                        "pages": f"{page_range[0]}-{page_range[-1]}",
-                        "attempts": attempt,
-                        "error": str(exc)[:300],
-                    },
-                )
-                raise
-            _logger.warning(
-                "PDF page range conversion failed, retrying",
-                extra={
-                    "pages": f"{page_range[0]}-{page_range[-1]}",
-                    "attempt": attempt,
-                    "max_retries": MAX_RETRIES,
-                    "error": str(exc)[:200],
-                },
-            )
-            time.sleep(attempt)
-    return ""  # unreachable, satisfies type checker
+    def _convert():
+        kwargs: dict = {"pages": page_range}
+        if image_path:
+            kwargs["write_images"] = True
+            kwargs["image_path"] = image_path
+        return pymupdf4llm.to_markdown(file_path, **kwargs)
+
+    return retry_call(
+        _convert,
+        max_retries=MAX_RETRIES,
+        base_delay=1.0,
+        is_retryable=lambda _e: True,
+        label=f"pdf_pages_{page_range[0]}-{page_range[-1]}",
+    )
 
 
 def _split_page_ranges(page_count: int, pages_per_chunk: int = PAGES_PER_CHUNK_SMALL) -> list[list[int]]:
@@ -226,22 +212,20 @@ def convert_pdf(
         else:
             page_results: dict[int, str] = {}
             for idx, pr in enumerate(page_ranges):
-                for attempt in range(1, MAX_RETRIES + 2):
-                    try:
-                        kwargs: dict = {"pages": pr}
-                        if image_temp_dir:
-                            kwargs["write_images"] = True
-                            kwargs["image_path"] = image_temp_dir
-                        page_results[idx] = pymupdf4llm.to_markdown(file_path, **kwargs)
-                        break
-                    except Exception as exc:
-                        if attempt > MAX_RETRIES:
-                            raise
-                        logger.warning(
-                            "PDF page conversion failed, retrying",
-                            extra={"page": pr[0], "attempt": attempt, "error": str(exc)[:200]},
-                        )
-                        time.sleep(attempt)
+                def _convert_range():
+                    kwargs: dict = {"pages": pr}
+                    if image_temp_dir:
+                        kwargs["write_images"] = True
+                        kwargs["image_path"] = image_temp_dir
+                    return pymupdf4llm.to_markdown(file_path, **kwargs)
+
+                page_results[idx] = retry_call(
+                    _convert_range,
+                    max_retries=MAX_RETRIES,
+                    base_delay=1.0,
+                    is_retryable=lambda _e: True,
+                    label=f"pdf_page_{pr[0]}",
+                )
                 if _convert_cb is not None:
                     _convert_cb((idx + 1) / total_ranges)
 
