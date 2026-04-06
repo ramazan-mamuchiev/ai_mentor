@@ -191,6 +191,35 @@ services:
     environment: *worker-env
     command: celery -A app.celery_app beat --loglevel=info
 
+  teams-bot:
+    build:
+      context: ./teams-bot
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    ports:
+      - "3978:3978"
+    environment:
+      BOT_ID: ${BOT_ID:-}
+      BOT_PASSWORD: ${BOT_PASSWORD:-}
+      OPENAI_API_KEY: ${OPENAI_LLM_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      OPENAI_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
+      LEXIRO_MCP_URL: https://lexiro.io/mcp
+      LEXIRO_API_KEY: ${API_KEY:-}
+      PORT: "3978"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3978/api/messages || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   loki:
     image: grafana/loki:3.4.2
     restart: unless-stopped
