@@ -196,6 +196,7 @@ export interface DocumentLifecycle {
   }
   validation_issues?: Array<{ error: string }>
   validation_retries?: number
+  doc_scope?: string
   prompt_tokens?: number
   completion_tokens?: number
   analysis_ms?: number

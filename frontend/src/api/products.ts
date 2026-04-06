@@ -107,6 +107,7 @@ export interface LifecyclePayload {
   code_skeleton_translations?: Record<string, string>
   validation_issues: Array<{ error: string }>
   validation_retries: number
+  doc_scope?: string
   prompt_tokens: number; completion_tokens: number; analysis_ms: number; model: string
   error_message?: string | null
   created_at: string | null; updated_at: string | null
