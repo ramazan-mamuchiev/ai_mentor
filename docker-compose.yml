@@ -207,6 +207,9 @@ services:
     environment:
       BOT_ID: ${BOT_ID:-}
       BOT_PASSWORD: ${BOT_PASSWORD:-}
+      CLIENT_ID: ${BOT_ID:-}
+      CLIENT_SECRET: ${BOT_PASSWORD:-}
+      TENANT_ID: ${ALLOWED_TENANT_ID:-}
       OPENAI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       OPENAI_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
