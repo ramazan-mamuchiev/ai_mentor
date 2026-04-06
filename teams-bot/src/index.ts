@@ -96,7 +96,31 @@ function stripMentions(text: string): string {
   return text.replace(/<at>.*?<\/at>\s*/g, "").trim();
 }
 
+const ALLOWED_TENANT_ID = process.env.ALLOWED_TENANT_ID;
+const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || "axxonsoft.dev";
+
+function isAuthorized(activity: { from: any; channelData?: any }): { ok: boolean; reason?: string } {
+  const tenantId = activity.channelData?.tenant?.id;
+  if (ALLOWED_TENANT_ID && tenantId && tenantId !== ALLOWED_TENANT_ID) {
+    return { ok: false, reason: `wrong tenant ${tenantId}` };
+  }
+
+  const upn: string | undefined = activity.from?.userPrincipalName;
+  if (upn && !upn.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+    return { ok: false, reason: `unauthorized domain in UPN ${upn}` };
+  }
+
+  return { ok: true };
+}
+
 app.on("message", async ({ send, activity }) => {
+  const auth = isAuthorized(activity as any);
+  if (!auth.ok) {
+    logger.warn(`Access denied: ${auth.reason}`);
+    await send(`Доступ ограничен для пользователей @${ALLOWED_DOMAIN}`);
+    return;
+  }
+
   const rawText = activity.text?.trim();
   if (!rawText) return;
 

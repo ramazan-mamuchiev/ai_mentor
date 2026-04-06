@@ -212,6 +212,8 @@ services:
       OPENAI_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
       LEXIRO_MCP_URL: https://lexiro.io/mcp
       LEXIRO_API_KEY: ${API_KEY:-}
+      ALLOWED_TENANT_ID: ${ALLOWED_TENANT_ID:-}
+      ALLOWED_DOMAIN: ${ALLOWED_DOMAIN:-axxonsoft.dev}
       PORT: "3978"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3978/api/messages || exit 1"]
