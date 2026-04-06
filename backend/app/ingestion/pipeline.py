@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingestion.chunker import ChunkData, chunk_sections
+from app.ingestion.converters.docx import convert_docx
 from app.ingestion.converters.pdf import convert_pdf
 from app.ingestion.converters.proto import convert_proto_file
 from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_file
@@ -380,6 +381,8 @@ def detect_format(file_path: str, content_path: str | None = None) -> str:
         return "markdown"
     if ext == ".pdf":
         return "pdf"
+    if ext == ".docx":
+        return "docx"
     if ext == ".proto":
         return "proto"
     if ext == ".wsdl":
@@ -508,6 +511,18 @@ async def ingest_file(
                 exc_info=True,
             )
             return {"status": "error", "error": f"WSDL conversion failed: {e}"}
+        fmt_effective = "markdown"
+    elif fmt == "docx":
+        try:
+            text, convert_metadata = convert_docx(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            logger.error(
+                "DOCX conversion failed",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
+            return {"status": "error", "error": f"DOCX conversion failed: {e}"}
         fmt_effective = "markdown"
     else:
         try:
@@ -1121,6 +1136,18 @@ def ingest_from_bytes(
         except Exception as e:
             document.status = "error"
             document.error_message = f"XML conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
+    elif fmt == "docx":
+        try:
+            text, convert_metadata = convert_docx(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"DOCX conversion failed: {e}"
             document.progress_percent = 0
             document.progress_stage = ""
             session.commit()
