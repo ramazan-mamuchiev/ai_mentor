@@ -676,6 +676,54 @@ export async function searchTenants(q: string, limit = 10): Promise<TenantSearch
 }
 
 
+// --- Tenant API Keys ---
+
+export interface AdminApiKeyItem {
+  id: string
+  key_prefix: string
+  name: string
+  scopes: string
+  is_active: boolean
+  last_used_at: string | null
+  revoked_at: string | null
+  revoke_reason: string | null
+  created_at: string
+}
+
+export interface AdminApiKeyCreated extends AdminApiKeyItem {
+  key: string
+}
+
+export async function getTenantApiKeys(tenantId: string, includeRevoked = true): Promise<AdminApiKeyItem[]> {
+  const sp = new URLSearchParams({ include_revoked: String(includeRevoked) })
+  const res = await fetch(`${BASE}/tenants/${tenantId}/api-keys?${sp}`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function createTenantApiKey(tenantId: string, name: string, scopes: string): Promise<AdminApiKeyCreated> {
+  const res = await fetch(`${BASE}/tenants/${tenantId}/api-keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, scopes }),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function revokeTenantApiKey(tenantId: string, keyId: string, reason?: string): Promise<void> {
+  const res = await fetch(`${BASE}/tenants/${tenantId}/api-keys/${keyId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason || null }),
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+}
+
+
 // --- Roles ---
 
 export interface RoleListItem {

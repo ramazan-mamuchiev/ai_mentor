@@ -12,6 +12,12 @@ from app.database import get_session
 from app.auth.dependencies import require_admin
 from app.models import Tenant
 from app.admin import service
+from app.auth.schemas import (
+    ApiKeyResponse,
+    ApiKeyCreatedResponse,
+    CreateApiKeyRequest,
+    RevokeApiKeyRequest,
+)
 from app.admin.schemas import (
     AdminChatMessageSearchResponse,
     AdminChatSessionDetail,
@@ -561,6 +567,64 @@ async def unassign_tenant_role(
 ):
     if not await service.unassign_role_from_tenant(session, tenant_id, role_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Role assignment not found")
+
+
+# ---------------------------------------------------------------------------
+# Tenant API Keys
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants/{tenant_id}/api-keys", response_model=list[ApiKeyResponse])
+async def list_tenant_api_keys(
+    tenant_id: uuid.UUID,
+    include_revoked: bool = True,
+    session: AsyncSession = Depends(get_session),
+    _: Tenant = Depends(require_admin),
+):
+    from app.auth.service import list_api_keys
+    return [
+        ApiKeyResponse(
+            id=k.id, key_prefix=k.key_prefix, name=k.name, scopes=k.scopes,
+            is_active=k.is_active, last_used_at=k.last_used_at,
+            revoked_at=k.revoked_at, revoke_reason=k.revoke_reason,
+            created_at=k.created_at,
+        )
+        for k in await list_api_keys(tenant_id, session, include_revoked=include_revoked)
+    ]
+
+
+@router.post("/tenants/{tenant_id}/api-keys", response_model=ApiKeyCreatedResponse, status_code=201)
+async def create_tenant_api_key(
+    tenant_id: uuid.UUID,
+    body: CreateApiKeyRequest,
+    session: AsyncSession = Depends(get_session),
+    _: Tenant = Depends(require_admin),
+):
+    t = await session.get(Tenant, tenant_id)
+    if not t:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
+    from app.auth.service import create_api_key
+    api_key, raw = await create_api_key(tenant_id, body.name, body.scopes, session)
+    return ApiKeyCreatedResponse(
+        id=api_key.id, key_prefix=api_key.key_prefix, name=api_key.name,
+        scopes=api_key.scopes, is_active=api_key.is_active,
+        last_used_at=api_key.last_used_at, revoked_at=api_key.revoked_at,
+        revoke_reason=api_key.revoke_reason, created_at=api_key.created_at,
+        key=raw,
+    )
+
+
+@router.delete("/tenants/{tenant_id}/api-keys/{key_id}", status_code=204)
+async def revoke_tenant_api_key(
+    tenant_id: uuid.UUID,
+    key_id: uuid.UUID,
+    body: RevokeApiKeyRequest | None = None,
+    session: AsyncSession = Depends(get_session),
+    _: Tenant = Depends(require_admin),
+):
+    from app.auth.service import revoke_api_key
+    reason = body.reason if body else None
+    if not await revoke_api_key(tenant_id, key_id, session, reason=reason):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found or already revoked")
 
 
 # ---------------------------------------------------------------------------

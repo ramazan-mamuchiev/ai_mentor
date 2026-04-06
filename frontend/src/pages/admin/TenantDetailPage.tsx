@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft, Shield, FileText, MessageSquare, Key,
   Calendar, Mail, Hash, CheckCircle, XCircle,
-  Zap, Coins, BarChart3,
+  Zap, Coins, BarChart3, Plus, ShieldOff, Copy, Check, X,
 } from 'lucide-react'
 import {
   getTenant,
@@ -13,9 +13,14 @@ import {
   getTenantRoles,
   assignTenantRole,
   unassignTenantRole,
+  getTenantApiKeys,
+  createTenantApiKey,
+  revokeTenantApiKey,
   type TenantDetail,
   type RoleListItem,
   type TenantRoleItem,
+  type AdminApiKeyItem,
+  type AdminApiKeyCreated,
 } from '../../api/admin'
 import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
@@ -35,7 +40,9 @@ function getAvatarIndex(email: string): number {
   return Math.abs(hash) % 8
 }
 
-type Tab = 'overview' | 'content'
+type Tab = 'overview' | 'content' | 'api-keys'
+
+const REVOKE_REASONS = ['compromised', 'rotation', 'unused', 'employee_left', 'other'] as const
 
 export function TenantDetailPage() {
   const { t } = useTranslation()
@@ -240,6 +247,13 @@ export function TenantDetailPage() {
           <FileText size={14} />
           {t('admin.tenantDetail.content')}
         </button>
+        <button
+          className={`td-tab ${activeTab === 'api-keys' ? 'td-tab--active' : ''}`}
+          onClick={() => setActiveTab('api-keys')}
+        >
+          <Key size={14} />
+          {t('admin.tenantDetail.apiKeys')}
+        </button>
       </div>
 
       {/* Tab content */}
@@ -363,6 +377,10 @@ export function TenantDetailPage() {
             </div>
           </div>
         )}
+
+        {activeTab === 'api-keys' && id && (
+          <TenantApiKeysTab tenantId={id} />
+        )}
       </div>
 
       {showBlockConfirm && tenant && (
@@ -375,6 +393,193 @@ export function TenantDetailPage() {
           onConfirm={confirmBlock}
           onCancel={() => setShowBlockConfirm(false)}
         />
+      )}
+    </div>
+  )
+}
+
+
+function TenantApiKeysTab({ tenantId }: { tenantId: string }) {
+  const { t } = useTranslation()
+  const [keys, setKeys] = useState<AdminApiKeyItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newKey, setNewKey] = useState<AdminApiKeyCreated | null>(null)
+  const [keyName, setKeyName] = useState('')
+  const [keyScopes, setKeyScopes] = useState('search,list')
+  const [creating, setCreating] = useState(false)
+  const [revokeTarget, setRevokeTarget] = useState<AdminApiKeyItem | null>(null)
+  const [revokeReason, setRevokeReason] = useState('')
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setKeys(await getTenantApiKeys(tenantId))
+    } catch { /* ignore */ }
+    setLoading(false)
+  }, [tenantId])
+
+  useEffect(() => { load() }, [load])
+
+  const handleCreate = async () => {
+    setCreating(true)
+    try {
+      const created = await createTenantApiKey(tenantId, keyName.trim(), keyScopes)
+      setNewKey(created)
+      setKeyName('')
+      setKeyScopes('search,list')
+      await load()
+    } catch { /* ignore */ }
+    setCreating(false)
+  }
+
+  const handleRevoke = async () => {
+    if (!revokeTarget) return
+    try {
+      await revokeTenantApiKey(tenantId, revokeTarget.id, revokeReason || undefined)
+    } catch { /* ignore */ }
+    setRevokeTarget(null)
+    setRevokeReason('')
+    await load()
+  }
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  return (
+    <div className="td-apikeys-section">
+      <div className="api-key-create" style={{ marginBottom: 16 }}>
+        <input
+          value={keyName}
+          onChange={e => setKeyName(e.target.value)}
+          placeholder={t('admin.tenantDetail.keyNamePlaceholder', 'Key name')}
+          className="auth-input"
+        />
+        <select
+          value={keyScopes}
+          onChange={e => setKeyScopes(e.target.value)}
+          className="auth-input"
+          style={{ maxWidth: 180 }}
+        >
+          <option value="search,list">search, list</option>
+          <option value="mcp">mcp</option>
+          <option value="search,list,mcp">search, list, mcp</option>
+        </select>
+        <button onClick={handleCreate} disabled={creating || !keyName.trim()} className="btn-primary">
+          <Plus size={16} />
+          {t('admin.tenantDetail.createKey', 'Create key')}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="settings-loading">{t('admin.tenantDetail.loading')}</p>
+      ) : keys.length === 0 ? (
+        <p className="settings-empty">{t('admin.tenantDetail.noApiKeys', 'No API keys')}</p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="api-keys-table">
+            <thead>
+              <tr>
+                <th>{t('admin.tenantDetail.keyName', 'Name')}</th>
+                <th>{t('admin.tenantDetail.keyPrefix', 'Prefix')}</th>
+                <th>{t('admin.tenantDetail.keyScopes', 'Scopes')}</th>
+                <th className="hide-mobile">{t('admin.tenantDetail.keyCreated', 'Created')}</th>
+                <th className="hide-mobile">{t('admin.tenantDetail.keyLastUsed', 'Last used')}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map(k => (
+                <tr key={k.id} className={!k.is_active ? 'row-revoked' : ''}>
+                  <td>
+                    {k.name || '—'}
+                    {!k.is_active && (
+                      <span className="revoked-badge" title={k.revoke_reason || undefined}>
+                        {t('admin.tenantDetail.keyRevoked', 'revoked')}
+                      </span>
+                    )}
+                  </td>
+                  <td><code className={!k.is_active ? 'text-muted' : ''}>{k.key_prefix}</code></td>
+                  <td><code>{k.scopes}</code></td>
+                  <td className="hide-mobile">{new Date(k.created_at).toLocaleDateString()}</td>
+                  <td className="hide-mobile">
+                    {!k.is_active && k.revoked_at
+                      ? new Date(k.revoked_at).toLocaleDateString()
+                      : k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : '—'}
+                  </td>
+                  <td>
+                    {k.is_active && (
+                      <button onClick={() => setRevokeTarget(k)} className="btn-icon btn-danger" title={t('admin.tenantDetail.revokeKey', 'Revoke')}>
+                        <ShieldOff size={16} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {newKey && (
+        <div className="api-key-modal-overlay" onClick={() => setNewKey(null)}>
+          <div className="api-key-modal" onClick={e => e.stopPropagation()}>
+            <div className="api-key-modal-header">
+              <h3>{t('admin.tenantDetail.newKeyTitle', 'New API key created')}</h3>
+              <button onClick={() => setNewKey(null)} className="btn-icon"><X size={18} /></button>
+            </div>
+            <p className="api-key-warning">{t('admin.tenantDetail.keyShownOnce', 'This key will only be shown once. Copy it now.')}</p>
+            <div className="api-key-value">
+              <code>{newKey.key}</code>
+              <button onClick={() => handleCopy(newKey.key, 'new-key')} className="btn-icon" title="Copy">
+                {copied === 'new-key' ? <Check size={16} /> : <Copy size={16} />}
+              </button>
+            </div>
+            <div className="api-key-modal-footer">
+              <button onClick={() => setNewKey(null)} className="btn-primary">
+                {t('admin.tenantDetail.done', 'Done')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {revokeTarget && (
+        <div className="api-key-modal-overlay" onClick={() => { setRevokeTarget(null); setRevokeReason('') }}>
+          <div className="api-key-modal api-key-modal--small" onClick={e => e.stopPropagation()}>
+            <div className="api-key-modal-header">
+              <h3>{t('admin.tenantDetail.revokeKeyTitle', 'Revoke API key')}</h3>
+              <button onClick={() => { setRevokeTarget(null); setRevokeReason('') }} className="btn-icon"><X size={18} /></button>
+            </div>
+            <p className="confirm-delete-text">
+              {t('admin.tenantDetail.revokeKeyConfirm', {
+                name: revokeTarget.name || revokeTarget.key_prefix,
+                defaultValue: `Revoke key "${revokeTarget.name || revokeTarget.key_prefix}"?`,
+              })}
+            </p>
+            <div className="revoke-reason-field">
+              <label className="profile-label">{t('admin.tenantDetail.revokeReason', 'Reason')}</label>
+              <select value={revokeReason} onChange={e => setRevokeReason(e.target.value)} className="auth-input">
+                <option value="">{t('settings.reason.none', '— none —')}</option>
+                {REVOKE_REASONS.map(r => (
+                  <option key={r} value={r}>{t(`settings.reason.${r}`, r)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="api-key-modal-footer">
+              <button onClick={() => { setRevokeTarget(null); setRevokeReason('') }} className="btn-secondary">
+                {t('admin.common.cancel', 'Cancel')}
+              </button>
+              <button onClick={handleRevoke} className="btn-danger-solid">
+                <ShieldOff size={16} />
+                {t('admin.tenantDetail.revokeKey', 'Revoke')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
