@@ -99,6 +99,7 @@ def sanitize_lifecycle_payload(lc) -> dict:  # noqa: ANN001 – accepts ApiLifec
         "integration_data_flows": lc.integration_data_flows or {},
         "validation_issues": lc.validation_issues or [],
         "validation_retries": lc.validation_retries,
+        "doc_scope": getattr(lc, "doc_scope", "unknown") or "unknown",
         "prompt_tokens": lc.prompt_tokens,
         "completion_tokens": lc.completion_tokens,
         "analysis_ms": lc.analysis_ms,

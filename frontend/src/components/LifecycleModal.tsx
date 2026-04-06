@@ -264,6 +264,13 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                     {t('lifecycle.docQuality', { pct: avgCompleteness })}
                   </span>
                 )}
+                {lc.doc_scope && lc.doc_scope !== 'unknown' && (
+                  <span className={`lc-modal-scope lc-modal-scope--${lc.doc_scope}`}>
+                    {lc.doc_scope === 'industry_protocol' ? 'Protocol Spec' :
+                     lc.doc_scope === 'vendor_specific' ? 'Vendor API' :
+                     lc.doc_scope === 'device_family' ? 'Device Family' : lc.doc_scope}
+                  </span>
+                )}
                 {lc.model && <span className="lc-modal-model">{lc.model}</span>}
                 {lc.analysis_ms != null && <span className="lc-modal-time">{(lc.analysis_ms / 1000).toFixed(1)}s</span>}
                 {lc.prompt_tokens != null && (

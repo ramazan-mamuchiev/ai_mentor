@@ -3166,6 +3166,7 @@ def analyze_api_lifecycle_task(self, document_id: int):
                     integration_data_flows=result.integration_data_flows,
                     validation_issues=result.validation_issues,
                     validation_retries=result.validation_retries,
+                    doc_scope=result.doc_scope,
                     prompt_tokens=result.usage.prompt_tokens,
                     completion_tokens=result.usage.completion_tokens,
                     analysis_ms=result.usage.analysis_ms,
@@ -3329,6 +3330,7 @@ def merge_product_lifecycle_task(self, product_id: int):
                 existing.integration_data_flows = result.integration_data_flows
                 existing.validation_issues = result.validation_issues
                 existing.validation_retries = result.validation_retries
+                existing.doc_scope = result.doc_scope
                 existing.prompt_tokens = result.usage.prompt_tokens
                 existing.completion_tokens = result.usage.completion_tokens
                 existing.analysis_ms = result.usage.analysis_ms
@@ -3352,6 +3354,7 @@ def merge_product_lifecycle_task(self, product_id: int):
                     integration_data_flows=result.integration_data_flows,
                     validation_issues=result.validation_issues,
                     validation_retries=result.validation_retries,
+                    doc_scope=result.doc_scope,
                     prompt_tokens=result.usage.prompt_tokens,
                     completion_tokens=result.usage.completion_tokens,
                     analysis_ms=result.usage.analysis_ms,

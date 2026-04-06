@@ -1149,6 +1149,7 @@ async def get_document_lifecycle(document_id: int):
             "integration_data_flows": lc.integration_data_flows or {},
             "validation_issues": lc.validation_issues,
             "validation_retries": lc.validation_retries,
+            "doc_scope": getattr(lc, "doc_scope", "unknown") or "unknown",
             "prompt_tokens": lc.prompt_tokens,
             "completion_tokens": lc.completion_tokens,
             "analysis_ms": lc.analysis_ms,

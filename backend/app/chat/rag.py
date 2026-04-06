@@ -416,8 +416,12 @@ async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]
         coverage = lc.endpoint_coverage or []
         if coverage:
             avg = sum(e.get("completeness", 0) for e in coverage) / len(coverage)
+            doc_scope = getattr(lc, "doc_scope", "unknown") or "unknown"
             if avg < 0.5:
-                lines.append(f"Doc quality low ({round(avg * 100)}%) — verify generated code carefully")
+                if doc_scope == "industry_protocol":
+                    lines.append(f"Doc quality {round(avg * 100)}% (generic protocol spec — some details are implementation-dependent)")
+                else:
+                    lines.append(f"Doc quality low ({round(avg * 100)}%) — verify generated code carefully")
 
         issues = (await db.execute(
             sa_select(DocIssueAnnotation).where(

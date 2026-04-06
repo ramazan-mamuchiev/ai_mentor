@@ -1732,11 +1732,14 @@ wrong auth flow, fabricated request bodies, or incorrect error handling.
 
         # Documentation quality score
         coverage = lc.endpoint_coverage or []
+        doc_scope = getattr(lc, "doc_scope", "unknown") or "unknown"
         if coverage:
             avg_completeness = sum(e.get("completeness", 0) for e in coverage) / len(coverage)
             quality_pct = round(avg_completeness * 100)
             quality_label = "GOOD" if quality_pct >= 80 else "PARTIAL" if quality_pct >= 50 else "LOW"
             lines.append(f"\nDocumentation quality: {quality_pct}% ({quality_label})")
+            if doc_scope == "industry_protocol":
+                lines.append("ℹ️ This is a generic protocol specification — some details are implementation-dependent")
             low_coverage = [e for e in coverage if e.get("completeness", 0) < 0.5]
             if low_coverage:
                 lines.append(f"⚠️ {len(low_coverage)} endpoints poorly documented — verify before relying on generated code")

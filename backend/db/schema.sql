@@ -721,6 +721,7 @@ CREATE TABLE IF NOT EXISTS api_lifecycles (
     endpoint_coverage JSONB NOT NULL DEFAULT '[]',
     validation_issues JSONB NOT NULL DEFAULT '[]',
     validation_retries INT NOT NULL DEFAULT 0,
+    doc_scope TEXT NOT NULL DEFAULT 'unknown',
     prompt_tokens INT NOT NULL DEFAULT 0,
     completion_tokens INT NOT NULL DEFAULT 0,
     analysis_ms FLOAT NOT NULL DEFAULT 0,

@@ -54,6 +54,37 @@ class LifecycleUsage:
     llm_calls: int = 0
 
 
+DOC_SCOPE_VENDOR = "vendor_specific"
+DOC_SCOPE_PROTOCOL = "industry_protocol"
+DOC_SCOPE_DEVICE_FAMILY = "device_family"
+DOC_SCOPE_UNKNOWN = "unknown"
+
+_PROTOCOL_KEYWORDS = frozenset({
+    "cgi", "onvif", "rtsp", "sip", "isapi", "modbus", "bacnet", "opc",
+    "mqtt", "snmp", "psia", "gb/t", "gb28181", "wsdl", "soap",
+    "common gateway interface", "generic", "protocol specification",
+})
+
+
+def detect_doc_scope(product_name: str, chunk_contents: list[str]) -> str:
+    """Detect whether documentation describes a vendor-specific API or a generic protocol."""
+    name_lower = product_name.lower()
+    if any(kw in name_lower for kw in _PROTOCOL_KEYWORDS):
+        return DOC_SCOPE_PROTOCOL
+
+    full_text_lower = " ".join(chunk_contents[:20]).lower()
+    protocol_signals = sum(1 for kw in _PROTOCOL_KEYWORDS if kw in full_text_lower)
+    vendor_signals = sum(
+        1 for kw in ("api key", "api_key", "sdk", "cloud", "saas", "platform", "dashboard")
+        if kw in full_text_lower
+    )
+    if protocol_signals >= 3 and vendor_signals < 2:
+        return DOC_SCOPE_PROTOCOL
+    if vendor_signals >= 2:
+        return DOC_SCOPE_VENDOR
+    return DOC_SCOPE_UNKNOWN
+
+
 @dataclass
 class LifecycleResult:
     phases: list[dict] = field(default_factory=list)
@@ -69,6 +100,7 @@ class LifecycleResult:
     integration_data_flows: dict = field(default_factory=dict)
     validation_issues: list[dict] = field(default_factory=list)
     validation_retries: int = 0
+    doc_scope: str = DOC_SCOPE_UNKNOWN
     usage: LifecycleUsage = field(default_factory=LifecycleUsage)
 
 
@@ -191,8 +223,9 @@ Be thorough — check every endpoint for completeness.
   "stale_url" — URL in documentation that appears non-functional (http instead of https, placeholder domain)
   "missing_rate_limit_docs" — rate limiting mentioned but specific limits not documented
 
-- severity: "error" | "warning" | "info"
-  error: API integration WILL fail without this info (phantom_endpoint, contradictory_params, missing_auth_docs)
+- severity: "critical" | "error" | "warning" | "info"
+  critical: contradictions that make integration impossible without experimentation (contradictory_params, phantom_endpoint with conflicting docs)
+  error: API integration WILL fail without this info (phantom_endpoint, missing_auth_docs, broken_reference)
   warning: code will be incorrect/fragile (missing_request_body, missing_response_schema, missing_error_docs, incomplete_example, missing_enum_values)
   info: inconvenience or potential issue (ambiguous_type, stale_url, version_mismatch, undocumented_header, missing_pagination_docs, missing_rate_limit_docs)
 
@@ -478,9 +511,34 @@ def _call_llm_sync(system: str, user: str, *, json_mode: bool = True) -> tuple[s
 
 _NO_BODY_METHODS = frozenset({"GET", "DELETE", "HEAD", "OPTIONS"})
 
+# Weights: response docs matter most, then request, then errors, then examples.
+_W_RESPONSE = 0.35
+_W_REQUEST = 0.25
+_W_ERRORS = 0.20
+_W_EXAMPLE = 0.20
 
-def _recalc_endpoint_completeness(coverage: list[dict]) -> list[dict]:
-    """Recalculate completeness scores: GET/DELETE/HEAD/OPTIONS use 3 criteria."""
+# For no-body methods the request weight is redistributed.
+_W_RESPONSE_NB = 0.40
+_W_ERRORS_NB = 0.30
+_W_EXAMPLE_NB = 0.30
+
+
+def _recalc_endpoint_completeness(
+    coverage: list[dict],
+    *,
+    has_global_error_catalog: bool = False,
+    doc_scope: str = DOC_SCOPE_UNKNOWN,
+) -> list[dict]:
+    """Recalculate completeness scores with weighted criteria.
+
+    If the product has a global error_catalog but per-endpoint error docs are
+    missing, grant partial credit (0.5) for has_error_docs.
+
+    For industry_protocol doc_scope, errors and examples carry less weight
+    because protocol specs intentionally leave implementation details to vendors.
+    """
+    is_protocol = doc_scope == DOC_SCOPE_PROTOCOL
+
     result = []
     for entry in coverage:
         if not isinstance(entry, dict):
@@ -488,16 +546,28 @@ def _recalc_endpoint_completeness(coverage: list[dict]) -> list[dict]:
             continue
         entry = dict(entry)
         method = (entry.get("method") or "").upper()
-        resp = bool(entry.get("has_response_docs"))
-        errs = bool(entry.get("has_error_docs"))
-        ex = bool(entry.get("has_example"))
-        if method in _NO_BODY_METHODS:
-            entry["completeness"] = round((int(resp) + int(errs) + int(ex)) / 3, 2)
+        resp = 1.0 if entry.get("has_response_docs") else 0.0
+        errs_raw = entry.get("has_error_docs")
+        if errs_raw:
+            errs = 1.0
+        elif has_global_error_catalog:
+            errs = 0.5
         else:
-            req = bool(entry.get("has_request_body_docs"))
-            entry["completeness"] = round(
-                (int(req) + int(resp) + int(errs) + int(ex)) / 4, 2,
-            )
+            errs = 0.0
+        ex = 1.0 if entry.get("has_example") else 0.0
+
+        if method in _NO_BODY_METHODS:
+            if is_protocol:
+                score = resp * 0.50 + errs * 0.25 + ex * 0.25
+            else:
+                score = resp * _W_RESPONSE_NB + errs * _W_ERRORS_NB + ex * _W_EXAMPLE_NB
+        else:
+            req = 1.0 if entry.get("has_request_body_docs") else 0.0
+            if is_protocol:
+                score = req * 0.30 + resp * 0.40 + errs * 0.15 + ex * 0.15
+            else:
+                score = req * _W_REQUEST + resp * _W_RESPONSE + errs * _W_ERRORS + ex * _W_EXAMPLE
+        entry["completeness"] = round(score, 2)
         result.append(entry)
     return result
 
@@ -895,7 +965,12 @@ def _validate_lifecycle(
 # Core analysis
 # ---------------------------------------------------------------------------
 
-def _extract_lifecycle(doc_text: str, usage: LifecycleUsage) -> LifecycleResult:
+def _extract_lifecycle(
+    doc_text: str,
+    usage: LifecycleUsage,
+    *,
+    doc_scope: str = DOC_SCOPE_UNKNOWN,
+) -> LifecycleResult:
     """Single LLM call to extract lifecycle from document text."""
     logger.info("Lifecycle extraction LLM call starting",
                 extra={"doc_len": len(doc_text), "model": settings.lifecycle_analysis_model})
@@ -918,7 +993,7 @@ def _extract_lifecycle(doc_text: str, usage: LifecycleUsage) -> LifecycleResult:
             usage=usage,
         )
 
-    return _lifecycle_from_parsed(parsed, usage)
+    return _lifecycle_from_parsed(parsed, usage, doc_scope=doc_scope)
 
 
 def _dedup_source_doc_issues(issues: list[dict]) -> list[dict]:
@@ -934,12 +1009,22 @@ def _dedup_source_doc_issues(issues: list[dict]) -> list[dict]:
     return result
 
 
-def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: LifecycleResult | None = None) -> LifecycleResult:
+def _lifecycle_from_parsed(
+    parsed: dict,
+    usage: LifecycleUsage,
+    fallback: LifecycleResult | None = None,
+    *,
+    doc_scope: str = DOC_SCOPE_UNKNOWN,
+) -> LifecycleResult:
     """Build LifecycleResult from parsed JSON, with optional fallback for corrections."""
     fb = fallback or LifecycleResult()
     idf = parsed.get("integration_data_flows", fb.integration_data_flows)
     if isinstance(idf, dict) and idf.get("diagram_mermaid"):
         idf["diagram_mermaid"] = _sanitize_mermaid(idf["diagram_mermaid"])
+
+    error_catalog = parsed.get("error_catalog", fb.error_catalog)
+    has_global_errors = bool(error_catalog)
+
     return LifecycleResult(
         phases=parsed.get("phases", fb.phases),
         unique_patterns=parsed.get("unique_patterns", fb.unique_patterns),
@@ -947,13 +1032,16 @@ def _lifecycle_from_parsed(parsed: dict, usage: LifecycleUsage, fallback: Lifecy
         code_skeleton=parsed.get("code_skeleton", fb.code_skeleton),
         source_doc_issues=_dedup_source_doc_issues(parsed.get("source_doc_issues", fb.source_doc_issues)),
         data_models=parsed.get("data_models", fb.data_models),
-        error_catalog=parsed.get("error_catalog", fb.error_catalog),
+        error_catalog=error_catalog,
         prerequisites=parsed.get("prerequisites", fb.prerequisites),
         data_access_patterns=parsed.get("data_access_patterns", fb.data_access_patterns),
         endpoint_coverage=_recalc_endpoint_completeness(
             parsed.get("endpoint_coverage", fb.endpoint_coverage),
+            has_global_error_catalog=has_global_errors,
+            doc_scope=doc_scope,
         ),
         integration_data_flows=idf,
+        doc_scope=doc_scope or fb.doc_scope,
         usage=usage,
     )
 
@@ -996,7 +1084,7 @@ def _retry_with_corrections(
     if parsed is None:
         return previous
 
-    return _lifecycle_from_parsed(parsed, usage, fallback=previous)
+    return _lifecycle_from_parsed(parsed, usage, fallback=previous, doc_scope=previous.doc_scope)
 
 
 def _build_grounded_skeleton(result: LifecycleResult, language: str = "python") -> str:
@@ -1591,6 +1679,7 @@ def _analyze_chunk_set(
     *,
     validate: bool = True,
     max_retries: int | None = None,
+    doc_scope: str = DOC_SCOPE_UNKNOWN,
 ) -> tuple[LifecycleResult, list[DocIssue]]:
     """Extract lifecycle from a set of chunks (single LLM call path).
 
@@ -1640,7 +1729,7 @@ def _analyze_chunk_set(
 
         doc_text = "\n\n".join(summaries)
 
-    result = _extract_lifecycle(doc_text, usage)
+    result = _extract_lifecycle(doc_text, usage, doc_scope=doc_scope)
 
     if validate:
         result, doc_issues = _validate_and_correct(result, chunk_contents, max_retries)
@@ -1689,9 +1778,24 @@ def analyze_document_lifecycle_sync(
             [],
         )]
 
+    # Detect doc_scope from product name and chunk contents
+    from app.models import Document, Product
+    doc_row = session.execute(
+        sa_select(Document.product_id).where(Document.id == document_id)
+    ).scalar_one_or_none()
+    product_name = ""
+    if doc_row:
+        product_name = (session.execute(
+            sa_select(Product.name).where(Product.id == doc_row)
+        ).scalar_one_or_none() or "")
+    chunk_contents_for_scope = [c.content for c in chunks[:20]]
+    scope = detect_doc_scope(product_name, chunk_contents_for_scope)
+    logger.info("Detected doc_scope=%s for document %d (product=%s)",
+                scope, document_id, product_name)
+
     # --- Small document: single extraction (existing behavior) ---
     if len(chunks) < settings.lifecycle_batch_min_chunks:
-        result, doc_issues = _analyze_chunk_set(chunks, usage)
+        result, doc_issues = _analyze_chunk_set(chunks, usage, doc_scope=scope)
         usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
         usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
         result.usage = usage
@@ -1701,7 +1805,7 @@ def analyze_document_lifecycle_sync(
     batches = _split_chunks_into_batches(chunks, settings.lifecycle_batch_target_tokens)
 
     if len(batches) <= 1:
-        result, doc_issues = _analyze_chunk_set(chunks, usage)
+        result, doc_issues = _analyze_chunk_set(chunks, usage, doc_scope=scope)
         usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
         usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
         result.usage = usage
@@ -1718,7 +1822,7 @@ def analyze_document_lifecycle_sync(
     for i, batch in enumerate(batches):
         logger.info("Extracting batch %d/%d (%d chunks)", i + 1, len(batches), len(batch))
         result, doc_issues = _analyze_chunk_set(
-            batch, usage, validate=True, max_retries=1,
+            batch, usage, validate=True, max_retries=1, doc_scope=scope,
         )
         if result.phases:
             batch_results.append((result, doc_issues))
@@ -1746,13 +1850,15 @@ def analyze_document_lifecycle_sync(
     merge_data = [_result_to_merge_dict(r) for r, _ in batch_results]
 
     if len(merge_data) <= _MERGE_BATCH_SIZE:
-        merged = _merge_batch(merge_data, usage)
+        merged = _merge_batch(merge_data, usage, doc_scope=scope)
     else:
-        merged = _hierarchical_merge(merge_data, usage)
+        merged = _hierarchical_merge(merge_data, usage, doc_scope=scope)
 
     if merged is None:
         merged = batch_results[0][0]
         merged.validation_issues.append({"error": "Batch merge failed, using first batch only"})
+
+    merged.doc_scope = scope
 
     merged, merge_issues = _validate_and_correct(
         merged, all_chunk_contents, settings.lifecycle_validation_max_retries,
@@ -1833,7 +1939,12 @@ def _result_to_merge_dict(result: LifecycleResult) -> dict:
     }
 
 
-def _merge_batch(batch_data: list[dict], usage: LifecycleUsage) -> LifecycleResult | None:
+def _merge_batch(
+    batch_data: list[dict],
+    usage: LifecycleUsage,
+    *,
+    doc_scope: str = DOC_SCOPE_UNKNOWN,
+) -> LifecycleResult | None:
     """Merge a single batch of lifecycle dicts via one LLM call."""
     merge_prompt = _MERGE_PROMPT.format(
         count=len(batch_data),
@@ -1854,10 +1965,15 @@ def _merge_batch(batch_data: list[dict], usage: LifecycleUsage) -> LifecycleResu
     if parsed is None:
         return None
 
-    return _lifecycle_from_parsed(parsed, usage)
+    return _lifecycle_from_parsed(parsed, usage, doc_scope=doc_scope)
 
 
-def _hierarchical_merge(all_data: list[dict], usage: LifecycleUsage) -> LifecycleResult | None:
+def _hierarchical_merge(
+    all_data: list[dict],
+    usage: LifecycleUsage,
+    *,
+    doc_scope: str = DOC_SCOPE_UNKNOWN,
+) -> LifecycleResult | None:
     """Recursively merge lifecycle dicts in batches of _MERGE_BATCH_SIZE.
 
     Level 0: merge raw doc lifecycles in batches → intermediate results
@@ -1880,7 +1996,7 @@ def _hierarchical_merge(all_data: list[dict], usage: LifecycleUsage) -> Lifecycl
                 next_level.append(batch[0])
                 continue
 
-            result = _merge_batch(batch, usage)
+            result = _merge_batch(batch, usage, doc_scope=doc_scope)
             if result is None:
                 logger.warning("Batch merge failed at level %d, batch %d", level, i // _MERGE_BATCH_SIZE)
                 next_level.append(batch[0])
@@ -1895,7 +2011,7 @@ def _hierarchical_merge(all_data: list[dict], usage: LifecycleUsage) -> Lifecycl
         return None
 
     final = current_level[0]
-    return _lifecycle_from_parsed(final, usage)
+    return _lifecycle_from_parsed(final, usage, doc_scope=doc_scope)
 
 
 # ---------------------------------------------------------------------------
@@ -1922,7 +2038,7 @@ def merge_product_lifecycle_sync(
         (LifecycleResult, list of cross-document DocIssue annotations)
     """
     from sqlalchemy import select as sa_select
-    from app.models import ApiLifecycle
+    from app.models import ApiLifecycle, Product
 
     t0 = time.perf_counter()
     usage = LifecycleUsage(model=settings.lifecycle_analysis_model)
@@ -1943,41 +2059,10 @@ def merge_product_lifecycle_sync(
             usage=usage,
         ), []
 
-    if len(doc_lifecycles) == 1:
-        lc = doc_lifecycles[0]
-        result = LifecycleResult(
-            phases=lc.phases or [],
-            unique_patterns=lc.unique_patterns or [],
-            dependency_chains=lc.dependency_chains or [],
-            code_skeleton=lc.code_skeleton or "",
-            data_models=lc.data_models or [],
-            error_catalog=lc.error_catalog or [],
-            prerequisites=lc.prerequisites or [],
-            data_access_patterns=lc.data_access_patterns or [],
-            endpoint_coverage=lc.endpoint_coverage or [],
-            integration_data_flows=lc.integration_data_flows or {},
-            usage=usage,
-        )
-        usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
-        return result, []
-
-    lifecycles_data = [_lc_to_merge_dict(lc) for lc in doc_lifecycles]
-
-    if len(lifecycles_data) <= _MERGE_BATCH_SIZE:
-        result = _merge_batch(lifecycles_data, usage)
-    else:
-        logger.info(
-            "Starting hierarchical merge for product %d: %d documents",
-            product_id, len(lifecycles_data),
-        )
-        result = _hierarchical_merge(lifecycles_data, usage)
-
-    if result is None:
-        return LifecycleResult(
-            validation_issues=[{"error": "Failed to parse merged lifecycle JSON"}],
-            usage=usage,
-        ), []
-
+    # Detect doc_scope from product name and chunks
+    product_name = (session.execute(
+        sa_select(Product.name).where(Product.id == product_id)
+    ).scalar_one_or_none() or "")
     all_chunk_contents: list[str] = []
     from app.models import Chunk
     from sqlalchemy import select as sa_select2
@@ -1988,6 +2073,51 @@ def merge_product_lifecycle_sync(
                 .where(Chunk.document_id == lc.document_id)
             ).scalars().all()
             all_chunk_contents.extend(rows)
+    scope = detect_doc_scope(product_name, all_chunk_contents[:20])
+    logger.info("Product merge doc_scope=%s for product %d (%s)", scope, product_id, product_name)
+
+    if len(doc_lifecycles) == 1:
+        lc = doc_lifecycles[0]
+        error_catalog = lc.error_catalog or []
+        result = LifecycleResult(
+            phases=lc.phases or [],
+            unique_patterns=lc.unique_patterns or [],
+            dependency_chains=lc.dependency_chains or [],
+            code_skeleton=lc.code_skeleton or "",
+            data_models=lc.data_models or [],
+            error_catalog=error_catalog,
+            prerequisites=lc.prerequisites or [],
+            data_access_patterns=lc.data_access_patterns or [],
+            endpoint_coverage=_recalc_endpoint_completeness(
+                lc.endpoint_coverage or [],
+                has_global_error_catalog=bool(error_catalog),
+                doc_scope=scope,
+            ),
+            integration_data_flows=lc.integration_data_flows or {},
+            doc_scope=scope,
+            usage=usage,
+        )
+        usage.analysis_ms = round((time.perf_counter() - t0) * 1000, 1)
+        return result, []
+
+    lifecycles_data = [_lc_to_merge_dict(lc) for lc in doc_lifecycles]
+
+    if len(lifecycles_data) <= _MERGE_BATCH_SIZE:
+        result = _merge_batch(lifecycles_data, usage, doc_scope=scope)
+    else:
+        logger.info(
+            "Starting hierarchical merge for product %d: %d documents",
+            product_id, len(lifecycles_data),
+        )
+        result = _hierarchical_merge(lifecycles_data, usage, doc_scope=scope)
+
+    if result is None:
+        return LifecycleResult(
+            validation_issues=[{"error": "Failed to parse merged lifecycle JSON"}],
+            usage=usage,
+        ), []
+
+    result.doc_scope = scope
 
     result, doc_issues = _validate_and_correct(
         result, all_chunk_contents, settings.lifecycle_validation_max_retries,

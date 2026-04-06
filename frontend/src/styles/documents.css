@@ -4149,6 +4149,7 @@ button.docs-lc-badge--partial:hover {
 
 .lc-modal-issue--warning { border-left-color: #e67700; }
 .lc-modal-issue--error { border-left-color: #c92a2a; }
+.lc-modal-issue--critical { border-left-color: #862e9c; background: rgba(134,46,156,.06); }
 .lc-modal-issue--info { border-left-color: #1971c2; }
 
 .lc-modal-issue-type {
@@ -4176,6 +4177,18 @@ button.docs-lc-badge--partial:hover {
 [data-theme="dark"] .lc-modal-quality--good { background: rgba(43,138,62,.2); color: #69db7c; }
 [data-theme="dark"] .lc-modal-quality--partial { background: rgba(230,119,0,.2); color: #ffd43b; }
 [data-theme="dark"] .lc-modal-quality--low { background: rgba(201,42,42,.2); color: #ffa8a8; }
+
+/* --- Doc scope badge --- */
+.lc-modal-scope {
+  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.lc-modal-scope--industry_protocol { background: #d0ebff; color: #1864ab; }
+.lc-modal-scope--vendor_specific { background: #e5dbff; color: #5f3dc4; }
+.lc-modal-scope--device_family { background: #fff4e6; color: #d9480f; }
+[data-theme="dark"] .lc-modal-scope--industry_protocol { background: rgba(24,100,171,.2); color: #74c0fc; }
+[data-theme="dark"] .lc-modal-scope--vendor_specific { background: rgba(95,61,196,.2); color: #b197fc; }
+[data-theme="dark"] .lc-modal-scope--device_family { background: rgba(217,72,15,.2); color: #ffc078; }
 
 /* --- Prerequisites --- */
 .lc-modal-prereqs { display: flex; flex-direction: column; gap: 8px; }

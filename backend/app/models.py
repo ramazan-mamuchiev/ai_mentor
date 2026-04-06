@@ -310,6 +310,7 @@ class ApiLifecycle(Base):
     integration_data_flows: Mapped[dict] = mapped_column(JSONB, default=dict)
     validation_issues: Mapped[list] = mapped_column(JSONB, default=list)
     validation_retries: Mapped[int] = mapped_column(Integer, default=0)
+    doc_scope: Mapped[str] = mapped_column(Text, default="unknown")
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     analysis_ms: Mapped[float] = mapped_column(Float, default=0)
