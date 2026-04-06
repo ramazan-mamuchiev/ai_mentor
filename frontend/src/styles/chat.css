@@ -1771,7 +1771,7 @@
 }
 
 .file-upload-dropzone {
-  margin: 16px 16px 0;
+  margin: 16px;
   padding: 32px 20px;
   border: 2px dashed var(--border);
   border-radius: 8px;

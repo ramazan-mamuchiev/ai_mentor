@@ -234,7 +234,7 @@
   "upload.browse": "Choose file",
   "upload.browseFiles": "Choose files",
   "upload.browseFolder": "Choose folder",
-  "upload.formats": "Supports: PDF, Markdown, TXT, YAML, JSON, Postman Collection, Proto, WSDL, XML, archives (ZIP, 7z, tar.gz, RAR)",
+  "upload.formats": "Supports: PDF, DOCX, Markdown, TXT, YAML, JSON, Postman Collection, Proto, WSDL, XML, archives (ZIP, 7z, tar.gz, RAR)",
   "upload.productName": "Product name *",
   "upload.productPlaceholder": "e.g. HikCentral Professional",
   "upload.version": "Version",
