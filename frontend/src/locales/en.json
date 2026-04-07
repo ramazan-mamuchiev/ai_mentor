@@ -420,6 +420,7 @@
   "docs.rename.title": "Rename document",
   "docs.rename.confirm": "Save",
   "docs.rename.cancel": "Cancel",
+  "docs.rename.success": "Document renamed: \"{{title}}\"",
   "docs.rename.error": "Failed to rename document",
   "docs.source.from": "from {{source}}",
 

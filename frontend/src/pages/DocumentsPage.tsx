@@ -681,6 +681,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       setDocuments(prev =>
         prev.map(d => d.id === renameTarget.id ? { ...d, title: trimmed } : d)
       )
+      showToast(t('docs.rename.success', { title: trimmed }), 'success')
     } catch {
       showToast(t('docs.rename.error'), 'error')
     } finally {

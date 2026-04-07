@@ -750,16 +750,25 @@ async def update_document(document_id: int, title: str | None = None, product_id
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        if title is not None:
+        changes: dict[str, tuple] = {}
+        if title is not None and title != doc.title:
+            changes["title"] = (doc.title, title)
             doc.title = title
-        if product_id is not None:
+        if product_id is not None and product_id != doc.product_id:
             product = await session.get(Product, product_id)
             if product is None:
                 raise HTTPException(status_code=400, detail="Target product not found")
+            changes["product_id"] = (doc.product_id, product_id)
             doc.product_id = product_id
 
         await session.commit()
         await session.refresh(doc)
+
+        if changes:
+            logger.info(
+                "Document updated",
+                extra={"document_id": document_id, "changes": {k: {"from": v[0], "to": v[1]} for k, v in changes.items()}},
+            )
 
         return DocumentStatus(
             document_id=doc.id,

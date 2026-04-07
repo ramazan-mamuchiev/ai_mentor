@@ -455,6 +455,7 @@
   "docs.rename.title": "Переименовать документ",
   "docs.rename.confirm": "Сохранить",
   "docs.rename.cancel": "Отмена",
+  "docs.rename.success": "Документ переименован: «{{title}}»",
   "docs.rename.error": "Не удалось переименовать документ",
   "docs.lifecycle.statusPending": "Lifecycle-анализ выполняется…",
   "docs.lifecycle.statusReady": "Lifecycle-анализ завершён",
