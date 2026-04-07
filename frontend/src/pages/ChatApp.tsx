@@ -17,6 +17,7 @@ import { ProductsPage } from './ProductsPage'
 import { ProductDetailPage } from './ProductDetailPage'
 import { AnalyticsPage } from './AnalyticsPage'
 import { SettingsPage } from './SettingsPage'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 function NavigateToKB() {
   const { '*': rest } = useParams()
   return <Navigate to={`/kb/${rest || ''}`} replace />
@@ -280,22 +281,24 @@ export function ChatApp() {
       onToggleTheme={toggleTheme}
       onLogoClick={() => { reset(); setActiveSessionId(null); setPendingProduct(null) }}
     >
-      <Routes>
-        <Route index element={chatContent} />
-        <Route path="documents" element={<DocumentsPage onUploadClick={canUpload ? () => { productContextRef.current = undefined; setShowUpload(true) } : undefined} onUrlImportClick={canUpload ? () => { productContextRef.current = undefined; setShowUrlImport(true) } : undefined} refreshKey={docsRefreshKey} />} />
-        <Route path="products" element={<ProductsPage onUploadClick={canUpload ? () => { productContextRef.current = undefined; setShowUpload(true) } : undefined} onUrlImportClick={canUpload ? () => { productContextRef.current = undefined; setShowUrlImport(true) } : undefined} refreshKey={docsRefreshKey} />} />
-        <Route path="products/:slug" element={
-          <ProductDetailPage
-            onUploadClick={canUpload ? (ctx) => { productContextRef.current = ctx; setShowUpload(true) } : undefined}
-            onUrlImportClick={canUpload ? (ctx) => { productContextRef.current = ctx; setShowUrlImport(true) } : undefined}
-          />
-        } />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="kb" element={<Navigate to="/kb" replace />} />
-        <Route path="kb/*" element={<NavigateToKB />} />
-        <Route path="*" element={<Navigate to="/app" replace />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route index element={chatContent} />
+          <Route path="documents" element={<DocumentsPage onUploadClick={canUpload ? () => { productContextRef.current = undefined; setShowUpload(true) } : undefined} onUrlImportClick={canUpload ? () => { productContextRef.current = undefined; setShowUrlImport(true) } : undefined} refreshKey={docsRefreshKey} />} />
+          <Route path="products" element={<ProductsPage onUploadClick={canUpload ? () => { productContextRef.current = undefined; setShowUpload(true) } : undefined} onUrlImportClick={canUpload ? () => { productContextRef.current = undefined; setShowUrlImport(true) } : undefined} refreshKey={docsRefreshKey} />} />
+          <Route path="products/:slug" element={
+            <ProductDetailPage
+              onUploadClick={canUpload ? (ctx) => { productContextRef.current = ctx; setShowUpload(true) } : undefined}
+              onUrlImportClick={canUpload ? (ctx) => { productContextRef.current = ctx; setShowUrlImport(true) } : undefined}
+            />
+          } />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="kb" element={<Navigate to="/kb" replace />} />
+          <Route path="kb/*" element={<NavigateToKB />} />
+          <Route path="*" element={<Navigate to="/app" replace />} />
+        </Routes>
+      </ErrorBoundary>
       {showUpload && (
         <FileUpload
           onClose={() => setShowUpload(false)}

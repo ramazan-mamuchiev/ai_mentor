@@ -34,6 +34,7 @@ import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
 import { DocsRightPanel } from '../components/DocsRightPanel'
 import { SearchKeysModal } from '../components/SearchKeysModal'
 import { LifecycleModal } from '../components/LifecycleModal'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
@@ -1296,15 +1297,17 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       )}
 
       {lifecycleTarget && (
-        <LifecycleModal
-          documentId={lifecycleTarget.id}
-          documentTitle={lifecycleTarget.title}
-          canRun={canLifecycle}
-          onClose={() => setLifecycleTarget(null)}
-          onDeleted={() => {
-            setDocuments(prev => prev.map(d => d.id === lifecycleTarget.id ? { ...d, lifecycle_status: '' } : d))
-          }}
-        />
+        <ErrorBoundary onError={() => setLifecycleTarget(null)}>
+          <LifecycleModal
+            documentId={lifecycleTarget.id}
+            documentTitle={lifecycleTarget.title}
+            canRun={canLifecycle}
+            onClose={() => setLifecycleTarget(null)}
+            onDeleted={() => {
+              setDocuments(prev => prev.map(d => d.id === lifecycleTarget.id ? { ...d, lifecycle_status: '' } : d))
+            }}
+          />
+        </ErrorBoundary>
       )}
       </div>
 

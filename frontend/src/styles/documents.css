@@ -4503,3 +4503,24 @@ button.docs-lc-badge--partial:hover {
   background: rgba(0,0,0,.06); color: var(--text-secondary); font-weight: 500;
 }
 [data-theme="dark"] .lc-df-protocol { background: rgba(255,255,255,.08); }
+
+/* ErrorBoundary */
+.error-boundary-fallback {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 40px 20px; color: var(--text-secondary, #666);
+}
+.error-boundary-fallback > svg { color: var(--docs-badge-error-text, #e03131); }
+.error-boundary-title { font-size: 15px; font-weight: 600; margin: 0; color: var(--text-primary, #333); }
+.error-boundary-details { max-width: 600px; font-size: 12px; }
+.error-boundary-details code {
+  display: block; padding: 8px 12px; margin-top: 4px; border-radius: 6px;
+  background: var(--docs-hover-bg, #f8f9fa); color: var(--docs-badge-error-text, #e03131);
+  word-break: break-all; white-space: pre-wrap;
+}
+.error-boundary-retry {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border-color, #dee2e6);
+  background: var(--bg-primary, #fff); color: var(--text-primary, #333);
+  font-size: 13px; cursor: pointer; transition: background .15s;
+}
+.error-boundary-retry:hover { background: var(--docs-hover-bg, #f1f3f5); }

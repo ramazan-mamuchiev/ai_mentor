@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Activity } from 'lucide-react'
 import { getProductBySlug } from '../api/products'
 import { DocumentsPage } from './DocumentsPage'
 import { ProductLifecycleModal } from '../components/ProductLifecycleModal'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { usePermission } from '../auth/usePermission'
 import type { ProductDetail } from '../types'
 import type { ProductContext } from '../components/FileUpload'
@@ -59,7 +60,19 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
     )
   }
 
-  if (!product) return null
+  if (!product) {
+    return (
+      <div className="docs-page">
+        <div className="docs-empty">
+          <ArrowLeft size={18} />
+          <p>{t('products.notFound', 'Product not found')}</p>
+          <button className="product-back-btn" onClick={() => navigate('/app/products')}>
+            {t('products.title')}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const productHeader = (
     <div className="product-detail-header">
@@ -98,12 +111,14 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
         headerSlot={productHeader}
       />
       {showLifecycle && (
-        <ProductLifecycleModal
-          productId={product.id}
-          productName={product.name}
-          canRun={canLifecycle}
-          onClose={() => setShowLifecycle(false)}
-        />
+        <ErrorBoundary onError={() => setShowLifecycle(false)}>
+          <ProductLifecycleModal
+            productId={product.id}
+            productName={product.name}
+            canRun={canLifecycle}
+            onClose={() => setShowLifecycle(false)}
+          />
+        </ErrorBoundary>
       )}
     </>
   )
