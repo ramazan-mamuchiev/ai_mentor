@@ -994,22 +994,6 @@ button.docs-lc-badge--partial:hover {
   overflow: hidden;
   word-break: break-word;
   white-space: normal;
-  cursor: default;
-}
-
-.docs-rename-input {
-  font-weight: 500;
-  font-size: inherit;
-  font-family: inherit;
-  color: var(--text);
-  background: var(--bg);
-  border: 1.5px solid var(--accent);
-  border-radius: 4px;
-  padding: 2px 6px;
-  width: 100%;
-  min-width: 0;
-  outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .docs-filename {
@@ -2482,6 +2466,27 @@ button.docs-lc-badge--partial:hover {
 
 .confirm-btn--default:hover {
   background: var(--accent-hover, #1d4ed8);
+}
+
+/* ── Rename Dialog Input ── */
+
+.rename-dialog-input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  margin-top: 4px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.rename-dialog-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 /* ── Markdown Preview Modal ── */

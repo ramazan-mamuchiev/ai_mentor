@@ -175,7 +175,7 @@ function LifecycleStatusIcon({ status }: { status?: string }) {
   return null
 }
 
-function OverflowCell({ children, className, onDoubleClick }: { children: React.ReactNode; className?: string; onDoubleClick?: React.MouseEventHandler }) {
+function OverflowCell({ children, className }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [truncated, setTruncated] = useState(false)
 
@@ -190,7 +190,6 @@ function OverflowCell({ children, className, onDoubleClick }: { children: React.
       ref={ref}
       className={`docs-cell-overflow${className ? ` ${className}` : ''}`}
       title={truncated && typeof children === 'string' ? children : undefined}
-      onDoubleClick={onDoubleClick}
     >
       {children}
     </div>
@@ -280,41 +279,71 @@ function LifecycleSubmenu({
   )
 }
 
-function InlineRenameInput({
-  defaultValue,
+function RenameDialog({
+  currentTitle,
   onConfirm,
   onCancel,
 }: {
-  defaultValue: string
+  currentTitle: string
   onConfirm: (value: string) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    inputRef.current?.focus()
-    inputRef.current?.select()
-  }, [])
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      onConfirm(inputRef.current?.value ?? defaultValue)
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onCancel()
+    const timer = setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }, 50)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
     }
+    window.addEventListener('keydown', handleKey)
+    return () => { clearTimeout(timer); window.removeEventListener('keydown', handleKey) }
+  }, [onCancel])
+
+  const handleSubmit = () => {
+    onConfirm(inputRef.current?.value ?? currentTitle)
   }
 
-  return (
-    <input
-      ref={inputRef}
-      className="docs-rename-input"
-      defaultValue={defaultValue}
-      onBlur={() => onConfirm(inputRef.current?.value ?? defaultValue)}
-      onKeyDown={handleKeyDown}
-      onClick={e => e.stopPropagation()}
-    />
+  return createPortal(
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div
+        className="confirm-dialog"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-labelledby="rename-title"
+      >
+        <button className="confirm-close" onClick={onCancel} aria-label="Close">
+          <X size={16} />
+        </button>
+
+        <div className="confirm-icon confirm-icon--default">
+          <Pencil size={24} />
+        </div>
+
+        <h3 id="rename-title" className="confirm-title">{t('docs.rename.title')}</h3>
+        <p className="confirm-message">{t('docs.rename.message')}</p>
+
+        <input
+          ref={inputRef}
+          className="rename-dialog-input"
+          defaultValue={currentTitle}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit() } }}
+        />
+
+        <div className="confirm-actions">
+          <button className="confirm-btn confirm-btn--cancel" onClick={onCancel}>
+            {t('docs.rename.cancel')}
+          </button>
+          <button className="confirm-btn confirm-btn--default" onClick={handleSubmit}>
+            {t('docs.rename.confirm')}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -706,24 +735,15 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         return true
       },
       cell: ({ row }) => {
-        const { id, title, original_filename, source_container, source_path, lifecycle_status } = row.original
+        const { title, original_filename, source_container, source_path, lifecycle_status } = row.original
         const linkUrl = source_path || source_container
         const sourceIsUrl = linkUrl && isUrl(linkUrl)
         const lcReady = lifecycle_status === 'ready'
         const lcRunning = lifecycle_status === 'pending' || lifecycle_status === 'processing'
-        const isRenaming = renameTarget?.id === id
         return (
           <div className="docs-name-cell">
             <div className="docs-name-row">
-              {isRenaming ? (
-                <InlineRenameInput
-                  defaultValue={title}
-                  onConfirm={handleRenameConfirm}
-                  onCancel={() => setRenameTarget(null)}
-                />
-              ) : (
-                <OverflowCell className="docs-name" onDoubleClick={() => handleRenameStart(row.original)}>{title}</OverflowCell>
-              )}
+              <OverflowCell className="docs-name">{title}</OverflowCell>
               {lcReady && (
                 <button
                   className="docs-lc-badge docs-lc-badge--ready"
@@ -878,7 +898,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         />
       ),
     },
-  ], [t, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle, handleDeleteLifecycle, handleRenameStart, renameTarget, handleRenameConfirm])
+  ], [t, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle, handleDeleteLifecycle, handleRenameStart])
 
   const {
     table,
@@ -1068,15 +1088,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
             <div className="docs-card" key={doc.id}>
               <div className="docs-card-header">
                 <div className="docs-card-title-row">
-                  {renameTarget?.id === doc.id ? (
-                    <InlineRenameInput
-                      defaultValue={doc.title}
-                      onConfirm={handleRenameConfirm}
-                      onCancel={() => setRenameTarget(null)}
-                    />
-                  ) : (
-                    <span className="docs-card-title" onDoubleClick={() => handleRenameStart(doc)}>{doc.title}</span>
-                  )}
+                  <span className="docs-card-title">{doc.title}</span>
                   {doc.lifecycle_status === 'ready' && (
                     <button
                       className="docs-lc-badge docs-lc-badge--ready"
@@ -1128,6 +1140,9 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                 <span>{formatDateCompact(doc.uploaded_at)}</span>
               </div>
               <div className="docs-card-actions">
+                <button className="docs-action-btn" onClick={() => handleRenameStart(doc)} title={t('docs.actions.rename')}>
+                  <Pencil size={16} />
+                </button>
                 {doc.status === 'ready' && canDebug && (
                   <button
                     className="docs-action-btn"
@@ -1238,6 +1253,14 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           variant="danger"
           onConfirm={handleDeleteLcConfirm}
           onCancel={() => setDeleteLcTarget(null)}
+        />
+      )}
+
+      {renameTarget && (
+        <RenameDialog
+          currentTitle={renameTarget.title}
+          onConfirm={handleRenameConfirm}
+          onCancel={() => setRenameTarget(null)}
         />
       )}
 

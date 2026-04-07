@@ -417,6 +417,10 @@
   "docs.actions.previewMd": "Preview",
   "docs.actions.debug": "Debug info",
   "docs.actions.rename": "Rename",
+  "docs.rename.title": "Rename document",
+  "docs.rename.message": "Enter a new name for the document",
+  "docs.rename.confirm": "Save",
+  "docs.rename.cancel": "Cancel",
   "docs.rename.error": "Failed to rename document",
   "docs.source.from": "from {{source}}",
 
