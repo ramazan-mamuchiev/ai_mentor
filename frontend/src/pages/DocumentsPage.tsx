@@ -24,9 +24,10 @@ import {
   FileSearch,
   ChevronRight,
   Play,
+  Pencil,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
-import { listDocuments, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle, deleteDocumentLifecycle } from '../api/documents'
+import { listDocuments, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle, deleteDocumentLifecycle, updateDocument } from '../api/documents'
 import { usePermission } from '../auth/usePermission'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
@@ -174,7 +175,7 @@ function LifecycleStatusIcon({ status }: { status?: string }) {
   return null
 }
 
-function OverflowCell({ children, className }: { children: React.ReactNode; className?: string }) {
+function OverflowCell({ children, className, onDoubleClick }: { children: React.ReactNode; className?: string; onDoubleClick?: React.MouseEventHandler }) {
   const ref = useRef<HTMLDivElement>(null)
   const [truncated, setTruncated] = useState(false)
 
@@ -189,6 +190,7 @@ function OverflowCell({ children, className }: { children: React.ReactNode; clas
       ref={ref}
       className={`docs-cell-overflow${className ? ` ${className}` : ''}`}
       title={truncated && typeof children === 'string' ? children : undefined}
+      onDoubleClick={onDoubleClick}
     >
       {children}
     </div>
@@ -278,6 +280,44 @@ function LifecycleSubmenu({
   )
 }
 
+function InlineRenameInput({
+  defaultValue,
+  onConfirm,
+  onCancel,
+}: {
+  defaultValue: string
+  onConfirm: (value: string) => void
+  onCancel: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onConfirm(inputRef.current?.value ?? defaultValue)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onCancel()
+    }
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      className="docs-rename-input"
+      defaultValue={defaultValue}
+      onBlur={() => onConfirm(inputRef.current?.value ?? defaultValue)}
+      onKeyDown={handleKeyDown}
+      onClick={e => e.stopPropagation()}
+    />
+  )
+}
+
 function DocActions({
   doc,
   onDebug,
@@ -285,6 +325,7 @@ function DocActions({
   onReingest,
   onSync,
   onDelete,
+  onRename,
   onSearchKeys,
   onAnalyzeLifecycle,
   onViewLifecycle,
@@ -296,6 +337,7 @@ function DocActions({
   onReingest?: (d: DocumentListItem) => void
   onSync?: (d: DocumentListItem) => void
   onDelete?: (d: DocumentListItem) => void
+  onRename?: (d: DocumentListItem) => void
   onSearchKeys?: (d: DocumentListItem) => void
   onAnalyzeLifecycle?: (d: DocumentListItem) => void
   onViewLifecycle?: (d: DocumentListItem) => void
@@ -371,6 +413,12 @@ function DocActions({
       </button>
       {open && createPortal(
         <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: pos.left }}>
+          {onRename && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onRename(doc); setOpen(false) }}>
+              <Pencil size={15} />
+              {t('docs.actions.rename')}
+            </button>
+          )}
           {doc.status === 'ready' && onDebug && (
             <button className="docs-actions-dropdown-item" onClick={() => { onDebug(doc); setOpen(false) }}>
               <Bug size={15} />
@@ -446,6 +494,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [debugPanel, setDebugPanel] = useState<DocumentListItem | null>(null)
   const [searchKeysTarget, setSearchKeysTarget] = useState<DocumentListItem | null>(null)
   const [lifecycleTarget, setLifecycleTarget] = useState<DocumentListItem | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{ id: number; title: string } | null>(null)
   const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' | 'info' } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
@@ -575,6 +624,29 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     }
   }, [deleteLcTarget, showToast, t])
 
+  const handleRenameStart = useCallback((doc: DocumentListItem) => {
+    setRenameTarget({ id: doc.id, title: doc.title })
+  }, [])
+
+  const handleRenameConfirm = useCallback(async (newTitle: string) => {
+    if (!renameTarget) return
+    const trimmed = newTitle.trim()
+    if (!trimmed || trimmed === renameTarget.title) {
+      setRenameTarget(null)
+      return
+    }
+    try {
+      await updateDocument(renameTarget.id, { title: trimmed })
+      setDocuments(prev =>
+        prev.map(d => d.id === renameTarget.id ? { ...d, title: trimmed } : d)
+      )
+    } catch {
+      showToast(t('docs.rename.error'), 'error')
+    } finally {
+      setRenameTarget(null)
+    }
+  }, [renameTarget, showToast, t])
+
   const closeDebug = useCallback(() => {
     setDebugPanel(null)
   }, [])
@@ -634,15 +706,24 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         return true
       },
       cell: ({ row }) => {
-        const { title, original_filename, source_container, source_path, lifecycle_status } = row.original
+        const { id, title, original_filename, source_container, source_path, lifecycle_status } = row.original
         const linkUrl = source_path || source_container
         const sourceIsUrl = linkUrl && isUrl(linkUrl)
         const lcReady = lifecycle_status === 'ready'
         const lcRunning = lifecycle_status === 'pending' || lifecycle_status === 'processing'
+        const isRenaming = renameTarget?.id === id
         return (
           <div className="docs-name-cell">
             <div className="docs-name-row">
-              <OverflowCell className="docs-name">{title}</OverflowCell>
+              {isRenaming ? (
+                <InlineRenameInput
+                  defaultValue={title}
+                  onConfirm={handleRenameConfirm}
+                  onCancel={() => setRenameTarget(null)}
+                />
+              ) : (
+                <OverflowCell className="docs-name" onDoubleClick={() => handleRenameStart(row.original)}>{title}</OverflowCell>
+              )}
               {lcReady && (
                 <button
                   className="docs-lc-badge docs-lc-badge--ready"
@@ -789,6 +870,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           onReingest={canReindex ? setReingestTarget : undefined}
           onSync={canSync ? setSyncTarget : undefined}
           onDelete={canDelete ? setDeleteTarget : undefined}
+          onRename={handleRenameStart}
           onSearchKeys={setSearchKeysTarget}
           onAnalyzeLifecycle={canLifecycle ? handleAnalyzeLifecycle : undefined}
           onViewLifecycle={setLifecycleTarget}
@@ -796,7 +878,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         />
       ),
     },
-  ], [t, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle, handleDeleteLifecycle])
+  ], [t, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle, handleDeleteLifecycle, handleRenameStart, renameTarget, handleRenameConfirm])
 
   const {
     table,
@@ -986,7 +1068,15 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
             <div className="docs-card" key={doc.id}>
               <div className="docs-card-header">
                 <div className="docs-card-title-row">
-                  <span className="docs-card-title">{doc.title}</span>
+                  {renameTarget?.id === doc.id ? (
+                    <InlineRenameInput
+                      defaultValue={doc.title}
+                      onConfirm={handleRenameConfirm}
+                      onCancel={() => setRenameTarget(null)}
+                    />
+                  ) : (
+                    <span className="docs-card-title" onDoubleClick={() => handleRenameStart(doc)}>{doc.title}</span>
+                  )}
                   {doc.lifecycle_status === 'ready' && (
                     <button
                       className="docs-lc-badge docs-lc-badge--ready"

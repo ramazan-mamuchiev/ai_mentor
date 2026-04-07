@@ -451,6 +451,8 @@
   "docs.lifecycle.deleteMessage": "Удалить результаты анализа API Lifecycle для этого документа? Это действие необратимо.",
   "docs.lifecycle.deleteConfirm": "Удалить",
   "docs.actions.deleteLifecycle": "Удалить",
+  "docs.actions.rename": "Переименовать",
+  "docs.rename.error": "Не удалось переименовать документ",
   "docs.lifecycle.statusPending": "Lifecycle-анализ выполняется…",
   "docs.lifecycle.statusReady": "Lifecycle-анализ завершён",
   "docs.lifecycle.statusError": "Ошибка lifecycle-анализа",

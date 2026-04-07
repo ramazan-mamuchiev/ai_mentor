@@ -416,6 +416,8 @@
   "docs.cancel.dismiss": "Continue",
   "docs.actions.previewMd": "Preview",
   "docs.actions.debug": "Debug info",
+  "docs.actions.rename": "Rename",
+  "docs.rename.error": "Failed to rename document",
   "docs.source.from": "from {{source}}",
 
   "docs.preview.title": "MD Preview",
