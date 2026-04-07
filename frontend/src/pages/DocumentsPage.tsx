@@ -281,15 +281,18 @@ function LifecycleSubmenu({
 
 function RenameDialog({
   currentTitle,
+  originalFilename,
   onConfirm,
   onCancel,
 }: {
   currentTitle: string
+  originalFilename: string
   onConfirm: (value: string) => void
   onCancel: () => void
 }) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
+  const [canSave, setCanSave] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -303,7 +306,13 @@ function RenameDialog({
     return () => { clearTimeout(timer); window.removeEventListener('keydown', handleKey) }
   }, [onCancel])
 
+  const validate = () => {
+    const v = inputRef.current?.value.trim() ?? ''
+    setCanSave(v.length > 0 && v !== currentTitle)
+  }
+
   const handleSubmit = () => {
+    if (!canSave) return
     onConfirm(inputRef.current?.value ?? currentTitle)
   }
 
@@ -324,20 +333,23 @@ function RenameDialog({
         </div>
 
         <h3 id="rename-title" className="confirm-title">{t('docs.rename.title')}</h3>
-        <p className="confirm-message">{t('docs.rename.message')}</p>
 
         <input
           ref={inputRef}
           className="rename-dialog-input"
           defaultValue={currentTitle}
+          onChange={validate}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit() } }}
         />
+        {originalFilename && originalFilename !== currentTitle && (
+          <div className="rename-dialog-hint">{originalFilename}</div>
+        )}
 
         <div className="confirm-actions">
           <button className="confirm-btn confirm-btn--cancel" onClick={onCancel}>
             {t('docs.rename.cancel')}
           </button>
-          <button className="confirm-btn confirm-btn--default" onClick={handleSubmit}>
+          <button className="confirm-btn confirm-btn--default" onClick={handleSubmit} disabled={!canSave}>
             {t('docs.rename.confirm')}
           </button>
         </div>
@@ -523,7 +535,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const [debugPanel, setDebugPanel] = useState<DocumentListItem | null>(null)
   const [searchKeysTarget, setSearchKeysTarget] = useState<DocumentListItem | null>(null)
   const [lifecycleTarget, setLifecycleTarget] = useState<DocumentListItem | null>(null)
-  const [renameTarget, setRenameTarget] = useState<{ id: number; title: string } | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{ id: number; title: string; originalFilename: string } | null>(null)
   const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' | 'info' } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
@@ -654,7 +666,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   }, [deleteLcTarget, showToast, t])
 
   const handleRenameStart = useCallback((doc: DocumentListItem) => {
-    setRenameTarget({ id: doc.id, title: doc.title })
+    setRenameTarget({ id: doc.id, title: doc.title, originalFilename: doc.original_filename })
   }, [])
 
   const handleRenameConfirm = useCallback(async (newTitle: string) => {
@@ -1259,6 +1271,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       {renameTarget && (
         <RenameDialog
           currentTitle={renameTarget.title}
+          originalFilename={renameTarget.originalFilename}
           onConfirm={handleRenameConfirm}
           onCancel={() => setRenameTarget(null)}
         />

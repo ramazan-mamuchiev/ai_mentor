@@ -453,7 +453,6 @@
   "docs.actions.deleteLifecycle": "Удалить",
   "docs.actions.rename": "Переименовать",
   "docs.rename.title": "Переименовать документ",
-  "docs.rename.message": "Введите новое название документа",
   "docs.rename.confirm": "Сохранить",
   "docs.rename.cancel": "Отмена",
   "docs.rename.error": "Не удалось переименовать документ",
