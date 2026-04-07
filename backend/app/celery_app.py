@@ -3067,8 +3067,8 @@ def _convert_all_skeleton_languages(lc_row, session):
         )
 
 
-@celery.task(name="analyze_api_lifecycle", bind=True, max_retries=1,
-             soft_time_limit=1800, time_limit=1860)
+@celery.task(name="analyze_api_lifecycle", bind=True, max_retries=3,
+             default_retry_delay=300, soft_time_limit=1800, time_limit=1860)
 def analyze_api_lifecycle_task(self, document_id: int):
     """Analyze a single document and extract its API lifecycle.
 
@@ -3283,8 +3283,8 @@ def analyze_api_lifecycle_task(self, document_id: int):
             return {"status": "error", "document_id": document_id, "error": error_msg}
 
 
-@celery.task(name="merge_product_lifecycle", bind=True, max_retries=1,
-             soft_time_limit=900, time_limit=960)
+@celery.task(name="merge_product_lifecycle", bind=True, max_retries=3,
+             default_retry_delay=300, soft_time_limit=900, time_limit=960)
 def merge_product_lifecycle_task(self, product_id: int):
     """Merge all document-level lifecycles for a product into one."""
     logger.info("Product lifecycle merge STARTED",
