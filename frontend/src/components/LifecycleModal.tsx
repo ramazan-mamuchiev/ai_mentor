@@ -12,6 +12,13 @@ import { SkeletonCodeViewer } from './SkeletonCodeViewer'
 
 const POLL_INTERVAL = 3000
 
+function safeStr(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  try { return JSON.stringify(v) } catch { return String(v) }
+}
+
 interface Props {
   documentId: number
   documentTitle: string
@@ -316,11 +323,11 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                     <div className="lc-modal-prereqs">
                       {prereqs.map((p, i) => (
                         <div key={i} className="lc-modal-prereq">
-                          <span className="lc-modal-prereq-name">{p.name}</span>
-                          <span className={`lc-modal-prereq-type lc-modal-prereq-type--${p.type}`}>{p.type}</span>
-                          <span className="lc-modal-prereq-desc">{p.description}</span>
-                          {p.example_value && <code className="lc-modal-prereq-example">{p.example_value}</code>}
-                          {p.how_to_obtain && <div className="lc-modal-prereq-how">{p.how_to_obtain}</div>}
+                          <span className="lc-modal-prereq-name">{safeStr(p.name)}</span>
+                          <span className={`lc-modal-prereq-type lc-modal-prereq-type--${p.type}`}>{safeStr(p.type)}</span>
+                          <span className="lc-modal-prereq-desc">{safeStr(p.description)}</span>
+                          {p.example_value && <code className="lc-modal-prereq-example">{safeStr(p.example_value)}</code>}
+                          {p.how_to_obtain && <div className="lc-modal-prereq-how">{safeStr(p.how_to_obtain)}</div>}
                         </div>
                       ))}
                     </div>
@@ -344,9 +351,9 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                           <tbody>
                             {flowComponents.map((c, i) => (
                               <tr key={i}>
-                                <td><strong>{c.name}</strong></td>
-                                <td><span className={`lc-df-type lc-df-type--${c.type}`}>{c.type}</span></td>
-                                <td>{c.description}</td>
+                                <td><strong>{safeStr(c.name)}</strong></td>
+                                <td><span className={`lc-df-type lc-df-type--${c.type}`}>{safeStr(c.type)}</span></td>
+                                <td>{safeStr(c.description)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -358,11 +365,11 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                           <tbody>
                             {flowEdges.map((f, i) => (
                               <tr key={i}>
-                                <td><code>{f.from}</code></td>
+                                <td><code>{safeStr(f.from)}</code></td>
                                 <td className="lc-df-arrow">→</td>
-                                <td><code>{f.to}</code></td>
-                                <td>{f.label}</td>
-                                <td><span className="lc-df-protocol">{f.protocol}</span></td>
+                                <td><code>{safeStr(f.to)}</code></td>
+                                <td>{safeStr(f.label)}</td>
+                                <td><span className="lc-df-protocol">{safeStr(f.protocol)}</span></td>
                               </tr>
                             ))}
                           </tbody>
@@ -386,31 +393,31 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                         <div key={i} className={`lc-modal-phase lc-modal-phase--${p.phase_name}`}>
                           <div className="lc-modal-phase-head">
                             <span className="lc-modal-phase-order">{p.step_order}</span>
-                            <span className="lc-modal-phase-name">{p.phase_name}</span>
-                            <span className="lc-modal-phase-action">{p.action}</span>
+                            <span className="lc-modal-phase-name">{safeStr(p.phase_name)}</span>
+                            <span className="lc-modal-phase-action">{safeStr(p.action)}</span>
                             {p.is_required && <span className="lc-modal-phase-req">{t('lifecycle.required', 'REQ')}</span>}
                           </div>
                           {p.api_call && (
                             <code className="lc-modal-phase-api">
-                              {p.http_method ? `${p.http_method} ` : ''}{p.api_call}
-                              {p.content_type ? ` (${p.content_type})` : ''}
+                              {p.http_method ? `${safeStr(p.http_method)} ` : ''}{safeStr(p.api_call)}
+                              {p.content_type ? ` (${safeStr(p.content_type)})` : ''}
                             </code>
                           )}
-                          {p.notes && <div className="lc-modal-phase-notes">{p.notes}</div>}
+                          {p.notes && <div className="lc-modal-phase-notes">{safeStr(p.notes)}</div>}
                           <div className="lc-modal-phase-io">
-                            {p.inputs?.length > 0 && <span className="lc-modal-io-in">← {p.inputs.join(', ')}</span>}
-                            {p.outputs?.length > 0 && <span className="lc-modal-io-out">→ {p.outputs.join(', ')}</span>}
+                            {p.inputs?.length > 0 && <span className="lc-modal-io-in">← {p.inputs.map(safeStr).join(', ')}</span>}
+                            {p.outputs?.length > 0 && <span className="lc-modal-io-out">→ {p.outputs.map(safeStr).join(', ')}</span>}
                           </div>
                           {p.request_example && (
                             <details className="lc-modal-phase-example">
                               <summary>{t('lifecycle.requestBody', 'Request body')}</summary>
-                              <pre>{p.request_example}</pre>
+                              <pre>{safeStr(p.request_example)}</pre>
                             </details>
                           )}
                           {p.response_example && (
                             <details className="lc-modal-phase-example">
                               <summary>{t('lifecycle.responseBody', 'Response')}</summary>
-                              <pre>{p.response_example}</pre>
+                              <pre>{safeStr(p.response_example)}</pre>
                             </details>
                           )}
                         </div>
@@ -432,21 +439,21 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                       {dataModels.map((m, i) => (
                         <details key={i} className="lc-modal-model-card">
                           <summary>
-                            <strong>{m.model_name}</strong>
-                            <span className={`lc-modal-direction lc-modal-direction--${m.direction}`}>{m.direction}</span>
-                            {m.content_type && <span className="lc-modal-ct">{m.content_type}</span>}
+                            <strong>{safeStr(m.model_name)}</strong>
+                            <span className={`lc-modal-direction lc-modal-direction--${m.direction}`}>{safeStr(m.direction)}</span>
+                            {m.content_type && <span className="lc-modal-ct">{safeStr(m.content_type)}</span>}
                             <span className="lc-modal-count">{m.fields?.length ?? 0} {t('lifecycle.fields_many', 'fields')}</span>
                           </summary>
-                          {m.used_in?.length > 0 && <div className="lc-modal-model-used">{t('lifecycle.usedBy', { list: m.used_in.join(', ') })}</div>}
+                          {(m.used_in?.length ?? 0) > 0 && <div className="lc-modal-model-used">{t('lifecycle.usedBy', { list: m.used_in!.map(safeStr).join(', ') })}</div>}
                           <table className="lc-modal-fields-table">
                             <thead><tr><th>{t('lifecycle.thField', 'Field')}</th><th>{t('lifecycle.thType', 'Type')}</th><th>{t('lifecycle.thReq', 'Req')}</th><th>{t('lifecycle.thDescription', 'Description')}</th></tr></thead>
                             <tbody>
                               {(m.fields || []).map((f, j) => (
                                 <tr key={j}>
-                                  <td><code>{f.name}</code></td>
-                                  <td>{f.type}{f.constraints ? <small> ({f.constraints})</small> : ''}</td>
+                                  <td><code>{safeStr(f.name)}</code></td>
+                                  <td>{safeStr(f.type)}{f.constraints ? <small> ({safeStr(f.constraints)})</small> : ''}</td>
                                   <td>{f.required ? '✓' : ''}</td>
-                                  <td>{f.description}{f.example_value ? <> — <code>{f.example_value}</code></> : ''}</td>
+                                  <td>{safeStr(f.description)}{f.example_value ? <> — <code>{safeStr(f.example_value)}</code></> : ''}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -471,10 +478,10 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                       <tbody>
                         {errorCatalog.map((e, i) => (
                           <tr key={i}>
-                            <td><strong>{e.http_status}</strong></td>
-                            <td>{e.error_code || '—'}</td>
-                            <td>{e.meaning}</td>
-                            <td><span className={`lc-modal-recovery lc-modal-recovery--${e.recovery_action}`}>{e.recovery_action}</span>
+                            <td><strong>{safeStr(e.http_status)}</strong></td>
+                            <td>{safeStr(e.error_code) || '—'}</td>
+                            <td>{safeStr(e.meaning)}</td>
+                            <td><span className={`lc-modal-recovery lc-modal-recovery--${safeStr(e.recovery_action)}`}>{safeStr(e.recovery_action)}</span>
                               {e.retry_after_seconds ? ` (${e.retry_after_seconds}s)` : ''}</td>
                           </tr>
                         ))}
@@ -495,10 +502,10 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                     <div className="lc-modal-patterns">
                       {accessPatterns.map((p, i) => (
                         <div key={i} className="lc-modal-pattern">
-                          <strong className="lc-modal-pattern-type">{p.pattern_type}</strong>
-                          <code>{p.endpoint}</code>
-                          <span>{p.mechanism}</span>
-                          {p.code_hint && <pre className="lc-modal-pattern-code">{p.code_hint}</pre>}
+                          <strong className="lc-modal-pattern-type">{safeStr(p.pattern_type)}</strong>
+                          <code>{safeStr(p.endpoint)}</code>
+                          <span>{safeStr(p.mechanism)}</span>
+                          {p.code_hint && <pre className="lc-modal-pattern-code">{safeStr(p.code_hint)}</pre>}
                         </div>
                       ))}
                     </div>
@@ -517,9 +524,9 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                     <div className="lc-modal-patterns">
                       {patterns.map((p, i) => (
                         <div key={i} className="lc-modal-pattern">
-                          <strong>{p.pattern}</strong>
-                          <span>{p.description}</span>
-                          {p.code_hint && <code className="lc-modal-code-hint">{p.code_hint}</code>}
+                          <strong>{safeStr(p.pattern)}</strong>
+                          <span>{safeStr(p.description)}</span>
+                          {p.code_hint && <code className="lc-modal-code-hint">{safeStr(p.code_hint)}</code>}
                         </div>
                       ))}
                     </div>
@@ -538,10 +545,10 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                     <div className="lc-modal-deps">
                       {deps.map((d, i) => (
                         <div key={i} className="lc-modal-dep">
-                          <span className="lc-modal-dep-from">{d.from_action}</span>
+                          <span className="lc-modal-dep-from">{safeStr(d.from_action)}</span>
                           <span className="lc-modal-dep-arrow">→</span>
-                          <span className="lc-modal-dep-to">{d.to_action}</span>
-                          <span className="lc-modal-dep-flow">{d.data_flow}</span>
+                          <span className="lc-modal-dep-to">{safeStr(d.to_action)}</span>
+                          <span className="lc-modal-dep-flow">{safeStr(d.data_flow)}</span>
                         </div>
                       ))}
                     </div>
@@ -576,7 +583,7 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                       <tbody>
                         {coverage.map((e, i) => (
                           <tr key={i} className={e.completeness < 0.5 ? 'lc-modal-coverage-low' : ''}>
-                            <td><code>{e.method} {e.endpoint}</code></td>
+                            <td><code>{safeStr(e.method)} {safeStr(e.endpoint)}</code></td>
                             <td><span className={e.has_request_body_docs ? 'lc-cov-yes' : 'lc-cov-no'}>{e.has_request_body_docs ? '✓' : '✗'}</span></td>
                             <td><span className={e.has_response_docs ? 'lc-cov-yes' : 'lc-cov-no'}>{e.has_response_docs ? '✓' : '✗'}</span></td>
                             <td><span className={e.has_error_docs ? 'lc-cov-yes' : 'lc-cov-no'}>{e.has_error_docs ? '✓' : '✗'}</span></td>
@@ -606,9 +613,9 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                     <div className="lc-modal-issues">
                       {issues.map((issue, i) => (
                         <div key={i} className={`lc-modal-issue lc-modal-issue--${issue.severity}`}>
-                          <span className="lc-modal-issue-type">{issue.issue_type}</span>
-                          <span>{issue.description}</span>
-                          {issue.suggestion && <div className="lc-modal-issue-suggestion">→ {issue.suggestion}</div>}
+                          <span className="lc-modal-issue-type">{safeStr(issue.issue_type)}</span>
+                          <span>{safeStr(issue.description)}</span>
+                          {issue.suggestion && <div className="lc-modal-issue-suggestion">→ {safeStr(issue.suggestion)}</div>}
                         </div>
                       ))}
                     </div>

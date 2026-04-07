@@ -13,6 +13,13 @@ function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
 }
 
+function safeStr(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  try { return JSON.stringify(v) } catch { return String(v) }
+}
+
 function fmtMs(ms: number | undefined | null): string {
   if (ms == null) return '—'
   if (ms < 1000) return `${Math.round(ms)}ms`
@@ -179,13 +186,13 @@ function LifecycleSection({ documentId }: { documentId: number }) {
                     <div key={i} className={`lifecycle-phase lifecycle-phase--${p.phase_name}`}>
                       <div className="lifecycle-phase-header">
                         <span className="lifecycle-phase-order">{p.step_order}</span>
-                        <span className="lifecycle-phase-action">{p.action}</span>
+                        <span className="lifecycle-phase-action">{safeStr(p.action)}</span>
                         {p.is_required && <span className="lifecycle-phase-required">REQ</span>}
                       </div>
-                      {p.api_call && <code className="lifecycle-phase-api">{p.api_call}</code>}
-                      {p.notes && <div className="lifecycle-phase-notes">{p.notes}</div>}
-                      {p.inputs.length > 0 && <div className="lifecycle-phase-io">← {p.inputs.join(', ')}</div>}
-                      {p.outputs.length > 0 && <div className="lifecycle-phase-io">→ {p.outputs.join(', ')}</div>}
+                      {p.api_call && <code className="lifecycle-phase-api">{safeStr(p.api_call)}</code>}
+                      {p.notes && <div className="lifecycle-phase-notes">{safeStr(p.notes)}</div>}
+                      {p.inputs?.length > 0 && <div className="lifecycle-phase-io">← {p.inputs.map(safeStr).join(', ')}</div>}
+                      {p.outputs?.length > 0 && <div className="lifecycle-phase-io">→ {p.outputs.map(safeStr).join(', ')}</div>}
                     </div>
                   ))}
                 </div>
@@ -198,8 +205,8 @@ function LifecycleSection({ documentId }: { documentId: number }) {
               <div className="lifecycle-subsection-title">{t('lifecycle.patterns')} ({patterns.length})</div>
               {patterns.map((p, i) => (
                 <div key={i} className="lifecycle-pattern">
-                  <strong>{p.pattern}</strong>: {p.description}
-                  {p.code_hint && <code className="lifecycle-code-hint">{p.code_hint}</code>}
+                  <strong>{safeStr(p.pattern)}</strong>: {safeStr(p.description)}
+                  {p.code_hint && <code className="lifecycle-code-hint">{safeStr(p.code_hint)}</code>}
                 </div>
               ))}
             </div>
@@ -210,7 +217,7 @@ function LifecycleSection({ documentId }: { documentId: number }) {
               <div className="lifecycle-subsection-title">{t('lifecycle.dependencies')} ({deps.length})</div>
               {deps.map((d, i) => (
                 <div key={i} className="lifecycle-dep">
-                  {d.from_action} → {d.to_action} <span className="lifecycle-dep-data">({d.data_flow})</span>
+                  {safeStr(d.from_action)} → {safeStr(d.to_action)} <span className="lifecycle-dep-data">({safeStr(d.data_flow)})</span>
                 </div>
               ))}
             </div>
@@ -237,9 +244,9 @@ function LifecycleSection({ documentId }: { documentId: number }) {
               </div>
               {issues.map((issue, i) => (
                 <div key={i} className={`lifecycle-issue lifecycle-issue--${issue.severity}`}>
-                  <span className="lifecycle-issue-type">{issue.issue_type}</span>
-                  <span>{issue.description}</span>
-                  {issue.suggestion && <div className="lifecycle-issue-suggestion">→ {issue.suggestion}</div>}
+                  <span className="lifecycle-issue-type">{safeStr(issue.issue_type)}</span>
+                  <span>{safeStr(issue.description)}</span>
+                  {issue.suggestion && <div className="lifecycle-issue-suggestion">→ {safeStr(issue.suggestion)}</div>}
                 </div>
               ))}
             </div>
