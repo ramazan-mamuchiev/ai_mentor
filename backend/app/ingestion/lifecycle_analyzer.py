@@ -53,6 +53,18 @@ class LifecycleUsage:
     analysis_ms: float = 0.0
     llm_ms: float = 0.0
     llm_calls: int = 0
+    fallback_used: bool = False
+
+    def add_llm_call(self, llm_usage: dict, call_ms: float) -> None:
+        """Accumulate a single _call_llm_sync result."""
+        self.prompt_tokens += llm_usage.get("prompt_tokens", 0)
+        self.completion_tokens += llm_usage.get("completion_tokens", 0)
+        self.thinking_tokens += llm_usage.get("thinking_tokens", 0)
+        self.llm_ms += call_ms
+        self.llm_calls += 1
+        used = llm_usage.get("model", "")
+        if used and used != self.model:
+            self.fallback_used = True
 
 
 DOC_SCOPE_VENDOR = "vendor_specific"
@@ -434,24 +446,26 @@ Return ONLY valid JSON. Do NOT include any text outside the JSON object.
 # LLM calls (sync — for Celery workers)
 # ---------------------------------------------------------------------------
 
-def _call_llm_sync(system: str, user: str, *, json_mode: bool = True) -> tuple[str, dict, float]:
-    """Synchronous LLM call. Returns (response_text, usage_dict, llm_ms).
+def _call_llm_sync(
+    system: str,
+    user: str,
+    *,
+    json_mode: bool = True,
+    model: str | None = None,
+) -> tuple[str, dict, float]:
+    """Synchronous LLM call with automatic fallback to a lighter model.
 
-    usage_dict includes prompt_tokens, completion_tokens, and thinking_tokens
-    (if the model returns them).
+    Tries the primary model (``settings.lifecycle_analysis_model``) with retries.
+    If all retries are exhausted on a retryable error (429/5xx/timeout) and a
+    fallback model is configured, transparently retries with the fallback model.
+
+    Returns (response_text, usage_dict, llm_ms).
+    usage_dict includes prompt_tokens, completion_tokens, thinking_tokens, and
+    the ``model`` that actually produced the response.
     """
+    primary_model = model or settings.lifecycle_analysis_model
+    fallback_model = settings.lifecycle_analysis_fallback_model
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
-    payload: dict = {
-        "model": settings.lifecycle_analysis_model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "temperature": 0,
-        "max_tokens": settings.lifecycle_analysis_max_output_tokens,
-    }
-    if json_mode:
-        payload["response_format"] = {"type": "json_object"}
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {settings.gemini_api_key}",
@@ -464,21 +478,57 @@ def _call_llm_sync(system: str, user: str, *, json_mode: bool = True) -> tuple[s
             return exc.response.status_code in _retryable_statuses
         return isinstance(exc, (httpx.ConnectError, httpx.ReadTimeout))
 
-    t0 = time.perf_counter()
-    with httpx.Client(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
-        def _do_request():
-            resp = client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            return resp.json()
+    def _do_call(use_model: str) -> dict:
+        payload: dict = {
+            "model": use_model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": 0,
+            "max_tokens": settings.lifecycle_analysis_max_output_tokens,
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
 
-        data = retry_call(
-            _do_request,
-            max_retries=3,
-            base_delay=5.0,
-            max_delay=30.0,
-            is_retryable=_is_retryable,
-            label="lifecycle_llm",
+        with httpx.Client(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+            def _do_request():
+                resp = client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                return resp.json()
+
+            return retry_call(
+                _do_request,
+                max_retries=3,
+                base_delay=5.0,
+                max_delay=30.0,
+                is_retryable=_is_retryable,
+                label=f"lifecycle_llm[{use_model}]",
+            )
+
+    t0 = time.perf_counter()
+    used_model = primary_model
+    try:
+        data = _do_call(primary_model)
+    except Exception as primary_exc:
+        can_fallback = (
+            fallback_model
+            and fallback_model != primary_model
+            and _is_retryable(primary_exc)
         )
+        if not can_fallback:
+            raise
+        logger.warning(
+            "Primary lifecycle model exhausted retries, falling back",
+            extra={
+                "primary_model": primary_model,
+                "fallback_model": fallback_model,
+                "error": str(primary_exc)[:300],
+            },
+        )
+        used_model = fallback_model
+        data = _do_call(fallback_model)
+
     llm_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     text = data["choices"][0]["message"]["content"].strip()
@@ -489,7 +539,14 @@ def _call_llm_sync(system: str, user: str, *, json_mode: bool = True) -> tuple[s
         "completion_tokens": raw_usage.get("completion_tokens", 0),
         "thinking_tokens": raw_usage.get("completion_tokens_details", {}).get("reasoning_tokens", 0)
                            or raw_usage.get("thinking_tokens", 0),
+        "model": used_model,
     }
+
+    if used_model != primary_model:
+        logger.info(
+            "Lifecycle LLM call completed with fallback model",
+            extra={"primary_model": primary_model, "used_model": used_model, "llm_ms": llm_ms},
+        )
 
     return text, usage, llm_ms
 
@@ -960,15 +1017,12 @@ def _extract_lifecycle(
     logger.info("Lifecycle extraction LLM call starting",
                 extra={"doc_len": len(doc_text), "model": settings.lifecycle_analysis_model})
     raw, llm_usage, call_ms = _call_llm_sync(_EXTRACTION_PROMPT, doc_text)
-    usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
-    usage.completion_tokens += llm_usage.get("completion_tokens", 0)
-    usage.thinking_tokens += llm_usage.get("thinking_tokens", 0)
-    usage.llm_ms += call_ms
-    usage.llm_calls += 1
+    usage.add_llm_call(llm_usage, call_ms)
     logger.info("Lifecycle extraction LLM call completed",
                 extra={"call_ms": call_ms,
                         "prompt_tokens": llm_usage.get("prompt_tokens", 0),
                         "completion_tokens": llm_usage.get("completion_tokens", 0),
+                        "model": llm_usage.get("model", ""),
                         "response_len": len(raw) if raw else 0})
 
     parsed = _parse_lifecycle_json(raw)
@@ -1059,11 +1113,7 @@ def _retry_with_corrections(
         "You are an API integration analyst. Fix the errors in the previous analysis.",
         prompt,
     )
-    usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
-    usage.completion_tokens += llm_usage.get("completion_tokens", 0)
-    usage.thinking_tokens += llm_usage.get("thinking_tokens", 0)
-    usage.llm_ms += call_ms
-    usage.llm_calls += 1
+    usage.add_llm_call(llm_usage, call_ms)
 
     parsed = _parse_lifecycle_json(raw)
     if parsed is None:
@@ -1705,11 +1755,7 @@ def _analyze_chunk_set(
                 summary_prompt,
                 json_mode=False,
             )
-            usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
-            usage.completion_tokens += llm_usage.get("completion_tokens", 0)
-            usage.thinking_tokens += llm_usage.get("thinking_tokens", 0)
-            usage.llm_ms += call_ms
-            usage.llm_calls += 1
+            usage.add_llm_call(llm_usage, call_ms)
             summaries.append(f"## {heading}\n{raw}")
 
         doc_text = "\n\n".join(summaries)
@@ -1940,11 +1986,7 @@ def _merge_batch(
         "You are an API integration analyst. Merge multiple lifecycle analyses into one.",
         merge_prompt,
     )
-    usage.prompt_tokens += llm_usage.get("prompt_tokens", 0)
-    usage.completion_tokens += llm_usage.get("completion_tokens", 0)
-    usage.thinking_tokens += llm_usage.get("thinking_tokens", 0)
-    usage.llm_ms += call_ms
-    usage.llm_calls += 1
+    usage.add_llm_call(llm_usage, call_ms)
 
     parsed = _parse_lifecycle_json(raw)
     if parsed is None:
