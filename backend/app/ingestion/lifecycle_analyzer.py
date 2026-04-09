@@ -729,11 +729,16 @@ def _validate_lifecycle(
         lifecycle_errors.append("No phases extracted. The document likely describes an API — extract its lifecycle.")
         return lifecycle_errors, doc_issues
 
+    phases = [p for p in result.phases if isinstance(p, dict)]
+    if not phases:
+        lifecycle_errors.append("All phase entries are malformed (expected dicts). Re-extract phases.")
+        return lifecycle_errors, doc_issues
+
     known_endpoints = _extract_endpoints_from_chunks(chunk_contents)
 
-    phase_actions = {p.get("action", "") for p in result.phases}
+    phase_actions = {p.get("action", "") for p in phases}
 
-    for phase in result.phases:
+    for phase in phases:
         api_call = phase.get("api_call", "")
         if api_call and "/" in api_call:
             normalized = _normalize_endpoint(api_call)
@@ -747,7 +752,7 @@ def _validate_lifecycle(
         p.get("phase_name") in ("authentication", "setup")
         and any(kw in (p.get("action", "") + p.get("notes", "")).lower()
                 for kw in ("auth", "login", "token", "key", "credential", "session"))
-        for p in result.phases
+        for p in phases
     )
     full_text_lower = " ".join(chunk_contents).lower()
     doc_mentions_auth = any(
@@ -761,6 +766,8 @@ def _validate_lifecycle(
         )
 
     for dep in result.dependency_chains:
+        if not isinstance(dep, dict):
+            continue
         from_a = dep.get("from_action", "")
         to_a = dep.get("to_action", "")
         if from_a and from_a not in phase_actions:
@@ -774,7 +781,7 @@ def _validate_lifecycle(
 
     if result.code_skeleton:
         phase_outputs = set()
-        for p in result.phases:
+        for p in phases:
             for out in p.get("outputs", []):
                 phase_outputs.add(out.lower().replace(" ", "_"))
             if p.get("api_call"):
@@ -792,7 +799,7 @@ def _validate_lifecycle(
             if known_endpoints and not any(_endpoints_match(ep_norm, ke) for ke in known_endpoints):
                 phase_ep_calls = {
                     _normalize_endpoint(p["api_call"])
-                    for p in result.phases if p.get("api_call")
+                    for p in phases if p.get("api_call")
                 }
                 if not any(_endpoints_match(ep_norm, pe) for pe in phase_ep_calls):
                     lifecycle_errors.append(
@@ -804,7 +811,7 @@ def _validate_lifecycle(
 
     if known_endpoints and result.endpoint_coverage:
         covered = {_normalize_endpoint(ec.get("endpoint", ""))
-                   for ec in result.endpoint_coverage if ec.get("endpoint")}
+                   for ec in result.endpoint_coverage if isinstance(ec, dict) and ec.get("endpoint")}
         matched = sum(1 for ke in known_endpoints if any(_endpoints_match(ke, ce) for ce in covered))
         coverage_ratio = matched / len(known_endpoints)
         if coverage_ratio < 0.5:
@@ -821,7 +828,7 @@ def _validate_lifecycle(
     # Request example check: POST/PUT/PATCH phases should have request_example
     mutating_methods = {"post", "put", "patch"}
     phases_missing_examples = []
-    for phase in result.phases:
+    for phase in phases:
         method = phase.get("http_method", "").lower()
         api_call = phase.get("api_call", "")
         if api_call and (method in mutating_methods or
@@ -875,11 +882,13 @@ def _validate_lifecycle(
 
     # --- Cross-section validation (capped at 10 errors to avoid overloading correction) ---
     cross_errors: list[str] = []
-    phase_api_calls = {_normalize_endpoint(p["api_call"]) for p in result.phases if p.get("api_call")}
-    phase_names_set = {p.get("phase_name", "") for p in result.phases}
+    phase_api_calls = {_normalize_endpoint(p["api_call"]) for p in phases if p.get("api_call")}
+    phase_names_set = {p.get("phase_name", "") for p in phases}
 
     # data_models.used_in vs phases
     for model in result.data_models:
+        if not isinstance(model, dict):
+            continue
         for ref in model.get("used_in", []):
             if ref and "/" in ref:
                 ref_norm = _normalize_endpoint(ref)
@@ -891,6 +900,8 @@ def _validate_lifecycle(
 
     # error_catalog.phase vs phase_names
     for err in result.error_catalog:
+        if not isinstance(err, dict):
+            continue
         err_phase = err.get("phase", "")
         if err_phase and err_phase not in phase_names_set:
             cross_errors.append(
@@ -901,10 +912,10 @@ def _validate_lifecycle(
     # Auth phases should have 401 in error_catalog
     has_auth_related = any(
         p.get("phase_name") in ("authentication", "setup")
-        for p in result.phases
+        for p in phases
     )
     if has_auth_related and result.error_catalog:
-        has_401 = any(e.get("http_status") == 401 for e in result.error_catalog)
+        has_401 = any(e.get("http_status") == 401 for e in result.error_catalog if isinstance(e, dict))
         if not has_401:
             cross_errors.append(
                 "Authentication phases exist but error_catalog has no HTTP 401 entry. "
@@ -913,6 +924,8 @@ def _validate_lifecycle(
 
     # data_access_patterns.endpoint vs phases
     for pat in result.data_access_patterns:
+        if not isinstance(pat, dict):
+            continue
         pat_ep = pat.get("endpoint", "")
         if pat_ep and "/" in pat_ep:
             pat_norm = _normalize_endpoint(pat_ep)
@@ -925,7 +938,7 @@ def _validate_lifecycle(
     # endpoint_coverage completeness vs phases
     if result.endpoint_coverage and phase_api_calls:
         coverage_eps = {_normalize_endpoint(ec.get("endpoint", ""))
-                        for ec in result.endpoint_coverage if ec.get("endpoint")}
+                        for ec in result.endpoint_coverage if isinstance(ec, dict) and ec.get("endpoint")}
         for pa in phase_api_calls:
             if not any(_endpoints_match(pa, ce) for ce in coverage_eps):
                 cross_errors.append(
@@ -937,10 +950,10 @@ def _validate_lifecycle(
     if result.unique_patterns:
         mentions_rate_limit = any(
             "rate" in (p.get("pattern", "") + p.get("description", "")).lower()
-            for p in result.unique_patterns
+            for p in result.unique_patterns if isinstance(p, dict)
         )
         if mentions_rate_limit and result.error_catalog:
-            has_429 = any(e.get("http_status") == 429 for e in result.error_catalog)
+            has_429 = any(e.get("http_status") == 429 for e in result.error_catalog if isinstance(e, dict))
             if not has_429:
                 cross_errors.append(
                     "unique_patterns mentions rate limiting but error_catalog has no "
@@ -948,7 +961,7 @@ def _validate_lifecycle(
                 )
 
     # phases output_used_by should reference real actions
-    for phase in result.phases:
+    for phase in phases:
         for ref_action in phase.get("output_used_by", []):
             if ref_action and ref_action not in phase_actions:
                 cross_errors.append(
@@ -962,6 +975,8 @@ def _validate_lifecycle(
     _ENUM_HINT_NAMES = {"command_name", "command", "event_type", "type", "status",
                         "action", "mode", "state", "direction", "severity", "role"}
     for model in result.data_models:
+        if not isinstance(model, dict):
+            continue
         for fld in model.get("fields", []):
             fname = (fld.get("name") or "").lower()
             ftype = (fld.get("type") or "").lower()
