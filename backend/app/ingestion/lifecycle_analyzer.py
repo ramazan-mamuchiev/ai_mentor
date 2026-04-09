@@ -844,8 +844,8 @@ def _validate_lifecycle(
     # Integration data flows check
     idf = result.integration_data_flows
     if isinstance(idf, dict) and idf:
-        components = idf.get("components", [])
-        flows = idf.get("flows", [])
+        components = [c for c in idf.get("components", []) if isinstance(c, dict)]
+        flows = [f for f in idf.get("flows", []) if isinstance(f, dict)]
         comp_ids = {c.get("id") for c in components if c.get("id")}
         has_external = any(c.get("type") == "external" for c in components)
         if components and not has_external:
@@ -978,6 +978,8 @@ def _validate_lifecycle(
         if not isinstance(model, dict):
             continue
         for fld in model.get("fields", []):
+            if not isinstance(fld, dict):
+                continue
             fname = (fld.get("name") or "").lower()
             ftype = (fld.get("type") or "").lower()
             constraints = fld.get("constraints") or ""
@@ -1050,11 +1052,13 @@ def _extract_lifecycle(
     return _lifecycle_from_parsed(parsed, usage, doc_scope=doc_scope)
 
 
-def _dedup_source_doc_issues(issues: list[dict]) -> list[dict]:
+def _dedup_source_doc_issues(issues: list) -> list[dict]:
     """Deduplicate source_doc_issues by (description, affected_entity)."""
     seen: set[str] = set()
     result: list[dict] = []
     for issue in issues:
+        if not isinstance(issue, dict):
+            continue
         key = (issue.get("description", "").strip().lower()
                + "|" + (issue.get("affected_entity") or "").strip().lower())
         if key not in seen:
