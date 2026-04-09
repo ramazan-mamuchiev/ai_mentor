@@ -16,8 +16,8 @@ import httpx
 _RETRYABLE_STATUS_CODES = {429, 500, 503}
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 2.0
-_FALLBACK_MODEL = "gemini-2.5-flash"
-_FALLBACK_REASONING_EFFORT = "none"
+_FALLBACK_MODEL = "gemini-2.5-pro"
+_FALLBACK_REASONING_EFFORT = "low"
 
 from app.config import settings
 from app.llm.http_client import gemini_client, ollama_client
@@ -213,7 +213,7 @@ async def _stream_openai_compatible(
             "stream_options": {"include_usage": True},
         }
         if attempt_reasoning:
-            _THINKING_ONLY_MODELS = ("gemini-2.5-pro",)
+            _THINKING_ONLY_MODELS = ("gemini-2.5-pro", "gemini-3.1-pro")
             if attempt_reasoning == "none" and any(attempt_model.startswith(m) for m in _THINKING_ONLY_MODELS):
                 attempt_reasoning = "low"
             if attempt_reasoning != "none":
