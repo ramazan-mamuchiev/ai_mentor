@@ -44,7 +44,7 @@ class Settings(BaseSettings):
 
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     gemini_api_key: str = ""
-    openai_llm_model: str = "gemini-3.1-pro"
+    openai_llm_model: str = "gemini-3.1-pro-preview"
 
     llm_reasoning_effort: str = "low"  # "none" | "low" | "medium" | "high" (Gemini thinking budget)
 
@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     product_resolve_model: str = "gemini-2.5-flash"
 
     lifecycle_analysis_enabled: bool = True
-    lifecycle_analysis_model: str = "gemini-3.1-pro"
+    lifecycle_analysis_model: str = "gemini-3.1-pro-preview"
     lifecycle_analysis_fallback_model: str = "gemini-2.5-pro"
     lifecycle_analysis_max_doc_tokens: int = 800_000
     lifecycle_analysis_max_output_tokens: int = 65_536
