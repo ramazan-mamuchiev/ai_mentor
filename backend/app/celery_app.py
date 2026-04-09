@@ -3465,8 +3465,10 @@ def merge_product_lifecycle_task(self, product_id: int):
                 ))
             session.commit()
 
+            import traceback as _tb
             logger.error("Product lifecycle merge failed",
-                         extra={"product_id": product_id, "error_type": type(exc).__name__},
+                         extra={"product_id": product_id, "error_type": type(exc).__name__,
+                                "traceback": _tb.format_exc()},
                          exc_info=True)
             if self.request.retries < self.max_retries:
                 raise self.retry(exc=exc)
