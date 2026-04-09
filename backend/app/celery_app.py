@@ -3284,7 +3284,7 @@ def analyze_api_lifecycle_task(self, document_id: int):
 
 
 @celery.task(name="merge_product_lifecycle", bind=True, max_retries=3,
-             default_retry_delay=300, soft_time_limit=900, time_limit=960)
+             default_retry_delay=300, soft_time_limit=1800, time_limit=1860)
 def merge_product_lifecycle_task(self, product_id: int):
     """Merge all document-level lifecycles for a product into one."""
     logger.info("Product lifecycle merge STARTED",
