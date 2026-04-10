@@ -12,17 +12,19 @@ mermaid.initialize({
 
 function sanitizeMermaid(src: string): string {
   const strip = (s: string) => s.replace(/[(){}<>"|]/g, '')
-  let result = src
-    // -->|label| style edge labels
-    .replace(/(-->|===|~~~|-\.->?)\|([^|]+)\|/g, (_m, arrow, label) =>
+  return src
+    // arrow -->|label| and variants like <-.->|label|
+    .replace(/(<?-[-.]+>?)\|([^|]+)\|/g, (_m, arrow, label) =>
       `${arrow}|${strip(label)}|`)
-    // -- label --> style edge labels (mermaid alt syntax)
+    // -- label --> alt edge syntax: convert to -->|label|
     .replace(/ --\s+([^-][^>]*?)\s*-->/g, (_m, label) =>
       ` -->|${strip(label.trim())}|`)
+    // stadium-shape nodes: ([label]) -> keep as ([sanitised])
+    .replace(/\(\[([^\]]+)\]\)/g, (_m, label) =>
+      `([${strip(label)}])`)
     // node labels [text]
     .replace(/\[([^\]]+)\]/g, (_m, label) =>
       `[${strip(label)}]`)
-  return result
 }
 
 interface Props {
@@ -46,19 +48,29 @@ export function MermaidDiagram({ chart, className }: Props) {
     const id = `mermaid-${++counter}`
 
     let cancelled = false
-    mermaid.render(id, safeChart).then(
-      ({ svg: rendered }) => { if (!cancelled) setSvg(rendered) },
-      (err) => {
-        if (!cancelled) setError(String(err))
-        // mermaid leaves a stale <svg id="..."> in the DOM on parse failure;
-        // remove it so the next render doesn't crash with
-        // "Cannot set properties of undefined (setting 'style')"
-        try { document.getElementById(id)?.remove() } catch { /* noop */ }
-      },
-    )
+    setError('')
+    setSvg('')
+
+    const cleanup = () => {
+      try { document.getElementById(id)?.remove() } catch { /* noop */ }
+    }
+
+    try {
+      mermaid.render(id, safeChart).then(
+        ({ svg: rendered }) => { if (!cancelled) setSvg(rendered) },
+        (err) => {
+          cleanup()
+          if (!cancelled) setError(String(err))
+        },
+      )
+    } catch (err) {
+      cleanup()
+      if (!cancelled) setError(String(err))
+    }
+
     return () => {
       cancelled = true
-      try { document.getElementById(id)?.remove() } catch { /* noop */ }
+      cleanup()
     }
   }, [safeChart])
 
