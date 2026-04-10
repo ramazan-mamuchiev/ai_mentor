@@ -11,11 +11,18 @@ mermaid.initialize({
 })
 
 function sanitizeMermaid(src: string): string {
-  return src
+  const strip = (s: string) => s.replace(/[(){}<>"|]/g, '')
+  let result = src
+    // -->|label| style edge labels
     .replace(/(-->|===|~~~|-\.->?)\|([^|]+)\|/g, (_m, arrow, label) =>
-      `${arrow}|${label.replace(/[(){}]/g, '')}|`)
+      `${arrow}|${strip(label)}|`)
+    // -- label --> style edge labels (mermaid alt syntax)
+    .replace(/ --\s+([^-][^>]*?)\s*-->/g, (_m, label) =>
+      ` -->|${strip(label.trim())}|`)
+    // node labels [text]
     .replace(/\[([^\]]+)\]/g, (_m, label) =>
-      `[${label.replace(/[(){}]/g, '')}]`)
+      `[${strip(label)}]`)
+  return result
 }
 
 interface Props {
@@ -41,9 +48,18 @@ export function MermaidDiagram({ chart, className }: Props) {
     let cancelled = false
     mermaid.render(id, safeChart).then(
       ({ svg: rendered }) => { if (!cancelled) setSvg(rendered) },
-      (err) => { if (!cancelled) setError(String(err)) },
+      (err) => {
+        if (!cancelled) setError(String(err))
+        // mermaid leaves a stale <svg id="..."> in the DOM on parse failure;
+        // remove it so the next render doesn't crash with
+        // "Cannot set properties of undefined (setting 'style')"
+        try { document.getElementById(id)?.remove() } catch { /* noop */ }
+      },
     )
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      try { document.getElementById(id)?.remove() } catch { /* noop */ }
+    }
   }, [safeChart])
 
   useEffect(() => {

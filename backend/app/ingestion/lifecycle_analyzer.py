@@ -635,24 +635,29 @@ def _estimate_tokens(text: str) -> int:
 
 
 _MERMAID_EDGE_LABEL_RE = re.compile(r"(\-\->|===|~~~|\-\.\->?)\|([^|]+)\|")
+_MERMAID_ALT_EDGE_RE = re.compile(r" --\s+([^-][^>]*?)\s*-->")
 _MERMAID_NODE_LABEL_RE = re.compile(r"\[([^\]]+)\]")
 
 
 def _sanitize_mermaid(diagram: str) -> str:
     """Remove Mermaid-breaking characters from edge and node labels."""
+    def _strip(s: str) -> str:
+        for ch in '(){}|<>"':
+            s = s.replace(ch, "")
+        return s
+
     def _clean_edge(m: re.Match) -> str:
         arrow, label = m.group(1), m.group(2)
-        label = label.replace("(", "").replace(")", "")
-        label = label.replace("{", "").replace("}", "")
-        return f"{arrow}|{label}|"
+        return f"{arrow}|{_strip(label)}|"
+
+    def _clean_alt_edge(m: re.Match) -> str:
+        return f" -->|{_strip(m.group(1).strip())}|"
 
     def _clean_node(m: re.Match) -> str:
-        label = m.group(1)
-        label = label.replace("(", "").replace(")", "")
-        label = label.replace("{", "").replace("}", "")
-        return f"[{label}]"
+        return f"[{_strip(m.group(1))}]"
 
     result = _MERMAID_EDGE_LABEL_RE.sub(_clean_edge, diagram)
+    result = _MERMAID_ALT_EDGE_RE.sub(_clean_alt_edge, result)
     result = _MERMAID_NODE_LABEL_RE.sub(_clean_node, result)
     return result
 
