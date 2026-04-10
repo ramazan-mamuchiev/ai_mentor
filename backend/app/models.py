@@ -331,8 +331,8 @@ class DocIssueAnnotation(Base):
     __tablename__ = "doc_issue_annotations"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    document_id: Mapped[int] = mapped_column(
-        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False,
+    document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=True,
     )
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), nullable=False,
