@@ -1629,7 +1629,14 @@ def _validate_and_correct(
                 "Lifecycle validation failed, retrying",
                 extra={"attempt": attempt + 1, "errors": lifecycle_errors},
             )
-            result = _retry_with_corrections(result, lifecycle_errors, result.usage)
+            try:
+                result = _retry_with_corrections(result, lifecycle_errors, result.usage)
+            except Exception:
+                logger.warning(
+                    "Correction LLM call failed, accepting result with validation issues",
+                    exc_info=True,
+                )
+                break
 
     result.validation_issues = [{"error": e} for e in last_errors]
     result.validation_retries = max_retries
