@@ -89,8 +89,8 @@ class Settings(BaseSettings):
     product_resolve_model: str = "gemini-2.5-flash"
 
     lifecycle_analysis_enabled: bool = True
-    lifecycle_analysis_model: str = "gemini-3.1-pro-preview"
-    lifecycle_analysis_fallback_model: str = "gemini-2.5-pro"
+    lifecycle_analysis_model: str = "gemini-2.5-pro"
+    lifecycle_analysis_fallback_model: str = "gemini-2.5-flash"
     lifecycle_analysis_max_doc_tokens: int = 800_000
     lifecycle_analysis_max_output_tokens: int = 65_536
     lifecycle_validation_max_retries: int = 2
