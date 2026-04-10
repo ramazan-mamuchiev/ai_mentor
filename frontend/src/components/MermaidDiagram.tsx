@@ -13,6 +13,8 @@ mermaid.initialize({
 function sanitizeMermaid(src: string): string {
   const strip = (s: string) => s.replace(/[(){}<>"|]/g, '')
   return src
+    // linkStyle with wrong indices crashes mermaid — remove them entirely
+    .replace(/^\s*linkStyle\s+.*/gm, '')
     // arrow -->|label| and variants like <-.->|label|
     .replace(/(<?-[-.]+>?)\|([^|]+)\|/g, (_m, arrow, label) =>
       `${arrow}|${strip(label)}|`)
