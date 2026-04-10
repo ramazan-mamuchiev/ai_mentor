@@ -72,6 +72,10 @@ export async function analyzeProductLifecycle(productId: number): Promise<{ prod
   return apiFetch(`/products/${productId}/analyze-lifecycle`, { method: 'POST' })
 }
 
+export async function mergeProductLifecycle(productId: number): Promise<{ product_id: number; task_id: string; message: string }> {
+  return apiFetch(`/products/${productId}/merge-lifecycle`, { method: 'POST' })
+}
+
 export interface LifecyclePayload {
   status: string
   phases: Array<{
@@ -124,6 +128,7 @@ export interface ProductLifecycle {
   document_lifecycles: DocumentLifecycle[]
   merged: LifecyclePayload | null
   processing_documents: number
+  merge_status: string | null
   doc_issues: Array<{
     document_id: number; issue_type: string; severity: string; description: string
     affected_entity?: string; suggestion?: string

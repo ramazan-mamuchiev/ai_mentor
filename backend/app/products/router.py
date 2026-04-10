@@ -644,10 +644,10 @@ async def cancel_product_ingestion(product_id: int):
 
 @router.post("/{product_id}/analyze-lifecycle", status_code=202, dependencies=[Depends(require_permission("lifecycle.run"))])
 async def analyze_product_lifecycle(product_id: int):
-    """Manually trigger API lifecycle analysis for all documents of a product, then merge.
+    """Manually trigger API lifecycle analysis for all documents of a product.
 
     Dispatches per-document lifecycle analysis for every ready document with API-related chunks.
-    The merge task runs automatically after all per-document analyses finish.
+    Merge must be triggered separately via POST /{product_id}/merge-lifecycle.
     """
     from app.models import ApiLifecycle
     async with async_session() as session:
@@ -690,6 +690,61 @@ async def analyze_product_lifecycle(product_id: int):
                    + (f" ({len(already_running)} already running, skipped)" if already_running else ""),
         "tasks": task_ids,
         "skipped_running": len(already_running),
+    }
+
+
+@router.post("/{product_id}/merge-lifecycle", status_code=202, dependencies=[Depends(require_permission("lifecycle.run"))])
+async def merge_product_lifecycle(product_id: int):
+    """Manually trigger product-level lifecycle merge.
+
+    Merges all ready document-level lifecycles into a single product lifecycle.
+    """
+    from app.models import ApiLifecycle
+    async with async_session() as session:
+        product = await _get_product(session, product_id)
+
+        ready_count = (await session.execute(
+            select(func.count()).select_from(ApiLifecycle).where(
+                ApiLifecycle.product_id == product_id,
+                ApiLifecycle.document_id.isnot(None),
+                ApiLifecycle.batch_index.is_(None),
+                ApiLifecycle.status == "ready",
+            )
+        )).scalar() or 0
+
+        if ready_count < 1:
+            raise HTTPException(status_code=400, detail="No ready document lifecycles to merge")
+
+        merged = (await session.execute(
+            select(ApiLifecycle).where(
+                ApiLifecycle.product_id == product_id,
+                ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.batch_index.is_(None),
+            )
+        )).scalar_one_or_none()
+
+        if merged and merged.status in ("pending", "processing"):
+            raise HTTPException(status_code=409, detail="Merge is already in progress")
+
+        if merged:
+            merged.status = "pending"
+            merged.error_message = None
+        else:
+            session.add(ApiLifecycle(
+                product_id=product_id,
+                document_id=None,
+                batch_index=None,
+                status="pending",
+            ))
+        await session.commit()
+
+    from app.celery_app import celery
+    task = celery.send_task("merge_product_lifecycle", args=[product_id])
+
+    return {
+        "product_id": product_id,
+        "task_id": task.id,
+        "message": f"Lifecycle merge started ({ready_count} document lifecycles)",
     }
 
 
@@ -770,6 +825,11 @@ async def get_product_lifecycle(product_id: int):
             )
         )).scalar() or 0
         result["processing_documents"] = processing_count
+
+        if merged:
+            result["merge_status"] = merged.status
+        else:
+            result["merge_status"] = None
 
         return result
 

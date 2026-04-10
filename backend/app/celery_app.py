@@ -3219,22 +3219,6 @@ def analyze_api_lifecycle_task(self, document_id: int):
                 tenant_id=tid,
             )
 
-            if has_content:
-                doc_lc_count = session.execute(
-                    sa_select(func.count()).select_from(ApiLifecycle).where(
-                        ApiLifecycle.product_id == doc.product_id,
-                        ApiLifecycle.document_id.isnot(None),
-                        ApiLifecycle.batch_index.is_(None),
-                        ApiLifecycle.status == "ready",
-                    )
-                ).scalar() or 0
-
-                if doc_lc_count >= 1:
-                    try:
-                        celery.send_task("merge_product_lifecycle", args=[doc.product_id])
-                    except Exception:
-                        logger.warning("Failed to dispatch merge_product_lifecycle", exc_info=True)
-
             logger.info("Lifecycle analysis completed",
                         extra={
                             "document_id": document_id,
@@ -3284,7 +3268,7 @@ def analyze_api_lifecycle_task(self, document_id: int):
 
 
 @celery.task(name="merge_product_lifecycle", bind=True, max_retries=3,
-             default_retry_delay=300, soft_time_limit=1800, time_limit=1860)
+             default_retry_delay=300, soft_time_limit=28800, time_limit=28860)
 def merge_product_lifecycle_task(self, product_id: int):
     """Merge all document-level lifecycles for a product into one."""
     logger.info("Product lifecycle merge STARTED",
@@ -3307,6 +3291,17 @@ def merge_product_lifecycle_task(self, product_id: int):
             return {"status": "error", "error": "Product not found"}
 
         try:
+            pending_row = session.execute(
+                sa_select(ApiLifecycle).where(
+                    ApiLifecycle.product_id == product_id,
+                    ApiLifecycle.document_id.is_(None),
+                    ApiLifecycle.batch_index.is_(None),
+                )
+            ).scalar_one_or_none()
+            if pending_row and pending_row.status in ("pending", "processing"):
+                pending_row.status = "processing"
+                session.commit()
+
             result, doc_issues = merge_product_lifecycle_sync(product_id, session)
 
             existing = session.execute(

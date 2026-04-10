@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import {
   X, Loader2, AlertCircle, Activity, Maximize2, Minimize2, Share2,
   Play, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, Trash2,
-  FileText, Layers,
+  FileText, Layers, GitMerge,
 } from 'lucide-react'
 import {
-  getProductLifecycle, analyzeProductLifecycle, deleteProductLifecycle,
+  getProductLifecycle, analyzeProductLifecycle, deleteProductLifecycle, mergeProductLifecycle,
 } from '../api/products'
 import type { ProductLifecycle, LifecyclePayload } from '../api/products'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -490,12 +490,15 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
     d => d.status === 'pending' || d.status === 'processing'
   ) || (data?.processing_documents ?? 0) > 0)
 
+  const mergeRunning = data?.merge_status === 'pending' || data?.merge_status === 'processing'
+  const needsPoll = hasRunningDocs || mergeRunning
+
   useEffect(() => {
-    if (hasRunningDocs) {
+    if (needsPoll) {
       pollRef.current = setInterval(() => load(true), POLL_INTERVAL)
     }
     return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null } }
-  }, [hasRunningDocs, load])
+  }, [needsPoll, load])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -544,6 +547,21 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
     } finally {
       setDeleting(false)
       onClose()
+    }
+  }
+
+  const [merging, setMerging] = useState(false)
+
+  const handleMerge = async () => {
+    if (merging || mergeRunning) return
+    setMerging(true)
+    try {
+      await mergeProductLifecycle(productId)
+      load(true)
+    } catch (err) {
+      console.error('Failed to start merge:', err)
+    } finally {
+      setMerging(false)
     }
   }
 
@@ -606,7 +624,7 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                 <button
                   className="lc-modal-run-btn"
                   onClick={handleRun}
-                  disabled={analysisRunning}
+                  disabled={analysisRunning || mergeRunning}
                   title={analysisRunning ? t('lifecycleModal.alreadyRunning') :
                          hasResults ? t('lifecycle.rerun') : t('lifecycle.run')}
                 >
@@ -617,6 +635,21 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                      hasResults ? t('lifecycle.rerun') : t('lifecycle.run')}
                   </span>
                 </button>
+                {readyDocs >= 1 && !analysisRunning && (
+                  <button
+                    className="lc-modal-run-btn"
+                    onClick={handleMerge}
+                    disabled={mergeRunning || merging}
+                    title={mergeRunning ? t('lifecycle.merging') : t('lifecycle.mergeHint')}
+                  >
+                    {mergeRunning || merging
+                      ? <Loader2 size={13} className="spin-icon" />
+                      : <GitMerge size={13} />}
+                    <span>
+                      {mergeRunning || merging ? t('lifecycle.merging') : t('lifecycle.merge')}
+                    </span>
+                  </button>
+                )}
                 {hasAnything && (
                   <>
                     {hasResults && (
@@ -746,6 +779,17 @@ export function ProductLifecycleModal({ productId, productName, canRun = false, 
                   {errorDocs > 0 && <span className="plc-doc-error">{errorDocs} {t('lifecycle.status.error').toLowerCase()}</span>}
                 </div>
               )}
+              <div className="lc-modal-progress-bar">
+                <div className="lc-modal-progress-fill" />
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && !analysisRunning && mergeRunning && (
+            <div className="lc-modal-in-progress">
+              <GitMerge size={40} />
+              <p className="lc-modal-in-progress-title">{t('lifecycle.merging')}</p>
+              <p className="lc-modal-in-progress-hint">{t('lifecycle.mergeHint')}</p>
               <div className="lc-modal-progress-bar">
                 <div className="lc-modal-progress-fill" />
               </div>
