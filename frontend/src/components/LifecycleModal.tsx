@@ -565,6 +565,7 @@ export function LifecycleModal({ documentId, documentTitle, canRun = false, onCl
                   {openSections.skeleton && (
                     <SkeletonCodeViewer
                       pythonSkeleton={lc.code_skeleton}
+                      staticTranslations={lc.code_skeleton_translations}
                     />
                   )}
                 </div>

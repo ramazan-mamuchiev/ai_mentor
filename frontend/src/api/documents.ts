@@ -165,6 +165,7 @@ export interface DocumentLifecycle {
   unique_patterns?: Array<{ pattern: string; description: string; impact: string; code_hint: string }>
   dependency_chains?: Array<{ from_action: string; to_action: string; data_flow: string; description: string }>
   code_skeleton?: string
+  code_skeleton_translations?: Record<string, string>
   data_models?: Array<{
     model_name: string; used_in: string[]; direction: string; content_type?: string
     fields: Array<{
