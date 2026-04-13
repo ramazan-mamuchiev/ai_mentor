@@ -34,7 +34,7 @@ export function KBPage() {
   const lang = i18n.language?.startsWith('ru') ? 'ru' : 'en'
 
   useEffect(() => {
-    fetch('/articles/registry.json')
+    fetch('/articles/registry.json', { cache: 'no-cache' })
       .then(r => r.json())
       .then((data: Article[]) => {
         setArticles(data.sort((a, b) => b.createdAt.localeCompare(a.createdAt)))

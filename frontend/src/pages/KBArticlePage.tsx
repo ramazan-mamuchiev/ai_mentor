@@ -27,7 +27,7 @@ export function KBArticlePage() {
   const lang = i18n.language?.startsWith('ru') ? 'ru' : 'en'
 
   useEffect(() => {
-    fetch('/articles/registry.json')
+    fetch('/articles/registry.json', { cache: 'no-cache' })
       .then(r => r.json())
       .then((data: RegistryEntry[]) => {
         setMeta(data.find(a => a.slug === slug) || null)
@@ -40,7 +40,7 @@ export function KBArticlePage() {
   const fetchArticle = useCallback(() => {
     if (!slug) return
     setLoading(true)
-    fetch(`/articles/${slug}/${articleLang}.json`)
+    fetch(`/articles/${slug}/${articleLang}.json`, { cache: 'no-cache' })
       .then(r => r.json())
       .then((data: ArticleData) => {
         setArticle(data)
