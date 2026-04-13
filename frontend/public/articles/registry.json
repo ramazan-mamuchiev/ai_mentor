@@ -2,6 +2,7 @@
   {
     "slug": "indexing-pipeline",
     "icon": "Database",
+    "category": "architecture",
     "tags": ["architecture", "rag", "gemini"],
     "createdAt": "2026-03-30",
     "title": {
@@ -17,6 +18,7 @@
   {
     "slug": "ask-pipeline",
     "icon": "MessageSquare",
+    "category": "architecture",
     "tags": ["architecture", "rag", "gemini", "search"],
     "createdAt": "2026-03-30",
     "title": {
@@ -32,6 +34,7 @@
   {
     "slug": "mcp-server",
     "icon": "Server",
+    "category": "architecture",
     "tags": ["mcp", "architecture", "ide", "tools"],
     "createdAt": "2026-03-30",
     "title": {
@@ -47,6 +50,7 @@
   {
     "slug": "ops-architecture",
     "icon": "Shield",
+    "category": "ops",
     "tags": ["ops", "architecture", "docker"],
     "createdAt": "2026-04-13",
     "title": {
@@ -60,8 +64,25 @@
     "languages": ["ru"]
   },
   {
+    "slug": "ops-setup",
+    "icon": "Shield",
+    "category": "ops",
+    "tags": ["ops", "setup", "configuration"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "Installation & Configuration",
+      "ru": "Установка и настройка"
+    },
+    "description": {
+      "en": "Server requirements, .env variables, Docker Compose, frontend build, Nginx setup, SSL certificates.",
+      "ru": "Требования к серверу, переменные .env, Docker Compose, сборка фронтенда, настройка Nginx, SSL-сертификаты."
+    },
+    "languages": ["ru"]
+  },
+  {
     "slug": "ops-deploy",
     "icon": "Shield",
+    "category": "ops",
     "tags": ["ops", "deploy", "docker"],
     "createdAt": "2026-04-13",
     "title": {
@@ -77,6 +98,7 @@
   {
     "slug": "ops-monitoring",
     "icon": "Shield",
+    "category": "ops",
     "tags": ["ops", "monitoring", "grafana"],
     "createdAt": "2026-04-13",
     "title": {
@@ -92,6 +114,7 @@
   {
     "slug": "ops-runbook",
     "icon": "Shield",
+    "category": "ops",
     "tags": ["ops", "runbook", "incidents"],
     "createdAt": "2026-04-13",
     "title": {
@@ -105,23 +128,9 @@
     "languages": ["ru"]
   },
   {
-    "slug": "ops-setup",
-    "icon": "Shield",
-    "tags": ["ops", "setup", "configuration"],
-    "createdAt": "2026-04-13",
-    "title": {
-      "en": "Installation & Configuration",
-      "ru": "Установка и настройка"
-    },
-    "description": {
-      "en": "Server requirements, .env variables, Docker Compose, frontend build, Nginx setup, SSL certificates.",
-      "ru": "Требования к серверу, переменные .env, Docker Compose, сборка фронтенда, настройка Nginx, SSL-сертификаты."
-    },
-    "languages": ["ru"]
-  },
-  {
     "slug": "ops-access",
     "icon": "Shield",
+    "category": "ops",
     "tags": ["ops", "security", "rbac"],
     "createdAt": "2026-04-13",
     "title": {
@@ -131,6 +140,22 @@
     "description": {
       "en": "Authentication methods, RBAC roles and permissions, API keys, OAuth, SSL/TLS, secrets management.",
       "ru": "Способы аутентификации, RBAC-роли и пермиссии, API-ключи, OAuth, SSL/TLS, управление секретами."
+    },
+    "languages": ["ru"]
+  },
+  {
+    "slug": "ops-security",
+    "icon": "Lock",
+    "category": "security",
+    "tags": ["security", "audit", "hardening", "compliance"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "Security Profile for InfoSec",
+      "ru": "Профиль безопасности для ИБ"
+    },
+    "description": {
+      "en": "Threat model, network perimeter, authentication hardening, container security, audit logging, risk matrix and recommendations.",
+      "ru": "Модель угроз, сетевой периметр, харденинг аутентификации, контейнерная безопасность, аудит, матрица рисков и рекомендации."
     },
     "languages": ["ru"]
   }
