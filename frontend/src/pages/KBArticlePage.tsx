@@ -87,6 +87,21 @@ export function KBArticlePage() {
         return
       }
 
+      const copyBtn = (e.target as HTMLElement).closest('.ops-cmd-copy') as HTMLElement | null
+      if (copyBtn) {
+        e.preventDefault()
+        e.stopPropagation()
+        const cmd = copyBtn.closest('.ops-cmd')
+        const code = cmd?.querySelector('code')
+        if (code) {
+          navigator.clipboard.writeText(code.textContent || '').then(() => {
+            copyBtn.classList.add('copied')
+            setTimeout(() => copyBtn.classList.remove('copied'), 1500)
+          })
+        }
+        return
+      }
+
       const stage = (e.target as HTMLElement).closest('.stage') as HTMLElement | null
       if (!stage) return
       const details = stage.querySelector('.stage-details') as HTMLElement | null
@@ -127,6 +142,47 @@ export function KBArticlePage() {
         s.style.transform = 'translateY(0)'
       }, 100 + i * 80)
     })
+  }, [article?.content])
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const sections = el.querySelectorAll<HTMLElement>('.ops-section[id]')
+    if (!sections.length) return
+    const tocLinks = el.querySelectorAll<HTMLElement>('.ops-toc a')
+    if (!tocLinks.length) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            tocLinks.forEach(l => l.classList.remove('active'))
+            const id = entry.target.getAttribute('id')
+            const active = el.querySelector(`.ops-toc a[href="#${id}"]`) as HTMLElement | null
+            active?.classList.add('active')
+          }
+        }
+      },
+      { root: el, rootMargin: '-10% 0px -80% 0px', threshold: 0 },
+    )
+    sections.forEach(s => observer.observe(s))
+    return () => observer.disconnect()
+  }, [article?.content])
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const handler = (e: MouseEvent) => {
+      const tocLink = (e.target as HTMLElement).closest('.ops-toc a[href^="#"]') as HTMLAnchorElement | null
+      if (!tocLink) return
+      e.preventDefault()
+      const id = tocLink.getAttribute('href')?.slice(1)
+      if (!id) return
+      const target = el.querySelector(`#${id}`) as HTMLElement | null
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    el.addEventListener('click', handler)
+    return () => el.removeEventListener('click', handler)
   }, [article?.content])
 
   if (loading && !article) {
