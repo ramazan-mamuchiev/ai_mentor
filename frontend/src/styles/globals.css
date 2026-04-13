@@ -238,9 +238,14 @@ button {
   padding: 40px 32px;
   max-width: 860px;
   margin: 0 auto;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  flex: 1;
+}
+
+.public-kb-main .kb-page {
+  overflow-y: visible;
 }
 
 .kb-header {
