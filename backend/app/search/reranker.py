@@ -157,8 +157,7 @@ async def _call_rerank_llm(
         "model": settings.rerank_model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.0,
-        "max_tokens": 256,
-        "response_format": {"type": "json_object"},
+        "max_tokens": 512,
     }
 
     try:
