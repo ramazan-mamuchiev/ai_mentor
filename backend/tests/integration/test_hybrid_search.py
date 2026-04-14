@@ -125,12 +125,12 @@ class TestRRFFusionIntegration:
                 SELECT c.content, c.parent_content, c.heading_path, c.heading_level,
                        c.token_count, d.title AS doc_title, p.name AS product_name,
                        p.manufacturer, p.version AS firmware_version,
-                       1 - (c.embedding <=> CAST(:embedding AS vector)) AS similarity
+                       1 - (c.embedding <=> CAST(:embedding AS halfvec)) AS similarity
                 FROM chunks c
                 JOIN documents d ON c.document_id = d.id
                 JOIN products p ON d.product_id = p.id
                 WHERE {where_sql}
-                ORDER BY c.embedding <=> CAST(:embedding AS vector)
+                ORDER BY c.embedding <=> CAST(:embedding AS halfvec)
                 LIMIT :limit
             """),
             params,

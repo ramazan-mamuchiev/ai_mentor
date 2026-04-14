@@ -440,8 +440,9 @@ async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]
 
 
 def _estimate_tokens(text: str) -> int:
-    """Rough token estimate: 1 token ≈ 4 characters for English/mixed text."""
-    return max(1, len(text) // 4) if text else 0
+    """Count tokens using tiktoken (cl100k_base) with heuristic fallback."""
+    from app.utils.tokenizer import count_tokens
+    return count_tokens(text)
 
 
 def _build_history_messages(

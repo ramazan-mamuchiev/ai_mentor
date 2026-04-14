@@ -282,40 +282,57 @@ async def _migrate_source_hash_index():
 
 
 async def _migrate_embedding_dims():
-    """Resize the embedding column if it doesn't match the configured dimensions."""
+    """Resize the embedding column and/or switch type to halfvec if needed."""
     from app.database import engine
 
     target_dims = settings.embedding_dims
+    target_type = "halfvec"
     async with engine.begin() as conn:
         raw = await conn.get_raw_connection()
-        row = await raw.driver_connection.fetchrow(
-            "SELECT atttypmod FROM pg_attribute "
+        drv = raw.driver_connection
+
+        row = await drv.fetchrow(
+            "SELECT atttypmod, format_type(atttypid, atttypmod) AS col_type "
+            "FROM pg_attribute "
             "WHERE attrelid = 'chunks'::regclass AND attname = 'embedding'"
         )
         if row is None:
             return
 
         current_dims = row["atttypmod"]
-        if current_dims == target_dims:
-            logger.info("Embedding dims already match", extra={"dims": target_dims})
+        current_type = row["col_type"] or ""
+
+        needs_type_change = target_type not in current_type.lower()
+        needs_dims_change = current_dims != target_dims
+
+        if not needs_type_change and not needs_dims_change:
+            logger.info("Embedding column already matches target",
+                        extra={"type": target_type, "dims": target_dims})
             return
 
         logger.warning(
-            "Embedding dimension mismatch — migrating",
-            extra={"current_dims": current_dims, "target_dims": target_dims},
+            "Embedding column migration needed",
+            extra={
+                "current_type": current_type, "current_dims": current_dims,
+                "target_type": target_type, "target_dims": target_dims,
+            },
         )
-        await raw.driver_connection.execute("UPDATE chunks SET embedding = NULL")
-        await raw.driver_connection.execute("DROP INDEX IF EXISTS idx_chunks_embedding")
-        await raw.driver_connection.execute(
-            f"ALTER TABLE chunks ALTER COLUMN embedding TYPE vector({target_dims})"
-        )
-        await raw.driver_connection.execute(
+
+        await drv.execute("UPDATE chunks SET embedding = NULL")
+        await drv.execute("DROP INDEX IF EXISTS idx_chunks_embedding")
+
+        ops_class = "halfvec_cosine_ops" if target_type == "halfvec" else "vector_cosine_ops"
+        col_type = f"{target_type}({target_dims})"
+
+        await drv.execute(f"ALTER TABLE chunks ALTER COLUMN embedding TYPE {col_type}")
+        await drv.execute(
             f"CREATE INDEX idx_chunks_embedding ON chunks "
-            f"USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 128)"
+            f"USING hnsw (embedding {ops_class}) WITH (m = 16, ef_construction = 128)"
         )
         logger.info(
             "Embedding column migrated (old embeddings cleared — reindex required)",
-            extra={"old_dims": current_dims, "new_dims": target_dims},
+            extra={"old_type": current_type, "old_dims": current_dims,
+                    "new_type": col_type},
         )
 
 

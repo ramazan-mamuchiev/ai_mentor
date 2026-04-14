@@ -346,6 +346,7 @@ async def tool_search_documentation(
 
     metadata: dict = {}
     t0 = time.perf_counter()
+    query_type: str | None = None
     async with async_session() as session:
         resolve = ResolveResult()
         if product:
@@ -368,9 +369,20 @@ async def tool_search_documentation(
             )
             return f"No product matching '{product}'. Use list_products to see available products."
 
+        if settings.mcp_classify_enabled:
+            from app.search.classifier import classify_query
+            query_type, _classify_product, classify_meta = await classify_query(session, query)
+            metadata.update({k: v for k, v in classify_meta.items() if k.startswith("classify_")})
+            metadata["query_type"] = query_type
+            if not product_id and _classify_product:
+                resolve = await resolve_product(session, _classify_product)
+                if resolve.product_id:
+                    product_id = resolve.product_id
+
         results = await search_documents(
             session, query, product_id=product_id, version=version,
             doc_type=doc_type, source_folder=folder, limit=limit, metadata=metadata,
+            query_type=query_type,
         )
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -408,6 +420,8 @@ async def tool_search_documentation(
         "top_similarity": top_similarity,
         "duration_ms": duration_ms,
         "request_id": request_id,
+        "query_type": query_type,
+        "classify_ms": metadata.get("classify_ms"),
     }
     if duration_ms > 10000:
         logger.warning("MCP search_documentation slow", extra=log_extra)

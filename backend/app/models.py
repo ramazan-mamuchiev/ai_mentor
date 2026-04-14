@@ -5,8 +5,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import HALFVEC
 from decimal import Decimal
+
+from app.config import settings as _settings
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -250,6 +252,19 @@ class Document(Base):
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 
+class ChunkParent(Base):
+    __tablename__ = "chunk_parents"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    content_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    chunks: Mapped[list["Chunk"]] = relationship(back_populates="parent")
+
+
 class Chunk(Base):
     __tablename__ = "chunks"
 
@@ -261,8 +276,11 @@ class Chunk(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     content_clean: Mapped[str | None] = mapped_column(Text, nullable=True)
     parent_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("chunk_parents.id", ondelete="SET NULL"), nullable=True
+    )
     token_count: Mapped[int] = mapped_column(Integer, default=0)
-    embedding = mapped_column(Vector(1024))
+    embedding = mapped_column(HALFVEC(_settings.embedding_dims))
     doc_type: Mapped[str] = mapped_column(Text, default="other")
     entities: Mapped[dict | None] = mapped_column(JSONB, default=dict)
     language: Mapped[str | None] = mapped_column(String(10), nullable=True)
@@ -277,12 +295,14 @@ class Chunk(Base):
     )
 
     document: Mapped["Document"] = relationship(back_populates="chunks")
+    parent: Mapped["ChunkParent | None"] = relationship(back_populates="chunks")
 
     __table_args__ = (
         UniqueConstraint("document_id", "chunk_index"),
         Index("idx_chunks_document", "document_id"),
         Index("idx_chunks_doc_type", "doc_type"),
         Index("idx_chunks_layer", "layer"),
+        Index("idx_chunks_parent_id", "parent_id"),
     )
 
 

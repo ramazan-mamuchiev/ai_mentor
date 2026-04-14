@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     api_key: str = "ipx_dev_key_12345"
 
     embedding_model_gemini: str = "gemini-embedding-2-preview"
-    embedding_dims: int = 1024
+    embedding_dims: int = 768
     embedding_cache_enabled: bool = True
     embedding_cache_ttl_hours: int = 48
 
@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     rerank_candidates: int = 20
     rerank_model: str = "gemini-2.5-flash"
     rerank_min_score: float = 0.3
+    rerank_provider: str = "llm"  # "llm" (current Gemini LLM) or "vertex_rank" (Vertex AI Ranking API)
+    vertex_rank_project: str = ""  # Google Cloud project for Vertex AI Ranking API
+    vertex_rank_model: str = "semantic-ranker-default@latest"
 
     hybrid_search_enabled: bool = True
     hybrid_bm25_weight: float = 0.3
@@ -79,6 +82,9 @@ class Settings(BaseSettings):
     chunk_max_tokens: int = 512
     chunk_min_tokens: int = 50
     chunk_overlap_paragraphs: int = 2
+    semantic_chunking_enabled: bool = False
+    semantic_chunk_threshold: int = 1500  # min tokens in "flat" section to trigger semantic split
+    semantic_similarity_percentile: float = 25.0  # percentile threshold for split boundaries
     embedding_max_tokens: int = 0  # 0 = auto (chunk_max_tokens + 256)
 
     metadata_extraction_enabled: bool = True
@@ -111,9 +117,15 @@ class Settings(BaseSettings):
     web_search_max_tokens: int = 1500
     web_search_max_context_chars: int = 5000
 
+    hyde_enabled: bool = False
+    hyde_model: str = "gemini-2.5-flash"
+    hyde_query_types: str = "code,technical,troubleshooting"
+    hyde_max_tokens: int = 200
+
     rag_max_context_tokens_per_source: int = 3000
 
     mcp_default_limit: int = 10
+    mcp_classify_enabled: bool = True
 
     model_max_input_tokens: int = 1_000_000
 

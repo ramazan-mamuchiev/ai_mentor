@@ -834,11 +834,14 @@ def ingest_single_url_task(self, document_id: int):
     from app.ingestion.converters.web import convert_url
     from app.ingestion.pipeline import (
         enrich_for_embedding, _replace_generic_headings,
+        _save_doc_chunk_keys_sync, _has_llm_keys_sync, _save_llm_keys_sync,
+        _get_or_create_parent_sync,
     )
     from app.ingestion.parsers.markdown import parse_markdown
     from app.ingestion.chunker import chunk_sections
     from app.ingestion.embedder import embed_texts
     from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
+    from app.ingestion.lang_detect import detect_language
     from app.config import settings as _settings
     from datetime import datetime, timezone
 
@@ -941,6 +944,10 @@ def ingest_single_url_task(self, document_id: int):
         session.commit()
 
         try:
+            doc_language = detect_language(text)
+            if not doc.detected_language:
+                doc.detected_language = doc_language
+
             t_parse = time.perf_counter()
             sections, _fm = parse_markdown(text)
             _replace_generic_headings(sections, page_title)
@@ -954,21 +961,95 @@ def ingest_single_url_task(self, document_id: int):
                 session.commit()
                 return {"status": "error", "error": "No content extracted", "url": url}
 
+            doc.progress_stage = "extracting_metadata"
+            doc.progress_percent = 40
+            session.commit()
+
+            chunk_meta_dicts: list[dict] = []
+            extract_ms = 0.0
+            if _settings.metadata_extraction_enabled:
+                from app.ingestion.metadata_extractor import extract_metadata_batch_sync
+                t_extract = time.perf_counter()
+                extraction_result = extract_metadata_batch_sync(
+                    [c.content for c in chunks],
+                )
+                chunk_meta_dicts = [
+                    {"doc_type": m.doc_type, "entities": m.entities}
+                    for m in extraction_result.metadata
+                ]
+                extract_ms = round((time.perf_counter() - t_extract) * 1000, 1)
+                doc.extract_ms = extract_ms
+                doc.extract_prompt_tokens = extraction_result.usage.prompt_tokens
+                doc.extract_completion_tokens = extraction_result.usage.completion_tokens
+                logger.info("URL metadata extraction completed", extra={
+                    "document_id": document_id, "chunks": len(chunks),
+                    "extract_ms": extract_ms,
+                    "prompt_tokens": extraction_result.usage.prompt_tokens,
+                })
+            else:
+                logger.info("Metadata extraction disabled, skipping", extra={
+                    "document_id": document_id,
+                })
+
             doc.progress_stage = "embedding"
-            doc.progress_percent = 50
+            doc.progress_percent = 55
             session.commit()
 
             t_embed = time.perf_counter()
-            enriched = enrich_for_embedding(chunks)
+            enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
             embeddings, embedding_api_tokens = embed_texts(enriched)
             embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
+            doc.progress_stage = "product_keys"
+            doc.progress_percent = 75
+            session.commit()
+
+            chunk_key_count = _save_doc_chunk_keys_sync(
+                session, doc.product_id, doc.id, chunk_meta_dicts,
+            )
+            logger.info("URL chunk keys saved", extra={
+                "document_id": document_id, "product_id": doc.product_id,
+                "key_count": chunk_key_count,
+            })
+
+            from app.models import Product
+            if _settings.product_keys_extraction_enabled and not _has_llm_keys_sync(session, doc.product_id):
+                from app.ingestion.product_keys_extractor import generate_product_keys_sync
+                product_obj = session.get(Product, doc.product_id)
+                if product_obj:
+                    keys_result = generate_product_keys_sync(
+                        name=product_obj.name,
+                        manufacturer=product_obj.manufacturer,
+                        model=product_obj.model,
+                        category=product_obj.category,
+                    )
+                    if keys_result.keys:
+                        _save_llm_keys_sync(session, doc.product_id, keys_result.keys)
+                    doc.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
+                    doc.product_keys_completion_tokens = keys_result.usage.completion_tokens
+                    doc.product_keys_ms = keys_result.usage.extract_ms
+                    logger.info("URL LLM product keys generated", extra={
+                        "document_id": document_id, "product_id": doc.product_id,
+                        "llm_key_count": len(keys_result.keys),
+                        "keys_ms": keys_result.usage.extract_ms,
+                    })
+
             doc.progress_stage = "storing"
-            doc.progress_percent = 80
+            doc.progress_percent = 85
             session.commit()
 
             t_db = time.perf_counter()
+            _parent_cache: dict[str, int] = {}
             for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+                meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
+                parent_id = None
+                if chunk_data.parent_content:
+                    _pc_key = hashlib.sha256(chunk_data.parent_content.encode("utf-8")).hexdigest()
+                    if _pc_key in _parent_cache:
+                        parent_id = _parent_cache[_pc_key]
+                    else:
+                        parent_id = _get_or_create_parent_sync(session, chunk_data.parent_content)
+                        _parent_cache[_pc_key] = parent_id
                 db_chunk = Chunk(
                     document_id=doc.id,
                     chunk_index=i,
@@ -977,8 +1058,12 @@ def ingest_single_url_task(self, document_id: int):
                     content=chunk_data.content,
                     content_clean=_clean_md(chunk_data.content),
                     parent_content=chunk_data.parent_content,
+                    parent_id=parent_id,
                     token_count=chunk_data.token_count,
                     embedding=embedding,
+                    doc_type=meta.get("doc_type", "other"),
+                    entities=meta.get("entities", {}),
+                    language=doc_language,
                 )
                 session.add(db_chunk)
 
@@ -1012,6 +1097,11 @@ def ingest_single_url_task(self, document_id: int):
             logger.info("Single URL ingestion completed", extra={
                 "url": url, "document_id": doc.id,
                 "chunks": len(chunks), "duration_ms": round(duration * 1000, 1),
+                "extract_ms": extract_ms,
+                "embed_ms": embed_ms, "db_ms": db_ms,
+                "chunk_key_count": chunk_key_count,
+                "metadata_extracted": bool(chunk_meta_dicts),
+                "language": doc_language,
             })
             return {
                 "status": "ok",
