@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Activity, RefreshCw, Database, HardDrive, Cpu, Server, Layers,
   Clock, Loader, AlertTriangle, Zap, MessageSquare, Users, Radio,
-  Trash2, CheckCircle, XCircle, Play,
+  Trash2, CheckCircle, XCircle, Play, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import {
   getSystemInfo, type SystemInfo,
@@ -96,6 +96,151 @@ function HorizBar({ items }: { items: Array<{ label: string; pct: number; sub: s
   )
 }
 
+interface VacuumGroup {
+  key: string
+  items: VacuumHistoryItem[]
+  startedAt: Date
+  isMulti: boolean
+  totalFreed: number
+  totalDuration: number
+  status: string
+  hasError: boolean
+}
+
+function groupVacuumHistory(history: VacuumHistoryItem[]): VacuumGroup[] {
+  const groups: VacuumGroup[] = []
+  const used = new Set<number>()
+
+  for (let i = 0; i < history.length; i++) {
+    if (used.has(history[i].id)) continue
+    const anchor = new Date(history[i].started_at).getTime()
+    const items = [history[i]]
+    used.add(history[i].id)
+
+    for (let j = i + 1; j < history.length; j++) {
+      if (used.has(history[j].id)) continue
+      const t = new Date(history[j].started_at).getTime()
+      if (Math.abs(t - anchor) < 3000) {
+        items.push(history[j])
+        used.add(history[j].id)
+      }
+    }
+
+    const totalFreed = items.reduce((sum, h) => {
+      if (h.size_before_bytes != null && h.size_after_bytes != null)
+        return sum + Math.max(0, h.size_before_bytes - h.size_after_bytes)
+      return sum
+    }, 0)
+    const totalDuration = items.reduce((sum, h) => sum + (h.duration_ms ?? 0), 0)
+    const hasError = items.some(h => h.status === 'error')
+    const hasPending = items.some(h => h.status === 'pending')
+    const hasRunning = items.some(h => h.status === 'running')
+    const allDone = items.every(h => h.status === 'completed')
+    const status = hasRunning ? 'running' : hasPending ? 'pending' : hasError ? 'error' : allDone ? 'completed' : 'completed'
+
+    groups.push({
+      key: `${items[0].id}`,
+      items,
+      startedAt: new Date(history[i].started_at),
+      isMulti: items.length > 1,
+      totalFreed,
+      totalDuration,
+      status,
+      hasError,
+    })
+  }
+  return groups
+}
+
+function VacuumHistoryGrouped({ history, expandedGroup, onToggle }: {
+  history: VacuumHistoryItem[]
+  expandedGroup: number | null
+  onToggle: (idx: number) => void
+}) {
+  const groups = groupVacuumHistory(history)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+      {groups.slice(0, 8).map((g, idx) => {
+        const expanded = expandedGroup === idx
+        const StatusIcon = g.status === 'completed' ? CheckCircle
+          : g.status === 'error' ? XCircle
+          : g.status === 'running' ? Loader
+          : Clock
+        const iconColor = g.status === 'completed' ? 'var(--success, #22c55e)'
+          : g.status === 'error' ? 'var(--danger, #ef4444)'
+          : g.status === 'running' ? 'var(--accent)'
+          : 'var(--text-muted)'
+        const label = g.isMulti
+          ? `VACUUM ALL (${g.items.length})`
+          : g.items[0].table_name
+
+        return (
+          <div key={g.key}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: g.isMulti ? 'pointer' : 'default' }}
+              onClick={() => g.isMulti && onToggle(idx)}
+            >
+              <StatusIcon size={14} style={{ color: iconColor, flexShrink: 0 }} className={g.status === 'running' ? 'spin' : ''} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: 500 }}>{label}</span>
+                  {g.status === 'completed' && (
+                    <span style={{ color: 'var(--text-muted)' }}>{(g.totalDuration / 1000).toFixed(1)}s</span>
+                  )}
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                  {g.startedAt.toLocaleString()}
+                </div>
+                {g.status === 'completed' && g.totalFreed > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--success, #22c55e)', fontWeight: 500 }}>
+                    −{fmtBytes(g.totalFreed)}
+                  </div>
+                )}
+                {g.hasError && !g.isMulti && g.items[0].error_message && (
+                  <div style={{ fontSize: 11, color: 'var(--danger, #ef4444)' }} title={g.items[0].error_message}>
+                    {g.items[0].error_message.slice(0, 80)}
+                  </div>
+                )}
+              </div>
+              {g.isMulti && (
+                expanded
+                  ? <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  : <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              )}
+            </div>
+
+            {g.isMulti && expanded && (
+              <div style={{ marginLeft: 22, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4, borderLeft: '2px solid var(--border)', paddingLeft: 8 }}>
+                {g.items.map(h => (
+                  <div key={h.id} style={{ fontSize: 11, display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                    {h.status === 'completed' && <CheckCircle size={11} style={{ color: 'var(--success, #22c55e)' }} />}
+                    {h.status === 'error' && <XCircle size={11} style={{ color: 'var(--danger, #ef4444)' }} />}
+                    {h.status === 'running' && <Loader size={11} className="spin" style={{ color: 'var(--accent)' }} />}
+                    {h.status === 'pending' && <Clock size={11} style={{ color: 'var(--text-muted)' }} />}
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>{h.table_name}</span>
+                    {h.status === 'completed' && h.duration_ms != null && (
+                      <span style={{ color: 'var(--text-muted)' }}>{(h.duration_ms / 1000).toFixed(1)}s</span>
+                    )}
+                    {h.status === 'completed' && h.size_before_bytes != null && h.size_after_bytes != null && h.size_before_bytes > h.size_after_bytes && (
+                      <span style={{ color: 'var(--success, #22c55e)' }}>
+                        −{fmtBytes(h.size_before_bytes - h.size_after_bytes)}
+                      </span>
+                    )}
+                    {h.status === 'error' && h.error_message && (
+                      <span style={{ color: 'var(--danger, #ef4444)' }}>{h.error_message.slice(0, 50)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function VacuumCard() {
   const { t } = useTranslation()
   const [tables, setTables] = useState<VacuumTableInfo[]>([])
@@ -104,6 +249,7 @@ function VacuumCard() {
   const [runningTable, setRunningTable] = useState<string | null>(null)
   const [confirmTable, setConfirmTable] = useState<string | null>(null)
   const [confirmAll, setConfirmAll] = useState(false)
+  const [expandedGroup, setExpandedGroup] = useState<number | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchStatus = useCallback(async () => {
@@ -249,7 +395,7 @@ function VacuumCard() {
         </div>
       </div>
 
-      {/* Right: history */}
+      {/* Right: history (grouped) */}
       <div className="admin-card">
         <h3 className="system-card-title"><Clock size={16} /> {t('admin.system.vacuumHistory')}</h3>
         {history.length === 0 ? (
@@ -257,40 +403,11 @@ function VacuumCard() {
             {t('admin.system.vacuumNoHistory')}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-            {history.slice(0, 10).map(h => (
-              <div key={h.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, lineHeight: 1.4 }}>
-                <div style={{ paddingTop: 1, flexShrink: 0 }}>
-                  {h.status === 'completed' && <CheckCircle size={14} style={{ color: 'var(--success, #22c55e)' }} />}
-                  {h.status === 'error' && <XCircle size={14} style={{ color: 'var(--danger, #ef4444)' }} />}
-                  {h.status === 'running' && <Loader size={14} className="spin" style={{ color: 'var(--accent)' }} />}
-                  {h.status === 'pending' && <Clock size={14} style={{ color: 'var(--text-muted)' }} />}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{h.table_name}</span>
-                    {h.status === 'completed' && h.duration_ms != null && (
-                      <span style={{ color: 'var(--text-muted)' }}>{(h.duration_ms / 1000).toFixed(1)}s</span>
-                    )}
-                  </div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                    {new Date(h.started_at).toLocaleString()}
-                  </div>
-                  {h.status === 'completed' && h.size_before_bytes != null && h.size_after_bytes != null && (
-                    <div style={{ fontSize: 11, color: h.size_before_bytes > h.size_after_bytes ? 'var(--success, #22c55e)' : 'var(--text-muted)', fontWeight: 500 }}>
-                      {fmtBytes(h.size_before_bytes)} → {fmtBytes(h.size_after_bytes)}
-                      {h.size_before_bytes > h.size_after_bytes && ` (−${fmtBytes(h.size_before_bytes - h.size_after_bytes)})`}
-                    </div>
-                  )}
-                  {h.status === 'error' && h.error_message && (
-                    <div style={{ fontSize: 11, color: 'var(--danger, #ef4444)' }} title={h.error_message}>
-                      {h.error_message.slice(0, 80)}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          <VacuumHistoryGrouped
+            history={history}
+            expandedGroup={expandedGroup}
+            onToggle={idx => setExpandedGroup(expandedGroup === idx ? null : idx)}
+          />
         )}
       </div>
 
