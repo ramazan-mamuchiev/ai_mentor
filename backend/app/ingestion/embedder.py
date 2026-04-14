@@ -64,6 +64,8 @@ def embed_texts(
     if not texts:
         return [], 0
 
+    texts = [t if t and t.strip() else " " for t in texts]
+
     client = _get_gemini_client()
     task_type = "RETRIEVAL_QUERY" if is_query else "RETRIEVAL_DOCUMENT"
     target_dims = EMBEDDING_DIMS
