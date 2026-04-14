@@ -72,8 +72,10 @@ def embed_texts(
     total_api_tokens = 0
     total_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
 
-    for batch_idx, i in enumerate(range(0, len(texts), BATCH_SIZE)):
-        batch = texts[i : i + BATCH_SIZE]
+    sanitized = [t if t and t.strip() else " " for t in texts]
+
+    for batch_idx, i in enumerate(range(0, len(sanitized), BATCH_SIZE)):
+        batch = sanitized[i : i + BATCH_SIZE]
 
         def _is_retryable(exc: Exception) -> bool:
             s = str(exc)
