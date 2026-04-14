@@ -3510,7 +3510,7 @@ def vacuum_full_table_task(self, table_name: str, record_id: int):
     t0 = time.time()
     try:
         raw_engine = create_engine(
-            str(engine.url),
+            settings.database_url_sync,
             isolation_level="AUTOCOMMIT",
             pool_size=1,
             max_overflow=0,
