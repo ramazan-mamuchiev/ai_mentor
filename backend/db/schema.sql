@@ -191,9 +191,14 @@ CREATE INDEX IF NOT EXISTS idx_chunks_tsv_lang ON chunks USING gin(tsv_lang);
 CREATE INDEX IF NOT EXISTS idx_chunks_language ON chunks(language);
 
 -- HNSW vector index (cosine similarity)
-CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks
-    USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 128);
+-- Wrapped in DO block to tolerate type mismatch during migration
+DO $$ BEGIN
+    CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks
+        USING hnsw (embedding vector_cosine_ops)
+        WITH (m = 16, ef_construction = 128);
+EXCEPTION WHEN others THEN
+    RAISE NOTICE 'idx_chunks_embedding creation skipped: %', SQLERRM;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
 

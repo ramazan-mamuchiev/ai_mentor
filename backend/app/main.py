@@ -422,6 +422,11 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Startup schema migration failed", exc_info=True)
 
+    try:
+        await _migrate_embedding_dims()
+    except Exception:
+        logger.warning("Embedding dims migration failed (standalone)", exc_info=True)
+
     from app.s3 import ensure_bucket
     try:
         ensure_bucket()
