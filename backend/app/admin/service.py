@@ -1912,7 +1912,7 @@ async def run_vacuum_full(session: AsyncSession, table_name: str) -> dict:
         raise HTTPException(status_code=400, detail=f"Table '{table_name}' is not allowed for VACUUM FULL")
 
     running = (await session.execute(
-        select(func.count()).select_from(VacuumHistory).where(VacuumHistory.status == "running")
+        select(func.count()).select_from(VacuumHistory).where(VacuumHistory.status.in_(["running", "pending"]))
     )).scalar() or 0
     if running > 0:
         raise HTTPException(status_code=409, detail="Another VACUUM FULL is already running")
@@ -1933,7 +1933,7 @@ async def run_vacuum_all(session: AsyncSession) -> dict:
     from celery import chain as celery_chain
 
     running = (await session.execute(
-        select(func.count()).select_from(VacuumHistory).where(VacuumHistory.status == "running")
+        select(func.count()).select_from(VacuumHistory).where(VacuumHistory.status.in_(["running", "pending"]))
     )).scalar() or 0
     if running > 0:
         raise HTTPException(status_code=409, detail="Another VACUUM FULL is already running")
@@ -1955,7 +1955,7 @@ async def run_vacuum_all(session: AsyncSession) -> dict:
         records.append((tbl, latest.id))
 
     from app.celery_app import celery
-    tasks = [celery.signature("vacuum_full_table", args=[tbl, rid]) for tbl, rid in records]
+    tasks = [celery.signature("vacuum_full_table", args=[tbl, rid], immutable=True) for tbl, rid in records]
     result = celery_chain(*tasks).apply_async()
 
     return {"task_id": result.id, "tables": [tbl for tbl, _ in records]}
