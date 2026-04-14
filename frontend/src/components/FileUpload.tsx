@@ -33,7 +33,7 @@ const MAX_CONCURRENT = 3
 
 const ALLOWED_EXTENSIONS = new Set([
   '.md', '.txt', '.pdf', '.json', '.yaml', '.yml',
-  '.proto', '.wsdl', '.xml', '.docx',
+  '.proto', '.wsdl', '.xml', '.docx', '.html', '.htm',
   '.zip', '.7z', '.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tar.xz', '.rar',
 ])
 
@@ -325,7 +325,7 @@ export function FileUpload({ onComplete, onClose, productContext }: FileUploadPr
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept=".md,.txt,.pdf,.json,.yaml,.yml,.proto,.wsdl,.xml,.docx,.zip,.7z,.tar,.tar.gz,.tgz,.tar.bz2,.tar.xz,.rar"
+                accept=".md,.txt,.pdf,.json,.yaml,.yml,.proto,.wsdl,.xml,.docx,.html,.htm,.zip,.7z,.tar,.tar.gz,.tgz,.tar.bz2,.tar.xz,.rar"
                 style={{ display: 'none' }}
                 onChange={e => {
                   if (e.target.files) addFiles(e.target.files)
