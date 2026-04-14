@@ -50,7 +50,7 @@ export function KBArticlePage() {
         setArticle(null)
         setLoading(false)
       })
-  }, [slug, articleLang])
+  }, [slug, meta, articleLang])
 
   useEffect(() => {
     fetchArticle()
