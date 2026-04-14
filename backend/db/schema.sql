@@ -201,10 +201,17 @@ CREATE TABLE IF NOT EXISTS chunk_parents (
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS parent_id BIGINT REFERENCES chunk_parents(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_chunks_parent_id ON chunks(parent_id);
 
--- HNSW vector index (cosine similarity, half-precision)
-CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks
-    USING hnsw (embedding halfvec_cosine_ops)
-    WITH (m = 16, ef_construction = 128);
+-- HNSW vector index for embeddings.
+-- The actual operator class (vector_cosine_ops / halfvec_cosine_ops) and column type
+-- are managed by _migrate_embedding_dims() at startup.  We create the index here only
+-- if the column is already halfvec; otherwise the migration handles it.
+DO $$ BEGIN
+    CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks
+        USING hnsw (embedding halfvec_cosine_ops)
+        WITH (m = 16, ef_construction = 128);
+EXCEPTION WHEN others THEN
+    RAISE NOTICE 'idx_chunks_embedding skipped in schema.sql (will be created by migration): %', SQLERRM;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
 
