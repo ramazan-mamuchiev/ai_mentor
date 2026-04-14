@@ -7,7 +7,7 @@
     "createdAt": "2026-03-30",
     "title": {
       "en": "Document Indexing Pipeline",
-      "ru": "Pipeline индексации документов"
+      "ru": "Пайплайн индексации документов"
     },
     "description": {
       "en": "Full document path: from upload to semantic search readiness. 9 stages including conversion, chunking, embedding via Gemini, and HNSW indexing in pgvector.",
@@ -23,7 +23,7 @@
     "createdAt": "2026-03-30",
     "title": {
       "en": "Web Chat Pipeline",
-      "ru": "Web Chat Pipeline"
+      "ru": "Пайплайн веб-чата"
     },
     "description": {
       "en": "Full query path: from user input to SSE-streamed response. 11 stages including query rewrite, classification, hybrid search (vector + BM25 + RRF), LLM reranking, and Gemini Pro generation.",
@@ -39,7 +39,7 @@
     "createdAt": "2026-03-30",
     "title": {
       "en": "Lexiro MCP Server",
-      "ru": "Lexiro MCP Server"
+      "ru": "MCP-сервер Lexiro"
     },
     "description": {
       "en": "All your product documentation right in your IDE. 9 tools, one API key, zero context switching. Architecture, tools catalog, search pipeline, and comparison with Web Chat.",
@@ -119,7 +119,7 @@
     "createdAt": "2026-04-13",
     "title": {
       "en": "Runbook: Operations & Incidents",
-      "ru": "Runbook: операции и инциденты"
+      "ru": "Сценарии: операции и инциденты"
     },
     "description": {
       "en": "Routine operations and incident response: API down, DB overload, disk full, S3 failure, queue stuck, cert expired.",
