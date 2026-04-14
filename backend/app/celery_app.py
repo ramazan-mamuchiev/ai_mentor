@@ -331,6 +331,17 @@ def ingest_document_task(self, document_id: int):
             logger.info("Document was cancelled before task started", extra={"document_id": document_id})
             return {"status": "cancelled", "message": "Cancelled before processing"}
 
+        if doc.status == "processing" and doc.celery_task_id and doc.celery_task_id != self.request.id:
+            logger.warning(
+                "Document already being processed by another task",
+                extra={
+                    "document_id": document_id,
+                    "existing_task_id": doc.celery_task_id,
+                    "our_task_id": self.request.id,
+                },
+            )
+            return {"status": "skipped", "message": "Already being processed by another task"}
+
         _set_tenant_log_context(doc.tenant_id, session)
 
         from datetime import datetime, timezone as _tz

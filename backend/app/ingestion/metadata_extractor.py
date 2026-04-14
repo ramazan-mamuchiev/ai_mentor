@@ -9,6 +9,7 @@ import httpx
 
 from app.config import settings
 from app.llm.http_client import gemini_client
+from app.utils.retry import retry_call
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,15 @@ def _parse_response(raw: str, expected_count: int) -> list[ChunkMetadata]:
     return results
 
 
+_RETRYABLE_CODES = {429, 503, 502, 500}
+
+
+def _is_retryable_http(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _RETRYABLE_CODES
+    return False
+
+
 def _call_llm_sync(prompt: str) -> tuple[str, dict]:
     """Synchronous LLM call for use in Celery worker. Returns (response_text, usage_dict)."""
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
@@ -148,10 +158,20 @@ def _call_llm_sync(prompt: str) -> tuple[str, dict]:
         "Authorization": f"Bearer {settings.gemini_api_key}",
     }
 
-    with httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
-        resp = client.post(url, json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+    def _do_request() -> dict:
+        with httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
+            resp = client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
+
+    data = retry_call(
+        _do_request,
+        max_retries=3,
+        base_delay=2.0,
+        max_delay=30.0,
+        is_retryable=_is_retryable_http,
+        label="metadata_extraction_sync",
+    )
 
     text = data["choices"][0]["message"]["content"].strip()
     usage = data.get("usage", {})
@@ -160,6 +180,8 @@ def _call_llm_sync(prompt: str) -> tuple[str, dict]:
 
 async def _call_llm_async(prompt: str) -> tuple[str, dict]:
     """Async LLM call for use in FastAPI endpoints."""
+    import asyncio
+
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
     payload = {
         "model": settings.metadata_extraction_model,
@@ -176,13 +198,29 @@ async def _call_llm_async(prompt: str) -> tuple[str, dict]:
         "Authorization": f"Bearer {settings.gemini_api_key}",
     }
 
-    resp = await gemini_client().post(url, json=payload, headers=headers, timeout=30.0)
-    resp.raise_for_status()
-    data = resp.json()
-
-    text = data["choices"][0]["message"]["content"].strip()
-    usage = data.get("usage", {})
-    return text, usage
+    last_exc: Exception | None = None
+    for attempt in range(4):
+        if attempt > 0 and last_exc is not None:
+            delay = min(2.0 * 2 ** (attempt - 1), 30.0)
+            logger.warning(
+                "metadata_extraction_async: retrying (%d/4) in %.1fs",
+                attempt + 1, delay,
+            )
+            await asyncio.sleep(delay)
+        try:
+            resp = await gemini_client().post(url, json=payload, headers=headers, timeout=30.0)
+            resp.raise_for_status()
+            data = resp.json()
+            text = data["choices"][0]["message"]["content"].strip()
+            usage = data.get("usage", {})
+            return text, usage
+        except httpx.HTTPStatusError as exc:
+            last_exc = exc
+            if exc.response.status_code not in _RETRYABLE_CODES or attempt == 3:
+                raise
+        except Exception:
+            raise
+    raise last_exc  # type: ignore[misc]
 
 
 def extract_metadata_batch_sync(

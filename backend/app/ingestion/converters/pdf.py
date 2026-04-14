@@ -179,6 +179,16 @@ def convert_pdf(
     page_ranges = _split_page_ranges(page_count, pages_per_chunk=chunk_size)
     total_ranges = len(page_ranges)
 
+    ocr_page_set = set(ocr_pages) if will_ocr else set()
+
+    def _image_path_for_range(pr: list[int]) -> str | None:
+        """Return image_temp_dir only when the page range has OCR-worthy pages."""
+        if not image_temp_dir:
+            return None
+        if ocr_page_set.intersection(pr):
+            return image_temp_dir
+        return None
+
     try:
         if page_count > PARALLEL_THRESHOLD:
             num_workers = min(MAX_PDF_WORKERS, page_count)
@@ -191,13 +201,15 @@ def convert_pdf(
                     "workers": num_workers,
                     "total_chunks": total_ranges,
                     "pages_per_chunk": chunk_size,
+                    "ocr_pages_count": len(ocr_page_set),
                 },
             )
 
             with ThreadPoolExecutor(max_workers=num_workers) as executor:
                 future_to_idx = {
                     executor.submit(
-                        _convert_page_range_with_retry, file_path, pr, image_temp_dir
+                        _convert_page_range_with_retry, file_path, pr,
+                        _image_path_for_range(pr),
                     ): idx
                     for idx, pr in enumerate(page_ranges)
                 }
@@ -212,11 +224,13 @@ def convert_pdf(
         else:
             page_results: dict[int, str] = {}
             for idx, pr in enumerate(page_ranges):
-                def _convert_range():
-                    kwargs: dict = {"pages": pr}
-                    if image_temp_dir:
+                img_path = _image_path_for_range(pr)
+
+                def _convert_range(_pr=pr, _img=img_path):
+                    kwargs: dict = {"pages": _pr}
+                    if _img:
                         kwargs["write_images"] = True
-                        kwargs["image_path"] = image_temp_dir
+                        kwargs["image_path"] = _img
                     return pymupdf4llm.to_markdown(file_path, **kwargs)
 
                 page_results[idx] = retry_call(
