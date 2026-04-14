@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Maximize2, Minimize2 } from 'lucide-react'
@@ -56,7 +56,7 @@ export function KBArticlePage() {
     fetchArticle()
   }, [fetchArticle])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!article?.css) return
 
     if (!styleRef.current) {
