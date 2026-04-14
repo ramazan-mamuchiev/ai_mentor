@@ -546,6 +546,40 @@ class SystemInfo(BaseModel):
     services: list[ServiceHealth]
 
 
+# --- Database Maintenance ---
+
+class VacuumTableInfo(BaseModel):
+    name: str
+    size_bytes: int
+    dead_tuples: int
+    live_tuples: int
+    last_autovacuum: str | None = None
+
+class VacuumHistoryItem(BaseModel):
+    id: int
+    table_name: str
+    status: str
+    started_at: str
+    finished_at: str | None = None
+    duration_ms: float | None = None
+    size_before_bytes: int | None = None
+    size_after_bytes: int | None = None
+    dead_tuples_before: int | None = None
+    live_tuples: int | None = None
+    error_message: str | None = None
+
+class VacuumStatusResponse(BaseModel):
+    tables: list[VacuumTableInfo]
+    history: list[VacuumHistoryItem]
+
+class VacuumRunRequest(BaseModel):
+    table_name: str
+
+class VacuumRunResponse(BaseModel):
+    record_id: int
+    task_id: str
+
+
 # --- RAG Evaluation ---
 
 # --- Task Queue ---

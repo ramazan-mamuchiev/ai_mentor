@@ -17,7 +17,7 @@ from celery.signals import (
     task_retry,
     worker_ready,
 )
-from sqlalchemy import create_engine, func, select as sa_select
+from sqlalchemy import create_engine, func, select as sa_select, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -3470,3 +3470,97 @@ def merge_product_lifecycle_task(self, product_id: int):
             return {"status": "error", "product_id": product_id, "error": error_msg}
 
 
+# ---------------------------------------------------------------------------
+# Database maintenance — VACUUM FULL
+# ---------------------------------------------------------------------------
+
+@celery.task(name="vacuum_full_table", bind=True, acks_late=False, soft_time_limit=600, time_limit=660)
+def vacuum_full_table_task(self, table_name: str, record_id: int):
+    """Run VACUUM FULL on a single table and record results in vacuum_history."""
+    from datetime import datetime, timezone
+    from app.models import VacuumHistory
+
+    ALLOWED_TABLES = {"chunks", "documents", "product_search_keys", "chat_messages", "chat_message_analytics"}
+
+    engine = _get_sync_engine()
+
+    if table_name not in ALLOWED_TABLES:
+        with Session(engine) as session:
+            rec = session.get(VacuumHistory, record_id)
+            if rec:
+                rec.status = "error"
+                rec.error_message = f"Table '{table_name}' is not in the allow-list"
+                rec.finished_at = datetime.now(timezone.utc)
+                session.commit()
+        return {"status": "error", "error": "not_allowed"}
+
+    with Session(engine) as session:
+        size_before = session.execute(
+            text("SELECT pg_total_relation_size(:tbl)"),
+            {"tbl": table_name},
+        ).scalar() or 0
+
+        stats = session.execute(
+            text("SELECT n_dead_tup, n_live_tup FROM pg_stat_user_tables WHERE relname = :tbl"),
+            {"tbl": table_name},
+        ).mappings().first()
+        dead_before = int(stats["n_dead_tup"]) if stats else 0
+        live = int(stats["n_live_tup"]) if stats else 0
+
+    t0 = time.time()
+    try:
+        raw_engine = create_engine(
+            str(engine.url),
+            isolation_level="AUTOCOMMIT",
+            pool_size=1,
+            max_overflow=0,
+        )
+        with raw_engine.connect() as conn:
+            conn.execute(text(f"VACUUM FULL {table_name}"))
+        raw_engine.dispose()
+
+        elapsed_ms = (time.time() - t0) * 1000
+
+        with Session(engine) as session:
+            size_after = session.execute(
+                text("SELECT pg_total_relation_size(:tbl)"),
+                {"tbl": table_name},
+            ).scalar() or 0
+
+            rec = session.get(VacuumHistory, record_id)
+            if rec:
+                rec.status = "completed"
+                rec.finished_at = datetime.now(timezone.utc)
+                rec.duration_ms = elapsed_ms
+                rec.size_before_bytes = size_before
+                rec.size_after_bytes = size_after
+                rec.dead_tuples_before = dead_before
+                rec.live_tuples = live
+                session.commit()
+
+        logger.info("VACUUM FULL completed",
+                     extra={"table": table_name, "duration_ms": elapsed_ms,
+                            "size_before": size_before, "size_after": size_after,
+                            "freed_bytes": size_before - size_after})
+        return {"status": "completed", "table": table_name, "duration_ms": elapsed_ms}
+
+    except Exception as exc:
+        elapsed_ms = (time.time() - t0) * 1000
+        error_msg = f"{type(exc).__name__}: {str(exc)[:500]}"
+
+        with Session(engine) as session:
+            rec = session.get(VacuumHistory, record_id)
+            if rec:
+                rec.status = "error"
+                rec.error_message = error_msg
+                rec.finished_at = datetime.now(timezone.utc)
+                rec.duration_ms = elapsed_ms
+                rec.size_before_bytes = size_before
+                rec.dead_tuples_before = dead_before
+                rec.live_tuples = live
+                session.commit()
+
+        logger.error("VACUUM FULL failed",
+                      extra={"table": table_name, "error": error_msg},
+                      exc_info=True)
+        raise

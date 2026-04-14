@@ -1103,3 +1103,26 @@ class PromptTemplate(Base):
         UniqueConstraint("query_type", "role_id"),
         Index("idx_prompt_templates_query_type", "query_type"),
     )
+
+
+class VacuumHistory(Base):
+    __tablename__ = "vacuum_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    table_name: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="running")
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    size_before_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    size_after_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    dead_tuples_before: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    live_tuples: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_vacuum_history_table", "table_name"),
+        Index("idx_vacuum_history_started", "started_at"),
+    )

@@ -1001,6 +1001,50 @@ export async function getSystemInfo(): Promise<SystemInfo> {
   return handleResponse(res)
 }
 
+// --- Database Maintenance ---
+
+export interface VacuumTableInfo {
+  name: string
+  size_bytes: number
+  dead_tuples: number
+  live_tuples: number
+  last_autovacuum: string | null
+}
+
+export interface VacuumHistoryItem {
+  id: number
+  table_name: string
+  status: string
+  started_at: string
+  finished_at: string | null
+  duration_ms: number | null
+  size_before_bytes: number | null
+  size_after_bytes: number | null
+  dead_tuples_before: number | null
+  live_tuples: number | null
+  error_message: string | null
+}
+
+export interface VacuumStatusResponse {
+  tables: VacuumTableInfo[]
+  history: VacuumHistoryItem[]
+}
+
+export async function getVacuumStatus(): Promise<VacuumStatusResponse> {
+  const res = await fetch(`${BASE}/system/vacuum`, { credentials: 'include' })
+  return handleResponse(res)
+}
+
+export async function runVacuumFull(tableName: string): Promise<{ record_id: number; task_id: string }> {
+  const res = await fetch(`${BASE}/system/vacuum`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ table_name: tableName }),
+  })
+  return handleResponse(res)
+}
+
 // --- RAG Evaluation ---
 
 export interface RagEvalRunItem {

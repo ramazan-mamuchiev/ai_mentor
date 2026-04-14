@@ -3,8 +3,13 @@ import { useTranslation } from 'react-i18next'
 import {
   Activity, RefreshCw, Database, HardDrive, Cpu, Server, Layers,
   Clock, Loader, AlertTriangle, Zap, MessageSquare, Users, Radio,
+  Trash2, CheckCircle, XCircle, Play,
 } from 'lucide-react'
-import { getSystemInfo, type SystemInfo } from '../../api/admin'
+import {
+  getSystemInfo, type SystemInfo,
+  getVacuumStatus, runVacuumFull,
+  type VacuumTableInfo, type VacuumHistoryItem,
+} from '../../api/admin'
 import { SYSTEM_REFRESH_INTERVAL } from './constants'
 
 function fmtBytes(b: number) {
@@ -86,6 +91,153 @@ function HorizBar({ items }: { items: Array<{ label: string; pct: number; sub: s
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function VacuumCard() {
+  const { t } = useTranslation()
+  const [tables, setTables] = useState<VacuumTableInfo[]>([])
+  const [history, setHistory] = useState<VacuumHistoryItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [runningTable, setRunningTable] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const data = await getVacuumStatus()
+      setTables(data.tables)
+      setHistory(data.history)
+
+      const hasRunning = data.history.some(h => h.status === 'running')
+      if (!hasRunning && pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+        setRunningTable(null)
+      }
+    } catch { /* keep old data */ }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    fetchStatus()
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [fetchStatus])
+
+  const handleRun = async (tableName: string) => {
+    if (runningTable) return
+    if (!confirm(t('admin.system.vacuumConfirm', { table: tableName }))) return
+    try {
+      setRunningTable(tableName)
+      await runVacuumFull(tableName)
+      await fetchStatus()
+      pollRef.current = setInterval(fetchStatus, 3000)
+    } catch (e: unknown) {
+      setRunningTable(null)
+      alert(e instanceof Error ? e.message : 'Failed to start VACUUM FULL')
+    }
+  }
+
+  if (loading) return null
+
+  const lastRun = history.find(h => h.status !== 'running')
+  const isRunning = !!runningTable || history.some(h => h.status === 'running')
+
+  return (
+    <div className="admin-card">
+      <div className="system-card-header">
+        <h3 className="system-card-title"><Trash2 size={16} /> {t('admin.system.vacuumTitle')}</h3>
+        {lastRun && (
+          <span className="system-card-hero" style={{ fontSize: 12, fontWeight: 400 }}>
+            {t('admin.system.vacuumLastRun')}: {new Date(lastRun.started_at).toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      {isRunning && (
+        <div className="system-badges" style={{ marginBottom: 8 }}>
+          <span className="system-badge system-badge--accent">
+            <Loader size={12} className="spin" /> {t('admin.system.vacuumRunning')}
+          </span>
+        </div>
+      )}
+
+      {/* Tables */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+        {tables.map(tbl => {
+          const bloatRatio = tbl.live_tuples > 0 ? tbl.dead_tuples / tbl.live_tuples : 0
+          const hasBloat = tbl.dead_tuples > 1000 || bloatRatio > 0.5
+          const tblRunning = runningTable === tbl.name || history.some(h => h.table_name === tbl.name && h.status === 'running')
+
+          return (
+            <div key={tbl.name} className="system-kv" style={{ alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{tbl.name}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{fmtBytes(tbl.size_bytes)}</span>
+                  {hasBloat && (
+                    <span style={{ color: 'var(--warning, #f59e0b)', fontSize: 11, fontWeight: 600 }}>
+                      ⚠ {tbl.dead_tuples.toLocaleString()} dead
+                    </span>
+                  )}
+                </div>
+                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                  {tbl.live_tuples.toLocaleString()} live / {tbl.dead_tuples.toLocaleString()} dead
+                  {tbl.last_autovacuum && ` · autovacuum ${new Date(tbl.last_autovacuum).toLocaleDateString()}`}
+                </span>
+              </div>
+              <button
+                className="admin-btn admin-btn--sm"
+                disabled={isRunning}
+                onClick={() => handleRun(tbl.name)}
+                style={{ minWidth: 90, gap: 4 }}
+              >
+                {tblRunning
+                  ? <><Loader size={12} className="spin" /> {t('admin.system.vacuumRunning')}</>
+                  : <><Play size={12} /> VACUUM</>
+                }
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* History */}
+      {history.length > 0 && (
+        <>
+          <div className="system-kv-divider" />
+          <span className="system-mini-label">{t('admin.system.vacuumHistory')}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+            {history.slice(0, 10).map(h => (
+              <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                {h.status === 'completed' && <CheckCircle size={13} style={{ color: 'var(--success, #22c55e)' }} />}
+                {h.status === 'error' && <XCircle size={13} style={{ color: 'var(--danger, #ef4444)' }} />}
+                {h.status === 'running' && <Loader size={13} className="spin" style={{ color: 'var(--accent)' }} />}
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{h.table_name}</span>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  {new Date(h.started_at).toLocaleString()}
+                </span>
+                {h.status === 'completed' && h.duration_ms != null && (
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {(h.duration_ms / 1000).toFixed(1)}s
+                  </span>
+                )}
+                {h.status === 'completed' && h.size_before_bytes != null && h.size_after_bytes != null && (
+                  <span style={{ color: 'var(--success, #22c55e)', fontWeight: 600 }}>
+                    {fmtBytes(h.size_before_bytes)} → {fmtBytes(h.size_after_bytes)}
+                    {h.size_before_bytes > h.size_after_bytes && ` (−${fmtBytes(h.size_before_bytes - h.size_after_bytes)})`}
+                  </span>
+                )}
+                {h.status === 'error' && h.error_message && (
+                  <span style={{ color: 'var(--danger, #ef4444)' }} title={h.error_message}>
+                    {h.error_message.slice(0, 60)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -276,6 +428,10 @@ export function SystemPage() {
           </div>
         </div>
       </div>
+
+      {/* Database Maintenance */}
+      <h3 className="system-section-title"><Database size={16} /> {t('admin.system.vacuumSection')}</h3>
+      <VacuumCard />
 
       {/* Ingestion + LLM | S3 */}
       <div className="system-two-cols">

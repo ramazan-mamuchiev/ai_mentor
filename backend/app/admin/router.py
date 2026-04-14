@@ -54,6 +54,9 @@ from app.admin.schemas import (
     RolePatchRequest,
     SearchStat,
     SystemInfo,
+    VacuumRunRequest,
+    VacuumRunResponse,
+    VacuumStatusResponse,
     TaskItem,
     TaskListResponse,
     TenantDetail,
@@ -717,6 +720,20 @@ async def seed_prompts_from_files(session: AsyncSession = Depends(get_session)):
 @router.get("/system/info", response_model=SystemInfo)
 async def system_info(session: AsyncSession = Depends(get_session)):
     return await service.get_system_info(session)
+
+
+# ---------------------------------------------------------------------------
+# Database Maintenance
+# ---------------------------------------------------------------------------
+
+@router.get("/system/vacuum", response_model=VacuumStatusResponse)
+async def vacuum_status(session: AsyncSession = Depends(get_session)):
+    return await service.get_vacuum_status(session)
+
+
+@router.post("/system/vacuum", response_model=VacuumRunResponse, status_code=202)
+async def vacuum_run(body: VacuumRunRequest, session: AsyncSession = Depends(get_session)):
+    return await service.run_vacuum_full(session, body.table_name)
 
 
 # ---------------------------------------------------------------------------

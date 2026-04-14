@@ -1580,6 +1580,13 @@
   "admin.system.onlineUsers": "Онлайн пользователи (5м)",
   "admin.system.chatSessions": "Чат-сессии (5м)",
 
+  "admin.system.vacuumSection": "Обслуживание БД",
+  "admin.system.vacuumTitle": "VACUUM FULL",
+  "admin.system.vacuumLastRun": "Последний запуск",
+  "admin.system.vacuumRunning": "Выполняется…",
+  "admin.system.vacuumHistory": "История запусков",
+  "admin.system.vacuumConfirm": "Запустить VACUUM FULL для таблицы «{{table}}»? Таблица будет заблокирована на время выполнения.",
+
   "filters.title": "Фильтры",
   "filters.categories": "Категории",
   "filters.manufacturers": "Производители",

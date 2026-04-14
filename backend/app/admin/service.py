@@ -28,6 +28,7 @@ from app.models import (
     Tenant,
     TenantRole,
     UsageLog,
+    VacuumHistory,
 )
 
 _logger = logging.getLogger(__name__)
@@ -1846,6 +1847,85 @@ async def get_system_info(session: AsyncSession) -> dict:
         **activity,
         "services": health,
     }
+
+
+# ---------------------------------------------------------------------------
+# Database Maintenance — VACUUM FULL
+# ---------------------------------------------------------------------------
+
+VACUUM_ALLOWED_TABLES = {"chunks", "documents", "product_search_keys", "chat_messages", "chat_message_analytics"}
+
+
+async def get_vacuum_status(session: AsyncSession) -> dict:
+    table_rows = (await session.execute(text("""
+        SELECT relname AS name,
+               pg_total_relation_size(c.oid) AS size_bytes,
+               COALESCE(s.n_dead_tup, 0) AS dead_tuples,
+               COALESCE(s.n_live_tup, 0) AS live_tuples,
+               s.last_autovacuum
+        FROM pg_class c
+        JOIN pg_stat_user_tables s ON s.relname = c.relname
+        WHERE c.relkind = 'r' AND c.relname = ANY(:tables)
+        ORDER BY pg_total_relation_size(c.oid) DESC
+    """), {"tables": list(VACUUM_ALLOWED_TABLES)})
+    ).mappings().all()
+
+    tables = [
+        {
+            "name": r["name"],
+            "size_bytes": int(r["size_bytes"]),
+            "dead_tuples": int(r["dead_tuples"]),
+            "live_tuples": int(r["live_tuples"]),
+            "last_autovacuum": r["last_autovacuum"].isoformat() if r["last_autovacuum"] else None,
+        }
+        for r in table_rows
+    ]
+
+    history_rows = (await session.execute(
+        select(VacuumHistory).order_by(VacuumHistory.started_at.desc()).limit(20)
+    )).scalars().all()
+
+    history = [
+        {
+            "id": h.id,
+            "table_name": h.table_name,
+            "status": h.status,
+            "started_at": h.started_at.isoformat(),
+            "finished_at": h.finished_at.isoformat() if h.finished_at else None,
+            "duration_ms": h.duration_ms,
+            "size_before_bytes": h.size_before_bytes,
+            "size_after_bytes": h.size_after_bytes,
+            "dead_tuples_before": h.dead_tuples_before,
+            "live_tuples": h.live_tuples,
+            "error_message": h.error_message,
+        }
+        for h in history_rows
+    ]
+
+    return {"tables": tables, "history": history}
+
+
+async def run_vacuum_full(session: AsyncSession, table_name: str) -> dict:
+    from fastapi import HTTPException
+
+    if table_name not in VACUUM_ALLOWED_TABLES:
+        raise HTTPException(status_code=400, detail=f"Table '{table_name}' is not allowed for VACUUM FULL")
+
+    running = (await session.execute(
+        select(func.count()).select_from(VacuumHistory).where(VacuumHistory.status == "running")
+    )).scalar() or 0
+    if running > 0:
+        raise HTTPException(status_code=409, detail="Another VACUUM FULL is already running")
+
+    rec = VacuumHistory(table_name=table_name, status="running")
+    session.add(rec)
+    await session.commit()
+    await session.refresh(rec)
+
+    from app.celery_app import celery
+    result = celery.send_task("vacuum_full_table", args=[table_name, rec.id])
+
+    return {"record_id": rec.id, "task_id": result.id}
 
 
 # ---------------------------------------------------------------------------
