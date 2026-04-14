@@ -1,11 +1,10 @@
-"""Re-ranking for search results.
+"""Gemini-based re-ranking for search results.
 
-Supports two providers:
-- "llm": Gemini Flash via OpenAI-compatible API (default, uses structured JSON output)
-- "vertex_rank": Vertex AI Ranking API (semantic-ranker-default, requires google-cloud-discoveryengine)
+After the bi-encoder (vector search) retrieves candidate chunks, Gemini scores
+each (query, chunk) pair for relevance.  This improves precision at the cost
+of one LLM API call (~200-500ms for 20 candidates).
 
-After the bi-encoder (vector search) retrieves candidate chunks, the reranker
-scores each (query, chunk) pair for relevance to improve precision.
+No local models or heavy dependencies (PyTorch, sentence-transformers) required.
 """
 
 import json
@@ -38,7 +37,7 @@ class RerankResult:
     usage: RerankUsage = field(default_factory=RerankUsage)
 
 
-_RERANK_PROMPT_TEMPLATE = """\
+_RERANK_PROMPT = """\
 You are a relevance scoring engine. Given a user query and a list of text chunks, \
 rate each chunk's relevance to the query on a scale from 0.0 to 1.0.
 
@@ -55,15 +54,15 @@ A guide that explains the data flow is more useful than a bare RPC signature.
 
 Score based on the chunk's language-independent meaning. A Russian query can match English docs and vice versa.
 
-Return ONLY a JSON object with a "scores" key containing an array of numbers (floats) \
-in the same order as the chunks. No explanation, no extra text.
+Return ONLY a JSON array of numbers (floats) in the same order as the chunks. \
+No explanation, no markdown fences, no extra text — just the raw JSON array.
 
-Example: {"scores": [0.95, 0.3, 0.72, 0.1]}
+Example output: [0.95, 0.3, 0.72, 0.1]
 
-User query: $QUERY$
+User query: {query}
 
 Chunks:
-$CHUNKS$"""
+{chunks}"""
 
 
 def _build_rerank_text(result: dict) -> str:
@@ -102,13 +101,9 @@ _FLOAT_RE = re.compile(r"[\d]+\.?[\d]*")
 def _parse_scores(content: str, expected_count: int) -> list[float] | None:
     """Parse rerank scores from LLM output, tolerating formatting quirks."""
     try:
-        parsed = json.loads(content)
-        if isinstance(parsed, dict) and "scores" in parsed:
-            scores = parsed["scores"]
-            if isinstance(scores, list) and len(scores) == expected_count:
-                return [float(s) for s in scores]
-        if isinstance(parsed, list) and len(parsed) == expected_count:
-            return [float(s) for s in parsed]
+        scores = json.loads(content)
+        if isinstance(scores, list) and len(scores) == expected_count:
+            return [float(s) for s in scores]
     except (json.JSONDecodeError, ValueError):
         pass
 
@@ -119,15 +114,6 @@ def _parse_scores(content: str, expected_count: int) -> list[float] | None:
         except ValueError:
             pass
 
-    if len(numbers) >= expected_count // 2:
-        logger.warning(
-            "Gemini rerank truncated, padding with zeros",
-            extra={"expected": expected_count, "extracted": len(numbers), "raw": content[:200]},
-        )
-        partial = [min(max(float(n), 0.0), 1.0) for n in numbers]
-        partial.extend([0.0] * (expected_count - len(partial)))
-        return partial
-
     logger.warning(
         "Gemini rerank returned unparseable format",
         extra={"expected": expected_count, "extracted": len(numbers), "raw": content[:200]},
@@ -135,28 +121,12 @@ def _parse_scores(content: str, expected_count: int) -> list[float] | None:
     return None
 
 
-_CODE_FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)\n?\s*```", re.DOTALL)
-
-
-def _extract_json_block(text: str) -> str:
-    """Extract JSON from LLM output that may be wrapped in prose and/or code fences."""
-    m = _CODE_FENCE_RE.search(text)
-    if m:
-        return m.group(1).strip()
-    first_brace = text.find("{")
-    first_bracket = text.find("[")
-    if first_brace == -1 and first_bracket == -1:
-        return text
-    start = min(i for i in (first_brace, first_bracket) if i >= 0)
-    return text[start:].strip()
-
-
-async def _call_rerank_llm(
+async def _call_rerank_api(
     prompt: str,
     expected_count: int,
     usage: RerankUsage,
 ) -> list[float] | None:
-    """LLM-based rerank via OpenAI-compatible API with structured JSON output."""
+    """Single API call to get rerank scores. Returns scores list or None on failure."""
     url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
     headers = {
         "Content-Type": "application/json",
@@ -166,7 +136,8 @@ async def _call_rerank_llm(
         "model": settings.rerank_model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.0,
-        "max_tokens": 1024,
+        "max_tokens": 256,
+        "stream_options": {"include_usage": True},
     }
 
     try:
@@ -188,9 +159,13 @@ async def _call_rerank_llm(
 
         content = data["choices"][0]["message"]["content"].strip()
 
-        content = _extract_json_block(content)
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
         scores = _parse_scores(content, expected_count)
+        if scores is None:
+            return None
+
         return scores
 
     except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, ValueError) as e:
@@ -198,18 +173,29 @@ async def _call_rerank_llm(
         return None
 
 
-async def _rerank_llm(query: str, results: list[dict], top_k: int) -> RerankResult:
-    """Re-rank using Gemini LLM with retry on parse failure."""
-    usage = RerankUsage(model=settings.rerank_model)
+async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResult:
+    """Re-rank search results using Gemini API with retry on parse failure.
+
+    Returns RerankResult with re-ranked results and token usage stats.
+    """
+    empty_usage = RerankUsage(model=settings.rerank_model)
+
+    if not results or len(results) <= 1:
+        return RerankResult(results=results[:top_k], usage=empty_usage)
+
+    if not settings.gemini_api_key:
+        logger.warning("Gemini API key not configured, skipping rerank")
+        return RerankResult(results=results[:top_k], usage=empty_usage)
 
     chunks_text = _build_chunks_text(results)
-    prompt = _RERANK_PROMPT_TEMPLATE.replace("$QUERY$", query).replace("$CHUNKS$", chunks_text)
+    prompt = _RERANK_PROMPT.format(query=query, chunks=chunks_text)
 
     t0 = time.perf_counter()
+    usage = RerankUsage(model=settings.rerank_model)
     scores: list[float] | None = None
 
     for attempt in range(_MAX_RERANK_ATTEMPTS):
-        scores = await _call_rerank_llm(prompt, len(results), usage)
+        scores = await _call_rerank_api(prompt, len(results), usage)
         if scores is not None:
             break
         if attempt < _MAX_RERANK_ATTEMPTS - 1:
@@ -231,94 +217,15 @@ async def _rerank_llm(query: str, results: list[dict], top_k: int) -> RerankResu
         r["rerank_score"] = round(score, 4)
         reranked.append(r)
 
-    return RerankResult(results=reranked, usage=usage)
-
-
-async def _rerank_vertex(query: str, results: list[dict], top_k: int) -> RerankResult:
-    """Re-rank using Vertex AI Ranking API (google-cloud-discoveryengine)."""
-    t0 = time.perf_counter()
-    usage = RerankUsage(model=settings.vertex_rank_model)
-
-    try:
-        from google.cloud import discoveryengine_v1 as discoveryengine
-
-        client = discoveryengine.RankServiceClient()
-        ranking_config = client.ranking_config_path(
-            project=settings.vertex_rank_project,
-            location="global",
-            ranking_config="default_ranking_config",
-        )
-
-        records = []
-        for i, r in enumerate(results):
-            text = _build_rerank_text(r)
-            if len(text) > 4000:
-                text = text[:4000]
-            records.append(discoveryengine.RankingRecord(
-                id=str(i),
-                content=text,
-            ))
-
-        request = discoveryengine.RankRequest(
-            ranking_config=ranking_config,
-            model=settings.vertex_rank_model,
-            top_n=top_k,
-            query=query,
-            records=records,
-        )
-
-        response = client.rank(request=request)
-
-        usage.rerank_ms = round((time.perf_counter() - t0) * 1000, 1)
-
-        reranked: list[dict] = []
-        for record in response.records:
-            idx = int(record.id)
-            r = dict(results[idx])
-            r["rerank_score"] = round(record.score, 4)
-            reranked.append(r)
-
-        return RerankResult(results=reranked, usage=usage)
-
-    except ImportError:
-        logger.error("google-cloud-discoveryengine not installed, falling back to LLM reranker")
-        return await _rerank_llm(query, results, top_k)
-    except Exception:
-        logger.warning("Vertex AI Ranking API failed, falling back to LLM reranker", exc_info=True)
-        return await _rerank_llm(query, results, top_k)
-
-
-async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResult:
-    """Re-rank search results using the configured provider.
-
-    Returns RerankResult with re-ranked results and usage stats.
-    """
-    if not results or len(results) <= 1:
-        empty_usage = RerankUsage(model=settings.rerank_model)
-        return RerankResult(results=results[:top_k], usage=empty_usage)
-
-    if not settings.gemini_api_key:
-        logger.warning("Gemini API key not configured, skipping rerank")
-        empty_usage = RerankUsage(model=settings.rerank_model)
-        return RerankResult(results=results[:top_k], usage=empty_usage)
-
-    provider = settings.rerank_provider
-
-    if provider == "vertex_rank" and settings.vertex_rank_project:
-        result = await _rerank_vertex(query, results, top_k)
-    else:
-        result = await _rerank_llm(query, results, top_k)
-
     logger.debug(
-        "Re-ranking completed",
+        "Gemini re-ranking completed",
         extra={
-            "provider": provider,
             "candidates": len(results),
             "top_k": top_k,
-            "rerank_ms": result.usage.rerank_ms,
-            "prompt_tokens": result.usage.prompt_tokens,
-            "completion_tokens": result.usage.completion_tokens,
-            "top_rerank_score": result.results[0].get("rerank_score", 0) if result.results else 0,
+            "rerank_ms": usage.rerank_ms,
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "top_rerank_score": reranked[0]["rerank_score"] if reranked else 0,
         },
     )
-    return result
+    return RerankResult(results=reranked, usage=usage)

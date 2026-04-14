@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     content TEXT NOT NULL,
     parent_content TEXT,
     token_count INT NOT NULL DEFAULT 0,
-    embedding halfvec(768),
+    embedding vector(1024),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 );
@@ -190,28 +190,10 @@ CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON chunks USING gin(tsv);
 CREATE INDEX IF NOT EXISTS idx_chunks_tsv_lang ON chunks USING gin(tsv_lang);
 CREATE INDEX IF NOT EXISTS idx_chunks_language ON chunks(language);
 
--- Parent content deduplication table (one row per unique section text)
-CREATE TABLE IF NOT EXISTS chunk_parents (
-    id BIGSERIAL PRIMARY KEY,
-    content_hash TEXT NOT NULL UNIQUE,
-    content TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE chunks ADD COLUMN IF NOT EXISTS parent_id BIGINT REFERENCES chunk_parents(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_chunks_parent_id ON chunks(parent_id);
-
--- HNSW vector index for embeddings.
--- The actual operator class (vector_cosine_ops / halfvec_cosine_ops) and column type
--- are managed by _migrate_embedding_dims() at startup.  We create the index here only
--- if the column is already halfvec; otherwise the migration handles it.
-DO $$ BEGIN
-    CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks
-        USING hnsw (embedding halfvec_cosine_ops)
-        WITH (m = 16, ef_construction = 128);
-EXCEPTION WHEN others THEN
-    RAISE NOTICE 'idx_chunks_embedding skipped in schema.sql (will be created by migration): %', SQLERRM;
-END $$;
+-- HNSW vector index (cosine similarity)
+CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 128);
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
 

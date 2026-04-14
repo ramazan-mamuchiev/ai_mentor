@@ -387,17 +387,8 @@ async def search_documents(
     """
     t0 = time.perf_counter()
 
-    embed_text = query
-    if settings.hyde_enabled:
-        from app.search.hyde import generate_hyde
-        hyde_text, hyde_meta = await generate_hyde(query, query_type)
-        if metadata is not None:
-            metadata.update(hyde_meta)
-        if hyde_text:
-            embed_text = hyde_text
-
     t_embed = time.perf_counter()
-    query_embedding, embedding_api_tokens = embed_query(embed_text)
+    query_embedding, embedding_api_tokens = embed_query(query)
     embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
     embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
@@ -450,12 +441,12 @@ async def search_documents(
             p.name AS product_name,
             p.manufacturer,
             p.version AS firmware_version,
-            1 - (c.embedding <=> CAST(:embedding AS halfvec)) AS similarity
+            1 - (c.embedding <=> CAST(:embedding AS vector)) AS similarity
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
         JOIN products p ON d.product_id = p.id
         WHERE {where_sql}
-        ORDER BY c.embedding <=> CAST(:embedding AS halfvec)
+        ORDER BY c.embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
     """)
 
@@ -556,8 +547,6 @@ async def search_documents(
         "bm25_candidates": len(bm25_results),
         "raw_candidates": len(raw_results), "dedup_removed": dedup_removed,
         "hybrid_enabled": settings.hybrid_search_enabled,
-        "embed_source": "hyde" if (embed_text != query) else "original",
-        "hyde_enabled": settings.hyde_enabled,
     }
 
     if metadata is not None:

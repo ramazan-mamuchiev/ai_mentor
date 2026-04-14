@@ -97,56 +97,6 @@ def _write_ingestion_usage(document: "Document") -> None:
         )
 
 
-def _get_or_create_parent_sync(session, parent_content: str) -> int:
-    """Get or create a chunk_parents row, return its id (sync session)."""
-    content_hash = hashlib.sha256(parent_content.encode("utf-8")).hexdigest()
-    from sqlalchemy import text
-    row = session.execute(
-        text("SELECT id FROM chunk_parents WHERE content_hash = :h"),
-        {"h": content_hash},
-    ).first()
-    if row:
-        return row[0]
-    session.execute(
-        text("INSERT INTO chunk_parents (content_hash, content) VALUES (:h, :c) ON CONFLICT (content_hash) DO NOTHING"),
-        {"h": content_hash, "c": parent_content},
-    )
-    row = session.execute(
-        text("SELECT id FROM chunk_parents WHERE content_hash = :h"),
-        {"h": content_hash},
-    ).first()
-    if row is None:
-        logger.error("chunk_parents upsert failed: row not found after INSERT",
-                      extra={"content_hash": content_hash})
-        raise RuntimeError(f"chunk_parents upsert failed for hash {content_hash}")
-    return row[0]
-
-
-async def _get_or_create_parent_async(session: AsyncSession, parent_content: str) -> int:
-    """Get or create a chunk_parents row, return its id (async session)."""
-    content_hash = hashlib.sha256(parent_content.encode("utf-8")).hexdigest()
-    from sqlalchemy import text
-    row = (await session.execute(
-        text("SELECT id FROM chunk_parents WHERE content_hash = :h"),
-        {"h": content_hash},
-    )).first()
-    if row:
-        return row[0]
-    await session.execute(
-        text("INSERT INTO chunk_parents (content_hash, content) VALUES (:h, :c) ON CONFLICT (content_hash) DO NOTHING"),
-        {"h": content_hash, "c": parent_content},
-    )
-    row = (await session.execute(
-        text("SELECT id FROM chunk_parents WHERE content_hash = :h"),
-        {"h": content_hash},
-    )).first()
-    if row is None:
-        logger.error("chunk_parents upsert failed: row not found after INSERT",
-                      extra={"content_hash": content_hash})
-        raise RuntimeError(f"chunk_parents upsert failed for hash {content_hash}")
-    return row[0]
-
-
 def _save_doc_chunk_keys_sync(session, product_id: int, document_id: int, chunk_meta_dicts: list[dict]) -> int:
     """Extract entity keys from chunk metadata and save per-document (sync).
 
@@ -686,17 +636,8 @@ async def ingest_file(
         fm_related = front_matter.related_docs if front_matter else None
 
         t_db = time.perf_counter()
-        _parent_cache: dict[str, int] = {}
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
             meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
-            parent_id = None
-            if chunk_data.parent_content:
-                _pc_key = hashlib.sha256(chunk_data.parent_content.encode("utf-8")).hexdigest()
-                if _pc_key in _parent_cache:
-                    parent_id = _parent_cache[_pc_key]
-                else:
-                    parent_id = await _get_or_create_parent_async(session, chunk_data.parent_content)
-                    _parent_cache[_pc_key] = parent_id
             db_chunk = Chunk(
                 document_id=doc.id,
                 chunk_index=i,
@@ -705,7 +646,6 @@ async def ingest_file(
                 content=chunk_data.content,
                 content_clean=_clean_md(chunk_data.content),
                 parent_content=chunk_data.parent_content,
-                parent_id=parent_id,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),
@@ -901,11 +841,6 @@ async def ingest_url(
     await session.flush()
 
     try:
-        from app.ingestion.lang_detect import detect_language
-        doc_language = detect_language(text)
-        if not doc.detected_language:
-            doc.detected_language = doc_language
-
         t_parse = time.perf_counter()
         sections, front_matter = parse_markdown(text)
         _replace_generic_headings(sections, title)
@@ -946,17 +881,8 @@ async def ingest_url(
         fm_related = front_matter.related_docs if front_matter else None
 
         t_db = time.perf_counter()
-        _url_parent_cache: dict[str, int] = {}
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
             meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
-            parent_id = None
-            if chunk_data.parent_content:
-                _pc_key = hashlib.sha256(chunk_data.parent_content.encode("utf-8")).hexdigest()
-                if _pc_key in _url_parent_cache:
-                    parent_id = _url_parent_cache[_pc_key]
-                else:
-                    parent_id = await _get_or_create_parent_async(session, chunk_data.parent_content)
-                    _url_parent_cache[_pc_key] = parent_id
             db_chunk = Chunk(
                 document_id=doc.id,
                 chunk_index=i,
@@ -965,12 +891,10 @@ async def ingest_url(
                 content=chunk_data.content,
                 content_clean=_clean_md(chunk_data.content),
                 parent_content=chunk_data.parent_content,
-                parent_id=parent_id,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
-                language=doc_language,
                 layer=fm_layer,
                 topic=fm_topic,
                 doc_number=fm_doc_number,
@@ -1355,17 +1279,8 @@ def ingest_from_bytes(
             session.delete(c)
         session.flush()
 
-        _parent_id_cache: dict[str, int] = {}
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
             meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
-            parent_id = None
-            if chunk_data.parent_content:
-                cache_key = hashlib.sha256(chunk_data.parent_content.encode("utf-8")).hexdigest()
-                if cache_key in _parent_id_cache:
-                    parent_id = _parent_id_cache[cache_key]
-                else:
-                    parent_id = _get_or_create_parent_sync(session, chunk_data.parent_content)
-                    _parent_id_cache[cache_key] = parent_id
             db_chunk = Chunk(
                 document_id=document.id,
                 chunk_index=i,
@@ -1374,7 +1289,6 @@ def ingest_from_bytes(
                 content=chunk_data.content,
                 content_clean=_clean_md(chunk_data.content),
                 parent_content=chunk_data.parent_content,
-                parent_id=parent_id,
                 token_count=chunk_data.token_count,
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),

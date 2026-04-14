@@ -130,23 +130,10 @@ def _ocr_via_gemini(data: bytes, languages: list[str] | None = None) -> tuple[st
 
     image_part = types.Part.from_bytes(data=data, mime_type=mime)
 
-    from app.utils.retry import retry_call
-
-    def _is_retryable(exc: Exception) -> bool:
-        s = str(exc)
-        return "429" in s or "503" in s or "RESOURCE_EXHAUSTED" in s or "UNAVAILABLE" in s
-
     t0 = time.perf_counter()
-    response = retry_call(
-        lambda: client.models.generate_content(
-            model=settings.ocr_vision_model,
-            contents=[prompt, image_part],
-        ),
-        max_retries=4,
-        base_delay=5.0,
-        max_delay=60.0,
-        is_retryable=_is_retryable,
-        label="ocr_vision",
+    response = client.models.generate_content(
+        model=settings.ocr_vision_model,
+        contents=[prompt, image_part],
     )
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 

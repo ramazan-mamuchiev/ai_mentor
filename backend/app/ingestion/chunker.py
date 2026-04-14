@@ -39,9 +39,10 @@ class ChunkData:
 
 
 def _estimate_tokens(text: str) -> int:
-    """Count tokens using tiktoken (cl100k_base) with heuristic fallback."""
-    from app.utils.tokenizer import count_tokens
-    return count_tokens(text)
+    """Estimate token count using word-based heuristic (words * 1.3)."""
+    if not text:
+        return 1
+    return max(1, int(len(text.split()) * 1.3))
 
 
 def _split_into_blocks(text: str) -> list[str]:
@@ -117,85 +118,6 @@ def _split_text(text: str, max_tokens: int) -> list[str]:
     return pieces
 
 
-def _is_flat_section(section: Section) -> bool:
-    """Check if section is 'flat' (no meaningful heading structure)."""
-    hp = section.heading_path.strip()
-    return hp in ("Document", "") or section.heading_level == 0
-
-
-def _semantic_split(text: str, max_tokens: int) -> list[str]:
-    """Split text using embedding similarity to find natural topic boundaries.
-
-    Uses a sliding window of paragraphs, embeds each, and places split
-    boundaries where cosine similarity between consecutive windows drops
-    below a percentile threshold. Falls back to token-based split on error.
-
-    WARNING: calls embed_texts synchronously (network I/O). Safe in Celery
-    workers; will block the event loop if called from async code. Keep
-    semantic_chunking_enabled=False for real-time async ingestion.
-    """
-    import numpy as np
-
-    blocks = _split_into_blocks(text)
-    if len(blocks) <= 2:
-        return _split_text(text, max_tokens)
-
-    try:
-        from app.ingestion.embedder import embed_texts
-        embeddings, _ = embed_texts(blocks)
-    except Exception:
-        logger.warning("Semantic chunking embedding failed, falling back to token split",
-                        exc_info=True)
-        return _split_text(text, max_tokens)
-
-    if not embeddings or len(embeddings) < 2:
-        return _split_text(text, max_tokens)
-
-    vecs = np.array(embeddings, dtype=np.float32)
-
-    similarities = np.array([
-        float(np.dot(vecs[i], vecs[i + 1])) for i in range(len(vecs) - 1)
-    ])
-
-    threshold = float(np.percentile(similarities, settings.semantic_similarity_percentile))
-
-    split_indices: list[int] = []
-    for i, sim in enumerate(similarities):
-        if sim < threshold:
-            split_indices.append(i + 1)
-
-    logger.info("Semantic split boundaries found", extra={
-        "blocks": len(blocks), "boundaries": len(split_indices),
-        "threshold": round(threshold, 4),
-        "min_sim": round(float(similarities.min()), 4) if len(similarities) > 0 else 0,
-        "max_sim": round(float(similarities.max()), 4) if len(similarities) > 0 else 0,
-    })
-
-    if not split_indices:
-        return _split_text(text, max_tokens)
-
-    groups: list[list[str]] = []
-    prev = 0
-    for idx in split_indices:
-        group = blocks[prev:idx]
-        if group:
-            groups.append(group)
-        prev = idx
-    if prev < len(blocks):
-        groups.append(blocks[prev:])
-
-    pieces: list[str] = []
-    for group in groups:
-        piece = "\n\n".join(group)
-        piece_tokens = _estimate_tokens(piece)
-        if piece_tokens > max_tokens:
-            pieces.extend(_split_text(piece, max_tokens))
-        else:
-            pieces.append(piece)
-
-    return pieces
-
-
 def chunk_sections(
     sections: list[Section],
     max_tokens: int | None = None,
@@ -210,9 +132,6 @@ def chunk_sections(
     if not sections:
         return []
 
-    semantic_enabled = settings.semantic_chunking_enabled
-    semantic_threshold = settings.semantic_chunk_threshold
-
     chunks: list[ChunkData] = []
 
     for section in sections:
@@ -223,19 +142,7 @@ def chunk_sections(
         tokens = _estimate_tokens(content)
 
         if tokens > max_tokens:
-            use_semantic = (
-                semantic_enabled
-                and _is_flat_section(section)
-                and tokens >= semantic_threshold
-            )
-            if use_semantic:
-                logger.info("Using semantic split for flat section", extra={
-                    "heading_path": section.heading_path, "tokens": tokens,
-                })
-                pieces = _semantic_split(content, max_tokens)
-            else:
-                pieces = _split_text(content, max_tokens)
-
+            pieces = _split_text(content, max_tokens)
             parent = content if len(pieces) > 1 else None
             for i, piece in enumerate(pieces):
                 suffix = f" (part {i + 1})" if len(pieces) > 1 else ""
