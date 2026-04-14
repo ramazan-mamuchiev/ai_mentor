@@ -61,7 +61,7 @@
       "en": "Components, services, ports, volumes, and connections — everything you need to know for platform support.",
       "ru": "Компоненты, сервисы, порты, тома и связи — всё, что нужно знать для поддержки платформы."
     },
-    "languages": ["ru"]
+    "languages": ["ru", "en"]
   },
   {
     "slug": "ops-setup",
@@ -77,7 +77,7 @@
       "en": "Server requirements, .env variables, Docker Compose, frontend build, Nginx setup, SSL certificates.",
       "ru": "Требования к серверу, переменные .env, Docker Compose, сборка фронтенда, настройка Nginx, SSL-сертификаты."
     },
-    "languages": ["ru"]
+    "languages": ["ru", "en"]
   },
   {
     "slug": "ops-deploy",
@@ -93,7 +93,7 @@
       "en": "Maintenance mode, backend/frontend rebuild, rollback, deploy checklist and common mistakes.",
       "ru": "Maintenance mode, пересборка бэкенда и фронтенда, откат, чеклист деплоя и типичные ошибки."
     },
-    "languages": ["ru"]
+    "languages": ["ru", "en"]
   },
   {
     "slug": "ops-monitoring",
@@ -109,7 +109,7 @@
       "en": "Grafana dashboards, Loki logs, Prometheus metrics, 10 alert rules with thresholds and recommended actions.",
       "ru": "Grafana дашборды, логи в Loki, метрики Prometheus, 10 правил алертов с порогами и рекомендованными действиями."
     },
-    "languages": ["ru"]
+    "languages": ["ru", "en"]
   },
   {
     "slug": "ops-runbook",
@@ -125,7 +125,7 @@
       "en": "Routine operations and incident response: API down, DB overload, disk full, S3 failure, queue stuck, cert expired.",
       "ru": "Рутинные операции и реагирование на инциденты: API не отвечает, БД перегружена, диск заполнен, S3 упал, очередь растёт."
     },
-    "languages": ["ru"]
+    "languages": ["ru", "en"]
   },
   {
     "slug": "ops-access",
@@ -141,7 +141,7 @@
       "en": "Authentication methods, RBAC roles and permissions, API keys, OAuth, SSL/TLS, secrets management.",
       "ru": "Способы аутентификации, RBAC-роли и пермиссии, API-ключи, OAuth, SSL/TLS, управление секретами."
     },
-    "languages": ["ru"]
+    "languages": ["ru", "en"]
   },
   {
     "slug": "ops-security",
@@ -157,6 +157,6 @@
       "en": "Threat model, network perimeter, authentication hardening, container security, audit logging, risk matrix and recommendations.",
       "ru": "Модель угроз, сетевой периметр, харденинг аутентификации, контейнерная безопасность, аудит, матрица рисков и рекомендации."
     },
-    "languages": ["ru"]
+    "languages": ["ru", "en"]
   }
 ]
