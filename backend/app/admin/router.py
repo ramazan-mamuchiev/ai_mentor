@@ -54,6 +54,7 @@ from app.admin.schemas import (
     RolePatchRequest,
     SearchStat,
     SystemInfo,
+    VacuumAllResponse,
     VacuumRunRequest,
     VacuumRunResponse,
     VacuumStatusResponse,
@@ -734,6 +735,11 @@ async def vacuum_status(session: AsyncSession = Depends(get_session)):
 @router.post("/system/vacuum", response_model=VacuumRunResponse, status_code=202)
 async def vacuum_run(body: VacuumRunRequest, session: AsyncSession = Depends(get_session)):
     return await service.run_vacuum_full(session, body.table_name)
+
+
+@router.post("/system/vacuum-all", response_model=VacuumAllResponse, status_code=202)
+async def vacuum_run_all(session: AsyncSession = Depends(get_session)):
+    return await service.run_vacuum_all(session)
 
 
 # ---------------------------------------------------------------------------

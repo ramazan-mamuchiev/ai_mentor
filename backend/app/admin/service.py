@@ -1928,6 +1928,39 @@ async def run_vacuum_full(session: AsyncSession, table_name: str) -> dict:
     return {"record_id": rec.id, "task_id": result.id}
 
 
+async def run_vacuum_all(session: AsyncSession) -> dict:
+    from fastapi import HTTPException
+    from celery import chain as celery_chain
+
+    running = (await session.execute(
+        select(func.count()).select_from(VacuumHistory).where(VacuumHistory.status == "running")
+    )).scalar() or 0
+    if running > 0:
+        raise HTTPException(status_code=409, detail="Another VACUUM FULL is already running")
+
+    table_order = ["chunks", "documents", "product_search_keys", "chat_messages", "chat_message_analytics"]
+    records = []
+    for tbl in table_order:
+        rec = VacuumHistory(table_name=tbl, status="pending")
+        session.add(rec)
+    await session.commit()
+
+    for tbl in table_order:
+        latest = (await session.execute(
+            select(VacuumHistory)
+            .where(VacuumHistory.table_name == tbl, VacuumHistory.status == "pending")
+            .order_by(VacuumHistory.id.desc())
+            .limit(1)
+        )).scalar_one()
+        records.append((tbl, latest.id))
+
+    from app.celery_app import celery
+    tasks = [celery.signature("vacuum_full_table", args=[tbl, rid]) for tbl, rid in records]
+    result = celery_chain(*tasks).apply_async()
+
+    return {"task_id": result.id, "tables": [tbl for tbl, _ in records]}
+
+
 # ---------------------------------------------------------------------------
 # MCP Audit
 # ---------------------------------------------------------------------------

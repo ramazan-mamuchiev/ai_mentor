@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import {
   getSystemInfo, type SystemInfo,
-  getVacuumStatus, runVacuumFull,
+  getVacuumStatus, runVacuumFull, runVacuumAll,
   type VacuumTableInfo, type VacuumHistoryItem,
 } from '../../api/admin'
 import { SYSTEM_REFRESH_INTERVAL } from './constants'
@@ -103,6 +103,7 @@ function VacuumCard() {
   const [loading, setLoading] = useState(true)
   const [runningTable, setRunningTable] = useState<string | null>(null)
   const [confirmTable, setConfirmTable] = useState<string | null>(null)
+  const [confirmAll, setConfirmAll] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchStatus = useCallback(async () => {
@@ -111,7 +112,7 @@ function VacuumCard() {
       setTables(data.tables)
       setHistory(data.history)
 
-      const hasRunning = data.history.some(h => h.status === 'running')
+      const hasRunning = data.history.some(h => h.status === 'running' || h.status === 'pending')
       if (!hasRunning && pollRef.current) {
         clearInterval(pollRef.current)
         pollRef.current = null
@@ -140,10 +141,23 @@ function VacuumCard() {
     }
   }
 
+  const handleConfirmedRunAll = async () => {
+    setConfirmAll(false)
+    if (runningTable) return
+    try {
+      setRunningTable('__all__')
+      await runVacuumAll()
+      await fetchStatus()
+      pollRef.current = setInterval(fetchStatus, 3000)
+    } catch {
+      setRunningTable(null)
+    }
+  }
+
   if (loading) return null
 
   const lastRun = history.find(h => h.status !== 'running')
-  const isRunning = !!runningTable || history.some(h => h.status === 'running')
+  const isRunning = !!runningTable || history.some(h => h.status === 'running' || h.status === 'pending')
 
   const totalSize = tables.reduce((s, t) => s + t.size_bytes, 0)
   const totalDead = tables.reduce((s, t) => s + t.dead_tuples, 0)
@@ -166,6 +180,18 @@ function VacuumCard() {
           </div>
         </div>
 
+        <button
+          className="admin-btn admin-btn--sm"
+          disabled={isRunning}
+          onClick={() => setConfirmAll(true)}
+          style={{ marginTop: 8, width: '100%' }}
+        >
+          {isRunning && runningTable === '__all__'
+            ? <><Loader size={12} className="spin" /> {t('admin.system.vacuumRunning')}</>
+            : <><Play size={12} /> {t('admin.system.vacuumAll')}</>
+          }
+        </button>
+
         {isRunning && (
           <div className="system-badges" style={{ marginTop: 8 }}>
             <span className="system-badge system-badge--accent">
@@ -180,7 +206,7 @@ function VacuumCard() {
             const bloatPct = tbl.live_tuples > 0
               ? (tbl.dead_tuples / (tbl.live_tuples + tbl.dead_tuples)) * 100
               : 0
-            const tblRunning = runningTable === tbl.name || history.some(h => h.table_name === tbl.name && h.status === 'running')
+            const tblRunning = runningTable === tbl.name || history.some(h => h.table_name === tbl.name && (h.status === 'running' || h.status === 'pending'))
 
             return (
               <div key={tbl.name}>
@@ -238,6 +264,7 @@ function VacuumCard() {
                   {h.status === 'completed' && <CheckCircle size={14} style={{ color: 'var(--success, #22c55e)' }} />}
                   {h.status === 'error' && <XCircle size={14} style={{ color: 'var(--danger, #ef4444)' }} />}
                   {h.status === 'running' && <Loader size={14} className="spin" style={{ color: 'var(--accent)' }} />}
+                  {h.status === 'pending' && <Clock size={14} style={{ color: 'var(--text-muted)' }} />}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
@@ -279,6 +306,18 @@ function VacuumCard() {
           variant="danger"
           onConfirm={handleConfirmedRun}
           onCancel={() => setConfirmTable(null)}
+        />
+      )}
+      {confirmAll && (
+        <ConfirmDialog
+          title={t('admin.system.vacuumAllDialogTitle')}
+          message={t('admin.system.vacuumAllDialogMessage')}
+          details={tables.map(t => t.name).join(', ')}
+          confirmLabel={t('admin.system.vacuumDialogConfirm')}
+          cancelLabel={t('admin.system.vacuumDialogCancel')}
+          variant="danger"
+          onConfirm={handleConfirmedRunAll}
+          onCancel={() => setConfirmAll(false)}
         />
       )}
     </>

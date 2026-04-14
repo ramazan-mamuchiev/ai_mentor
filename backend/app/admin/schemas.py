@@ -579,6 +579,10 @@ class VacuumRunResponse(BaseModel):
     record_id: int
     task_id: str
 
+class VacuumAllResponse(BaseModel):
+    task_id: str
+    tables: list[str]
+
 
 # --- RAG Evaluation ---
 

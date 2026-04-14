@@ -1045,6 +1045,14 @@ export async function runVacuumFull(tableName: string): Promise<{ record_id: num
   return handleResponse(res)
 }
 
+export async function runVacuumAll(): Promise<{ task_id: string; tables: string[] }> {
+  const res = await fetch(`${BASE}/system/vacuum-all`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
 // --- RAG Evaluation ---
 
 export interface RagEvalRunItem {

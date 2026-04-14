@@ -1587,8 +1587,11 @@
   "admin.system.vacuumHistory": "История запусков",
   "admin.system.vacuumDeadTuples": "Всего мёртвых строк",
   "admin.system.vacuumNoHistory": "Запусков пока не было",
+  "admin.system.vacuumAll": "VACUUM ALL",
   "admin.system.vacuumDialogTitle": "VACUUM FULL",
   "admin.system.vacuumDialogMessage": "Таблица будет заблокирована на время выполнения. Это действие нельзя отменить.",
+  "admin.system.vacuumAllDialogTitle": "VACUUM ALL",
+  "admin.system.vacuumAllDialogMessage": "Последовательно выполнить VACUUM FULL для всех таблиц. Каждая таблица будет заблокирована на время обработки.",
   "admin.system.vacuumDialogConfirm": "Запустить",
   "admin.system.vacuumDialogCancel": "Отмена",
 

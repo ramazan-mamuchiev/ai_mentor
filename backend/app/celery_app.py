@@ -3495,6 +3495,12 @@ def vacuum_full_table_task(self, table_name: str, record_id: int):
         return {"status": "error", "error": "not_allowed"}
 
     with Session(engine) as session:
+        rec = session.get(VacuumHistory, record_id)
+        if rec and rec.status == "pending":
+            rec.status = "running"
+            rec.started_at = datetime.now(timezone.utc)
+            session.commit()
+
         size_before = session.execute(
             text("SELECT pg_total_relation_size(:tbl)"),
             {"tbl": table_name},
