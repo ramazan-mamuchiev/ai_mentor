@@ -1858,7 +1858,7 @@ VACUUM_ALLOWED_TABLES = {"chunks", "documents", "product_search_keys", "chat_mes
 
 async def get_vacuum_status(session: AsyncSession) -> dict:
     table_rows = (await session.execute(text("""
-        SELECT relname AS name,
+        SELECT c.relname AS name,
                pg_total_relation_size(c.oid) AS size_bytes,
                COALESCE(s.n_dead_tup, 0) AS dead_tuples,
                COALESCE(s.n_live_tup, 0) AS live_tuples,
