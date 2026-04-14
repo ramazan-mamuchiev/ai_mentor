@@ -35,10 +35,10 @@ export function KBArticlePage() {
       .catch(() => setMeta(null))
   }, [slug])
 
-  const articleLang = meta?.languages?.includes(lang) ? lang : 'en'
+  const articleLang = meta?.languages?.includes(lang) ? lang : meta?.languages?.[0] || 'en'
 
   const fetchArticle = useCallback(() => {
-    if (!slug) return
+    if (!slug || !meta) return
     setLoading(true)
     fetch(`/articles/${slug}/${articleLang}.json`, { cache: 'no-cache' })
       .then(r => r.json())
