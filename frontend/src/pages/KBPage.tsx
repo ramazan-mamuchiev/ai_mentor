@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { BookOpen, Database, Search, FileText, Code, Settings, HelpCircle, MessageSquare, Server, Shield, Lock, ChevronRight } from 'lucide-react'
+import { BookOpen, Database, Search, FileText, Code, Settings, HelpCircle, MessageSquare, Server, Shield, Lock, ChevronRight, Rocket, Activity } from 'lucide-react'
 
 interface Article {
   slug: string
@@ -15,7 +15,7 @@ interface Article {
 }
 
 const ICON_MAP: Record<string, typeof Database> = {
-  Database, FileText, Code, Settings, HelpCircle, BookOpen, MessageSquare, Server, Shield, Lock,
+  Database, FileText, Code, Settings, HelpCircle, BookOpen, MessageSquare, Server, Shield, Lock, Rocket, Activity,
 }
 
 const CATEGORIES = [
@@ -91,9 +91,9 @@ export function KBPage() {
             const CatIcon = group.icon
             const isCollapsed = collapsed[group.id] ?? false
             return (
-              <section key={group.id} className="kb-cat">
+              <section key={group.id} className="kb-cat" style={{ '--cat-color': group.color } as React.CSSProperties}>
                 <button className="kb-cat-header" onClick={() => toggleCollapse(group.id)}>
-                  <div className="kb-cat-icon" style={{ color: group.color }}>
+                  <div className="kb-cat-icon">
                     <CatIcon size={16} />
                   </div>
                   <h2 className="kb-cat-title">{t(`kb.cat.${group.id}`)}</h2>

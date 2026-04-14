@@ -49,7 +49,7 @@
   },
   {
     "slug": "ops-architecture",
-    "icon": "Shield",
+    "icon": "Server",
     "category": "ops",
     "tags": ["ops", "architecture", "docker"],
     "createdAt": "2026-04-13",
@@ -65,7 +65,7 @@
   },
   {
     "slug": "ops-setup",
-    "icon": "Shield",
+    "icon": "Settings",
     "category": "ops",
     "tags": ["ops", "setup", "configuration"],
     "createdAt": "2026-04-13",
@@ -81,7 +81,7 @@
   },
   {
     "slug": "ops-deploy",
-    "icon": "Shield",
+    "icon": "Rocket",
     "category": "ops",
     "tags": ["ops", "deploy", "docker"],
     "createdAt": "2026-04-13",
@@ -97,7 +97,7 @@
   },
   {
     "slug": "ops-monitoring",
-    "icon": "Shield",
+    "icon": "Activity",
     "category": "ops",
     "tags": ["ops", "monitoring", "grafana"],
     "createdAt": "2026-04-13",
@@ -113,7 +113,7 @@
   },
   {
     "slug": "ops-runbook",
-    "icon": "Shield",
+    "icon": "BookOpen",
     "category": "ops",
     "tags": ["ops", "runbook", "incidents"],
     "createdAt": "2026-04-13",
