@@ -11,6 +11,7 @@ import {
   type VacuumTableInfo, type VacuumHistoryItem,
 } from '../../api/admin'
 import { SYSTEM_REFRESH_INTERVAL } from './constants'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 
 function fmtBytes(b: number) {
   if (b < 1024) return `${b} B`
@@ -101,6 +102,7 @@ function VacuumCard() {
   const [history, setHistory] = useState<VacuumHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [runningTable, setRunningTable] = useState<string | null>(null)
+  const [confirmTable, setConfirmTable] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchStatus = useCallback(async () => {
@@ -124,17 +126,17 @@ function VacuumCard() {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [fetchStatus])
 
-  const handleRun = async (tableName: string) => {
-    if (runningTable) return
-    if (!confirm(t('admin.system.vacuumConfirm', { table: tableName }))) return
+  const handleConfirmedRun = async () => {
+    const tableName = confirmTable
+    setConfirmTable(null)
+    if (!tableName || runningTable) return
     try {
       setRunningTable(tableName)
       await runVacuumFull(tableName)
       await fetchStatus()
       pollRef.current = setInterval(fetchStatus, 3000)
-    } catch (e: unknown) {
+    } catch {
       setRunningTable(null)
-      alert(e instanceof Error ? e.message : 'Failed to start VACUUM FULL')
     }
   }
 
@@ -148,6 +150,7 @@ function VacuumCard() {
   const maxSize = Math.max(...tables.map(t => t.size_bytes), 1)
 
   return (
+    <>
     <div className="system-two-cols">
       {/* Left: tables with bars */}
       <div className="admin-card">
@@ -193,8 +196,8 @@ function VacuumCard() {
                   </div>
                   <button
                     className="admin-btn admin-btn--sm"
-                    disabled={isRunning}
-                    onClick={() => handleRun(tbl.name)}
+                disabled={isRunning}
+                onClick={() => setConfirmTable(tbl.name)}
                     style={{ padding: '2px 8px', fontSize: 11 }}
                   >
                     {tblRunning
@@ -263,7 +266,22 @@ function VacuumCard() {
           </div>
         )}
       </div>
+
     </div>
+
+      {confirmTable && (
+        <ConfirmDialog
+          title={t('admin.system.vacuumDialogTitle')}
+          message={t('admin.system.vacuumDialogMessage')}
+          details={confirmTable}
+          confirmLabel={t('admin.system.vacuumDialogConfirm')}
+          cancelLabel={t('admin.system.vacuumDialogCancel')}
+          variant="danger"
+          onConfirm={handleConfirmedRun}
+          onCancel={() => setConfirmTable(null)}
+        />
+      )}
+    </>
   )
 }
 

@@ -1587,7 +1587,10 @@
   "admin.system.vacuumHistory": "История запусков",
   "admin.system.vacuumDeadTuples": "Всего мёртвых строк",
   "admin.system.vacuumNoHistory": "Запусков пока не было",
-  "admin.system.vacuumConfirm": "Запустить VACUUM FULL для таблицы «{{table}}»? Таблица будет заблокирована на время выполнения.",
+  "admin.system.vacuumDialogTitle": "VACUUM FULL",
+  "admin.system.vacuumDialogMessage": "Таблица будет заблокирована на время выполнения. Это действие нельзя отменить.",
+  "admin.system.vacuumDialogConfirm": "Запустить",
+  "admin.system.vacuumDialogCancel": "Отмена",
 
   "filters.title": "Фильтры",
   "filters.categories": "Категории",
