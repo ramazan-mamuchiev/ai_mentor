@@ -119,6 +119,15 @@ def _parse_scores(content: str, expected_count: int) -> list[float] | None:
         except ValueError:
             pass
 
+    if len(numbers) >= expected_count // 2:
+        logger.warning(
+            "Gemini rerank truncated, padding with zeros",
+            extra={"expected": expected_count, "extracted": len(numbers), "raw": content[:200]},
+        )
+        partial = [min(max(float(n), 0.0), 1.0) for n in numbers]
+        partial.extend([0.0] * (expected_count - len(partial)))
+        return partial
+
     logger.warning(
         "Gemini rerank returned unparseable format",
         extra={"expected": expected_count, "extracted": len(numbers), "raw": content[:200]},
@@ -157,7 +166,7 @@ async def _call_rerank_llm(
         "model": settings.rerank_model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.0,
-        "max_tokens": 512,
+        "max_tokens": 1024,
     }
 
     try:
