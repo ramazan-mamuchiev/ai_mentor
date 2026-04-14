@@ -126,6 +126,22 @@ def _parse_scores(content: str, expected_count: int) -> list[float] | None:
     return None
 
 
+_CODE_FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)\n?\s*```", re.DOTALL)
+
+
+def _extract_json_block(text: str) -> str:
+    """Extract JSON from LLM output that may be wrapped in prose and/or code fences."""
+    m = _CODE_FENCE_RE.search(text)
+    if m:
+        return m.group(1).strip()
+    first_brace = text.find("{")
+    first_bracket = text.find("[")
+    if first_brace == -1 and first_bracket == -1:
+        return text
+    start = min(i for i in (first_brace, first_bracket) if i >= 0)
+    return text[start:].strip()
+
+
 async def _call_rerank_llm(
     prompt: str,
     expected_count: int,
@@ -164,8 +180,7 @@ async def _call_rerank_llm(
 
         content = data["choices"][0]["message"]["content"].strip()
 
-        if content.startswith("```"):
-            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        content = _extract_json_block(content)
 
         scores = _parse_scores(content, expected_count)
         return scores
