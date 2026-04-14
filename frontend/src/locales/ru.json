@@ -1585,6 +1585,8 @@
   "admin.system.vacuumLastRun": "Последний запуск",
   "admin.system.vacuumRunning": "Выполняется…",
   "admin.system.vacuumHistory": "История запусков",
+  "admin.system.vacuumDeadTuples": "Всего мёртвых строк",
+  "admin.system.vacuumNoHistory": "Запусков пока не было",
   "admin.system.vacuumConfirm": "Запустить VACUUM FULL для таблицы «{{table}}»? Таблица будет заблокирована на время выполнения.",
 
   "filters.title": "Фильтры",

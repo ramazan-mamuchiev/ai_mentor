@@ -143,101 +143,126 @@ function VacuumCard() {
   const lastRun = history.find(h => h.status !== 'running')
   const isRunning = !!runningTable || history.some(h => h.status === 'running')
 
+  const totalSize = tables.reduce((s, t) => s + t.size_bytes, 0)
+  const totalDead = tables.reduce((s, t) => s + t.dead_tuples, 0)
+  const maxSize = Math.max(...tables.map(t => t.size_bytes), 1)
+
   return (
-    <div className="admin-card">
-      <div className="system-card-header">
-        <h3 className="system-card-title"><Trash2 size={16} /> {t('admin.system.vacuumTitle')}</h3>
-        {lastRun && (
-          <span className="system-card-hero" style={{ fontSize: 12, fontWeight: 400 }}>
-            {t('admin.system.vacuumLastRun')}: {new Date(lastRun.started_at).toLocaleString()}
-          </span>
+    <div className="system-two-cols">
+      {/* Left: tables with bars */}
+      <div className="admin-card">
+        <div className="system-card-header">
+          <h3 className="system-card-title"><Trash2 size={16} /> {t('admin.system.vacuumTitle')}</h3>
+          <span className="system-card-hero">{fmtBytes(totalSize)}</span>
+        </div>
+
+        <div className="system-kv-list">
+          <div className="system-kv">
+            <span>{t('admin.system.vacuumDeadTuples')}</span>
+            <strong className={totalDead > 1000 ? 'system-val--warn' : ''}>{totalDead.toLocaleString()}</strong>
+          </div>
+        </div>
+
+        {isRunning && (
+          <div className="system-badges" style={{ marginTop: 8 }}>
+            <span className="system-badge system-badge--accent">
+              <Loader size={12} className="spin" /> {t('admin.system.vacuumRunning')}
+            </span>
+          </div>
         )}
+
+        <div className="system-kv-divider" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {tables.map(tbl => {
+            const bloatPct = tbl.live_tuples > 0
+              ? (tbl.dead_tuples / (tbl.live_tuples + tbl.dead_tuples)) * 100
+              : 0
+            const tblRunning = runningTable === tbl.name || history.some(h => h.table_name === tbl.name && h.status === 'running')
+
+            return (
+              <div key={tbl.name}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>{tbl.name}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{fmtBytes(tbl.size_bytes)}</span>
+                    {bloatPct > 10 && (
+                      <span style={{ color: 'var(--warning, #f59e0b)', fontWeight: 600 }}>
+                        {bloatPct.toFixed(0)}% bloat
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    className="admin-btn admin-btn--sm"
+                    disabled={isRunning}
+                    onClick={() => handleRun(tbl.name)}
+                    style={{ padding: '2px 8px', fontSize: 11 }}
+                  >
+                    {tblRunning
+                      ? <Loader size={11} className="spin" />
+                      : <><Play size={11} /> VACUUM</>
+                    }
+                  </button>
+                </div>
+                <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', position: 'relative' }}>
+                  <div style={{
+                    height: '100%', borderRadius: 3,
+                    width: `${(tbl.size_bytes / maxSize) * 100}%`,
+                    background: bloatPct > 30 ? 'var(--warning, #f59e0b)' : 'var(--accent)',
+                  }} />
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                  {tbl.live_tuples.toLocaleString()} live · {tbl.dead_tuples.toLocaleString()} dead
+                  {tbl.last_autovacuum && ` · vacuum ${new Date(tbl.last_autovacuum).toLocaleDateString()}`}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
-      {isRunning && (
-        <div className="system-badges" style={{ marginBottom: 8 }}>
-          <span className="system-badge system-badge--accent">
-            <Loader size={12} className="spin" /> {t('admin.system.vacuumRunning')}
-          </span>
-        </div>
-      )}
-
-      {/* Tables */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-        {tables.map(tbl => {
-          const bloatRatio = tbl.live_tuples > 0 ? tbl.dead_tuples / tbl.live_tuples : 0
-          const hasBloat = tbl.dead_tuples > 1000 || bloatRatio > 0.5
-          const tblRunning = runningTable === tbl.name || history.some(h => h.table_name === tbl.name && h.status === 'running')
-
-          return (
-            <div key={tbl.name} className="system-kv" style={{ alignItems: 'center' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{tbl.name}</span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{fmtBytes(tbl.size_bytes)}</span>
-                  {hasBloat && (
-                    <span style={{ color: 'var(--warning, #f59e0b)', fontSize: 11, fontWeight: 600 }}>
-                      ⚠ {tbl.dead_tuples.toLocaleString()} dead
-                    </span>
+      {/* Right: history */}
+      <div className="admin-card">
+        <h3 className="system-card-title"><Clock size={16} /> {t('admin.system.vacuumHistory')}</h3>
+        {history.length === 0 ? (
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>
+            {t('admin.system.vacuumNoHistory')}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+            {history.slice(0, 10).map(h => (
+              <div key={h.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, lineHeight: 1.4 }}>
+                <div style={{ paddingTop: 1, flexShrink: 0 }}>
+                  {h.status === 'completed' && <CheckCircle size={14} style={{ color: 'var(--success, #22c55e)' }} />}
+                  {h.status === 'error' && <XCircle size={14} style={{ color: 'var(--danger, #ef4444)' }} />}
+                  {h.status === 'running' && <Loader size={14} className="spin" style={{ color: 'var(--accent)' }} />}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{h.table_name}</span>
+                    {h.status === 'completed' && h.duration_ms != null && (
+                      <span style={{ color: 'var(--text-muted)' }}>{(h.duration_ms / 1000).toFixed(1)}s</span>
+                    )}
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                    {new Date(h.started_at).toLocaleString()}
+                  </div>
+                  {h.status === 'completed' && h.size_before_bytes != null && h.size_after_bytes != null && (
+                    <div style={{ fontSize: 11, color: h.size_before_bytes > h.size_after_bytes ? 'var(--success, #22c55e)' : 'var(--text-muted)', fontWeight: 500 }}>
+                      {fmtBytes(h.size_before_bytes)} → {fmtBytes(h.size_after_bytes)}
+                      {h.size_before_bytes > h.size_after_bytes && ` (−${fmtBytes(h.size_before_bytes - h.size_after_bytes)})`}
+                    </div>
+                  )}
+                  {h.status === 'error' && h.error_message && (
+                    <div style={{ fontSize: 11, color: 'var(--danger, #ef4444)' }} title={h.error_message}>
+                      {h.error_message.slice(0, 80)}
+                    </div>
                   )}
                 </div>
-                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                  {tbl.live_tuples.toLocaleString()} live / {tbl.dead_tuples.toLocaleString()} dead
-                  {tbl.last_autovacuum && ` · autovacuum ${new Date(tbl.last_autovacuum).toLocaleDateString()}`}
-                </span>
-              </div>
-              <button
-                className="admin-btn admin-btn--sm"
-                disabled={isRunning}
-                onClick={() => handleRun(tbl.name)}
-                style={{ minWidth: 90, gap: 4 }}
-              >
-                {tblRunning
-                  ? <><Loader size={12} className="spin" /> {t('admin.system.vacuumRunning')}</>
-                  : <><Play size={12} /> VACUUM</>
-                }
-              </button>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* History */}
-      {history.length > 0 && (
-        <>
-          <div className="system-kv-divider" />
-          <span className="system-mini-label">{t('admin.system.vacuumHistory')}</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-            {history.slice(0, 10).map(h => (
-              <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                {h.status === 'completed' && <CheckCircle size={13} style={{ color: 'var(--success, #22c55e)' }} />}
-                {h.status === 'error' && <XCircle size={13} style={{ color: 'var(--danger, #ef4444)' }} />}
-                {h.status === 'running' && <Loader size={13} className="spin" style={{ color: 'var(--accent)' }} />}
-                <span style={{ fontFamily: 'var(--font-mono)' }}>{h.table_name}</span>
-                <span style={{ color: 'var(--text-muted)' }}>
-                  {new Date(h.started_at).toLocaleString()}
-                </span>
-                {h.status === 'completed' && h.duration_ms != null && (
-                  <span style={{ color: 'var(--text-muted)' }}>
-                    {(h.duration_ms / 1000).toFixed(1)}s
-                  </span>
-                )}
-                {h.status === 'completed' && h.size_before_bytes != null && h.size_after_bytes != null && (
-                  <span style={{ color: 'var(--success, #22c55e)', fontWeight: 600 }}>
-                    {fmtBytes(h.size_before_bytes)} → {fmtBytes(h.size_after_bytes)}
-                    {h.size_before_bytes > h.size_after_bytes && ` (−${fmtBytes(h.size_before_bytes - h.size_after_bytes)})`}
-                  </span>
-                )}
-                {h.status === 'error' && h.error_message && (
-                  <span style={{ color: 'var(--danger, #ef4444)' }} title={h.error_message}>
-                    {h.error_message.slice(0, 60)}
-                  </span>
-                )}
               </div>
             ))}
           </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }
