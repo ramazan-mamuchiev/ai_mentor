@@ -38,7 +38,7 @@ class RerankResult:
     usage: RerankUsage = field(default_factory=RerankUsage)
 
 
-_RERANK_PROMPT = """\
+_RERANK_PROMPT_TEMPLATE = """\
 You are a relevance scoring engine. Given a user query and a list of text chunks, \
 rate each chunk's relevance to the query on a scale from 0.0 to 1.0.
 
@@ -60,10 +60,10 @@ in the same order as the chunks. No explanation, no extra text.
 
 Example: {"scores": [0.95, 0.3, 0.72, 0.1]}
 
-User query: {query}
+User query: $QUERY$
 
 Chunks:
-{chunks}"""
+$CHUNKS$"""
 
 
 def _build_rerank_text(result: dict) -> str:
@@ -180,7 +180,7 @@ async def _rerank_llm(query: str, results: list[dict], top_k: int) -> RerankResu
     usage = RerankUsage(model=settings.rerank_model)
 
     chunks_text = _build_chunks_text(results)
-    prompt = _RERANK_PROMPT.format(query=query, chunks=chunks_text)
+    prompt = _RERANK_PROMPT_TEMPLATE.replace("$QUERY$", query).replace("$CHUNKS$", chunks_text)
 
     t0 = time.perf_counter()
     scores: list[float] | None = None

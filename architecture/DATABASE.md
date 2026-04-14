@@ -180,6 +180,14 @@ CREATE TABLE documents (
     indexed_at TIMESTAMPTZ
 );
 
+-- Chunk parents (deduplicated parent_content for small-to-big retrieval)
+CREATE TABLE chunk_parents (
+    id BIGSERIAL PRIMARY KEY,
+    content_hash TEXT NOT NULL UNIQUE,         -- SHA-256 of parent_content
+    content TEXT NOT NULL,                     -- full section text
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Chunks (semantic search units with vector embeddings)
 CREATE TABLE chunks (
     id BIGSERIAL PRIMARY KEY,
@@ -189,18 +197,23 @@ CREATE TABLE chunks (
     heading_level INT NOT NULL DEFAULT 1,
     content TEXT NOT NULL,
     content_clean TEXT,                        -- Markdown-stripped text for BM25
-    parent_content TEXT,                       -- full section for small-to-big retrieval
+    parent_content TEXT,                       -- legacy column (migrating to parent_id)
+    parent_id BIGINT REFERENCES chunk_parents(id), -- FK to deduplicated parent content
     token_count INT NOT NULL DEFAULT 0,
-    embedding vector(1024),                    -- Gemini embedding-2-preview (1024 dims)
+    embedding halfvec(768),                    -- Gemini embedding-2-preview (768 dims, scalar quantized)
+    language TEXT,                              -- ISO 639-1 code (en, ru, etc.)
     doc_type TEXT NOT NULL DEFAULT '',
     entities JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 );
--- BM25 full-text search: tsvector column + trigger + GIN index
+-- BM25 full-text search: tsvector columns + triggers + GIN indexes
+-- tsv: simple stemmer (exact matching)
+-- tsv_lang: language-specific stemmer (russian/english/simple based on chunk.language)
 -- ALTER TABLE chunks ADD COLUMN tsv tsvector;
--- CREATE TRIGGER chunks_tsv_trigger ... tsvector_update_trigger(tsv, 'pg_catalog.english', content_clean, content);
+-- ALTER TABLE chunks ADD COLUMN tsv_lang tsvector;
 -- CREATE INDEX idx_chunks_tsv ON chunks USING gin(tsv);
+-- CREATE INDEX idx_chunks_tsv_lang ON chunks USING gin(tsv_lang);
 
 -- Chat sessions
 CREATE TABLE chat_sessions (
@@ -448,15 +461,21 @@ Manual SQL files in `backend/db/migrations/`:
 | `003_add_api_key_id.sql` | Add api_key_id to usage_log, search_analytics, chat_sessions |
 | `004_add_tenant_role.sql` | Add role column to tenants |
 | `005_roles_and_prompts.sql` | roles, tenant_roles, prompt_templates tables |
+| `018_multilang_bm25.sql` | Language-aware BM25: `tsv_lang` column, language-specific stemming trigger |
+
+**Startup migrations** (`main.py → lifespan`):
+- `_apply_schema()` — applies `schema.sql` (creates tables/indexes if not exist)
+- `_migrate_embedding_dims()` — migrates `chunks.embedding` column type and dimensions (e.g. `vector(1024)` → `halfvec(768)`); drops and recreates HNSW index; idempotent
 
 ### Current Indexes
 
 ```sql
 CREATE INDEX idx_chunks_embedding ON chunks
-    USING hnsw (embedding vector_cosine_ops)
+    USING hnsw (embedding halfvec_cosine_ops)
     WITH (m = 16, ef_construction = 128);
 
 CREATE INDEX idx_chunks_document ON chunks(document_id);
+CREATE INDEX idx_chunks_parent ON chunks(parent_id) WHERE parent_id IS NOT NULL;
 CREATE INDEX idx_chat_messages_session ON chat_messages(session_id);
 CREATE INDEX idx_reindex_jobs_status ON reindex_jobs(status);
 CREATE INDEX idx_documents_source_hash ON documents(source_hash) WHERE source_hash != '';
@@ -601,8 +620,13 @@ CREATE TABLE chunks (
     heading_path TEXT NOT NULL,           -- "Chapter 4 > Access Control > Door Control"
     heading_level INT NOT NULL,           -- 1, 2, or 3
     content TEXT NOT NULL,
+    content_clean TEXT,                   -- Markdown-stripped text for BM25
+    parent_id BIGINT REFERENCES chunk_parents(id),
     token_count INT NOT NULL DEFAULT 0,
-    embedding vector(1024),              -- Gemini Matryoshka / local E5 native dims
+    embedding halfvec(768),              -- Gemini Matryoshka 768d, scalar quantized
+    language TEXT,                        -- ISO 639-1 code
+    doc_type TEXT NOT NULL DEFAULT '',
+    entities JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 );
@@ -699,9 +723,9 @@ CREATE TABLE tenant_devices (
 ### Indexes
 
 ```sql
--- HNSW vector index (cosine similarity)
+-- HNSW vector index (cosine similarity, halfvec)
 CREATE INDEX idx_chunks_embedding ON chunks
-    USING hnsw (embedding vector_cosine_ops)
+    USING hnsw (embedding halfvec_cosine_ops)
     WITH (m = 16, ef_construction = 128);
 
 -- Tenant isolation (critical for multi-tenant performance)
@@ -841,7 +865,7 @@ chunks table → single HNSW index → all tenants in one index
                                     post-filter by tenant_id
 ```
 
-**Capacity**: ~2M chunks on a 64 GB RAM server (HNSW index ~12 GB + working memory).
+**Capacity**: ~2M chunks on a 64 GB RAM server (HNSW halfvec index ~3 GB + working memory).
 **Search latency**: 20–80ms (p95).
 **Limitation**: post-filtering means pgvector scans vectors from all tenants, then discards non-matching ones. At 2M+ chunks with 500+ tenants, recall degrades for small tenants (their chunks are "drowned" by larger tenants).
 
@@ -862,7 +886,7 @@ CREATE TABLE chunks_partitioned (
     heading_level INT NOT NULL,
     content TEXT NOT NULL,
     token_count INT NOT NULL DEFAULT 0,
-    embedding vector(1536),
+    embedding halfvec(768),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(document_id, chunk_index)
 ) PARTITION BY HASH (tenant_id);
@@ -878,7 +902,7 @@ BEGIN
         );
         EXECUTE format(
             'CREATE INDEX idx_chunks_p%s_embedding ON chunks_p%s
-             USING hnsw (embedding vector_cosine_ops)
+             USING hnsw (embedding halfvec_cosine_ops)
              WITH (m = 16, ef_construction = 128)',
             i, i
         );
@@ -937,7 +961,7 @@ async def search(tenant_id: UUID, query_embedding, filters, limit: int = 5):
     return merged
 ```
 
-**Capacity**: ~10M chunks on a 128 GB RAM server. Each partition holds ~300K chunks → HNSW index ~1.8 GB per partition, easily fits in RAM.
+**Capacity**: ~10M chunks on a 128 GB RAM server. Each partition holds ~300K chunks → HNSW halfvec index ~0.5 GB per partition, easily fits in RAM.
 **Search latency**: 15–50ms (p95) — faster than Stage 1 due to smaller indexes.
 
 ### Scaling Decision Matrix

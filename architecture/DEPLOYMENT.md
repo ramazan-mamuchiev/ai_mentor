@@ -285,7 +285,7 @@ API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-ten
 GEMINI_API_KEY=AIza...                       # single key for LLM + embeddings
 
 # === Embedding ===
-EMBEDDING_DIMS=1024                          # vector dimensionality (Matryoshka for Gemini)
+EMBEDDING_DIMS=768                           # vector dimensionality (Matryoshka for Gemini, reduced from 1024)
 EMBEDDING_MODEL_GEMINI=gemini-embedding-2-preview
 
 # === LLM (RAG Chat) ===
@@ -305,11 +305,30 @@ RERANK_MODEL=gemini-2.5-flash
 SUMMARY_MODEL=gemini-2.5-flash
 DECOMPOSE_MODEL=gemini-2.5-flash
 
+# === Re-ranking ===
+RERANK_PROVIDER=llm                          # llm (Gemini Flash) | vertex_rank (Google Vertex AI Ranking API)
+# VERTEX_RANK_PROJECT=your-gcp-project       # required if rerank_provider=vertex_rank
+# VERTEX_RANK_MODEL=semantic-ranker-default@latest
+
 # === RAG ===
 RAG_TOP_K=10                                 # number of chunks to retrieve for context
 RAG_MIN_SIMILARITY=0.35                      # minimum cosine similarity threshold (discard below)
 RAG_HISTORY_MESSAGES=6                       # max conversation messages included in LLM context
 RAG_HISTORY_MAX_TOKENS=8000                  # max tokens from chat history in prompt
+
+# === HyDE (Hypothetical Document Embedding) ===
+HYDE_ENABLED=false                           # generate hypothetical doc for query embedding
+HYDE_MODEL=gemini-2.5-flash
+# HYDE_QUERY_TYPES=code,technical,troubleshooting  # query types that trigger HyDE
+# HYDE_MAX_TOKENS=200
+
+# === Semantic Chunking ===
+SEMANTIC_CHUNKING_ENABLED=false              # split flat sections by embedding similarity
+# SEMANTIC_CHUNK_THRESHOLD=1500              # min tokens to trigger semantic split
+# SEMANTIC_SIMILARITY_PERCENTILE=25          # percentile for boundary detection
+
+# === MCP Query Classification ===
+MCP_CLASSIFY_ENABLED=true                    # classify MCP queries for doc-type boosting
 
 # === Upload Limits ===
 MAX_UPLOAD_SIZE_MB=50                        # single file upload limit

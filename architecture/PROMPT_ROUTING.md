@@ -157,11 +157,18 @@ The debug panel shows classification results:
 | Model | Classifier model name |
 | Time | Classification latency |
 
+## MCP Query Classification
+
+Since April 2026, query classification is also available in the **MCP pipeline** (`mcp/server.py`). When `MCP_CLASSIFY_ENABLED=true`, the `search_documentation` MCP tool classifies the incoming query before search, passing the `query_type` to the search service for **doc-type boosting** (e.g. `api_reference` chunks boosted for `code` queries).
+
+The MCP classifier reuses the same `_classify_query` function from `chat/rag.py`, exposed via `search/classifier.py` module. This provides consistent classification logic across both Web Chat and MCP channels.
+
 ## Configuration
 
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
-| `CLASSIFIER_ENABLED` | `true` | Enable/disable LLM classification |
+| `CLASSIFIER_ENABLED` | `true` | Enable/disable LLM classification (Web Chat) |
+| `MCP_CLASSIFY_ENABLED` | `true` | Enable/disable LLM classification (MCP tools) |
 | `CLASSIFIER_MODEL` | `gemini-2.5-flash` | Model for classification |
 
 When `CLASSIFIER_ENABLED=false`, all queries use `"overview"` type (backward compatible).

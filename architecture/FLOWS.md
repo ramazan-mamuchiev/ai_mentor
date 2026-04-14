@@ -67,9 +67,11 @@
   │  │ 5. CHUNK  [45%→50%]                                                    │       │  ┆
   │  │    a. Atomic blocks: code fences + tables never split                   │       │  ┆
   │  │    b. Split large: >512 tokens → pieces with 2-block overlap            │       │  ┆
-  │  │       parent_content stores full section for small-to-big               │       │  ┆
+  │  │       parent_content stored in chunk_parents table (deduplicated)        │       │  ┆
+  │  │    b'. Semantic split: flat sections >1500 tokens split by embedding     │       │  ┆
+  │  │        similarity (configurable, disabled by default)                    │       │  ┆
   │  │    c. Merge small: <50 tokens → join neighbors (same parent heading)    │       │  ┆
-  │  │    d. Token estimate: len(words) × 1.3                                  │       │  ┆
+  │  │    d. Token count: tiktoken cl100k_base (fallback: words × 1.3)         │       │  ┆
   │  │    e. Quality log: min/max/avg/median token counts                      │       │  ┆
   │  └────────────────────────────────────┬────────────────────────────────────┘       │  ┆
   │                                       │                                            │  ┆
@@ -96,18 +98,20 @@
   │                                       ▼                                    Gemini  │  ┆
   │  ┌─────────────────────────────────────────────────────────────────────────┐ Emb.  │  ┆
   │  │ 8. EMBED  [55%→92%]                                                    │  2    │  ┆
-  │  │    Model: gemini-embedding-2-preview (1024 dims)                        │◄╌╌╌╌╌╌╌╌╌┘
+  │  │    Model: gemini-embedding-2-preview (768 dims, halfvec)                │◄╌╌╌╌╌╌╌╌╌┘
   │  │    task_type = RETRIEVAL_DOCUMENT                                       │       │
   │  │    Batch: 100 texts/request, L2-normalized                              │       │
+  │  │    Storage: halfvec(768) — 2× compression vs float32                    │       │
   │  │    Retry: 5× exponential backoff (2ˢ base, 120s cap) on 429/503        │       │
   │  └────────────────────────────────────┬────────────────────────────────────┘       │
   │                                       │                                            │
   │                                       ▼                                            │
   │  ┌─────────────────────────────────────────────────────────────────────────┐       │
   │  │ 9. STORE IN POSTGRESQL  [92%→100%]                                     │       │
-  │  │    INSERT chunks: content, content_clean, parent_content, embedding,    │       │
-  │  │                   doc_type, entities                                     │       │
-  │  │    tsvector trigger: english stemmer on content_clean (for BM25)         │       │
+  │  │    INSERT chunks: content, content_clean, parent_id, embedding,         │       │
+  │  │                   doc_type, entities, language                           │       │
+  │  │    parent_content deduplicated via chunk_parents table (SHA-256 hash)    │       │
+  │  │    tsvector trigger: language-aware stemmer on content_clean (BM25)      │       │
   │  │    UPDATE document: status='ready', indexed_at, timing metrics           │       │
   │  └────────────────────────────────────┬────────────────────────────────────┘       │
   │                                       │                                            │
@@ -190,10 +194,15 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
         - Code fences (```...```) and Markdown tables: never split
         - Remaining text: split by `\n\n` paragraph boundaries
      b. **Split large sections** (>`chunk_max_tokens=512`, configurable):
-        - Token count via word heuristic: `len(words) * 1.3`
+        - Token count via `tiktoken` cl100k_base (fallback: `len(words) * 1.3`)
         - `chunk_overlap_paragraphs=2` trailing blocks from previous piece overlap into next
-        - `parent_content` stores full section text for small-to-big retrieval
+        - `parent_content` deduplicated via `chunk_parents` table (SHA-256 hash → `parent_id` FK)
         - `heading_path` suffixed with ` (part N)`
+     b'. **Semantic chunking fallback** (disabled by default, `semantic_chunking_enabled`):
+        - For "flat" sections (no headings) exceeding `semantic_chunk_threshold` (1500 tokens)
+        - Splits by embedding similarity: computes embeddings per paragraph, finds boundaries
+          where similarity drops below `semantic_similarity_percentile` (25th percentile)
+        - Falls back to token-based split if embedding API fails
      c. **Merge small sections** (<`chunk_min_tokens=50`, configurable):
         - Only merges neighbors sharing same parent heading
         - Combined tokens must fit within `max_tokens`
@@ -238,7 +247,8 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
 
   8. **Embed** all enriched chunks in batches (embedder.py):
      - Model: `gemini-embedding-2-preview` (google-genai SDK)
-     - `task_type=RETRIEVAL_DOCUMENT`, `output_dimensionality=1024`
+     - `task_type=RETRIEVAL_DOCUMENT`, `output_dimensionality=768` (reduced from 1024 via Matryoshka)
+     - Stored as **`halfvec(768)`** (16-bit float) — ~3.5× storage reduction vs `vector(1024)`
      - Batch size: **100 texts** per API call (`BATCH_SIZE=100`, Gemini limit)
      - Retry: 5 attempts with exponential backoff (2^n × 2s, cap 120s) on 429/503
      - Vectors **L2-normalized** post-API
@@ -247,9 +257,11 @@ Celery Worker (×4, concurrency=4): ingest_document(document_id)
      → **Progress: 92% — "storing"**
 
   9. **Store** chunks in PostgreSQL + pgvector:
-     - INSERT: `content`, `content_clean`, `parent_content`, `embedding`, `doc_type`, `entities`
-     - PostgreSQL trigger builds `tsvector` from `COALESCE(content_clean, content)`
-       with **'english' stemmer** (stemming + stop-word removal) for BM25 search
+     - INSERT: `content`, `content_clean`, `parent_id`, `embedding` (halfvec), `doc_type`, `entities`, `language`
+     - `parent_content` deduplicated via `chunk_parents` table (SHA-256 content hash → `parent_id` FK)
+       — in-memory cache avoids redundant DB lookups within a single ingestion
+     - PostgreSQL trigger builds `tsvector` with **language-aware stemmer** (russian/english/simple)
+       using both `tsv` (simple, exact) and `tsv_lang` (language-specific stemming) columns
      - UPDATE document: `status='ready'`, timing metrics, embedding metadata
 
      → **Progress: 100%** — `status='ready'`, `progress_stage=''`, `indexed_at=NOW()`
@@ -341,9 +353,11 @@ MCP call: search_documentation(
 Lexiro server:
   1. Authenticate API Key (ipx_...) → resolve tenant_id
   2. check_and_meter: quota check → log to usage_log (action=search)
-  3. Embed query → vector [0.023, -0.118, ...]
-  4. pgvector search: WHERE tenant_id=$t ORDER BY embedding <=> $q LIMIT 5
-  5. Return top 5 chunks (~3-5KB total)
+  3. Query classification (if mcp_classify_enabled): detect query_type + product
+     → passes query_type to search for doc-type boosting
+  4. Embed query → halfvec [0.023, -0.118, ...] (768 dims)
+  5. Hybrid search (vector + BM25 + RRF) + reranking + doc-type boosting
+  6. Return top 5 chunks (~3-5KB total)
         │
         ▼
 Cursor AI receives relevant chunks:
@@ -524,8 +538,14 @@ RAG Pipeline (chat/rag.py):
       → each sub-query searched in parallel
       → results interleaved and deduplicated
       → configurable: decompose_enabled (default true), decompose_model (gemini-2.5-flash)
-  4. Embed rewritten query → vector [0.023, -0.118, ...]
-     → task_type=RETRIEVAL_QUERY for Gemini embeddings
+  4. **HyDE** (Hypothetical Document Embedding, disabled by default):
+     → for code/technical/troubleshooting query types (`hyde_query_types`)
+     → Gemini Flash generates a hypothetical document answering the query (~200 tokens)
+     → the hypothetical document is embedded instead of the raw query
+     → improves recall for conceptual queries where user phrasing differs from doc language
+     → configurable: `hyde_enabled` (default false), `hyde_model` (gemini-2.5-flash)
+  4b. Embed rewritten query (or HyDE text) → halfvec [0.023, -0.118, ...]
+     → task_type=RETRIEVAL_QUERY for Gemini embeddings, 768 dims
   5. Hybrid search (two parallel retrieval paths):
      a. Vector search: ORDER BY embedding <=> $q LIMIT rerank_candidates (default 20)
      b. BM25 full-text: tsv @@ plainto_tsquery('english', $q) ORDER BY ts_rank_cd
@@ -538,15 +558,16 @@ RAG Pipeline (chat/rag.py):
         → configurable: hybrid_search_enabled (default true)
      → optional product/version filter on both paths
      → deduplication by (heading_path, SHA-256(content)) — full content hash
-  6. Gemini-based re-ranking (reranker.py):
-     → **Gemini-based reranker** (gemini-2.5-flash by default, configurable via `settings.rerank_model`)
-     → sends each (query, cleaned_enriched_text) pair to Gemini for relevance scoring
-     → text cleaned from Markdown artifacts (same as embedding pipeline)
-     → enriched with "[heading_path]\n{cleaned_content}" for topic-aware scoring
-     → LLM scores relevance on a numeric scale, normalized to [0, 1]
+  6. Re-ranking (reranker.py):
+     → **Two providers**: `rerank_provider="llm"` (default) or `"vertex_rank"` (Google Vertex AI Ranking API)
+     → **LLM reranker**: Gemini Flash with `response_format: json_object` for stable output;
+       parses both `{"scores": [...]}` and legacy `[...]` formats; regex fallback for robustness
+     → **Vertex AI Ranking API**: `google-cloud-discoveryengine` SDK, `semantic-ranker-default@latest`;
+       cross-encoder model, no LLM token cost; falls back to LLM reranker on import/API error
+     → text cleaned from Markdown artifacts, enriched with "[heading_path]\n{cleaned_content}"
      → raw `rerank_score` preserved for debugging; original dicts not mutated
      → top rag_top_k (default 10) results kept after re-ranking
-     → configurable: rerank_enabled (default true)
+     → configurable: rerank_enabled (default true), rerank_provider, rerank_model
   7. Similarity threshold filtering:
      → discard chunks with similarity < rag_min_similarity (default 0.35)
      → after re-ranking, uses the normalized Gemini reranker score
@@ -597,8 +618,9 @@ Server: save assistant message + sources to chat_messages table
 - **Structured grounding prompt**: 9 constraints in `<constraints>` XML section, following Google's recommendations for Gemini
 - **Separate system/context/ack message pattern**: enables Gemini implicit caching of static instructions
 - **Hybrid retrieval (BM25 + vector)**: RRF fusion of semantic vector search and lexical BM25 full-text search; BM25 uses `'english'` stemmer on `content_clean` (Markdown-stripped) column; catches exact API paths and codes that bi-encoder may miss
-- **Gemini-based re-ranking**: bi-encoder+BM25 retrieve 20 candidates, Gemini-based reranker (gemini-2.5-flash by default) re-scores Markdown-cleaned enriched text; LLM relevance scores normalized to [0, 1] for accurate threshold filtering
-- **Small-to-big context**: search by small chunks (precision), expand to full Markdown-cleaned section in LLM context (completeness); parent deduplication via SHA-256 hash; context_tokens based on actual formatted text
+- **Configurable re-ranking**: bi-encoder+BM25 retrieve 20 candidates; two providers: LLM reranker (Gemini Flash, structured JSON output) or Vertex AI Ranking API (cross-encoder); LLM relevance scores normalized to [0, 1] for accurate threshold filtering
+- **HyDE (Hypothetical Document Embedding)**: for code/technical/troubleshooting queries, generates a hypothetical answer and embeds it instead of the raw query — bridges vocabulary gap between user questions and documentation
+- **Small-to-big context**: search by small chunks (precision), expand to full section in LLM context (completeness); parent content deduplicated via `chunk_parents` table (SHA-256 hash → `parent_id` FK); context_tokens based on actual formatted text
 - **Document title enrichment**: generic headings ("Document", "Preamble") replaced with actual document title for meaningful embedding context
 - **LLM metadata enrichment**: Gemini Flash extracts `doc_type` and `entities` per chunk; embedding prefix includes `[type: api_reference]` and `[entities: ...]` for semantically richer vectors
 - **Contextual embeddings**: Markdown-cleaned content with `[heading_path] + [type] + [entities]` prefix for topic-aware retrieval
@@ -608,7 +630,8 @@ Server: save assistant message + sources to chat_messages table
 - **Smart chunk merging**: when small chunks are merged, heading_path combines both paths and token_count is recalculated on actual merged text (not just summed)
 - **Chunk quality monitoring**: after chunking, min/max/avg/median token counts and parent_content statistics are logged for production quality tracking
 - **Unicode normalization**: NFKC normalization at parser input ensures consistent matching
-- **Token-safe chunking**: `chunk_max_tokens=512`, `chunk_min_tokens=50`; word-based heuristic `len(words) * 1.3` for token estimation; 2-block overlap at split boundaries
+- **Token-safe chunking**: `chunk_max_tokens=512`, `chunk_min_tokens=50`; accurate token counting via `tiktoken` cl100k_base (fallback: `len(words) * 1.3`); 2-block overlap at split boundaries
+- **Semantic chunking** (optional): flat sections without headings can be split by embedding similarity boundaries; disabled by default (`semantic_chunking_enabled=false`); threshold: 1500 tokens, percentile: 25th
 - **Similarity threshold filtering**: `rag_min_similarity` (default 0.35) applied after Gemini re-ranking using normalized score; removes low-relevance chunks before they reach the LLM
 - **Factual grounding**: API details (endpoints, params, URLs) must come from context only; code generation allowed using general programming knowledge based on documented API details
 - **Language enforcement**: "CRITICAL: ALWAYS respond in the same language as the user's question" — top-level instruction
