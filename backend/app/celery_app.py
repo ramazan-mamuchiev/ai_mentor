@@ -49,6 +49,7 @@ celery.conf.update(
         "check_stale_reindex_jobs": {"queue": "monitoring"},
         "check_stale_documents": {"queue": "monitoring"},
         "rescue_orphaned_documents": {"queue": "monitoring"},
+        "rescue_stale_ocr": {"queue": "monitoring"},
         "ensure_usage_partitions": {"queue": "monitoring"},
         "cleanup_expired_shares": {"queue": "monitoring"},
         "s3_health_probe": {"queue": "monitoring"},
@@ -86,6 +87,10 @@ celery.conf.update(
         "rescue-orphaned-documents": {
             "task": "rescue_orphaned_documents",
             "schedule": 120.0,
+        },
+        "rescue-stale-ocr": {
+            "task": "rescue_stale_ocr",
+            "schedule": 300.0,
         },
         "heal-lifecycle-status": {
             "task": "heal_lifecycle_status",
@@ -420,6 +425,274 @@ def ingest_document_task(self, document_id: int):
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Async OCR pipeline for PDF images
+# ---------------------------------------------------------------------------
+
+OCR_MAX_RETRIES = 3
+
+
+@celery.task(name="ocr_pdf_images", bind=True,
+             max_retries=2, default_retry_delay=60,
+             acks_late=True,
+             soft_time_limit=3600, time_limit=3900)
+def ocr_pdf_images_task(self, document_id: int, image_dicts: list[dict]):
+    """Orchestrator: extract images from PDF, OCR each, merge results, re-ingest.
+
+    Fault-tolerance:
+    - acks_late: task re-delivered if worker crashes mid-flight (WorkerLostError).
+    - max_retries=2: retries on transient errors (network, S3, API).
+    - Per-image retry loop (OCR_MAX_RETRIES) with exponential backoff.
+    - Idempotent: checks ocr_task_id to detect stale retries from a previous
+      task incarnation; safe to re-run (images overwritten in S3, chunks replaced).
+    - Graceful degradation: individual image failures don't abort the whole task.
+    - On terminal failure: marks ocr_status='failed' so rescue task can retry later.
+
+    image_dicts: list of {"seq": int, "page": int, "xref": int, "width": int, "height": int}
+    """
+    from app.models import Document
+    from app.s3 import download_file_to_path, upload_file, download_file as s3_download
+    from app.ingestion.converters.ocr import (
+        detect_language_via_gemini,
+        ocr_image_bytes,
+        ocr_enabled as _ocr_enabled,
+    )
+    from app.ingestion.converters.pdf import (
+        PdfImageInfo,
+        extract_and_upload_image,
+        replace_placeholders_with_ocr,
+    )
+
+    if not _ocr_enabled():
+        logger.info("OCR disabled, skipping ocr_pdf_images", extra={"document_id": document_id})
+        _mark_ocr_skipped(document_id, "ocr_disabled")
+        return {"status": "skipped", "reason": "ocr_disabled"}
+
+    t0 = time.perf_counter()
+    engine = _get_sync_engine()
+
+    with Session(engine) as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            logger.error("ocr_pdf_images: document not found", extra={"document_id": document_id})
+            return {"status": "error", "error": "document_not_found"}
+
+        if doc.status != "ready":
+            logger.info("ocr_pdf_images: document not ready, skipping",
+                        extra={"document_id": document_id, "status": doc.status})
+            return {"status": "skipped", "reason": f"doc_status={doc.status}"}
+
+        if doc.ocr_status == "complete":
+            logger.info("ocr_pdf_images: already complete, skipping",
+                        extra={"document_id": document_id})
+            return {"status": "skipped", "reason": "already_complete"}
+
+        # Idempotency guard: if another task is already processing, yield to it
+        if (doc.ocr_status == "processing"
+                and doc.ocr_task_id
+                and doc.ocr_task_id != self.request.id):
+            logger.info("ocr_pdf_images: another task already processing",
+                        extra={"document_id": document_id,
+                               "existing_task": doc.ocr_task_id,
+                               "our_task": self.request.id})
+            return {"status": "skipped", "reason": "another_task_processing"}
+
+        _set_tenant_log_context(doc.tenant_id, session)
+
+        doc.ocr_status = "processing"
+        doc.ocr_task_id = self.request.id
+        doc.ocr_progress_percent = 0
+        doc.progress_stage = "ocr"
+        session.commit()
+
+        images = [PdfImageInfo(**d) for d in image_dicts]
+        total_images = len(images)
+
+        logger.info("ocr_pdf_images started",
+                     extra={"document_id": document_id, "total_images": total_images,
+                            "task_id": self.request.id,
+                            "retry": self.request.retries})
+
+        if not doc.converted_s3_key:
+            doc.ocr_status = "failed"
+            doc.error_message = (doc.error_message or "") + " | OCR: no converted_s3_key"
+            doc.progress_stage = ""
+            session.commit()
+            return {"status": "error", "error": "no_converted_s3_key"}
+
+        ext = os.path.splitext(doc.original_filename)[1].lower() or ".pdf"
+        tmp_pdf = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                tmp_pdf = tmp.name
+            download_file_to_path(doc.s3_key, tmp_pdf)
+
+            md_text = s3_download(doc.converted_s3_key).decode("utf-8")
+
+            detected_langs, lang_usage = detect_language_via_gemini(md_text)
+            total_prompt_tokens = lang_usage.get("prompt_tokens", 0)
+            total_completion_tokens = lang_usage.get("completion_tokens", 0)
+
+            ocr_results: dict[str, str] = {}
+            succeeded = 0
+            failed = 0
+            empty = 0
+
+            for idx, img in enumerate(images):
+                try:
+                    s3_key = extract_and_upload_image(tmp_pdf, img, document_id)
+                    img.s3_key = s3_key
+
+                    img_bytes = s3_download(s3_key)
+
+                    ocr_text = ""
+                    last_ocr_error = None
+                    for attempt in range(OCR_MAX_RETRIES):
+                        try:
+                            ocr_text, usage = ocr_image_bytes(img_bytes, detected_langs)
+                            total_prompt_tokens += usage.get("prompt_tokens", 0)
+                            total_completion_tokens += usage.get("completion_tokens", 0)
+                            last_ocr_error = None
+                            break
+                        except SoftTimeLimitExceeded:
+                            raise
+                        except Exception as ocr_exc:
+                            last_ocr_error = ocr_exc
+                            if attempt < OCR_MAX_RETRIES - 1:
+                                time.sleep(2 ** attempt)
+
+                    if last_ocr_error is not None:
+                        logger.warning("OCR failed after retries",
+                                       extra={"document_id": document_id, "seq": img.seq,
+                                              "attempts": OCR_MAX_RETRIES,
+                                              "error": str(last_ocr_error)[:200]})
+                        failed += 1
+                        continue
+
+                    key = f"{document_id}:{img.seq}"
+                    if ocr_text.strip():
+                        ocr_results[key] = ocr_text.strip()
+                        succeeded += 1
+                    else:
+                        ocr_results[key] = ""
+                        empty += 1
+
+                except SoftTimeLimitExceeded:
+                    raise
+                except Exception as img_exc:
+                    logger.warning("Image extraction/OCR failed",
+                                   extra={"document_id": document_id, "seq": img.seq,
+                                          "error": str(img_exc)[:200]})
+                    failed += 1
+
+                pct = int((idx + 1) / total_images * 80)
+                doc.ocr_progress_percent = pct
+                session.commit()
+
+            # Merge OCR text into markdown (even if some images failed — graceful)
+            updated_md = replace_placeholders_with_ocr(md_text, ocr_results)
+            converted_key = doc.converted_s3_key
+            upload_file(converted_key, updated_md.encode("utf-8"), content_type="text/markdown")
+
+            doc.ocr_progress_percent = 85
+            doc.progress_stage = "ocr_reindex"
+            session.commit()
+
+            logger.info("OCR merge complete, starting re-ingest",
+                        extra={"document_id": document_id, "succeeded": succeeded,
+                               "failed": failed, "empty": empty})
+
+            from app.ingestion.pipeline import reingest_from_converted_md
+            reingest_result = reingest_from_converted_md(session, doc)
+
+            if reingest_result.get("status") != "ok":
+                raise RuntimeError(f"Re-ingest failed: {reingest_result.get('error', 'unknown')}")
+
+            ocr_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+            doc.ocr_status = "complete"
+            doc.ocr_progress_percent = 100
+            doc.progress_stage = ""
+            doc.ocr_ms = ocr_ms
+            doc.ocr_images_total = total_images
+            doc.ocr_images_success = succeeded
+            doc.ocr_images_empty = empty
+            doc.ocr_images_failed = failed
+            doc.ocr_prompt_tokens = total_prompt_tokens
+            doc.ocr_completion_tokens = total_completion_tokens
+            doc.ocr_model = settings.ocr_vision_model
+            session.commit()
+
+            logger.info("ocr_pdf_images completed",
+                        extra={"document_id": document_id, "ocr_ms": ocr_ms,
+                               "total": total_images, "succeeded": succeeded,
+                               "failed": failed, "empty": empty})
+
+            return {
+                "status": "ok",
+                "document_id": document_id,
+                "total": total_images,
+                "succeeded": succeeded,
+                "failed": failed,
+                "empty": empty,
+                "ocr_ms": ocr_ms,
+            }
+
+        except SoftTimeLimitExceeded:
+            session.rollback()
+            session.refresh(doc)
+            doc.ocr_status = "failed"
+            doc.ocr_progress_percent = 0
+            doc.progress_stage = ""
+            doc.error_message = (doc.error_message or "") + " | OCR soft time limit exceeded"
+            session.commit()
+            logger.error("ocr_pdf_images soft time limit exceeded",
+                         extra={"document_id": document_id})
+            return {"status": "error", "error": "soft_time_limit"}
+
+        except Exception as exc:
+            session.rollback()
+            session.refresh(doc)
+            # Retry on transient errors (network, S3, API) — Celery auto-retry
+            if self.request.retries < self.max_retries:
+                doc.ocr_status = "pending"
+                doc.ocr_progress_percent = 0
+                doc.progress_stage = ""
+                session.commit()
+                logger.warning("ocr_pdf_images retrying",
+                               extra={"document_id": document_id,
+                                      "retry": self.request.retries + 1,
+                                      "error": str(exc)[:200]})
+                raise self.retry(exc=exc)
+
+            doc.ocr_status = "failed"
+            doc.ocr_progress_percent = 0
+            doc.progress_stage = ""
+            doc.error_message = (doc.error_message or "") + f" | OCR error: {str(exc)[:500]}"
+            session.commit()
+            logger.error("ocr_pdf_images failed (retries exhausted)",
+                         extra={"document_id": document_id, "error_type": type(exc).__name__},
+                         exc_info=True)
+            return {"status": "error", "error": str(exc)[:500]}
+
+        finally:
+            if tmp_pdf and os.path.exists(tmp_pdf):
+                os.unlink(tmp_pdf)
+
+
+def _mark_ocr_skipped(document_id: int, reason: str) -> None:
+    """Mark document OCR as skipped (OCR disabled or not needed)."""
+    from app.models import Document
+    engine = _get_sync_engine()
+    with Session(engine) as session:
+        doc = session.get(Document, document_id)
+        if doc and doc.ocr_status in ("pending", "processing"):
+            doc.ocr_status = "skipped"
+            doc.ocr_progress_percent = 0
+            doc.progress_stage = ""
+            session.commit()
 
 
 def _create_proto_bundle_docs(
@@ -2542,6 +2815,106 @@ def check_stale_documents_task(self):
                 "Stale documents reset",
                 extra={"count": len(stale_docs), "re_queued": rescued},
             )
+
+
+@celery.task(name="rescue_stale_ocr", bind=True)
+def rescue_stale_ocr_task(self):
+    """Periodic task: rescue OCR tasks stuck in 'pending' or 'processing' too long.
+
+    Covers:
+    1. ocr_status='processing' with ocr_task_id that is no longer alive in Redis.
+    2. ocr_status='pending' older than 10 minutes (dispatch lost).
+    3. ocr_status='failed' — does NOT auto-retry (operator can trigger manually).
+
+    Re-dispatches using ocr_image_dicts stored in the document at ingest time.
+    """
+    from celery.result import AsyncResult
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select, or_
+    from app.models import Document
+    from app.ingestion.converters.ocr import ocr_enabled as _ocr_enabled
+
+    if not _ocr_enabled():
+        return {"rescued": 0, "reason": "ocr_disabled"}
+
+    _STALE_MINUTES = 30
+    _PENDING_MINUTES = 10
+    _LOST_STATES = {"PENDING", "REVOKED", "FAILURE"}
+
+    engine = _get_sync_engine()
+    now = datetime.now(timezone.utc)
+    threshold_pending = now - timedelta(minutes=_PENDING_MINUTES)
+    threshold_stale = now - timedelta(minutes=_STALE_MINUTES)
+
+    rescued = 0
+
+    with Session(engine) as session:
+        candidates = session.execute(
+            select(Document).where(
+                Document.status == "ready",
+                Document.format == "pdf",
+                or_(
+                    Document.ocr_status == "processing",
+                    Document.ocr_status == "pending",
+                ),
+            ).limit(50)
+        ).scalars().all()
+
+        for doc in candidates:
+            should_rescue = False
+
+            if doc.ocr_status == "processing" and doc.ocr_task_id:
+                doc_age = doc.uploaded_at or now
+                if doc_age > threshold_stale:
+                    continue
+                try:
+                    result = AsyncResult(doc.ocr_task_id, app=celery)
+                    state = result.state
+                except Exception:
+                    state = "UNKNOWN"
+                if state in _LOST_STATES or state == "UNKNOWN":
+                    should_rescue = True
+                    logger.warning("OCR task lost, re-dispatching",
+                                   extra={"document_id": doc.id, "task_id": doc.ocr_task_id,
+                                          "state": state})
+
+            elif doc.ocr_status == "pending":
+                uploaded = doc.uploaded_at or datetime.now(timezone.utc)
+                if uploaded < threshold_pending:
+                    should_rescue = True
+                    logger.warning("OCR pending too long, re-dispatching",
+                                   extra={"document_id": doc.id})
+
+            if not should_rescue:
+                continue
+
+            if not doc.s3_key or not doc.converted_s3_key:
+                doc.ocr_status = "failed"
+                doc.error_message = (doc.error_message or "") + " | OCR rescue: missing S3 keys"
+                doc.progress_stage = ""
+                continue
+
+            image_dicts_for_dispatch = doc.ocr_image_dicts
+            if not image_dicts_for_dispatch:
+                logger.warning("OCR rescue: no ocr_image_dicts stored, marking skipped",
+                               extra={"document_id": doc.id})
+                doc.ocr_status = "skipped"
+                doc.progress_stage = ""
+                continue
+
+            doc.ocr_status = "pending"
+            doc.ocr_progress_percent = 0
+            doc.progress_stage = ""
+            task = ocr_pdf_images_task.delay(doc.id, image_dicts_for_dispatch)
+            doc.ocr_task_id = task.id
+            rescued += 1
+
+        if candidates:
+            session.commit()
+
+    if rescued:
+        logger.info("Rescued stale OCR tasks", extra={"count": rescued})
+    return {"rescued": rescued}
 
 
 @celery.task(name="rescue_orphaned_documents", bind=True)

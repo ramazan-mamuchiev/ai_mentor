@@ -229,6 +229,8 @@ export interface DocumentListItem {
   indexed_at: string | null
   progress_percent: number
   progress_stage: string
+  ocr_status: string
+  ocr_progress_percent: number
   detected_language: string | null
   source_container: string | null
   source_path: string | null

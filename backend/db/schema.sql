@@ -65,6 +65,12 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_stage TEXT NOT NULL DEFA
 -- Celery task ID for cancellation support
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS celery_task_id TEXT;
 
+-- Async OCR pipeline state
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_status TEXT NOT NULL DEFAULT '';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_progress_percent INT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_task_id TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_image_dicts JSONB;
+
 -- OCR metrics and language detection
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_ms FLOAT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_images_total INT;

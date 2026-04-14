@@ -46,6 +46,8 @@ class DocumentListItem(BaseModel):
     indexed_at: datetime | None = None
     progress_percent: int = 0
     progress_stage: str = ""
+    ocr_status: str = ""
+    ocr_progress_percent: int = 0
     detected_language: str | None = None
     source_container: str | None = None
     source_path: str | None = None

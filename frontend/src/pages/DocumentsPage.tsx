@@ -82,12 +82,16 @@ function StatusBadge({
   errorMessage,
   progressPercent = 0,
   progressStage = '',
+  ocrStatus = '',
+  ocrProgressPercent = 0,
   onCancel,
 }: {
   status: DocumentStatusValue
   errorMessage?: string | null
   progressPercent?: number
   progressStage?: string
+  ocrStatus?: string
+  ocrProgressPercent?: number
   onCancel?: () => void
 }) {
   const { t } = useTranslation()
@@ -99,8 +103,15 @@ function StatusBadge({
     cancelled: <Ban size={14} />,
   }
 
-  const stageLabel = progressStage ? t(`docs.stage.${progressStage}`, progressStage) : ''
-  const pct = status === 'processing' ? Math.max(0, Math.min(100, progressPercent)) : 0
+  const isOcrRunning = status === 'ready' && (ocrStatus === 'pending' || ocrStatus === 'processing')
+  const stageLabel = isOcrRunning
+    ? t('docs.stage.ocr', 'OCR')
+    : progressStage ? t(`docs.stage.${progressStage}`, progressStage) : ''
+  const pct = status === 'processing'
+    ? Math.max(0, Math.min(100, progressPercent))
+    : isOcrRunning
+      ? Math.max(0, Math.min(100, ocrProgressPercent))
+      : 0
   const canCancel = onCancel && (status === 'pending' || status === 'processing')
 
   return (
@@ -113,6 +124,12 @@ function StatusBadge({
           {icons[status]}
           {t(`docs.status.${status}`)}
         </span>
+        {isOcrRunning && (
+          <span className="docs-status docs-status--ocr" title={t('docs.stage.ocr_hint', 'Extracting text from images')}>
+            <Loader2 size={12} className="spin-icon" />
+            {t('docs.stage.ocr_short', 'OCR')}
+          </span>
+        )}
         {canCancel && (
           <button
             className="docs-status-cancel"
@@ -134,6 +151,22 @@ function StatusBadge({
             <div className="docs-progress-info">
               {pct > 0 && <span className="docs-progress-pct">{pct}%</span>}
               {stageLabel && <span className="docs-progress-stage">{stageLabel}</span>}
+            </div>
+          )}
+        </>
+      )}
+      {isOcrRunning && (
+        <>
+          <div className="docs-progress-bar">
+            <div
+              className="docs-progress-fill docs-progress-fill--ocr"
+              style={pct > 0 ? { width: `${pct}%`, animation: 'none' } : undefined}
+            />
+          </div>
+          {pct > 0 && (
+            <div className="docs-progress-info">
+              <span className="docs-progress-pct">{pct}%</span>
+              <span className="docs-progress-stage">{stageLabel}</span>
             </div>
           )}
         </>
@@ -840,6 +873,8 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           errorMessage={row.original.error_message}
           progressPercent={row.original.progress_percent}
           progressStage={row.original.progress_stage}
+          ocrStatus={row.original.ocr_status}
+          ocrProgressPercent={row.original.ocr_progress_percent}
           onCancel={() => setCancelTarget(row.original)}
         />
       ),
@@ -1130,7 +1165,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                     </button>
                   )}
                 </div>
-                <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} onCancel={() => setCancelTarget(doc)} />
+                <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} ocrStatus={doc.ocr_status} ocrProgressPercent={doc.ocr_progress_percent} onCancel={() => setCancelTarget(doc)} />
               </div>
               {cardLinkUrl && isUrl(cardLinkUrl) && (
                 <a

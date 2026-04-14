@@ -215,6 +215,11 @@ class Document(Base):
 
     celery_task_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    ocr_status: Mapped[str] = mapped_column(Text, default="")
+    ocr_progress_percent: Mapped[int] = mapped_column(Integer, default=0)
+    ocr_task_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ocr_image_dicts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     ocr_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     ocr_images_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ocr_images_success: Mapped[int | None] = mapped_column(Integer, nullable=True)

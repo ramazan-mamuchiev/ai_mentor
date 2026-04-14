@@ -1309,6 +1309,22 @@ button.docs-lc-badge--partial:hover {
   transition: width 0.5s ease;
 }
 
+.docs-progress-fill--ocr {
+  width: 100%;
+  background: var(--warning);
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+  transition: width 0.5s ease;
+}
+
+.docs-status--ocr {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--warning);
+  margin-left: 6px;
+}
+
 @keyframes progress-indeterminate {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }

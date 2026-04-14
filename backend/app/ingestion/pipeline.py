@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ingestion.chunker import ChunkData, chunk_sections
 from app.ingestion.converters.docx import convert_docx
 from app.ingestion.converters.html import convert_html
-from app.ingestion.converters.pdf import convert_pdf
+from app.ingestion.converters.pdf import convert_pdf, convert_pdf_text_only
 from app.ingestion.converters.proto import convert_proto_file
 from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_file
 from app.ingestion.converters.postman import convert_postman_file, is_postman_collection
@@ -1076,25 +1076,46 @@ def ingest_from_bytes(
     convert_ms = 0.0
     convert_metadata: dict = {}
 
+    _ocr_image_dicts: list[dict] | None = None
+
     t_read = time.perf_counter()
     if fmt == "pdf":
+
+        def _pdf_convert_progress(frac: float, stage: str) -> None:
+            _update_progress(session, document, 5 + int(frac * 40), stage)
+
         try:
-
-            def _pdf_convert_progress(frac: float, stage: str) -> None:
-                _update_progress(session, document, 5 + int(frac * 40), stage)
-
-            text, convert_metadata = convert_pdf(
+            text, convert_metadata, ocr_images = convert_pdf_text_only(
                 file_path,
+                document_id=document.id,
                 progress_callback=_pdf_convert_progress,
             )
             convert_ms = convert_metadata.get("convert_ms", 0.0)
-        except Exception as e:
-            document.status = "error"
-            document.error_message = f"PDF conversion failed: {e}"
-            document.progress_percent = 0
-            document.progress_stage = ""
-            session.commit()
-            return {"status": "error", "error": str(e)}
+            if ocr_images:
+                _ocr_image_dicts = [
+                    {"seq": img.seq, "page": img.page, "xref": img.xref,
+                     "width": img.width, "height": img.height}
+                    for img in ocr_images
+                ]
+        except Exception as text_only_err:
+            logger.warning(
+                "convert_pdf_text_only failed, falling back to legacy convert_pdf",
+                extra={"document_id": document.id, "error": str(text_only_err)[:300]},
+                exc_info=True,
+            )
+            try:
+                text, convert_metadata = convert_pdf(
+                    file_path,
+                    progress_callback=_pdf_convert_progress,
+                )
+                convert_ms = convert_metadata.get("convert_ms", 0.0)
+            except Exception as legacy_err:
+                document.status = "error"
+                document.error_message = f"PDF conversion failed: {legacy_err}"
+                document.progress_percent = 0
+                document.progress_stage = ""
+                session.commit()
+                return {"status": "error", "error": str(legacy_err)}
         fmt_effective = "markdown"
     elif fmt == "swagger":
         try:
@@ -1372,9 +1393,24 @@ def ingest_from_bytes(
         if convert_metadata.get("ocr_error"):
             document.error_message = f"OCR failed: {convert_metadata['ocr_error']}"
 
+        if _ocr_image_dicts:
+            document.ocr_status = "pending"
+            document.ocr_images_total = len(_ocr_image_dicts)
+            document.ocr_progress_percent = 0
+            document.ocr_image_dicts = _ocr_image_dicts
+
         session.commit()
 
         _write_ingestion_usage(document)
+
+        if _ocr_image_dicts:
+            from app.celery_app import ocr_pdf_images_task
+            ocr_task = ocr_pdf_images_task.delay(document.id, _ocr_image_dicts)
+            document.ocr_task_id = ocr_task.id
+            session.commit()
+            logger.info("Dispatched async OCR task",
+                        extra={"document_id": document.id, "ocr_task_id": ocr_task.id,
+                               "ocr_images": len(_ocr_image_dicts)})
 
         logger.info(
             "Worker ingestion completed",
@@ -1390,7 +1426,8 @@ def ingest_from_bytes(
                 "db_ms": db_ms,
                 "format": fmt,
                 "file_size_bytes": document.file_size_bytes,
-                "ocr_applied": convert_metadata.get("ocr_applied", False),
+                "ocr_deferred": bool(_ocr_image_dicts),
+                "ocr_images_count": len(_ocr_image_dicts) if _ocr_image_dicts else 0,
             },
         )
         result = {
@@ -1411,6 +1448,115 @@ def ingest_from_bytes(
         document.progress_stage = ""
         session.commit()
         return {"status": "error", "error": str(e), "document_id": document.id}
+
+
+def reingest_from_converted_md(session, document: "Document") -> dict:
+    """Re-chunk and re-embed a document from its converted.md in S3.
+
+    Used after OCR merges text into existing converted.md.
+    Does NOT re-convert the source file — only parse/chunk/embed from markdown.
+
+    Uses pg_advisory_xact_lock to prevent concurrent reingest on the same document.
+    """
+    from app.s3 import download_file as _s3_download
+    from sqlalchemy import text as sa_text
+
+    t0 = time.perf_counter()
+
+    if not document.converted_s3_key:
+        return {"status": "error", "error": "no_converted_s3_key"}
+
+    # Advisory lock scoped to transaction: prevents concurrent reingest of same doc.
+    # pg_advisory_xact_lock takes two int4 args: (namespace, document_id).
+    # Namespace 0x4F4352 ('OCR') avoids collisions with other advisory locks.
+    session.execute(
+        sa_text("SELECT pg_advisory_xact_lock(:ns, :doc_id)"),
+        {"ns": 0x4F4352, "doc_id": document.id},
+    )
+
+    text = _s3_download(document.converted_s3_key).decode("utf-8")
+
+    from app.ingestion.lang_detect import detect_language
+    doc_language = detect_language(text)
+    if not document.detected_language:
+        document.detected_language = doc_language
+
+    sections, front_matter = _parse_content(text, "markdown", document.original_filename or "doc.md")
+    doc_title = document.title or os.path.splitext(os.path.basename(document.original_filename or "doc.md"))[0]
+    _replace_generic_headings(sections, doc_title)
+    if front_matter and front_matter.topic:
+        _prepend_context_header(sections, front_matter)
+    chunks = chunk_sections(sections)
+
+    if not chunks:
+        return {"status": "error", "error": "No content extracted on re-ingest"}
+
+    from app.ingestion.metadata_extractor import extract_metadata_batch_sync
+    extraction_result = extract_metadata_batch_sync([c.content for c in chunks])
+    chunk_meta_dicts = [
+        {"doc_type": m.doc_type, "entities": m.entities}
+        for m in extraction_result.metadata
+    ]
+
+    enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
+    embeddings, embedding_api_tokens = embed_texts(enriched)
+
+    from sqlalchemy import select as sa_select
+    existing_chunks = session.execute(
+        sa_select(Chunk).where(Chunk.document_id == document.id)
+    ).scalars().all()
+    for c in existing_chunks:
+        session.delete(c)
+    session.flush()
+
+    fm_layer = front_matter.layer if front_matter else None
+    fm_topic = front_matter.topic if front_matter else None
+    fm_doc_number = front_matter.doc_number if front_matter else None
+    fm_related = front_matter.related_docs if front_matter else None
+
+    for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+        meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
+        db_chunk = Chunk(
+            document_id=document.id,
+            chunk_index=i,
+            heading_path=chunk_data.heading_path,
+            heading_level=chunk_data.heading_level,
+            content=chunk_data.content,
+            content_clean=_clean_md(chunk_data.content),
+            parent_content=chunk_data.parent_content,
+            token_count=chunk_data.token_count,
+            embedding=embedding,
+            doc_type=meta.get("doc_type", "other"),
+            entities=meta.get("entities", {}),
+            language=doc_language,
+            layer=fm_layer,
+            topic=fm_topic,
+            doc_number=fm_doc_number,
+            related_docs=fm_related,
+        )
+        session.add(db_chunk)
+
+    document.total_chunks = len(chunks)
+    token_counts = [c.token_count for c in chunks]
+    document.total_tokens = sum(token_counts)
+    document.min_chunk_tokens = min(token_counts)
+    document.max_chunk_tokens = max(token_counts)
+    document.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
+    document.embedding_tokens = embedding_api_tokens or sum(token_counts)
+    document.indexed_at = datetime.now(timezone.utc)
+
+    session.commit()
+
+    duration = time.perf_counter() - t0
+    logger.info(
+        "Re-ingest from converted.md completed",
+        extra={
+            "document_id": document.id,
+            "chunks": len(chunks),
+            "duration_sec": round(duration, 2),
+        },
+    )
+    return {"status": "ok", "chunks": len(chunks), "duration_sec": round(duration, 2)}
 
 
 async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str, *, version: str = "", tenant_id=None) -> Product:
