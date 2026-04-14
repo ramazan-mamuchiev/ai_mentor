@@ -478,10 +478,33 @@ button {
   white-space: nowrap;
 }
 
-@media (max-width: 500px) {
-  .kb-page { padding: 20px 12px; }
+@media (max-width: 768px) {
+  .kb-page { padding: 24px 16px; max-width: 100%; }
+  .kb-header-text h1 { font-size: 1.35rem; }
+  .kb-header-text p { font-size: 0.88rem; }
+  .kb-header { margin-bottom: 16px; }
+  .kb-toolbar { padding: 8px 0 6px; }
+  .kb-search { padding: 8px 12px; }
+  .kb-search input { font-size: 0.85rem; }
+  .kb-tags-bar { gap: 5px; margin-top: 6px; }
+  .kb-tag-chip { font-size: 0.64rem; padding: 2px 8px; }
+  .kb-sections { gap: 2px; }
+  .kb-cat-header { padding: 10px 2px; }
+  .kb-cat-icon { width: 26px; height: 26px; border-radius: 6px; }
+  .kb-cat-icon svg { width: 14px; height: 14px; }
+  .kb-cat-title { font-size: 0.85rem; }
+  .kb-row { padding: 10px 8px; gap: 8px; }
+  .kb-row-icon { width: 14px; height: 14px; }
+  .kb-row-title { font-size: 0.84rem; white-space: normal; line-height: 1.35; }
+  .kb-row-date { font-size: 0.66rem; }
+}
+
+@media (max-width: 400px) {
+  .kb-page { padding: 16px 10px; }
+  .kb-header-text h1 { font-size: 1.2rem; gap: 8px; }
   .kb-row-date { display: none; }
-  .kb-row-title { white-space: normal; }
+  .kb-row { padding: 10px 6px; }
+  .kb-cat-title { font-size: 0.82rem; }
 }
 
 /* KB Article Viewer */
