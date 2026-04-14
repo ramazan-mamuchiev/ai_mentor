@@ -4,7 +4,7 @@ import os
 
 from fastapi import HTTPException
 
-ARCHIVE_ALLOWED_EXTENSIONS = {".md", ".json", ".yaml", ".yml", ".pdf", ".proto", ".txt", ".wsdl", ".xml", ".docx"}
+ARCHIVE_ALLOWED_EXTENSIONS = {".md", ".json", ".yaml", ".yml", ".pdf", ".proto", ".txt", ".wsdl", ".xml", ".docx", ".html", ".htm"}
 
 SUPPORTED_ARCHIVE_EXTENSIONS = {".zip", ".7z", ".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tar.xz", ".rar"}
 
