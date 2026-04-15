@@ -1,0 +1,30 @@
+{
+  "name": "lexiro-teams-bot",
+  "version": "1.0.0",
+  "description": "Microsoft Teams bot for Lexiro documentation search via MCP",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "@microsoft/teams.ai": "^2.0.0",
+    "@microsoft/teams.apps": "^2.0.0",
+    "@microsoft/teams.botbuilder": "^2.0.0",
+    "@microsoft/teams.cards": "^2.0.0",
+    "@microsoft/teams.common": "^2.0.0",
+    "@microsoft/teams.mcpclient": "^2.0.0",
+    "@microsoft/teams.openai": "^2.0.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listProducts, getProduct, updateProduct, deleteProduct, getProductDebug } from '../../api/products'
+import {
+  listProducts,
+  getProduct,
+  updateProduct,
+  deleteProduct,
+  getProductDebug,
+  suggestProducts,
+} from '../../api/products'
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -30,7 +37,7 @@ describe('listProducts', () => {
 
 describe('getProduct', () => {
   it('calls correct API endpoint', async () => {
-    const product = { id: 1, name: 'Camera', firmware_versions: ['1.0'] }
+    const product = { id: 1, name: 'Camera', version: '1.0' }
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -80,8 +87,7 @@ describe('deleteProduct', () => {
   it('sends DELETE request', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      status: 200,
-      json: () => Promise.resolve({}),
+      status: 204,
     }))
 
     await deleteProduct(1)
@@ -112,6 +118,26 @@ describe('getProductDebug', () => {
     expect(fetch).toHaveBeenCalledWith(
       '/api/v1/products/1/debug',
       expect.anything(),
+    )
+  })
+})
+
+describe('suggestProducts', () => {
+  it('calls suggest endpoint with query and limit', async () => {
+    const suggestions = [{ id: 1, name: 'Cam', manufacturer: 'Acme', version: '' }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(suggestions),
+    }))
+
+    const result = await suggestProducts('cam', 10)
+    expect(result).toEqual(suggestions)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/products/suggest?q=cam&limit=10',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
     )
   })
 })

@@ -1,7 +1,7 @@
 {
-  "uid": "ipcodex-alerts",
-  "title": "Plexicode Alerts & SLA",
-  "tags": ["ipcodex", "alerts"],
+  "uid": "lexiro-alerts",
+  "title": "Lexiro Alerts & SLA",
+  "tags": ["lexiro", "alerts"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -34,14 +34,14 @@
         {
           "refId": "total",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Request completed\" [$__range]))",
           "queryType": "instant",
           "hide": true
         },
         {
           "refId": "errors",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" | status_code >= 500 [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Request completed\" | status_code >= 500 [$__range]))",
           "queryType": "instant",
           "hide": true
         }
@@ -119,14 +119,14 @@
         {
           "refId": "fast",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" | unwrap duration_ms | duration_ms < 5000 [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Request completed\" | unwrap duration_ms | duration_ms < 5000 [$__range]))",
           "queryType": "instant",
           "hide": true
         },
         {
           "refId": "total",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Request completed\" [$__range]))",
           "queryType": "instant",
           "hide": true
         }
@@ -189,14 +189,14 @@
         {
           "refId": "total",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Request completed\" [$__range]))",
           "queryType": "instant",
           "hide": true
         },
         {
           "refId": "errors",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" | status_code >= 500 [$__range]))",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Request completed\" | status_code >= 500 [$__range]))",
           "queryType": "instant",
           "hide": true
         }
@@ -279,7 +279,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" | status_code >= 500 [5m])) / sum(count_over_time({container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" [5m])) * 100",
+          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Request completed\" | status_code >= 500 [5m])) / sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Request completed\" [5m])) * 100",
           "legendFormat": "error rate %"
         }
       ],
@@ -328,7 +328,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.95, {container=\"/ipcodex-api-1\"} | json | event = \"Request completed\" | unwrap duration_ms [5m]) by ()",
+          "expr": "quantile_over_time(0.95, {container=\"/lexiro-api-1\"} | json | event = \"Request completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "p95 duration_ms"
         }
       ],
@@ -377,7 +377,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by () / last_over_time({container=\"/ipcodex-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by () * 100",
+          "expr": "last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by () / last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by () * 100",
           "legendFormat": "pool utilization %"
         }
       ],

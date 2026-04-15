@@ -21,7 +21,7 @@ def pg_container():
         image="pgvector/pgvector:pg16",
         username="test",
         password="test",
-        dbname="ipcodex_test",
+        dbname="lexiro_test",
     )
     with container:
         yield container
@@ -32,7 +32,7 @@ def pg_url(pg_container):
     """Async connection URL for the test database."""
     host = pg_container.get_container_host_ip()
     port = pg_container.get_exposed_port(5432)
-    return f"postgresql+asyncpg://test:test@{host}:{port}/ipcodex_test"
+    return f"postgresql+asyncpg://test:test@{host}:{port}/lexiro_test"
 
 
 @pytest.fixture(scope="session")

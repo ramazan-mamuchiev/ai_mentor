@@ -2,7 +2,7 @@
 """Offline document-to-Markdown converter.
 
 Converts files (and archives) to Markdown using the same converters as the
-IPCodex ingestion pipeline, but without touching the database or any other
+Lexiro ingestion pipeline, but without touching the database or any other
 system component.  Output ``.md`` files are written next to the originals
 (or into --output-dir) with the same base name.
 

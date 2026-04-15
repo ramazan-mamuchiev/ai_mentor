@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload a document or archive to IPCodex via REST API and wait for processing."""
+"""Upload a document or archive to Lexiro via REST API and wait for processing."""
 
 import argparse
 import os
@@ -189,13 +189,13 @@ def _wait_for_document(api_url: str, doc_id: int, timeout: int, t0: float):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Upload a document or ZIP archive to IPCodex and track ingestion progress.",
+        description="Upload a document or ZIP archive to Lexiro and track ingestion progress.",
     )
     parser.add_argument("file", help="Path to document file or archive (ZIP, 7z, tar.gz, tgz, tar.bz2, tar.xz, tar, RAR)")
     parser.add_argument("--product", required=True, help="Product name (e.g. 'HikCentral Professional')")
     parser.add_argument("--version", default="1.0", help="Firmware/API version (default: 1.0)")
     parser.add_argument("--manufacturer", default="", help="Manufacturer name")
-    parser.add_argument("--format", default="auto", choices=["auto", "markdown", "swagger", "pdf", "proto"],
+    parser.add_argument("--format", default="auto", choices=["auto", "markdown", "swagger", "pdf", "proto", "docx"],
                         help="Document format (default: auto-detect)")
     parser.add_argument("--api-url", default="http://localhost:8000", help="API base URL")
     parser.add_argument("--force", action="store_true", help="Force re-upload even if document already exists (bypass deduplication)")

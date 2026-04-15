@@ -26,6 +26,16 @@ MODEL_CHARGE: dict[str, dict[str, Decimal]] = {
 SEARCH_COGS_USD = Decimal("0.0003")
 SEARCH_CHARGE_USD = Decimal("0.0005")
 
+# Embedding models are input-only (no output tokens).
+EMBEDDING_COGS: dict[str, Decimal] = {
+    "gemini-embedding-2-preview": Decimal("0.05"),   # $0.05 per 1M tokens
+    "text-embedding-004":        Decimal("0.025"),
+}
+EMBEDDING_CHARGE: dict[str, Decimal] = {
+    "gemini-embedding-2-preview": Decimal("0.10"),
+    "text-embedding-004":        Decimal("0.05"),
+}
+
 
 def _calc(
     pricing: dict[str, Decimal],
@@ -69,3 +79,57 @@ def calculate_search_cogs() -> Decimal:
 def calculate_search_charge() -> Decimal:
     """User-facing charge per vector search query."""
     return SEARCH_CHARGE_USD
+
+
+def calculate_embedding_cogs(model: str, tokens: int) -> Decimal:
+    """Our cost for an embedding API call."""
+    rate = EMBEDDING_COGS.get(model)
+    if rate is None or tokens <= 0:
+        return Decimal("0")
+    return (rate * Decimal(tokens) / _ONE_MILLION).quantize(Decimal("0.00000001"))
+
+
+def calculate_embedding_charge(model: str, tokens: int) -> Decimal:
+    """User-facing charge for an embedding API call."""
+    rate = EMBEDDING_CHARGE.get(model)
+    if rate is None or tokens <= 0:
+        return Decimal("0")
+    return (rate * Decimal(tokens) / _ONE_MILLION).quantize(Decimal("0.00000001"))
+
+
+def calculate_mcp_cogs(
+    embedding_model: str,
+    embedding_tokens: int,
+    rerank_model: str,
+    rerank_prompt_tokens: int,
+    rerank_completion_tokens: int,
+    resolve_model: str = "",
+    resolve_prompt_tokens: int = 0,
+    resolve_completion_tokens: int = 0,
+) -> Decimal:
+    """Total COGS for one MCP tool call: search infra + embedding + rerank + resolve."""
+    cost = SEARCH_COGS_USD
+    cost += calculate_embedding_cogs(embedding_model, embedding_tokens)
+    cost += calculate_llm_cogs(rerank_model, rerank_prompt_tokens, rerank_completion_tokens)
+    if resolve_model and (resolve_prompt_tokens or resolve_completion_tokens):
+        cost += calculate_llm_cogs(resolve_model, resolve_prompt_tokens, resolve_completion_tokens)
+    return cost
+
+
+def calculate_mcp_charge(
+    embedding_model: str,
+    embedding_tokens: int,
+    rerank_model: str,
+    rerank_prompt_tokens: int,
+    rerank_completion_tokens: int,
+    resolve_model: str = "",
+    resolve_prompt_tokens: int = 0,
+    resolve_completion_tokens: int = 0,
+) -> Decimal:
+    """Total user-facing charge for one MCP tool call: search + embed + rerank + resolve."""
+    charge = SEARCH_CHARGE_USD
+    charge += calculate_embedding_charge(embedding_model, embedding_tokens)
+    charge += calculate_llm_charge(rerank_model, rerank_prompt_tokens, rerank_completion_tokens)
+    if resolve_model and (resolve_prompt_tokens or resolve_completion_tokens):
+        charge += calculate_llm_charge(resolve_model, resolve_prompt_tokens, resolve_completion_tokens)
+    return charge

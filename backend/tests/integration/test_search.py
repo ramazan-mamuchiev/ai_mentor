@@ -34,8 +34,11 @@ class TestSearchDocuments:
             firmware_version="1.0",
         )
 
-        results_match = await search_documents(db_session, "door", product="DeviceA")
-        results_no_match = await search_documents(db_session, "door", product="NonExistent")
+        from app.search.service import resolve_product
+        resolve_match = await resolve_product(db_session, "DeviceA")
+        results_match = await search_documents(db_session, "door", product_id=resolve_match.product_id)
+        resolve_no = await resolve_product(db_session, "NonExistent")
+        results_no_match = await search_documents(db_session, "door", product_id=resolve_no.product_id)
 
         assert len(results_match) > 0
         assert len(results_no_match) == 0
@@ -122,8 +125,11 @@ class TestSearchEndpoint:
             firmware_version="1.0",
         )
 
-        results = await search_endpoint(db_session, "Door", product="DeviceX")
+        from app.search.service import resolve_product
+        resolve_x = await resolve_product(db_session, "DeviceX")
+        results = await search_endpoint(db_session, "Door", product_id=resolve_x.product_id)
         assert len(results) > 0
 
-        results_no = await search_endpoint(db_session, "Door", product="OtherDevice")
+        resolve_other = await resolve_product(db_session, "OtherDevice")
+        results_no = await search_endpoint(db_session, "Door", product_id=resolve_other.product_id)
         assert len(results_no) == 0

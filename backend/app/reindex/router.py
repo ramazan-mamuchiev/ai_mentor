@@ -2,7 +2,9 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.auth.dependencies import require_permission
 
 from app.database import async_session
 from app.reindex.schemas import (
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reindex", tags=["reindex"])
 
 
-@router.post("/jobs", response_model=ReindexJobResponse, status_code=202)
+@router.post("/jobs", response_model=ReindexJobResponse, status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def create_reindex_job(body: ReindexStartRequest):
     """Start a new reindex job.
 
@@ -80,7 +82,7 @@ async def get_reindex_job(job_id: int):
     return ReindexJobResponse(**result)
 
 
-@router.post("/jobs/{job_id}/cancel", response_model=ReindexJobResponse)
+@router.post("/jobs/{job_id}/cancel", response_model=ReindexJobResponse, dependencies=[Depends(require_permission("documents.reindex"))])
 async def cancel_reindex_job(job_id: int):
     """Cancel a running or pending reindex job.
 

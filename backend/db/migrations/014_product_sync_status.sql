@@ -1,0 +1,1 @@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sync_status TEXT NOT NULL DEFAULT 'idle';

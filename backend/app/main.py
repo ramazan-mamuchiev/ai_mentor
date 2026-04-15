@@ -1,4 +1,4 @@
-"""IPCodex MVP — FastAPI application with MCP server (streamable HTTP transport)."""
+"""Lexiro — FastAPI application with MCP server (streamable HTTP transport)."""
 
 import asyncio
 import contextlib
@@ -10,17 +10,28 @@ from sqlalchemy import text
 from starlette.routing import Mount
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from app.config import settings
+from app.auth.router import router as auth_router
 from app.chat.router import router as chat_router
 from app.documents.router import router as documents_router
 from app.products.router import router as products_router
 from app.reindex.router import router as reindex_router
+from app.share.router import router as share_router
+from app.share.public import public_router as share_public_router
 from app.uploads.router import router as uploads_router
 from app.logging_config import setup_logging, active_requests_count
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.mcp.server import (
     tool_get_api_endpoint,
+    tool_get_code_examples,
+    tool_get_document_outline,
+    tool_get_api_lifecycle,
+    tool_get_product_info,
+    tool_get_section,
+    tool_grep_docs,
+    tool_list_documents,
     tool_list_products,
     tool_search_documentation,
 )
@@ -29,15 +40,25 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
-    "IPCodex",
+    "Lexiro",
     stateless_http=True,
     json_response=True,
     streamable_http_path="/",
+    transport_security=TransportSecuritySettings(
+        allowed_hosts=["lexiro.io", "localhost", "127.0.0.1"],
+    ),
 )
 
 mcp.tool(name="search_documentation")(tool_search_documentation)
 mcp.tool(name="get_api_endpoint")(tool_get_api_endpoint)
 mcp.tool(name="list_products")(tool_list_products)
+mcp.tool(name="get_product_info")(tool_get_product_info)
+mcp.tool(name="list_documents")(tool_list_documents)
+mcp.tool(name="get_document_outline")(tool_get_document_outline)
+mcp.tool(name="get_section")(tool_get_section)
+mcp.tool(name="get_code_examples")(tool_get_code_examples)
+mcp.tool(name="grep_docs")(tool_grep_docs)
+mcp.tool(name="get_api_lifecycle")(tool_get_api_lifecycle)
 
 _start_time: float = 0.0
 
@@ -101,7 +122,37 @@ async def _apply_schema():
     await _migrate_upload_sessions()
     await _migrate_chunks_parent_content()
     await _migrate_ingested_at_to_uploaded_at()
-    await _migrate_product_slugs()
+    await _migrate_ingestion_attempts()
+    await _apply_auth_schema()
+
+
+async def _apply_auth_schema():
+    """Apply pending SQL migrations, skip already applied ones."""
+    from app.database import engine
+    import pathlib
+
+    migrations_dir = pathlib.Path(__file__).resolve().parent.parent / "db" / "migrations"
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        drv = raw.driver_connection
+
+        applied = {
+            row["filename"]
+            for row in await drv.fetch("SELECT filename FROM schema_migrations")
+        }
+
+        for sql_file in sorted(migrations_dir.glob("*.sql")):
+            if sql_file.name in applied:
+                logger.debug("Migration already applied, skipping", extra={"file": sql_file.name})
+                continue
+
+            sql = sql_file.read_text(encoding="utf-8")
+            await drv.execute(sql)
+            await drv.execute(
+                "INSERT INTO schema_migrations (filename) VALUES ($1)",
+                sql_file.name,
+            )
+            logger.info("Migration applied", extra={"file": sql_file.name})
 
 
 async def _migrate_devices_to_products():
@@ -170,40 +221,6 @@ async def _migrate_devices_to_products():
 
 async def _migrate_fk_columns(drv, target_table: str):
     """Rename legacy device_id / device_filter columns and re-point FK constraints."""
-    has_device_id_fw = await drv.fetchrow(
-        "SELECT 1 FROM information_schema.columns "
-        "WHERE table_name = 'firmware_versions' AND column_name = 'device_id'"
-    )
-    if has_device_id_fw:
-        await drv.execute(
-            "ALTER TABLE firmware_versions "
-            "DROP CONSTRAINT IF EXISTS firmware_versions_device_id_fkey"
-        )
-        await drv.execute(
-            "ALTER TABLE firmware_versions RENAME COLUMN device_id TO product_id"
-        )
-        await drv.execute(
-            "ALTER TABLE firmware_versions "
-            f"ADD CONSTRAINT firmware_versions_product_id_fkey "
-            f"FOREIGN KEY (product_id) REFERENCES {target_table}(id) ON DELETE CASCADE"
-        )
-        await drv.execute(
-            "ALTER TABLE firmware_versions "
-            "DROP CONSTRAINT IF EXISTS firmware_versions_device_id_version_key"
-        )
-        has_new_unique = await drv.fetchrow(
-            "SELECT 1 FROM information_schema.table_constraints "
-            "WHERE table_name = 'firmware_versions' "
-            "AND constraint_name = 'firmware_versions_product_id_version_key'"
-        )
-        if not has_new_unique:
-            await drv.execute(
-                "ALTER TABLE firmware_versions "
-                "ADD CONSTRAINT firmware_versions_product_id_version_key "
-                "UNIQUE (product_id, version)"
-            )
-        logger.info("Renamed firmware_versions.device_id -> product_id")
-
     has_device_id_doc = await drv.fetchrow(
         "SELECT 1 FROM information_schema.columns "
         "WHERE table_name = 'documents' AND column_name = 'device_id'"
@@ -392,29 +409,33 @@ async def _migrate_ingested_at_to_uploaded_at():
             logger.info("Added indexed_at column and backfilled from uploaded_at for ready documents")
 
 
-async def _migrate_product_slugs():
-    """Populate slug and manufacturer_slug for products that don't have them yet."""
+async def _migrate_ingestion_attempts():
+    """Add ingestion_attempts and progress_updated_at columns to documents if missing."""
     from app.database import engine
-    from app.slugify import slugify
 
     async with engine.begin() as conn:
         raw = await conn.get_raw_connection()
         drv = raw.driver_connection
 
-        rows = await drv.fetch(
-            "SELECT id, name, manufacturer FROM products WHERE slug = '' OR manufacturer_slug = ''"
+        row = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'documents' AND column_name = 'ingestion_attempts'"
         )
-        if not rows:
-            return
-
-        for row in rows:
-            s = slugify(row["name"])
-            ms = slugify(row["manufacturer"]) if row["manufacturer"] else "default"
+        if not row:
             await drv.execute(
-                "UPDATE products SET slug = $1, manufacturer_slug = $2 WHERE id = $3",
-                s, ms, row["id"],
+                "ALTER TABLE documents ADD COLUMN ingestion_attempts INT NOT NULL DEFAULT 0"
             )
-        logger.info("Backfilled product slugs", extra={"count": len(rows)})
+            logger.info("Added ingestion_attempts column to documents")
+
+        row2 = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'documents' AND column_name = 'progress_updated_at'"
+        )
+        if not row2:
+            await drv.execute(
+                "ALTER TABLE documents ADD COLUMN progress_updated_at TIMESTAMPTZ"
+            )
+            logger.info("Added progress_updated_at column to documents")
 
 
 @contextlib.asynccontextmanager
@@ -422,7 +443,7 @@ async def lifespan(app: FastAPI):
     global _start_time
     _start_time = time.time()
     logger.info(
-        "IPCodex MCP server starting",
+        "Lexiro MCP server starting",
         extra={"env": settings.app_env, "version": "0.1.0"},
     )
 
@@ -431,11 +452,25 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Startup schema migration failed", exc_info=True)
 
+    try:
+        await _migrate_embedding_dims()
+    except Exception:
+        logger.warning("Embedding dims migration failed (standalone)", exc_info=True)
+
     from app.s3 import ensure_bucket
     try:
         ensure_bucket()
     except Exception:
         logger.warning("S3 bucket init failed (will retry on first upload)", exc_info=True)
+
+    try:
+        from app.admin.seed_prompts import seed_prompts
+        from app.database import async_session
+        async with async_session() as session:
+            await seed_prompts(session)
+    except Exception:
+        logger.warning("Prompt templates seed failed", exc_info=True)
+
     monitor_task = asyncio.create_task(_system_monitor())
     async with mcp.session_manager.run():
         yield
@@ -444,22 +479,61 @@ async def lifespan(app: FastAPI):
         await monitor_task
     except asyncio.CancelledError:
         pass
-    logger.info("IPCodex MCP server stopped")
+
+    from app.llm.http_client import close_clients
+    await close_clients()
+
+    logger.info("Lexiro MCP server stopped")
 
 
 app = FastAPI(
-    title="IPCodex",
+    title="Lexiro",
     version="0.1.0",
     lifespan=lifespan,
 )
 
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from app.exceptions import (
+    http_exception_handler,
+    validation_exception_handler,
+    llm_error_handler,
+    quota_error_handler,
+    unhandled_exception_handler,
+)
+from app.llm.client import LLMError
+from app.uploads.quota import QuotaError
+
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(LLMError, llm_error_handler)
+app.add_exception_handler(QuotaError, quota_error_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
+from fastapi import Depends
+from app.auth.dependencies import get_current_tenant, require_admin, require_email_verified
+
+_auth = [Depends(require_email_verified)]
+_admin_auth = [Depends(require_admin)]
+
+from starlette.middleware.gzip import GZipMiddleware
+
 app.add_middleware(RequestLoggingMiddleware)
-app.include_router(documents_router, prefix="/api/v1")
-app.include_router(products_router, prefix="/api/v1")
-app.include_router(chat_router, prefix="/api/v1")
-app.include_router(reindex_router, prefix="/api/v1")
-app.include_router(uploads_router, prefix="/api/v1")
-app.router.routes.append(Mount("/mcp", app=mcp.streamable_http_app()))
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
+app.include_router(auth_router)
+app.include_router(documents_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(products_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(chat_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(reindex_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(share_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(uploads_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(share_public_router, prefix="/api/v1")
+
+from app.admin.router import router as admin_router
+app.include_router(admin_router, prefix="/api/v1", dependencies=_admin_auth)
+
+from app.mcp.auth_middleware import McpApiKeyAuthMiddleware
+app.router.routes.append(Mount("/mcp", app=McpApiKeyAuthMiddleware(mcp.streamable_http_app())))
 
 
 @app.get("/health")

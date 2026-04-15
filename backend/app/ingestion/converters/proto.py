@@ -315,9 +315,16 @@ def _render_message_md(msg: ProtoMessage, heading_level: int = 3) -> str:
     return "\n".join(lines)
 
 
-def _render_service_md(svc: ProtoService, heading_level: int = 2) -> str:
+def _render_service_md(
+    svc: ProtoService,
+    heading_level: int = 2,
+    package: str = "",
+) -> str:
     hashes = "#" * heading_level
     lines = [f"{hashes} Service `{svc.name}`", ""]
+    if package:
+        lines.append(f"**Package:** `{package}`")
+        lines.append("")
     if svc.comment:
         lines.append(svc.comment)
         lines.append("")
@@ -352,6 +359,83 @@ def _render_service_md(svc: ProtoService, heading_level: int = 2) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Cross-references helpers
+# ---------------------------------------------------------------------------
+
+_BUILTIN_TYPES = frozenset({
+    "double", "float", "int32", "int64", "uint32", "uint64",
+    "sint32", "sint64", "fixed32", "fixed64", "sfixed32", "sfixed64",
+    "bool", "string", "bytes",
+})
+
+
+def _collect_local_types(proto: ProtoFile) -> set[str]:
+    """Collect all type names defined in this file (messages, enums, nested)."""
+    local: set[str] = set()
+    for m in proto.messages:
+        local.add(m.name)
+        for nm in m.nested_messages:
+            local.add(nm.name)
+        for ne in m.nested_enums:
+            local.add(ne.name)
+    for e in proto.enums:
+        local.add(e.name)
+    return local
+
+
+def _collect_external_types(proto: ProtoFile) -> list[str]:
+    """Collect type names used in message fields that are not defined in this file."""
+    local = _collect_local_types(proto)
+
+    external: set[str] = set()
+    for m in proto.messages:
+        for f in m.fields:
+            _check_external(f.type, local, external)
+        for oneof in m.oneofs:
+            for f in oneof.fields:
+                _check_external(f.type, local, external)
+        for nm in m.nested_messages:
+            for f in nm.fields:
+                _check_external(f.type, local, external)
+    return sorted(external)
+
+
+def _check_external(type_name: str, local: set[str], external: set[str]) -> None:
+    base = type_name.split(".")[-1] if "." in type_name else type_name
+    if base in _BUILTIN_TYPES:
+        return
+    if "." in type_name or (type_name[0:1].isupper() and type_name not in local):
+        external.add(type_name)
+
+
+def _render_cross_references(proto: ProtoFile) -> str:
+    """Render a Cross-References section listing imports and external types."""
+    lines: list[str] = []
+    ext_types = _collect_external_types(proto)
+
+    if not proto.imports and not ext_types:
+        return ""
+
+    lines.append("## Cross-References")
+    lines.append("")
+
+    if proto.imports:
+        lines.append("**Imported files:**")
+        for imp in proto.imports:
+            label = imp.rsplit("/", 1)[-1] if "/" in imp else imp
+            lines.append(f"- `{imp}` ({label})")
+        lines.append("")
+
+    if ext_types:
+        lines.append("**External types used:**")
+        for t in ext_types:
+            lines.append(f"- `{t}`")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Public conversion API
 # ---------------------------------------------------------------------------
 
@@ -366,6 +450,8 @@ def convert_proto(text: str, filename: str = "") -> tuple[str, dict]:
     parts: list[str] = []
 
     title = filename or "Proto Definition"
+    if proto.package and filename:
+        title = f"{filename} ({proto.package})"
     parts.append(f"# {title}")
     parts.append("")
 
@@ -390,7 +476,7 @@ def convert_proto(text: str, filename: str = "") -> tuple[str, dict]:
         parts.append("")
 
     for svc in proto.services:
-        parts.append(_render_service_md(svc))
+        parts.append(_render_service_md(svc, package=proto.package))
 
     if proto.messages:
         parts.append("## Messages")
@@ -404,6 +490,10 @@ def convert_proto(text: str, filename: str = "") -> tuple[str, dict]:
         for enum in proto.enums:
             parts.append(_render_enum_md(enum))
 
+    xref = _render_cross_references(proto)
+    if xref:
+        parts.append(xref)
+
     markdown = "\n".join(parts)
 
     metadata = {
@@ -416,6 +506,132 @@ def convert_proto(text: str, filename: str = "") -> tuple[str, dict]:
     }
 
     return markdown, metadata
+
+
+def convert_proto_bundle(
+    files: list[tuple[str, str]],
+    min_lines_for_standalone: int = 50,
+) -> list[tuple[str, str, str, dict]]:
+    """Group multiple .proto files by domain and merge into domain-level Markdown.
+
+    Args:
+        files: List of (relative_path, text_content) tuples.
+        min_lines_for_standalone: Domains with fewer total proto lines are
+            merged into an "auxiliary" bundle.
+
+    Returns:
+        List of (domain_name, source_folder, markdown_text, metadata_dict) tuples.
+        ``source_folder`` is the directory path of the domain (e.g. "axxonsoft/bl/domain").
+    """
+    import os
+    from collections import defaultdict
+
+    domain_files: dict[str, list[tuple[str, str, ProtoFile]]] = defaultdict(list)
+
+    for rel_path, text in files:
+        norm_path = rel_path.replace("\\", "/")
+        folder = os.path.dirname(norm_path)
+        parts = folder.split("/")
+        domain = parts[-1] if parts else "root"
+
+        try:
+            proto = parse_proto(text)
+        except Exception:
+            continue
+        domain_files[domain].append((norm_path, text, proto))
+
+    auxiliary_protos: list[tuple[str, str, ProtoFile]] = []
+    results: list[tuple[str, str, str, dict]] = []
+
+    for domain, items in sorted(domain_files.items()):
+        total_lines = sum(t.count("\n") for _, t, _ in items)
+        if total_lines < min_lines_for_standalone:
+            auxiliary_protos.extend(items)
+            continue
+        md, source_folder, meta = _render_domain_bundle(domain, items)
+        results.append((domain, source_folder, md, meta))
+
+    if auxiliary_protos:
+        md, source_folder, meta = _render_domain_bundle("auxiliary", auxiliary_protos)
+        results.append(("auxiliary", source_folder, md, meta))
+
+    return results
+
+
+def _render_domain_bundle(
+    domain: str,
+    items: list[tuple[str, str, "ProtoFile"]],
+) -> tuple[str, str, dict]:
+    """Render a group of parsed proto files into a single Markdown document."""
+    import os
+
+    all_services: list[tuple[ProtoService, str]] = []
+    all_messages: list[ProtoMessage] = []
+    all_enums: list[ProtoEnum] = []
+    packages: set[str] = set()
+    all_imports: set[str] = set()
+    source_folders: set[str] = set()
+    total_methods = 0
+
+    for rel_path, _, proto in items:
+        if proto.package:
+            packages.add(proto.package)
+        for svc in proto.services:
+            all_services.append((svc, proto.package))
+            total_methods += len(svc.methods)
+        all_messages.extend(proto.messages)
+        all_enums.extend(proto.enums)
+        all_imports.update(proto.imports)
+        source_folders.add(os.path.dirname(rel_path.replace("\\", "/")))
+
+    pkg_label = ", ".join(sorted(packages)) if packages else domain
+    source_folder = sorted(source_folders)[0] if source_folders else ""
+
+    parts: list[str] = []
+    parts.append(f"# gRPC API: {domain} ({pkg_label})")
+    parts.append("")
+
+    if packages:
+        parts.append(f"**Packages:** {', '.join(f'`{p}`' for p in sorted(packages))}")
+        parts.append("")
+
+    file_list = sorted(set(os.path.basename(rp) for rp, _, _ in items))
+    parts.append(f"**Source files ({len(file_list)}):** {', '.join(f'`{f}`' for f in file_list)}")
+    parts.append("")
+
+    for svc, pkg in all_services:
+        parts.append(_render_service_md(svc, package=pkg))
+
+    if all_messages:
+        parts.append("## Messages")
+        parts.append("")
+        for msg in all_messages:
+            parts.append(_render_message_md(msg))
+
+    if all_enums:
+        parts.append("## Enums")
+        parts.append("")
+        for enum in all_enums:
+            parts.append(_render_enum_md(enum))
+
+    if all_imports:
+        parts.append("## Imports")
+        parts.append("")
+        for imp in sorted(all_imports):
+            parts.append(f"- `{imp}`")
+        parts.append("")
+
+    metadata = {
+        "syntax": "proto3",
+        "packages": sorted(packages),
+        "services": len(all_services),
+        "messages": len(all_messages),
+        "enums": len(all_enums),
+        "methods": total_methods,
+        "source_files": len(file_list),
+    }
+
+    return "\n".join(parts), source_folder, metadata
 
 
 def convert_proto_file(file_path: str, original_filename: str = "") -> tuple[str, dict]:

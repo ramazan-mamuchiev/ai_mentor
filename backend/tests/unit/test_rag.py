@@ -182,7 +182,7 @@ class TestBuildRagPrompt:
 
         assert len(messages) >= 3
         assert messages[0]["role"] == "system"
-        assert "IPCodex AI" in messages[0]["content"]
+        assert "Lexiro AI" in messages[0]["content"]
         assert messages[1]["role"] == "user"
         assert "<documentation_context>" in messages[1]["content"]
         assert messages[-1]["role"] == "user"
@@ -324,7 +324,7 @@ class TestBuildRagPrompt:
         assert debug["chunks_found"] == 0
 
         system_content = messages[0]["content"]
-        assert "IPCodex AI" in system_content
+        assert "Lexiro AI" in system_content
         assert "EMPTY" in system_content
         assert messages[-1]["role"] == "user"
         assert "какие документы есть?" in messages[-1]["content"]

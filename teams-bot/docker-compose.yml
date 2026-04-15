@@ -1,0 +1,8 @@
+services:
+  lexiro-teams-bot:
+    build: .
+    ports:
+      - "${PORT:-3978}:3978"
+    env_file:
+      - .env
+    restart: unless-stopped

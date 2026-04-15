@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lexiro — Document Indexing Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0c0e14;
+  --surface: #151822;
+  --surface2: #1c2030;
+  --border: #2a2f42;
+  --text: #e4e7f0;
+  --text-dim: #8890a8;
+  --accent: #6c5ce7;
+  --accent-glow: rgba(108,92,231,0.25);
+  --gemini: #00b894;
+  --gemini-glow: rgba(0,184,148,0.2);
+  --celery: #fdcb6e;
+  --celery-glow: rgba(253,203,110,0.15);
+  --pgvector: #e17055;
+  --pgvector-glow: rgba(225,112,85,0.2);
+  --s3: #74b9ff;
+  --lib: #dfe6e9;
+  --arrow: #4a5078;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+}
+
+h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--accent), #a29bfe, var(--gemini));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-bottom: 6px;
+}
+
+.subtitle {
+  color: var(--text-dim);
+  font-size: 1rem;
+  font-weight: 300;
+  margin-bottom: 36px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 32px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.connector {
+  display: flex;
+  justify-content: center;
+  height: 36px;
+  position: relative;
+}
+
+.connector::before {
+  content: '';
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(to bottom, var(--arrow), var(--accent));
+}
+
+.connector::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--accent);
+}
+
+.stage {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 26px;
+  position: relative;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.stage:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 30px var(--accent-glow);
+  transform: translateY(-2px);
+}
+
+.stage.gemini-stage:hover {
+  border-color: var(--gemini);
+  box-shadow: 0 0 30px var(--gemini-glow);
+}
+
+.stage.celery-stage:hover {
+  border-color: var(--celery);
+  box-shadow: 0 0 24px var(--celery-glow);
+}
+
+.stage.pgvector-stage:hover {
+  border-color: var(--pgvector);
+  box-shadow: 0 0 24px var(--pgvector-glow);
+}
+
+.stage-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.stage-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gemini-stage .stage-number { background: var(--gemini); }
+.celery-stage .stage-number { background: var(--celery); color: #333; }
+.pgvector-stage .stage-number { background: var(--pgvector); }
+
+.stage-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.stage-desc {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+  line-height: 1.55;
+}
+
+.stage-details {
+  display: none;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.stage.open .stage-details {
+  display: block;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 700px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+
+.detail-card {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+}
+
+.detail-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.detail-value {
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.code-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  background: rgba(108,92,231,0.15);
+  color: #a29bfe;
+  padding: 2px 8px;
+  border-radius: 5px;
+  display: inline-block;
+  margin: 2px 1px;
+}
+
+.code-tag.gemini {
+  background: rgba(0,184,148,0.15);
+  color: #55efc4;
+}
+
+.code-tag.file {
+  background: rgba(116,185,255,0.12);
+  color: #74b9ff;
+}
+
+.code-tag.lib {
+  background: rgba(223,230,233,0.1);
+  color: #b2bec3;
+}
+
+.code-tag.pgvector {
+  background: rgba(225,112,85,0.15);
+  color: #fab1a0;
+}
+
+.expand-hint {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  opacity: 0.5;
+  float: right;
+  margin-top: -24px;
+}
+
+.stage.open .expand-hint {
+  opacity: 0;
+}
+
+.formats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.format-badge {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-dim);
+}
+
+.section-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 40px;
+  margin-bottom: 18px;
+  padding-left: 14px;
+  border-left: 3px solid var(--accent);
+}
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.summary-table th {
+  background: var(--surface2);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.summary-table td {
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  border-top: 1px solid var(--border);
+}
+
+.highlight-gemini { color: var(--gemini); font-weight: 600; }
+.highlight-pgvector { color: var(--pgvector); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Lexiro — Document Indexing Pipeline</h1>
+  <p class="subtitle">Полный путь документа: от загрузки до готовности к семантическому поиску</p>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Внутренняя обработка</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--gemini)"></div>Gemini API</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--celery)"></div>Celery / Инфра</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--pgvector)"></div>PostgreSQL / pgvector</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--s3)"></div>MinIO S3</div>
+  </div>
+
+  <!-- STAGE 1: Upload -->
+  <div class="stage celery-stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">1</div>
+      <div class="stage-title">Загрузка документа (Upload)</div>
+    </div>
+    <div class="stage-desc">
+      Пользователь загружает файл через REST API. Файл сохраняется в MinIO (S3), создаётся запись Document в БД со статусом <code>pending</code>, затем ставится Celery-задача.
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="detail-label">Точки входа (API)</div>
+          <div class="detail-value">
+            <span class="code-tag file">documents/router.py</span>
+            <span class="code-tag file">uploads/router.py</span>
+            <span class="code-tag file">products/router.py</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Хранилище</div>
+          <div class="detail-value">
+            Файл → <span class="code-tag" style="background:rgba(116,185,255,0.12);color:#74b9ff">MinIO S3</span><br>
+            Ключ: <span class="code-tag lib">documents/{id}/original.{ext}</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Celery-задача</div>
+          <div class="detail-value">
+            <span class="code-tag">ingest_document_task.delay(doc.id)</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Поддерживаемые источники</div>
+          <div class="detail-value">
+            Файл, Архив (ZIP), URL, Confluence, GitHub, Web-сайт
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- STAGE 2: Celery Worker -->
+  <div class="stage celery-stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">2</div>
+      <div class="stage-title">Celery Worker: скачивание из S3</div>
+    </div>
+    <div class="stage-desc">
+      Worker подхватывает задачу <code>ingest_document</code>, скачивает файл из S3 во временную директорию, определяет формат и запускает <code>ingest_from_bytes()</code>.
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="detail-label">Файл задачи</div>
+          <div class="detail-value"><span class="code-tag file">celery_app.py</span> строки 233–337</div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Конфигурация воркера</div>
+          <div class="detail-value">
+            concurrency: <strong>4</strong><br>
+            Очереди: <span class="code-tag lib">celery</span> <span class="code-tag lib">monitoring</span><br>
+            soft_time_limit: 45 мин, retry: до 2 раз
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Библиотеки</div>
+          <div class="detail-value">
+            <span class="code-tag lib">Celery 5.x</span>
+            <span class="code-tag lib">Redis (broker)</span>
+            <span class="code-tag lib">boto3 / MinIO SDK</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Определение формата</div>
+          <div class="detail-value">
+            <span class="code-tag file">pipeline.py → detect_format()</span><br>
+            По расширению + содержимому файла
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- STAGE 3: Convert -->
+  <div class="stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">3</div>
+      <div class="stage-title">Конвертация в Markdown</div>
+    </div>
+    <div class="stage-desc">
+      Все форматы приводятся к единому представлению — <strong>Markdown</strong>. Каждый формат имеет свой конвертер. Результат сохраняется в S3 как <code>converted.md</code>.
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card" style="grid-column: 1 / -1;">
+          <div class="detail-label">Конвертеры по форматам</div>
+          <div class="formats-grid">
+            <span class="format-badge">PDF → pymupdf4llm</span>
+            <span class="format-badge">Swagger/OpenAPI → custom parser</span>
+            <span class="format-badge">Postman → custom parser</span>
+            <span class="format-badge">Protobuf → custom parser</span>
+            <span class="format-badge">WSDL → custom parser</span>
+            <span class="format-badge">XML → custom parser</span>
+            <span class="format-badge">MD/TXT → as-is</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">PDF конвертер (основной)</div>
+          <div class="detail-value">
+            <span class="code-tag lib">pymupdf4llm</span> — текстовый слой<br>
+            <span class="code-tag gemini">Gemini Vision API</span> — OCR изображений<br>
+            <span class="code-tag gemini">Gemini</span> — определение языка
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Файлы</div>
+          <div class="detail-value">
+            <span class="code-tag file">converters/pdf.py</span>
+            <span class="code-tag file">converters/swagger.py</span>
+            <span class="code-tag file">converters/postman.py</span>
+            <span class="code-tag file">converters/proto.py</span>
+            <span class="code-tag file">converters/wsdl.py</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- STAGE 4: Parse -->
+  <div class="stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">4</div>
+      <div class="stage-title">Парсинг в секции (Sections)</div>
+    </div>
+    <div class="stage-desc">
+      Markdown разбивается на секции по заголовкам H1–H6. Каждая секция получает <code>heading_path</code> — иерархический путь вроде <em>«Chapter > Section > Subsection»</em>.
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="detail-label">Парсер</div>
+          <div class="detail-value">
+            <span class="code-tag file">parsers/markdown.py → parse_markdown()</span><br>
+            Regex по <code>^#{1-6}\s+</code>, пропуск заголовков внутри code-блоков
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Результат</div>
+          <div class="detail-value">
+            <code>list[Section]</code> — объекты с полями:<br>
+            <span class="code-tag lib">heading_path</span>
+            <span class="code-tag lib">heading_level</span>
+            <span class="code-tag lib">content</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- STAGE 5: Chunk -->
+  <div class="stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">5</div>
+      <div class="stage-title">Чанкинг (Chunking)</div>
+    </div>
+    <div class="stage-desc">
+      Секции разбиваются на чанки оптимального размера. Крупные секции дробятся, мелкие — объединяются. Код-блоки и таблицы сохраняются атомарно (никогда не разрезаются).
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="detail-label">Параметры чанкинга</div>
+          <div class="detail-value">
+            max_tokens: <strong>512</strong><br>
+            min_tokens: <strong>50</strong><br>
+            overlap_paragraphs: <strong>2</strong><br>
+            Оценка токенов: <code>words × 1.3</code>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Алгоритм</div>
+          <div class="detail-value">
+            1. Разбить текст на атомарные блоки (абзацы, код, таблицы)<br>
+            2. Если секция > max_tokens → <code>_split_text()</code><br>
+            3. Если секция < min_tokens → <code>_merge_small_chunks()</code><br>
+            4. Добавить overlap (2 последних абзаца предыдущего чанка)
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Результат</div>
+          <div class="detail-value">
+            <code>list[ChunkData]</code>: heading_path, content, token_count, parent_content
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Файл</div>
+          <div class="detail-value">
+            <span class="code-tag file">ingestion/chunker.py</span>
+            <span class="code-tag">chunk_sections()</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- STAGE 6: Metadata -->
+  <div class="stage gemini-stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">6</div>
+      <div class="stage-title">Извлечение метаданных (Gemini Flash)</div>
+    </div>
+    <div class="stage-desc">
+      Каждый чанк отправляется в <strong class="highlight-gemini">Gemini 2.5 Flash</strong> для классификации типа документа и извлечения структурированных сущностей (endpoints, параметры, протоколы, ключевые слова).
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="detail-label">Модель</div>
+          <div class="detail-value">
+            <span class="code-tag gemini">Gemini 2.5 Flash</span> (через OpenAI-compatible API)
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Извлекаемые данные</div>
+          <div class="detail-value">
+            <strong>doc_type</strong>: api_reference, user_guide, configuration, changelog, troubleshooting...<br>
+            <strong>entities</strong>: api_endpoints, config_params, error_codes, protocols, keywords
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Файл</div>
+          <div class="detail-value">
+            <span class="code-tag file">ingestion/metadata_extractor.py</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Библиотека</div>
+          <div class="detail-value">
+            <span class="code-tag lib">httpx</span> → OpenAI-compatible endpoint
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- STAGE 7: Enrich -->
+  <div class="stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">7</div>
+      <div class="stage-title">Обогащение и очистка текста</div>
+    </div>
+    <div class="stage-desc">
+      Перед эмбеддингом текст проходит очистку от Markdown-артефактов и обогащается: добавляются heading_path, тип документа и сущности как контекстный префикс.
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="detail-label">Очистка (text_cleaner.py)</div>
+          <div class="detail-value">
+            Удаление: bold/italic маркеров, ссылок (оставляет текст), изображений, HTML-тегов, inline-кода<br>
+            Unicode нормализация → NFKC
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Обогащение (enrich_for_embedding)</div>
+          <div class="detail-value">
+            Префикс: <code>[heading_path]</code><br>
+            + <code>[type: api_reference]</code><br>
+            + <code>[entities: GET /api/v1/..., ONVIF, ...]</code><br>
+            Лимит: <strong>500 токенов</strong> (усечение при превышении)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- STAGE 8: Embedding -->
+  <div class="stage gemini-stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">8</div>
+      <div class="stage-title">Векторизация — Embedding (Gemini)</div>
+    </div>
+    <div class="stage-desc">
+      Обогащённые чанки отправляются батчами в <strong class="highlight-gemini">Gemini Embedding API</strong>. Каждый чанк превращается в числовой вектор размерностью <strong>1024</strong>. Векторы нормализуются по L2.
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="detail-label">Модель</div>
+          <div class="detail-value">
+            <span class="code-tag gemini">gemini-embedding-2-preview</span><br>
+            Размерность: <strong>1024</strong>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Параметры API</div>
+          <div class="detail-value">
+            task_type: <code>RETRIEVAL_DOCUMENT</code> (индексация)<br>
+            task_type: <code>RETRIEVAL_QUERY</code> (поиск)<br>
+            Батч: до <strong>100</strong> текстов за запрос
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Постобработка</div>
+          <div class="detail-value">
+            L2-нормализация через <span class="code-tag lib">numpy</span>:<br>
+            <code>vector / ||vector||₂</code>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Библиотека</div>
+          <div class="detail-value">
+            <span class="code-tag gemini">google-genai</span> (google.genai.Client)<br>
+            <span class="code-tag lib">numpy</span> — нормализация<br>
+            Retry: до 5 попыток с exp. backoff
+          </div>
+        </div>
+        <div class="detail-card" style="grid-column: 1 / -1;">
+          <div class="detail-label">Файл</div>
+          <div class="detail-value">
+            <span class="code-tag file">ingestion/embedder.py</span> →
+            <span class="code-tag">embed_texts()</span>
+            <span class="code-tag">embed_query()</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- STAGE 9: Store -->
+  <div class="stage pgvector-stage" onclick="toggle(this)">
+    <div class="stage-header">
+      <div class="stage-number">9</div>
+      <div class="stage-title">Сохранение в PostgreSQL + pgvector</div>
+    </div>
+    <div class="stage-desc">
+      Чанки, их метаданные и эмбеддинги записываются в таблицу <code>chunks</code>. Вектор хранится в колонке <code>vector(1024)</code>. Документ переходит в статус <code>ready</code>.
+    </div>
+    <span class="expand-hint">нажмите для деталей ▾</span>
+    <div class="stage-details">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="detail-label">Таблица chunks</div>
+          <div class="detail-value" style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;line-height:1.7;">
+            id, document_id, chunk_index,<br>
+            heading_path, heading_level,<br>
+            <strong>content</strong> (оригинал), content_clean,<br>
+            parent_content, token_count,<br>
+            <span class="highlight-pgvector">embedding vector(1024)</span>,<br>
+            doc_type, entities (JSONB)
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Индекс HNSW</div>
+          <div class="detail-value">
+            <span class="code-tag pgvector">HNSW</span> + <span class="code-tag pgvector">vector_cosine_ops</span><br>
+            m = <strong>16</strong>, ef_construction = <strong>128</strong><br>
+            ef_search = <strong>128</strong> (на запрос)<br><br>
+            Метрика: <strong>cosine similarity</strong><br>
+            <code>1 - (a &lt;=&gt; b)</code>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Библиотеки</div>
+          <div class="detail-value">
+            <span class="code-tag lib">SQLAlchemy (async)</span>
+            <span class="code-tag pgvector">pgvector-python</span>
+            <span class="code-tag pgvector">PostgreSQL 16</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-label">Обновление документа</div>
+          <div class="detail-value">
+            status → <code>ready</code>, indexed_at → now()<br>
+            total_chunks, total_tokens, embedding_model,<br>
+            embedding_dims, timing метрики
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary: Where Gemini is used -->
+  <div class="section-title">Где используется Gemini</div>
+
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>Этап</th>
+        <th>Модель Gemini</th>
+        <th>Назначение</th>
+        <th>Библиотека</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>3. Конвертация PDF</td>
+        <td class="highlight-gemini">Gemini Vision</td>
+        <td>OCR изображений в PDF + определение языка</td>
+        <td><span class="code-tag lib">google-genai</span></td>
+      </tr>
+      <tr>
+        <td>6. Метаданные</td>
+        <td class="highlight-gemini">Gemini 2.5 Flash</td>
+        <td>Классификация doc_type + извлечение entities</td>
+        <td><span class="code-tag lib">httpx → OpenAI API</span></td>
+      </tr>
+      <tr>
+        <td>8. Эмбеддинг</td>
+        <td class="highlight-gemini">gemini-embedding-2-preview</td>
+        <td>Генерация векторов (1024D) для семантического поиска</td>
+        <td><span class="code-tag lib">google-genai</span></td>
+      </tr>
+      <tr>
+        <td>Поиск (RAG)</td>
+        <td class="highlight-gemini">Gemini 2.5 Pro</td>
+        <td>Чат-ответы на основе найденных чанков</td>
+        <td><span class="code-tag lib">httpx → OpenAI API</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Summary: Libraries -->
+  <div class="section-title">Ключевые библиотеки</div>
+
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>Библиотека</th>
+        <th>Для чего</th>
+        <th>Этап</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="code-tag lib">google-genai</span></td>
+        <td>Gemini Embedding API + Gemini Vision (OCR)</td>
+        <td>3, 8</td>
+      </tr>
+      <tr>
+        <td><span class="code-tag lib">pymupdf4llm</span></td>
+        <td>PDF → Markdown (текстовый слой)</td>
+        <td>3</td>
+      </tr>
+      <tr>
+        <td><span class="code-tag lib">numpy</span></td>
+        <td>L2-нормализация эмбеддингов</td>
+        <td>8</td>
+      </tr>
+      <tr>
+        <td><span class="code-tag lib">pgvector-python</span></td>
+        <td>Тип Vector для SQLAlchemy + HNSW индекс</td>
+        <td>9</td>
+      </tr>
+      <tr>
+        <td><span class="code-tag lib">SQLAlchemy (async)</span></td>
+        <td>ORM, запросы к PostgreSQL</td>
+        <td>9</td>
+      </tr>
+      <tr>
+        <td><span class="code-tag lib">Celery + Redis</span></td>
+        <td>Очереди задач, фоновая обработка</td>
+        <td>2</td>
+      </tr>
+      <tr>
+        <td><span class="code-tag lib">httpx</span></td>
+        <td>HTTP-клиент к OpenAI-compatible API (Gemini Flash/Pro)</td>
+        <td>6, RAG</td>
+      </tr>
+    </tbody>
+  </table>
+
+</div>
+
+<script>
+function toggle(el) {
+  el.classList.toggle('open');
+}
+
+document.querySelectorAll('.stage').forEach((s, i) => {
+  s.style.opacity = '0';
+  s.style.transform = 'translateY(20px)';
+  setTimeout(() => {
+    s.style.transition = 'all 0.5s ease';
+    s.style.opacity = '1';
+    s.style.transform = 'translateY(0)';
+  }, 100 + i * 80);
+});
+</script>
+</body>
+</html>

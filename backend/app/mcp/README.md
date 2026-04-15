@@ -1,10 +1,10 @@
-# Plexicode MCP Server
+# Lexiro MCP Server
 
-> **Complex APIs. Simple answers.**
+> **Complex docs. Simple code.**
 >
-> *From docs to code. Instantly.*
+> *From documentation to code. Instantly.*
 
-Plexicode is an MCP server that gives your AI coding assistant instant access to API documentation for hardware devices (IP cameras, access controllers, intercoms) and software platforms (VMS, PSIM, IoT platforms, SDKs) — so it can write accurate integration code instead of hallucinating APIs.
+Lexiro is an MCP server that gives your AI coding assistant instant access to API documentation for hardware devices (IP cameras, access controllers, intercoms) and software platforms (VMS, PSIM, IoT platforms, SDKs) — so it can write accurate integration code instead of hallucinating APIs.
 
 ## The Problem
 
@@ -19,14 +19,14 @@ Developers integrating physical security and IoT products waste hours reading ch
 
 ## The Solution
 
-Plexicode indexes product documentation (PDF, Swagger/OpenAPI, Markdown, web pages) into a semantic knowledge base and serves it to AI assistants via MCP.
+Lexiro indexes product documentation (PDF, Swagger/OpenAPI, Markdown, web pages) into a semantic knowledge base and serves it to AI assistants via MCP.
 
 ```
 Developer in Cursor:
   "Write Python code to stream video from a Hikvision camera
    and register it in Axxon One with analytics metadata"
 
-Plexicode returns:
+Lexiro returns:
   — Hikvision RTSP streaming endpoint (from camera docs)
   — Hikvision authentication method (from camera docs)
   — Axxon One gRPC camera registration API (from VMS SDK docs)
@@ -43,21 +43,51 @@ Total time: minutes, not hours.
 docker compose up -d
 ```
 
-### 2. Connect from Cursor
+### 2. Get an API key
 
-Add to your `.cursor/mcp.json`:
+Every MCP connection requires an API key with the `ipx_` prefix.
+
+- **Local dev**: use the pre-seeded key from `.env`, or generate one in the admin panel (**Settings → API Keys**).
+- **Hosted (lexiro.io)**: sign up at [lexiro.io](https://lexiro.io), then go to **Settings → API Keys** to create one.
+
+### 3. Connect from Cursor
+
+Add to your project's `.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "plexicode": {
-      "url": "http://localhost:8000/mcp"
+    "lexiro": {
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer ipx_your_api_key_here"
+      }
     }
   }
 }
 ```
 
-### 3. Start coding
+For the hosted version:
+
+```json
+{
+  "mcpServers": {
+    "lexiro": {
+      "url": "https://lexiro.io/mcp",
+      "headers": {
+        "Authorization": "Bearer ipx_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+> **Note**: The MCP endpoint validates the API key on every request via
+> `McpApiKeyAuthMiddleware`. The key is SHA-256 hashed and matched against the
+> `api_keys` table. Both the key and its parent tenant must be active.
+> Missing or invalid keys return a `401` JSON-RPC error — no tools will be listed.
+
+### 4. Start coding
 
 Ask your AI assistant anything about the indexed products:
 
@@ -73,11 +103,11 @@ Show me the ONVIF PTZ continuous move command for pan and tilt.
 What's the RTSP stream URL format for Hikvision DS-2CD2347G2-LU?
 ```
 
-Plexicode automatically provides the relevant documentation to your AI assistant.
+Lexiro automatically provides the relevant documentation to your AI assistant.
 
 ## MCP Tools
 
-Plexicode exposes 3 tools via the Model Context Protocol:
+Lexiro exposes 3 tools via the Model Context Protocol:
 
 ### `search_documentation`
 
@@ -121,7 +151,7 @@ Discover what products have indexed documentation. **Call this first** to see wh
 ## Architecture
 
 ```
-Cursor / AI IDE                    Plexicode Server
+Cursor / AI IDE                    Lexiro Server
 ┌──────────────┐                  ┌──────────────────────────┐
 │  Developer   │  MCP over HTTP   │  FastAPI + FastMCP       │
 │  asks AI to  │ ───────────────> │                          │
@@ -161,7 +191,7 @@ Cursor / AI IDE                    Plexicode Server
 ```bash
 # Clone and start infrastructure
 git clone <repo-url>
-cd ipcodex
+cd lexiro
 docker compose up -d
 
 # Install backend dependencies
@@ -183,7 +213,7 @@ Integration tests use Testcontainers (PostgreSQL + pgvector) — Docker must be 
 
 ## Compared to Context7
 
-| | Context7 | Plexicode |
+| | Context7 | Lexiro |
 |---|---|---|
 | **Domain** | Open-source software libraries (React, Next.js) | Hardware devices + software platforms (cameras, VMS, access control) |
 | **Sources** | Public GitHub repos | PDF, Swagger, web pages, vendor portals |

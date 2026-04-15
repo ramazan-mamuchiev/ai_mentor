@@ -1,13 +1,60 @@
-"""Markdown parser: split by H1–H6 headers into sections."""
+"""Markdown parser: split by H1–H6 headers into sections.
+
+Supports optional YAML front matter (between ``---`` fences at the start of
+the file).  When present the front matter is stripped from the body and
+returned as a dict so the pipeline can use structured metadata (layer, topic,
+related_docs, etc.) without polluting chunk content.
+"""
+
+from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass, field
+from typing import Any
+
+import yaml
 
 from app.ingestion.chunker import Section
 from app.ingestion.text_cleaner import clean_heading, normalize_unicode
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 _CODE_FENCE_RE = re.compile(r"```[\s\S]*?```|```[\s\S]*$", re.MULTILINE)
+_FRONT_MATTER_RE = re.compile(r"\A---\r?\n(.*?\r?\n)---\r?\n?", re.DOTALL)
+
+
+@dataclass
+class FrontMatter:
+    """Structured metadata parsed from YAML front matter."""
+    layer: str | None = None
+    topic: str | None = None
+    doc_number: str | None = None
+    related_docs: list[str] = field(default_factory=list)
+    chunking: str | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
+
+
+def strip_front_matter(text: str) -> tuple[str, FrontMatter | None]:
+    """Strip YAML front matter and return (body, parsed FrontMatter | None)."""
+    m = _FRONT_MATTER_RE.match(text)
+    if not m:
+        return text, None
+    try:
+        data = yaml.safe_load(m.group(1))
+    except Exception:
+        return text, None
+    if not isinstance(data, dict):
+        return text, None
+    fm = FrontMatter(
+        layer=data.get("layer"),
+        topic=data.get("topic"),
+        doc_number=str(data["doc_number"]) if data.get("doc_number") is not None else None,
+        related_docs=data.get("related_docs") or [],
+        chunking=data.get("chunking"),
+        raw=data,
+    )
+    body = text[m.end():]
+    return body, fm
 
 
 def _code_block_ranges(text: str) -> list[tuple[int, int]]:
@@ -24,17 +71,26 @@ def _inside_code_block(pos: int, ranges: list[tuple[int, int]]) -> bool:
     return False
 
 
-def parse_markdown(text: str) -> list[Section]:
+def parse_markdown(
+    text: str,
+    *,
+    _strip_fm: bool = True,
+) -> tuple[list[Section], FrontMatter | None]:
     """Parse markdown text into sections based on H1–H6 headings.
 
-    Returns a list of Section objects with heading_path like
-    "Chapter > Section > Subsection" and the content under each heading.
-    Headings inside fenced code blocks (```...```) are ignored.
+    Returns ``(sections, front_matter)``.  *front_matter* is ``None`` when the
+    file has no YAML front matter block.
+
+    Headings inside fenced code blocks (``\`\`\`…\`\`\```) are ignored.
     """
     text = normalize_unicode(text)
 
+    fm: FrontMatter | None = None
+    if _strip_fm:
+        text, fm = strip_front_matter(text)
+
     if not text.strip():
-        return []
+        return [], fm
 
     code_ranges = _code_block_ranges(text)
 
@@ -47,7 +103,7 @@ def parse_markdown(text: str) -> list[Section]:
         headings.append((match.start(), title, level))
 
     if not headings:
-        return [Section(heading_path="Document", heading_level=1, content=text.strip())]
+        return [Section(heading_path="Document", heading_level=1, content=text.strip())], fm
 
     sections: list[Section] = []
 
@@ -75,4 +131,4 @@ def parse_markdown(text: str) -> list[Section]:
                 content=content,
             ))
 
-    return sections
+    return sections, fm

@@ -9,12 +9,14 @@ No local models or heavy dependencies (PyTorch, sentence-transformers) required.
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 
 import httpx
 
 from app.config import settings
+from app.llm.http_client import gemini_client
 from app.ingestion.text_cleaner import clean_for_embedding
 
 logger = logging.getLogger(__name__)
@@ -39,8 +41,21 @@ _RERANK_PROMPT = """\
 You are a relevance scoring engine. Given a user query and a list of text chunks, \
 rate each chunk's relevance to the query on a scale from 0.0 to 1.0.
 
+Scoring guidelines:
+- 0.8-1.0: Chunk directly answers the query or contains the exact information requested.
+- 0.5-0.7: Chunk is partially relevant — covers a related topic or contains useful context.
+- 0.2-0.4: Chunk is tangentially related — same domain but does not address the query.
+- 0.0-0.1: Chunk is irrelevant to the query.
+
+When the query is a "how-to" or conceptual question, prefer chunks from guides and overviews \
+(type: user_guide, overview, troubleshooting) over raw API/protocol references \
+(type: api_reference, protocol, model_schema). \
+A guide that explains the data flow is more useful than a bare RPC signature.
+
+Score based on the chunk's language-independent meaning. A Russian query can match English docs and vice versa.
+
 Return ONLY a JSON array of numbers (floats) in the same order as the chunks. \
-No explanation, no markdown, no extra text — just the JSON array.
+No explanation, no markdown fences, no extra text — just the raw JSON array.
 
 Example output: [0.95, 0.3, 0.72, 0.1]
 
@@ -53,8 +68,18 @@ Chunks:
 def _build_rerank_text(result: dict) -> str:
     heading = result.get("heading_path", "")
     content = clean_for_embedding(result.get("content", ""))
+    meta_parts: list[str] = []
     if heading:
-        return f"[{heading}]\n{content}"
+        meta_parts.append(f"[{heading}]")
+    doc_type = result.get("doc_type")
+    if doc_type and doc_type != "other":
+        meta_parts.append(f"[type: {doc_type}]")
+    product = result.get("product_name")
+    if product:
+        meta_parts.append(f"[product: {product}]")
+    prefix = " ".join(meta_parts)
+    if prefix:
+        return f"{prefix}\n{content}"
     return content
 
 
@@ -62,14 +87,94 @@ def _build_chunks_text(results: list[dict]) -> str:
     parts = []
     for i, r in enumerate(results):
         text = _build_rerank_text(r)
-        if len(text) > 500:
-            text = text[:500] + "..."
+        if len(text) > 1000:
+            text = text[:1000] + "..."
         parts.append(f"[{i}] {text}")
     return "\n\n".join(parts)
 
 
+_MAX_RERANK_ATTEMPTS = 2
+
+_FLOAT_RE = re.compile(r"[\d]+\.?[\d]*")
+
+
+def _parse_scores(content: str, expected_count: int) -> list[float] | None:
+    """Parse rerank scores from LLM output, tolerating formatting quirks."""
+    try:
+        scores = json.loads(content)
+        if isinstance(scores, list) and len(scores) == expected_count:
+            return [float(s) for s in scores]
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    numbers = _FLOAT_RE.findall(content)
+    if len(numbers) == expected_count:
+        try:
+            return [min(max(float(n), 0.0), 1.0) for n in numbers]
+        except ValueError:
+            pass
+
+    logger.warning(
+        "Gemini rerank returned unparseable format",
+        extra={"expected": expected_count, "extracted": len(numbers), "raw": content[:200]},
+    )
+    return None
+
+
+async def _call_rerank_api(
+    prompt: str,
+    expected_count: int,
+    usage: RerankUsage,
+) -> list[float] | None:
+    """Single API call to get rerank scores. Returns scores list or None on failure."""
+    url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {settings.gemini_api_key}",
+    }
+    payload = {
+        "model": settings.rerank_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.0,
+        "max_tokens": 256,
+        "stream_options": {"include_usage": True},
+    }
+
+    try:
+        response = await gemini_client().post(url, json=payload, headers=headers, timeout=30.0)
+
+        if response.status_code != 200:
+            logger.warning(
+                "Gemini rerank API error",
+                extra={"status": response.status_code, "body": response.text[:300]},
+            )
+            return None
+
+        data = response.json()
+
+        api_usage = data.get("usage", {})
+        usage.prompt_tokens += api_usage.get("prompt_tokens", 0)
+        usage.completion_tokens += api_usage.get("completion_tokens", 0)
+        usage.total_tokens += api_usage.get("total_tokens", 0)
+
+        content = data["choices"][0]["message"]["content"].strip()
+
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+
+        scores = _parse_scores(content, expected_count)
+        if scores is None:
+            return None
+
+        return scores
+
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, ValueError) as e:
+        logger.warning("Gemini rerank call failed", extra={"error": str(e)})
+        return None
+
+
 async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResult:
-    """Re-rank search results using Gemini API.
+    """Re-rank search results using Gemini API with retry on parse failure.
 
     Returns RerankResult with re-ranked results and token usage stats.
     """
@@ -85,72 +190,31 @@ async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResul
     chunks_text = _build_chunks_text(results)
     prompt = _RERANK_PROMPT.format(query=query, chunks=chunks_text)
 
-    url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {settings.gemini_api_key}",
-    }
-    payload = {
-        "model": settings.rerank_model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.0,
-        "max_tokens": 256,
-        "stream_options": {"include_usage": True},
-    }
-
     t0 = time.perf_counter()
     usage = RerankUsage(model=settings.rerank_model)
+    scores: list[float] | None = None
 
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
-            response = await client.post(url, json=payload, headers=headers)
+    for attempt in range(_MAX_RERANK_ATTEMPTS):
+        scores = await _call_rerank_api(prompt, len(results), usage)
+        if scores is not None:
+            break
+        if attempt < _MAX_RERANK_ATTEMPTS - 1:
+            logger.warning("Retrying rerank after parse failure", extra={"attempt": attempt + 1})
 
-        if response.status_code != 200:
-            logger.warning(
-                "Gemini rerank API error, falling back to original order",
-                extra={"status": response.status_code, "body": response.text[:300]},
-            )
-            return RerankResult(results=results[:top_k], usage=usage)
-
-        data = response.json()
-
-        api_usage = data.get("usage", {})
-        usage.prompt_tokens = api_usage.get("prompt_tokens", 0)
-        usage.completion_tokens = api_usage.get("completion_tokens", 0)
-        usage.total_tokens = api_usage.get("total_tokens", 0)
-
-        content = data["choices"][0]["message"]["content"].strip()
-
-        if content.startswith("```"):
-            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-
-        scores = json.loads(content)
-
-        if not isinstance(scores, list) or len(scores) != len(results):
-            logger.warning(
-                "Gemini rerank returned unexpected format",
-                extra={"expected": len(results), "got": len(scores) if isinstance(scores, list) else type(scores).__name__},
-            )
-            return RerankResult(results=results[:top_k], usage=usage)
-
-    except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError) as e:
-        logger.warning(
-            "Gemini rerank failed, falling back to original order",
-            extra={"error": str(e)},
-        )
+    if scores is None:
+        logger.warning("Gemini rerank failed after retries, falling back to original order")
+        usage.rerank_ms = round((time.perf_counter() - t0) * 1000, 1)
         return RerankResult(results=results[:top_k], usage=usage)
 
     usage.rerank_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     scored = list(zip(results, scores))
-    scored.sort(key=lambda x: float(x[1]), reverse=True)
+    scored.sort(key=lambda x: x[1], reverse=True)
 
     reranked: list[dict] = []
     for r, score in scored[:top_k]:
         r = dict(r)
-        raw_score = float(score)
-        r["rerank_score"] = round(raw_score, 4)
-        r["similarity"] = round(raw_score, 4)
+        r["rerank_score"] = round(score, 4)
         reranked.append(r)
 
     logger.debug(

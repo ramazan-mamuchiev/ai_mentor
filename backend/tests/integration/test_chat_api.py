@@ -9,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Chunk, Product, Document, FirmwareVersion
+from app.models import ChatMessage, ChatMessageAnalytics, ChatSession, Chunk, Product, Document
 
 
 async def _async_iter(items):
@@ -29,7 +29,7 @@ def _create_chat_app(db_engine):
     async def lifespan(app: FastAPI):
         yield
 
-    app = FastAPI(title="IPCodex-Chat-Test", lifespan=lifespan)
+    app = FastAPI(title="Lexiro-Chat-Test", lifespan=lifespan)
     app.include_router(chat_router, prefix="/api/v1")
 
     return app
@@ -58,7 +58,6 @@ async def chat_client(db_engine):
         await cleanup_session.execute(delete(ChatSession))
         await cleanup_session.execute(delete(Chunk))
         await cleanup_session.execute(delete(Document))
-        await cleanup_session.execute(delete(FirmwareVersion))
         await cleanup_session.execute(delete(Product))
         await cleanup_session.commit()
 
@@ -315,22 +314,17 @@ class TestChatWithRAG:
 
     async def _seed_documents(self, db_engine):
         """Insert test documents directly into DB for RAG to find."""
-        from app.models import Chunk, Product, Document, FirmwareVersion
+        from app.models import Chunk, Product, Document
         from tests.conftest import fake_embed_single
 
         session_maker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
         async with session_maker() as session:
-            product = Product(name="TestCam", manufacturer="TestMfg")
+            product = Product(name="TestCam", manufacturer="TestMfg", version="1.0", slug="testmfg-testcam-1-0")
             session.add(product)
-            await session.flush()
-
-            fw = FirmwareVersion(product_id=product.id, version="1.0")
-            session.add(fw)
             await session.flush()
 
             doc = Document(
                 product_id=product.id,
-                firmware_version_id=fw.id,
                 format="markdown",
                 title="TestCam API Guide",
                 status="ready",

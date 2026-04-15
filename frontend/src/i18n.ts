@@ -8,13 +8,27 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources: { en: { translation: en }, ru: { translation: ru } },
+    resources: {
+      en: { ui: en },
+      ru: { ui: ru },
+    },
     fallbackLng: 'en',
+    defaultNS: 'ui',
+    ns: ['ui'],
     interpolation: { escapeValue: false },
     detection: {
       order: ['localStorage', 'navigator'],
-      lookupLocalStorage: 'ipcodex-lang',
+      lookupLocalStorage: 'lexiro-lang',
       caches: ['localStorage'],
+    },
+    saveMissing: false,
+    missingKeyHandler: (_lngs: readonly string[], ns: string, key: string) => {
+      if (import.meta.env.DEV) {
+        console.warn(`[i18n] Missing key: ${ns}:${key}`)
+      }
+    },
+    react: {
+      useSuspense: true,
     },
   })
 

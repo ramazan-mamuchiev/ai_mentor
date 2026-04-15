@@ -1,4 +1,4 @@
-# Plexicode — Infrastructure Cost Analysis
+# Lexiro — Infrastructure Cost Analysis
 
 > **Status**: v1.4 — March 19, 2026 (actual Gemini/Opus prices, tiered LLM billing, per-model input+output pricing)
 > **Author**: Oleg Voitekhovich
@@ -9,7 +9,7 @@
 ## 1. Cost Components Overview
 
 ```
-                     Plexicode Infrastructure Cost Stack
+                     Lexiro Infrastructure Cost Stack
 
  ┌─────────────────────────────────────────────────────────────┐
  │                      COMPUTE                                │
@@ -62,14 +62,14 @@
 | Medium | Primary + read replica, 8 vCPU, 32 GB RAM, 500 GB | $800-1,500 |
 | Large | Managed (RDS/Cloud SQL), HA, 16 vCPU, 64 GB RAM, 1 TB | $1,500-3,000 |
 
-**Key cost driver**: pgvector index size. Each chunk = 1536 dims × 4 bytes = 6 KB for the vector alone. 1M chunks ≈ 6 GB just for vectors + overhead.
+**Key cost driver**: pgvector index size. With `halfvec(768)`: each chunk = 768 dims × 2 bytes = 1.5 KB for the vector. 1M chunks ≈ 1.5 GB for vectors + overhead. This is **~3.5× smaller** than the previous `vector(1024)` layout (768×2 = 1,536 bytes vs 1024×4 = 4,096 bytes per vector).
 
-| Chunks in DB | Vector Storage | Total DB Size (est.) |
-|:------------:|:--------------:|:--------------------:|
-| 100K | 600 MB | ~2 GB |
-| 500K | 3 GB | ~10 GB |
-| 1M | 6 GB | ~20 GB |
-| 5M | 30 GB | ~80 GB |
+| Chunks in DB | Vector Storage (halfvec 768) | Previous (vector 1024) | Savings |
+|:------------:|:--------------:|:--------------:|:------:|
+| 100K | 150 MB | 410 MB | 63% |
+| 500K | 750 MB | 2 GB | 63% |
+| 1M | 1.5 GB | 4 GB | 63% |
+| 5M | 7.5 GB | 20 GB | 63% |
 
 ### 2.3 Redis
 
@@ -136,7 +136,7 @@ At scale (10x):
 | Medium | 300K | 1,000 docs | **$30-80** |
 | Large | 2M | 5,000 docs | **$200-500** |
 
-**Why Gemini**: Plexicode serves users in 100+ countries. Gemini Embedding 2 leads MTEB Multilingual benchmarks (68.3) and significantly outperforms alternatives on non-English retrieval (Russian, Chinese, Arabic, etc.). Even at large scale it's < $500/mo.
+**Why Gemini**: Lexiro serves users in 100+ countries. Gemini Embedding 2 leads MTEB Multilingual benchmarks (68.3) and significantly outperforms alternatives on non-English retrieval (Russian, Chinese, Arabic, etc.). Even at large scale it's < $500/mo.
 
 ### 2.6 LLM API (for RAG Chat)
 
@@ -235,7 +235,7 @@ Compare: all-Gemini at this scale = $1,110. The premium tier adds ~$2,300–3,50
 
 **Future marketing lever**: temporarily waive output charges on Gemini Flash queries ("Free AI answers!") to drive user acquisition. Input charges still cover vector search cost. When users experience the quality difference with Opus, they upgrade. See [MONETIZATION.md](MONETIZATION.md#future-promotional-lever).
 
-**Previous approach**: Before Gemini, Plexicode used **Ollama with Qwen 2.5 Coder 7B** (local, $0 API cost). The switch to Gemini improved answer quality significantly but introduced an external API dependency and per-query cost.
+**Previous approach**: Before Gemini, Lexiro used **Ollama with Qwen 2.5 Coder 7B** (local, $0 API cost). The switch to Gemini improved answer quality significantly but introduced an external API dependency and per-query cost.
 
 ### 2.7 ClamAV (Antivirus)
 
@@ -406,11 +406,11 @@ Year 3 breakdown ($32,695/mo):
 
 ---
 
-## 7. Comparison: Plexicode vs Typical SaaS Infrastructure
+## 7. Comparison: Lexiro vs Typical SaaS Infrastructure
 
-| Metric | Plexicode | Typical B2B SaaS | Notes |
+| Metric | Lexiro | Typical B2B SaaS | Notes |
 |--------|:-------:|:----------------:|-------|
-| Gross margin (Year 3) | 95%+ | 70-85% | Plexicode is extremely capital-efficient |
+| Gross margin (Year 3) | 95%+ | 70-85% | Lexiro is extremely capital-efficient |
 | Infra cost per customer | $3-10/mo | $10-50/mo | Low due to shared vector DB + S3 |
 | Marginal cost per new customer | ~$0.50/mo | $5-20/mo | Adding a tenant is near-zero cost |
 | Main cost driver | PostgreSQL + Compute | Compute + Storage | pgvector needs RAM for HNSW index |

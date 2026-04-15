@@ -1,22 +1,22 @@
-# Plexicode — Project Context & Technical Specification
+# Lexiro — Project Context & Technical Specification
 
 ## Product Vision
 
-**Plexicode** — коммерческий standalone-продукт (платформа) для управления и версионирования API-документации физических устройств (IP-камеры, POS-терминалы, СКУД, IoT-устройства).
+**Lexiro** — коммерческий standalone-продукт (платформа) для управления и версионирования API-документации физических устройств (IP-камеры, POS-терминалы, СКУД, IoT-устройства).
 
 ### Brand Slogan
 
-> **"Complex APIs. Simple answers."**
-> *"Сложные API. Простые ответы."*
+> **"Complex docs. Simple code."**
+> *"Сложная документация. Простой код."*
 >
-> **"From docs to code. Instantly."**
+> **"From documentation to code. Instantly."**
 > *"Из документации в код. Мгновенно."*
 
 ### Ключевая идея
-Компании, интегрирующие физические устройства, тратят значительное время на работу с хаотичной документацией от производителей. Plexicode решает это, преобразуя документацию в структурированный Markdown, и делает её доступной для AI-помощников в IDE (Cursor, Antigravity, Windsurf, GitHub Copilot) через RAG + MCP.
+Компании, интегрирующие физические устройства, тратят значительное время на работу с хаотичной документацией от производителей. Lexiro решает это, преобразуя документацию в структурированный Markdown, и делает её доступной для AI-помощников в IDE (Cursor, Antigravity, Windsurf, GitHub Copilot) через RAG + MCP.
 
 ### Elevator Pitch
-Plexicode превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в **структурированную базу знаний**, на основе которой **AI-помощники пишут рабочий код интеграции**. Прямых аналогов на рынке нет.
+Lexiro превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в **структурированную базу знаний**, на основе которой **AI-помощники пишут рабочий код интеграции**. Прямых аналогов на рынке нет.
 
 ---
 
@@ -103,7 +103,7 @@ Plexicode превращает хаотичную документацию фи�
 ## S3 Key Structure
 
 ```
-ipcodex/
+lexiro/
   devices/{device_id}/
     {firmware_version}/{document_title}/
       v1.md
@@ -202,7 +202,7 @@ ipcodex/
 
 ### Adjacent Market Players
 
-| Product | Type | Funding | What They Do | Plexicode Difference |
+| Product | Type | Funding | What They Do | Lexiro Difference |
 |---------|------|---------|-------------|-------------------|
 | **Context7** (Upstash) | MCP for software libs | Upstash-backed | Доставляет документацию софтверных библиотек (React, Next.js) в AI IDE через MCP | Только софт-библиотеки. Нет PDF/OCR, нет устройств, нет конвертации |
 | **Documentation.AI** | Docs creation platform | #1 Product Hunt | AI-платформа для создания документации продуктов. AI-агент, MCP, llms.txt | Пользователи пишут свои docs. Нет импорта из PDF, нет OCR, нет версионирования по прошивкам |
@@ -211,13 +211,13 @@ ipcodex/
 | **ReadMe.com** | API docs | $9M raised | API-документация с playground, Swagger import, analytics | Нет PDF/OCR, нет firmware versioning, нет MCP |
 
 ### Ключевой вывод
-Рынок AI-документации **валидирован** хорошо профинансированными компаниями (Mintlify $21.3M, ReadMe $9M). Они доказывают, что разработчики платят за инструменты документации. Plexicode занимает **незанятую вертикаль** — документация физических устройств — применяя проверенные паттерны (MCP, RAG, AI Chat) к рынку без специализированного решения.
+Рынок AI-документации **валидирован** хорошо профинансированными компаниями (Mintlify $21.3M, ReadMe $9M). Они доказывают, что разработчики платят за инструменты документации. Lexiro занимает **незанятую вертикаль** — документация физических устройств — применяя проверенные паттерны (MCP, RAG, AI Chat) к рынку без специализированного решения.
 
 ### Потенциальные партнёрства
-- **Context7**: Plexicode-документация устройств может быть проиндексирована Context7, делая hardware APIs доступными через их MCP рядом с софтверными библиотеками
-- **Documentation.AI**: Вендоры могут использовать Documentation.AI для публикации документации устройств, пока Plexicode обрабатывает конвертацию и AI-обогащение
+- **Context7**: Lexiro-документация устройств может быть проиндексирована Context7, делая hardware APIs доступными через их MCP рядом с софтверными библиотеками
+- **Documentation.AI**: Вендоры могут использовать Documentation.AI для публикации документации устройств, пока Lexiro обрабатывает конвертацию и AI-обогащение
 
-Подробный анализ: `Plexicode/comparison.html`
+Подробный анализ: `Lexiro/comparison.html`
 
 ---
 
@@ -266,17 +266,17 @@ ipcodex/
 ## File Structure (Current)
 
 ```
-Plexicode/
-├── ipcodex.html              # Интерактивная презентация (EN/RU, light/dark)
+Lexiro/
+├── lexiro.html               # Интерактивная презентация (EN/RU, light/dark)
 ├── comparison.html            # Детальный конкурентный анализ
 ├── (логотипы встроены inline SVG в HTML, исходники в frontend/public/)
-├── ipcodex-plan-backup.html   # Резервная копия ранней версии
+├── ipcodex-plan-backup.html   # Резервная копия ранней версии (legacy name)
 ├── CONTEXT.md                 # Этот файл — полный контекст проекта
 ```
 
 ---
 
-## Presentation Features (ipcodex.html)
+## Presentation Features (lexiro.html)
 
 - **Интерактивная одностраничная презентация** для инвесторов/партнёров
 - **Двуязычность**: EN (default) / RU с переключателем
@@ -292,7 +292,7 @@ Plexicode/
 ## GitHub Pages
 
 - **URL**: https://olegvphoenix.github.io/mcp-servers/
-- **index.html** в корне репозитория делает redirect на `Plexicode/ipcodex.html`
+- **index.html** в корне репозитория делает redirect на `promo/lexiro.html`
 - Ветка: `main`, папка: `/` (root)
 
 ---
@@ -327,7 +327,7 @@ Plexicode/
 
 ### 1. Аудит фактических данных о конкурентах
 
-Проведена сверка данных из `ipcodex.html`, `comparison.html` и `CONTEXT.md` с публичными источниками (Crunchbase, Tracxn, официальные сайты).
+Проведена сверка данных из `lexiro.html`, `comparison.html` и `CONTEXT.md` с публичными источниками (Crunchbase, Tracxn, официальные сайты).
 
 #### Обнаруженные и исправленные ошибки:
 
@@ -337,16 +337,16 @@ Plexicode/
 | Mintlify total funding | $18.5M (только Series A) | $21.3M total ($2.8M Seed + $18.5M Series A) | Tracxn, Crunchbase |
 | Mintlify MCP-сервер | ✗ (нет) | ✓ (есть, ограничен собственной платформой) | mintlify.com/docs/integrations/mcp |
 | GitBook MCP-сервер | ✗ (нет) | ✓ (есть, ограничен собственной платформой) | gitbook.com/solutions/mcp |
-| SAM (CONTEXT.md) | $340M | $180M (приведено к ipcodex.html) | Внутренняя сверка |
-| SOM (CONTEXT.md) | $12M | $5M (приведено к ipcodex.html) | Внутренняя сверка |
-| Pricing Free tier | 3 устройства | 20 устройств (приведено к ipcodex.html) | Внутренняя сверка |
-| Pricing Pro tier | 50 устройств | 100 устройств (приведено к ipcodex.html) | Внутренняя сверка |
-| Pricing Team tier | 200 устройств | Безлимит (приведено к ipcodex.html) | Внутренняя сверка |
-| Infrastructure MVP PostgreSQL | $15-25 (managed) | $0 (same VPS) | Приведено к ipcodex.html |
+| SAM (CONTEXT.md) | $340M | $180M (приведено к lexiro.html) | Внутренняя сверка |
+| SOM (CONTEXT.md) | $12M | $5M (приведено к lexiro.html) | Внутренняя сверка |
+| Pricing Free tier | 3 устройства | 20 устройств (приведено к lexiro.html) | Внутренняя сверка |
+| Pricing Pro tier | 50 устройств | 100 устройств (приведено к lexiro.html) | Внутренняя сверка |
+| Pricing Team tier | 200 устройств | Безлимит (приведено к lexiro.html) | Внутренняя сверка |
+| Infrastructure MVP PostgreSQL | $15-25 (managed) | $0 (same VPS) | Приведено к lexiro.html |
 
 #### Ключевой вывод по MCP-серверам конкурентов:
 
-Mintlify и GitBook **имеют** MCP-серверы, но они ограничены работой с документацией, созданной на их собственных платформах. Plexicode отличается тем, что:
+Mintlify и GitBook **имеют** MCP-серверы, но они ограничены работой с документацией, созданной на их собственных платформах. Lexiro отличается тем, что:
 - Конвертирует **внешнюю** документацию (PDF, Swagger, URL) в формат, пригодный для MCP
 - Поддерживает **firmware-based versioning** — уникальная функция для физических устройств
 - Работает с **любой** документацией, а не только с той, что создана на платформе
@@ -357,7 +357,7 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 - MCP-сервер для доставки документации open-source библиотек в AI IDE
 - За спиной Upstash — инфраструктурная компания с серьёзным финансированием
 - Только софтверные библиотеки, нет поддержки физических устройств
-- **Потенциальный партнёр**: Plexicode-документация может быть проиндексирована Context7
+- **Потенциальный партнёр**: Lexiro-документация может быть проиндексирована Context7
 
 #### Documentation.AI
 - #1 Product Hunt, AI-платформа для создания документации
@@ -390,10 +390,10 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 - Карточки игроков (`.player`) получили цветные градиенты слева (blue, purple, pink, green, amber)
 - Блоки Strengths/Limitations — цветные фоны (green/red) с иконками
 - Таблица сравнения — sticky first column для мобильных
-- Market Map — выделение Plexicode карточки градиентной рамкой
+- Market Map — выделение Lexiro карточки градиентной рамкой
 - Conclusion — градиентная верхняя граница, выделение ключевых цифр `<strong>`
 
-#### Выравнивание стилей с ipcodex.html
+#### Выравнивание стилей с lexiro.html
 - Заменены Unicode-эмодзи на SVG-иконки (Lucide-style) в Market Map
 - Section titles: `text-align:center`, `color:var(--text)`, `font-size:1.15rem`, `font-weight:600`
 - Section descriptions: `font-weight:300`, `max-width:780px`, `margin:0 auto`
@@ -405,7 +405,7 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 - Footer: `padding:48px 24px 32px`, `font-size:.82rem`
 - Subtitle: `font-size:.88rem`, `font-weight:300`
 
-### 4. Дизайн-решения для ipcodex.html
+### 4. Дизайн-решения для lexiro.html
 
 #### Мобильная адаптивность
 - Tabs: `flex-wrap:nowrap`, `overflow-x:auto`, `scrollbar-width:none`
@@ -449,15 +449,15 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 
 | Файл | Назначение |
 |------|-----------|
-| `Plexicode/ipcodex.html` | Основная интерактивная презентация (лендинг для инвесторов) |
-| `Plexicode/comparison.html` | Детальный конкурентный анализ |
-| `Plexicode/CONTEXT.md` | Техническая спецификация и контекст проекта |
+| `Lexiro/lexiro.html` | Основная интерактивная презентация (лендинг для инвесторов) |
+| `Lexiro/comparison.html` | Детальный конкурентный анализ |
+| `Lexiro/CONTEXT.md` | Техническая спецификация и контекст проекта |
 | `doc2md-mcp/server.py` | Готовые функции конвертации (PDF, Swagger, URL → Markdown) |
-| `index.html` | Redirect на Plexicode/ipcodex.html для GitHub Pages |
+| `index.html` | Redirect на Lexiro/lexiro.html для GitHub Pages |
 
 ### 7. GitHub Pages
 
 - URL: https://olegvphoenix.github.io/mcp-servers/
-- Основная страница: `Plexicode/ipcodex.html`
-- Конкурентный анализ: `Plexicode/comparison.html`
+- Основная страница: `Lexiro/lexiro.html`
+- Конкурентный анализ: `Lexiro/comparison.html`
 - Ветка: `main`, папка: `/` (root)

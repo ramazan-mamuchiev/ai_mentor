@@ -1,5 +1,6 @@
 """Pydantic schemas for Chat API."""
 
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -21,7 +22,7 @@ class UpdateSessionRequest(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    id: int
+    id: str
     title: str | None
     product_id: int | None = None
     product_filter: str | None
@@ -34,7 +35,7 @@ class SessionResponse(BaseModel):
 
 
 class SessionListItem(BaseModel):
-    id: int
+    id: str
     title: str | None
     product_id: int | None = None
     product_filter: str | None
@@ -51,6 +52,11 @@ class SendMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=4000)
 
 
+class FeedbackRequest(BaseModel):
+    feedback: str = Field(..., pattern=r"^(up|down)$")
+    comment: str | None = Field(None, max_length=2000)
+
+
 class SourceInfo(BaseModel):
     document_id: int | None = None
     doc_title: str
@@ -63,17 +69,19 @@ class SourceInfo(BaseModel):
 
 class ChatMessageResponse(BaseModel):
     id: int
-    session_id: int
+    session_id: str
     role: str
     content: str
     sources: list[SourceInfo] | None = None
     duration_ms: float | None = None
+    feedback: str | None = None
+    feedback_comment: str | None = None
     debug: dict | None = None
     created_at: datetime
 
 
 class SessionDetailResponse(BaseModel):
-    id: int
+    id: str
     title: str | None
     product_id: int | None = None
     product_filter: str | None

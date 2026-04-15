@@ -1,6 +1,6 @@
-# Plexicode — Deployment, Security & Operations
+# Lexiro — Deployment, Security & Operations
 
-> Part of [Plexicode Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
+> Part of [Lexiro Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
 
 ---
 
@@ -14,9 +14,9 @@ services:
     image: pgvector/pgvector:pg16
     ports: ["5432:5432"]
     environment:
-      POSTGRES_DB: ipcodex
-      POSTGRES_USER: ipcodex
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ipcodex_dev}
+      POSTGRES_DB: lexiro
+      POSTGRES_USER: lexiro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexiro_dev}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -30,22 +30,19 @@ services:
     ports: ["9000:9000", "9001:9001"]
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-ipcodex}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-ipcodex_dev}
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-lexiro}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-lexiro_dev}
 
   api:
     build: ./backend
     ports: ["8000:8000"]
-    depends_on: [postgres, redis, minio, ollama]
+    depends_on: [postgres, redis, minio]
     environment:
-      DATABASE_URL: postgresql+asyncpg://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
-      DATABASE_URL_SYNC: postgresql://ipcodex:${POSTGRES_PASSWORD:-ipcodex_dev}@postgres:5432/ipcodex
+      DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT: http://minio:9000
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-gemini}
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-      OLLAMA_URL: http://ollama:11434
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
@@ -56,14 +53,13 @@ services:
       RAG_HISTORY_MAX_TOKENS: ${RAG_HISTORY_MAX_TOKENS:-8000}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-50}
       MAX_ARCHIVE_SIZE_MB: ${MAX_ARCHIVE_SIZE_MB:-350}
-      HF_HOME: /root/.cache/huggingface
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
 
   worker:
     build: ./backend
     depends_on: [postgres, redis, minio]
     environment:
-      # same as api (DATABASE_URL, REDIS_URL, S3_*, EMBEDDING_PROVIDER, HF_HOME)
+      # same as api (DATABASE_URL, REDIS_URL, S3_*, GEMINI_API_KEY)
     command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring
 
   beat:
@@ -75,18 +71,10 @@ services:
 
   web:
     build: ./frontend
-    ports: ["80:80"]
-    depends_on: [api]
-
-  ollama:
-    image: ollama/ollama
-    ports: ["11434:11434"]
-    environment:
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
+    ports: ["80:80", "443:443"]
     volumes:
-      - ollama_data:/root/.ollama
-      - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["bash", "/entrypoint.sh"]
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on: [api]
 
   loki:
     image: grafana/loki:3.4.2
@@ -101,14 +89,22 @@ services:
   grafana:
     image: grafana/grafana:11.6.0
     ports: ["3000:3000"]
-    depends_on: [loki]
+    depends_on: [loki, prometheus]
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    ports: ["9090:9090"]
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
 
 volumes:
   pgdata:
   redisdata:
   minio_data:
-  hfcache:
-  ollama_data:
   lokidata:
   grafanadata:
 ```
@@ -123,9 +119,9 @@ services:
     image: pgvector/pgvector:pg16
     ports: ["5432:5432"]
     environment:
-      POSTGRES_DB: ipcodex
-      POSTGRES_USER: ipcodex
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ipcodex_dev}
+      POSTGRES_DB: lexiro
+      POSTGRES_USER: lexiro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexiro_dev}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -140,15 +136,16 @@ services:
 | API docs | http://localhost:8000/docs | Swagger UI (auto-generated) |
 | MCP | http://localhost:8000/mcp | MCP endpoint for Cursor/IDE |
 | Grafana | http://localhost:3000 | Dashboards + alerts |
+| Prometheus | http://localhost:9090 | Metrics collection |
 | MinIO | http://localhost:9001 | Object storage console |
-| Ollama | http://localhost:11434 | LLM API |
 
-### Service URLs (Staging VPS)
+### Service URLs (Production VPS)
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| Web UI + Landing | http://82.38.66.177 | Landing (`/`) + App (`/app`) via nginx |
-| API | http://82.38.66.177/api/ | Proxied to api:8000 by nginx |
+| Web UI + Landing | https://lexiro.io | Landing (`/`) + App (`/app`) via nginx |
+| API | https://lexiro.io/api/ | Proxied to api:8000 by nginx |
+| Developer Hub | https://lexiro.dev | Currently 301 → lexiro.io. Will become Developer Portal |
 
 ### Planned Docker Compose (Production)
 
@@ -159,19 +156,22 @@ services:
 
 ---
 
-## VPS Deployment (Staging / Demo)
+## VPS Deployment (Production)
 
-Current staging environment for testing and demos.
+Production environment.
 
 ### Server
 
 | Parameter | Value |
 |-----------|-------|
+| Primary domain | `lexiro.io` (SaaS product) |
+| Developer domain | `lexiro.dev` (Developer Hub — docs, blog, API reference) |
+| Domain registrar | [hb.by](https://hb.by/) (`lexiro.dev`) |
 | IP | `82.38.66.177` |
 | OS | Ubuntu (Docker pre-installed) |
-| Access | `ssh root@82.38.66.177` |
-| Project path | `/opt/ipcodex` |
-| Repository | `https://github.com/olegvphoenix/ipcodex.git` (branch: `main`) |
+| Access | `ssh root@lexiro.io` |
+| Project path | `/opt/lexiro` |
+| Repository | [`github.com/olegvphoenix/lexiro`](https://github.com/olegvphoenix/lexiro) (branch: `main`) |
 
 ### Running Services
 
@@ -184,33 +184,37 @@ Current staging environment for testing and demos.
 | postgres (pgvector) | ✅ | |
 | redis | ✅ | |
 | minio | ✅ | |
-
-Monitoring stack (Loki, Promtail, Grafana) and Ollama are not deployed on staging VPS.
+| loki | ✅ | Log aggregation |
+| promtail | ✅ | Log collector |
+| grafana | ✅ | Dashboards + alerts |
+| prometheus | ✅ | Metrics collection |
+| node-exporter | ✅ | Host metrics |
+| cadvisor | ✅ | Container metrics |
 
 ### Deploy Commands
 
 **Full stack rebuild (backend + frontend):**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api web && docker compose up -d api worker beat web"
+ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build api web && docker compose up -d api worker beat web"
 ```
 
 **Frontend only:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build web && docker compose up -d web"
+ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build web && docker compose up -d web"
 ```
 
 **Backend only:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && git pull && docker compose build api && docker compose up -d api worker beat"
+ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build api && docker compose up -d api worker beat"
 ```
 
 **View logs:**
 
 ```bash
-ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose logs -f web api"
+ssh root@lexiro.io "cd /opt/lexiro && docker compose logs -f web api"
 ```
 
 ---
@@ -218,7 +222,7 @@ ssh root@82.38.66.177 "cd /opt/ipcodex && docker compose logs -f web api"
 ## S3 Key Structure
 
 ```
-ipcodex-storage/
+lexiro-storage/
   tenants/
     {tenant_id}/
       documents/
@@ -262,17 +266,17 @@ File naming convention: `source.{ext}` where `ext` matches the original format (
 
 ```bash
 # === Database ===
-DATABASE_URL=postgresql+asyncpg://ipcodex:password@postgres:5432/ipcodex
-DATABASE_URL_SYNC=postgresql://ipcodex:password@postgres:5432/ipcodex
+DATABASE_URL=postgresql+asyncpg://lexiro:password@postgres:5432/lexiro
+DATABASE_URL_SYNC=postgresql://lexiro:password@postgres:5432/lexiro
 
 # === Redis ===
 REDIS_URL=redis://redis:6379/0
 
 # === S3 / MinIO ===
 S3_ENDPOINT=http://minio:9000
-S3_ACCESS_KEY=ipcodex
-S3_SECRET_KEY=ipcodex_dev
-S3_BUCKET=ipcodex-storage
+S3_ACCESS_KEY=lexiro
+S3_SECRET_KEY=lexiro_dev
+S3_BUCKET=lexiro-storage
 
 # === Auth ===
 API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-tenancy yet)
@@ -281,13 +285,11 @@ API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-ten
 GEMINI_API_KEY=AIza...                       # single key for LLM + embeddings
 
 # === Embedding ===
-EMBEDDING_PROVIDER=gemini                    # local | gemini
-EMBEDDING_DIMS=1024                          # vector dimensionality (Matryoshka for Gemini)
+EMBEDDING_DIMS=768                           # vector dimensionality (Matryoshka for Gemini, reduced from 1024)
 EMBEDDING_MODEL_GEMINI=gemini-embedding-2-preview
-# Local: intfloat/multilingual-e5-large (1024 dims), auto-downloaded on first run
-# Gemini: gemini-embedding-2-preview — uses GEMINI_API_KEY, MTEB Multilingual leader
 
-# === LLM (RAG Chat) — Tiered Model Strategy ===
+# === LLM (RAG Chat) ===
+LLM_PROVIDER=openai                          # openai (Gemini-compatible)
 # LLM Provider Options:
 #   - "gemini" (default): Google Gemini API via OpenAI-compatible endpoint
 #   - "bothub": BotHub aggregator API (https://bothub.ru) — alternative provider
@@ -301,9 +303,8 @@ LLM_REASONING_EFFORT=none                        # none | low | medium | high �
 
 # === Gemini (Google) — Default ($0.30/$2.50 per 1M tokens) ===
 OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-OPENAI_LLM_MODEL=gemini-2.5-flash
+OPENAI_LLM_MODEL=gemini-2.5-pro
 GEMINI_API_KEY=AIza...                           # Get from https://aistudio.google.com/apikey
-
 # === BotHub Aggregator — Alternative ($depends on selected model) ===
 # BotHub: https://bothub.ru — unified API for GPT, Claude, Gemini, etc.
 # Sign up, get API key, select available models via dashboard
@@ -312,21 +313,37 @@ BOTHUB_BASE_URL=https://api.bothub.ru/v1         # BotHub API endpoint
 BOTHUB_LLM_MODEL=gpt-4.5-turbo                   # Model name available in your BotHub account
 
 # === Ollama — Development Fallback ($0 cost) ===
-OLLAMA_URL=http://ollama:11434
 LLM_MODEL=qwen2.5-coder:7b                       # Ollama model name
 
-# Per-model billing: input+output tokens metered separately per model.
-# Model routing by tier: Free/Pro → OPENAI_LLM_MODEL, Team/Ent → OPUS_MODEL.
-# Pro users get 100 Opus queries/mo included (PRO_OPUS_QUOTA).
-PRO_OPUS_QUOTA=100                           # Opus queries included in Pro tier
-OPUS_OVERAGE_PRO=0.05                        # $/query overage for Pro
-OPUS_OVERAGE_TEAM=0.04                       # $/query overage for Team
+# Gemini Flash — used for classifier, reranker, summarizer, OCR, decompose
+CLASSIFIER_MODEL=gemini-2.5-flash
+RERANK_MODEL=gemini-2.5-flash
+SUMMARY_MODEL=gemini-2.5-flash
+DECOMPOSE_MODEL=gemini-2.5-flash
+# === Re-ranking ===
+RERANK_PROVIDER=llm                          # llm (Gemini Flash) | vertex_rank (Google Vertex AI Ranking API)
+# VERTEX_RANK_PROJECT=your-gcp-project       # required if rerank_provider=vertex_rank
+# VERTEX_RANK_MODEL=semantic-ranker-default@latest
 
 # === RAG ===
 RAG_TOP_K=10                                 # number of chunks to retrieve for context
 RAG_MIN_SIMILARITY=0.35                      # minimum cosine similarity threshold (discard below)
 RAG_HISTORY_MESSAGES=6                       # max conversation messages included in LLM context
 RAG_HISTORY_MAX_TOKENS=8000                  # max tokens from chat history in prompt
+
+# === HyDE (Hypothetical Document Embedding) ===
+HYDE_ENABLED=false                           # generate hypothetical doc for query embedding
+HYDE_MODEL=gemini-2.5-flash
+# HYDE_QUERY_TYPES=code,technical,troubleshooting  # query types that trigger HyDE
+# HYDE_MAX_TOKENS=200
+
+# === Semantic Chunking ===
+SEMANTIC_CHUNKING_ENABLED=false              # split flat sections by embedding similarity
+# SEMANTIC_CHUNK_THRESHOLD=1500              # min tokens to trigger semantic split
+# SEMANTIC_SIMILARITY_PERCENTILE=25          # percentile for boundary detection
+
+# === MCP Query Classification ===
+MCP_CLASSIFY_ENABLED=true                    # classify MCP queries for doc-type boosting
 
 # === Upload Limits ===
 MAX_UPLOAD_SIZE_MB=50                        # single file upload limit
@@ -342,15 +359,25 @@ LOG_MAX_SIZE_MB=50                           # log file rotation size
 LOG_RETENTION_DAYS=30
 ```
 
+### Auth & Email (Implemented)
+
+```bash
+# === Auth (JWT + OAuth) ===
+JWT_SECRET_KEY=...                           # openssl rand -hex 32
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+APP_BASE_URL=https://lexiro.io
+
+# === Email (Resend) ===
+RESEND_API_KEY=...
+EMAIL_FROM=onboarding@resend.dev
+```
+
 ### Planned (Not Yet Implemented)
 
 ```bash
-# === Auth (multi-tenancy) ===
-API_KEY_PREFIX_TENANT=ipx_
-API_KEY_PREFIX_VENDOR=ipv_
-JWT_SECRET_KEY=...
-JWT_ALGORITHM=HS256
-
 # === Stripe ===
 STRIPE_API_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
@@ -362,24 +389,104 @@ RATE_LIMIT_PRO_RPM=60
 # === Antivirus (ClamAV) ===
 CLAMAV_HOST=clamav
 CLAMAV_PORT=3310
-
-# === Email ===
-EMAIL_PROVIDER=sendgrid
-SENDGRID_API_KEY=SG....
 ```
+
+---
+
+## Domain Strategy
+
+Two domains with distinct purposes:
+
+| Domain | Purpose | Audience | Content |
+|--------|---------|----------|---------|
+| **lexiro.io** | SaaS product | End-users: developers, CTOs, vendors | Landing, app, API, MCP |
+| **lexiro.dev** | Developer Hub | Developers integrating with Lexiro | Docs, blog, guides, changelog |
+
+### lexiro.io — Product (current)
+
+| URL | Content |
+|-----|---------|
+| `lexiro.io` | Marketing landing page |
+| `lexiro.io/app` | SaaS application (chat, upload, products) |
+| `lexiro.io/api/v1/...` | REST API (FastAPI) |
+| `lexiro.io/mcp` | MCP endpoint for Cursor/IDE |
+| `lexiro.io/pricing` | Pricing page (planned) |
+| `lexiro.io/vendors` | Vendor partnership page (planned) |
+| `lexiro.io/enterprise` | Enterprise demo booking (planned) |
+
+### lexiro.dev — Developer Hub (Phase 1: 301 → lexiro.io)
+
+| URL | Content |
+|-----|---------|
+| `lexiro.dev` | Developer Hub landing ("Build with Lexiro") |
+| `lexiro.dev/docs` | API documentation (Swagger/Redoc or custom) |
+| `lexiro.dev/docs/mcp` | MCP integration guide for Cursor |
+| `lexiro.dev/docs/api-keys` | API key management guide |
+| `lexiro.dev/blog` | Technical blog (SEO articles from [GTM_STRATEGY.md](GTM_STRATEGY.md)) |
+| `lexiro.dev/guides` | Integration guides ("Hikvision ISAPI auth", "ONVIF PTZ Python") |
+| `lexiro.dev/changelog` | Product changelog |
+| `lexiro.dev/status` | Status page (uptime monitoring) |
+| `lexiro.dev/sdk` | SDK/libraries (future) |
+
+### DNS Configuration (hb.by)
+
+`lexiro.dev` DNS managed at [hb.by](https://hb.by/):
+
+| Type | Name | Value | TTL |
+|------|------|-------|-----|
+| `A` | `@` | `82.38.66.177` | 3600 |
+| `CNAME` | `www` | `lexiro.dev` | 3600 |
+
+### SSL
+
+- `lexiro.io` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
+- `lexiro.dev` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.dev.fullchain.pem` + `lexiro.dev.key`. **HTTPS is mandatory** for `.dev` domains (HSTS preload list)
+
+### Nginx Configuration
+
+Both domains served by one nginx instance on VPS, as separate server blocks:
+
+```
+lexiro.io   →  Docker web container (React SPA + /api/ proxy to backend)
+lexiro.dev  →  Phase 1: 301 redirect → lexiro.io
+                Phase 2: static site (Docusaurus / VitePress / Astro)
+```
+
+### Rollout Timeline
+
+| Phase | When | lexiro.dev behavior |
+|-------|------|---------------------|
+| **Phase 1** ✅ | March 2026 | SSL + 301 redirect → `lexiro.io` |
+| **Phase 2** (now) | Month 1-2 | Static site with API docs + MCP guide |
+| **Phase 3** | Month 3-4 | Add blog (first SEO articles from GTM strategy) |
+| **Phase 4** | Month 6+ | Full Developer Hub: docs, blog, guides, changelog, status |
+
+CTA flow: every article on `lexiro.dev/blog` ends with **"Try Lexiro free → lexiro.io"** — content drives product signups.
+
+### Industry Examples
+
+| Product domain | Developer domain |
+|----------------|-----------------|
+| stripe.com | stripe.dev |
+| vercel.com | nextjs.dev |
+| firebase.google.com | firebase.dev |
 
 ---
 
 ## Security
 
 ### Transport
-- **HTTPS only** in production (TLS 1.2+)
+- **HTTPS only** in production
+- `lexiro.io` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
+- `lexiro.dev` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.dev.fullchain.pem` + `lexiro.dev.key`, HTTPS mandatory (`.dev` is in HSTS preload list)
+- TLS 1.2 + TLS 1.3, HTTP/2 enabled
+- HTTP → HTTPS redirect (301) for all requests
+- HSTS: `max-age=63072000; includeSubDomains; preload`
 - HTTP allowed only in development (`APP_ENV=development`)
-- HSTS headers in production
 
 ### CORS
 - Configurable `CORS_ORIGINS` via env variable
-- Production: only `https://app.ipcodex.dev` and customer domains
+- Production: `https://lexiro.io`, `https://lexiro.dev`, and customer domains
 - Credentials mode: `allow_credentials=True` (for JWT cookies)
 
 ### Input Validation
@@ -435,7 +542,31 @@ Beat runs as a **separate container** (`beat` service) — no longer embedded in
 beat_schedule = {
     "cleanup-expired-uploads": {
         "task": "app.celery_app.cleanup_expired_uploads",
-        "schedule": crontab(minute=0),   # every hour
+        "schedule": 3600,                 # every hour
+    },
+    "queue-status-snapshot": {
+        "task": "app.celery_app.queue_status_snapshot",
+        "schedule": 30,                   # every 30 seconds
+    },
+    "check-stale-reindex-jobs": {
+        "task": "app.celery_app.check_stale_reindex_jobs",
+        "schedule": 60,                   # every minute
+    },
+    "check-stale-documents": {
+        "task": "app.celery_app.check_stale_documents",
+        "schedule": 120,                  # every 2 minutes
+    },
+    "ensure-usage-partitions": {
+        "task": "app.celery_app.ensure_usage_partitions",
+        "schedule": 86400,                # daily
+    },
+    "cleanup-expired-shares": {
+        "task": "app.celery_app.cleanup_expired_shares",
+        "schedule": 86400,                # daily
+    },
+    "s3-health-probe": {
+        "task": "app.celery_app.s3_health_probe",
+        "schedule": 60,                   # every minute
     },
 }
 ```
@@ -456,7 +587,7 @@ beat_schedule = {
 
 ## Testing Strategy
 
-### Test Inventory (42 test files)
+### Test Inventory (64 test files)
 
 ```
          ╱╲
@@ -464,8 +595,10 @@ beat_schedule = {
        ╱────────╲
       ╱Integration╲      13 files: PostgreSQL + pgvector via Testcontainers
      ╱──────────────╲
-    ╱   Unit Tests    ╲   28 files: mocked dependencies, fast execution
+    ╱   Unit Tests    ╲   39 files: mocked dependencies, fast execution
    ╱────────────────────╲
+  ╱  Frontend Tests (11)  ╲  7 Vitest unit + 4 Playwright e2e
+ ╱──────────────────────────╲
 ```
 
 ### Unit Tests (~28 files)
@@ -515,39 +648,39 @@ pytest tests/integration/ -v        # integration (requires Docker)
 
 ---
 
-## CI/CD Pipeline
+## CI/CD Pipeline (Planned)
+
+> **Note**: GitHub Actions workflows are not yet implemented (`.github/` directory does not exist). Currently, deployment is manual via SSH commands (see [Deploy Commands](#deploy-commands) above).
+
+Planned pipeline:
 
 ```
   Push to branch
        │
        ▼
-  GitHub Actions (or GitLab CI)
+  GitHub Actions
        │
        ├─ Lint: ruff check + ruff format --check
        ├─ Type check: mypy
-       ├─ Unit tests: pytest tests/unit/ (fast, no external deps)
+       ├─ Unit tests: pytest tests/unit/ (fast, no Docker)
        │
        ▼ (parallel)
        ├─ Integration tests: pytest tests/integration/
-       │    (testcontainers: PostgreSQL + Redis)
+       │    (testcontainers: PostgreSQL + pgvector)
        │
        ▼ (on main branch merge)
-       ├─ Build Docker image → push to registry (GHCR / ECR)
-       ├─ E2E tests against staging
+       ├─ Build Docker images on VPS (via SSH)
+       ├─ Restart services
        │
-       ▼ (manual approval for production)
-       └─ Deploy to production (rolling update)
-           ├─ Run Alembic migrations
-           ├─ Deploy API + Worker + Beat
-           ├─ Health check verification
-           └─ Notify Slack / email
+       ▼
+       └─ Health check verification
 ```
 
 ---
 
 ## Logging & Observability
 
-Monitoring is fully implemented using **Grafana + Loki + Promtail** (log-based, not metrics-based).
+Monitoring is fully implemented using **Grafana + Loki + Promtail** (log-based) and **Prometheus + Node Exporter + cAdvisor** (metrics-based).
 
 Full details: [MONITORING.md](MONITORING.md) — dashboards, alert rules, structured logging, Promtail config.
 

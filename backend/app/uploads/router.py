@@ -21,13 +21,14 @@ from datetime import datetime, timedelta, timezone
 
 import redis as redis_lib
 from resumablesha256 import sha256 as resumable_sha256
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 
+from app.auth.dependencies import get_current_tenant
 from app.config import settings
 from app.database import async_session
 from app.documents.archive import SUPPORTED_ARCHIVE_EXTENSIONS, _archive_ext
-from app.models import Document, UploadSession
+from app.models import Document, Tenant, UploadSession
 from app.s3 import (
     abort_multipart_upload,
     complete_multipart_upload,
@@ -100,7 +101,7 @@ async def tus_options():
 
 
 @router.post("/")
-async def tus_create(request: Request):
+async def tus_create(request: Request, tenant: Tenant = Depends(get_current_tenant)):
     """Create a new upload session (TUS Creation extension)."""
     upload_length = request.headers.get("Upload-Length")
     if upload_length is None:
@@ -150,6 +151,7 @@ async def tus_create(request: Request):
 
         upload_session = UploadSession(
             id=upload_id,
+            tenant_id=tenant.id,
             filename=filename,
             file_size=file_size,
             offset=0,
@@ -173,7 +175,9 @@ async def tus_create(request: Request):
     ttl_seconds = settings.tus_upload_ttl_hours * 3600
     r.set(_redis_offset_key(upload_id), 0, ex=ttl_seconds)
 
-    location = f"{request.base_url}api/v1/uploads/{upload_id}"
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("host", request.url.netloc)
+    location = f"{proto}://{host}/api/v1/uploads/{upload_id}"
     headers = {
         **_tus_headers(),
         "Location": location,
@@ -198,17 +202,6 @@ async def tus_create(request: Request):
 @router.head("/{upload_id}")
 async def tus_head(upload_id: str):
     """Get current upload offset (for resume after disconnect)."""
-    r = _get_redis()
-    cached_offset = r.get(_redis_offset_key(upload_id))
-
-    if cached_offset is not None:
-        headers = {
-            **_tus_headers(),
-            "Upload-Offset": cached_offset,
-            "Cache-Control": "no-store",
-        }
-        return Response(status_code=200, headers=headers)
-
     async with async_session() as session:
         us = await session.get(UploadSession, upload_id)
         if us is None:
@@ -216,9 +209,13 @@ async def tus_head(upload_id: str):
         if us.status != "uploading":
             raise HTTPException(status_code=410, detail=f"Upload session is {us.status}")
 
+        r = _get_redis()
+        cached_offset = r.get(_redis_offset_key(upload_id))
+        offset = cached_offset if cached_offset is not None else str(us.offset)
+
         headers = {
             **_tus_headers(),
-            "Upload-Offset": str(us.offset),
+            "Upload-Offset": offset,
             "Upload-Length": str(us.file_size),
             "Cache-Control": "no-store",
         }
@@ -374,18 +371,28 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
     For archives: no Document is created for the archive itself. Instead, the
     Celery task extracts inner files and creates Documents for each one.
     """
-    from app.documents.router import _find_by_hash, _get_or_create_firmware, _get_or_create_product
+    from app.documents.router import (
+        _find_by_hash, _find_by_filename, _remove_old_document,
+        _get_or_create_product,
+    )
+
+    upload_tenant_id = us.tenant_id
 
     if us.is_archive:
+        product = await _get_or_create_product(session, us.product_name, us.manufacturer, version=us.firmware_version, tenant_id=upload_tenant_id)
+        await session.commit()
+
         from app.celery_app import ingest_archive_from_s3_task
         ingest_archive_from_s3_task.delay(
-            us.s3_key, us.filename, us.product_name,
-            us.firmware_version, us.manufacturer, us.force,
+            us.s3_key, us.filename, product.id, us.force,
+            str(upload_tenant_id) if upload_tenant_id else None,
         )
         return None
 
+    product = await _get_or_create_product(session, us.product_name, us.manufacturer, version=us.firmware_version, tenant_id=upload_tenant_id)
+
     if not us.force:
-        existing = await _find_by_hash(session, source_hash)
+        existing = await _find_by_hash(session, source_hash, product.id)
         if existing is not None:
             logger.info(
                 "TUS upload completed but duplicate found",
@@ -397,12 +404,12 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
             )
             return existing.id
 
-    product = await _get_or_create_product(session, us.product_name, us.manufacturer)
-    fw = await _get_or_create_firmware(session, product.id, us.firmware_version)
+    old_doc = await _find_by_filename(session, us.filename, product.id)
+    if old_doc is not None:
+        await _remove_old_document(session, old_doc)
 
     doc = Document(
         product_id=product.id,
-        firmware_version_id=fw.id,
         format="auto",
         original_filename=us.filename,
         file_size_bytes=us.file_size,
@@ -410,6 +417,7 @@ async def _finalize_upload(session, us: UploadSession, source_hash: str) -> int 
         status="pending",
         source_hash=source_hash,
         s3_key=us.s3_key,
+        tenant_id=upload_tenant_id,
     )
     session.add(doc)
     await session.flush()

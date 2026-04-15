@@ -10,17 +10,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingestion.chunker import ChunkData, chunk_sections
-from app.ingestion.converters.pdf import convert_pdf
+from app.ingestion.converters.docx import convert_docx
+from app.ingestion.converters.html import convert_html
+from app.ingestion.converters.pdf import convert_pdf, convert_pdf_text_only
 from app.ingestion.converters.proto import convert_proto_file
 from app.ingestion.converters.swagger import convert_swagger_file, is_swagger_file
 from app.ingestion.converters.postman import convert_postman_file, is_postman_collection
+from app.ingestion.converters.wsdl import convert_wsdl
 from app.ingestion.converters.web import convert_url
+from app.ingestion.converters.xml_doc import convert_xml_doc
 from app.ingestion.embedder import embed_texts
 from app.config import settings as _settings
 from app.ingestion.parsers.markdown import parse_markdown
 from app.ingestion.parsers.swagger import parse_swagger
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
-from app.models import Chunk, Product, Document, FirmwareVersion
+from app.models import Chunk, Product, Document
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +33,223 @@ class IngestionCancelled(Exception):
     """Raised when a document's ingestion is cancelled mid-flight."""
 
 
+def _write_ingestion_usage(document: "Document") -> None:
+    """Write usage_log records for all LLM calls made during document ingestion."""
+    import uuid
+    from app.billing.usage_writer import write_usage_log_sync
+    from app.billing.pricing import (
+        calculate_llm_cogs, calculate_llm_charge,
+        calculate_embedding_cogs, calculate_embedding_charge,
+    )
+
+    tid = str(document.tenant_id) if document.tenant_id else None
+    req_id = f"ingest-{document.id}-{uuid.uuid4().hex[:8]}"
+
+    if document.ocr_prompt_tokens or document.ocr_completion_tokens:
+        model = document.ocr_model or _settings.ocr_vision_model
+        write_usage_log_sync(
+            "ingestion", "ocr", req_id,
+            llm_provider="google", llm_model=model,
+            prompt_tokens=document.ocr_prompt_tokens,
+            completion_tokens=document.ocr_completion_tokens,
+            duration_ms=document.ocr_ms or 0,
+            cogs_usd=calculate_llm_cogs(model, document.ocr_prompt_tokens, document.ocr_completion_tokens),
+            charge_usd=calculate_llm_charge(model, document.ocr_prompt_tokens, document.ocr_completion_tokens),
+            tenant_id=tid,
+        )
+
+    if document.extract_prompt_tokens or document.extract_completion_tokens:
+        model = _settings.metadata_extraction_model
+        write_usage_log_sync(
+            "ingestion", "extract_metadata", req_id,
+            llm_provider="google", llm_model=model,
+            prompt_tokens=document.extract_prompt_tokens,
+            completion_tokens=document.extract_completion_tokens,
+            duration_ms=document.extract_ms or 0,
+            cogs_usd=calculate_llm_cogs(model, document.extract_prompt_tokens, document.extract_completion_tokens),
+            charge_usd=calculate_llm_charge(model, document.extract_prompt_tokens, document.extract_completion_tokens),
+            tenant_id=tid,
+        )
+
+    if document.embedding_tokens:
+        emb_model = document.embedding_model or _settings.embedding_model_gemini
+        write_usage_log_sync(
+            "ingestion", "embedding", req_id,
+            llm_provider="google", llm_model=emb_model,
+            prompt_tokens=document.embedding_tokens,
+            completion_tokens=0,
+            duration_ms=document.embed_ms or 0,
+            cogs_usd=calculate_embedding_cogs(emb_model, document.embedding_tokens),
+            charge_usd=calculate_embedding_charge(emb_model, document.embedding_tokens),
+            tenant_id=tid,
+        )
+
+    if document.product_keys_prompt_tokens or document.product_keys_completion_tokens:
+        model = _settings.product_resolve_model
+        write_usage_log_sync(
+            "ingestion", "product_keys", req_id,
+            llm_provider="google", llm_model=model,
+            prompt_tokens=document.product_keys_prompt_tokens,
+            completion_tokens=document.product_keys_completion_tokens,
+            duration_ms=document.product_keys_ms or 0,
+            cogs_usd=calculate_llm_cogs(model, document.product_keys_prompt_tokens, document.product_keys_completion_tokens),
+            charge_usd=calculate_llm_charge(model, document.product_keys_prompt_tokens, document.product_keys_completion_tokens),
+            tenant_id=tid,
+        )
+
+
+def _save_doc_chunk_keys_sync(session, product_id: int, document_id: int, chunk_meta_dicts: list[dict]) -> int:
+    """Extract entity keys from chunk metadata and save per-document (sync).
+
+    Deletes old chunk keys for this document, then inserts new ones.
+    """
+    from app.ingestion.product_keys_extractor import aggregate_chunk_entities
+    from sqlalchemy import text
+
+    session.execute(
+        text("DELETE FROM product_search_keys WHERE document_id = :did AND source = 'chunk'"),
+        {"did": document_id},
+    )
+
+    keys = aggregate_chunk_entities(chunk_meta_dicts)
+    count = 0
+    for key in keys:
+        key = key.strip()
+        if not key:
+            continue
+        session.execute(
+            text("""
+                INSERT INTO product_search_keys (product_id, document_id, key, source)
+                VALUES (:pid, :did, :key, 'chunk')
+                ON CONFLICT (product_id, document_id, key) DO NOTHING
+            """),
+            {"pid": product_id, "did": document_id, "key": key},
+        )
+        count += 1
+    session.flush()
+    return count
+
+
+async def _save_doc_chunk_keys_async(session, product_id: int, document_id: int, chunk_meta_dicts: list[dict]) -> int:
+    """Extract entity keys from chunk metadata and save per-document (async).
+
+    Deletes old chunk keys for this document, then inserts new ones.
+    """
+    from app.ingestion.product_keys_extractor import aggregate_chunk_entities
+    from sqlalchemy import text
+
+    await session.execute(
+        text("DELETE FROM product_search_keys WHERE document_id = :did AND source = 'chunk'"),
+        {"did": document_id},
+    )
+
+    keys = aggregate_chunk_entities(chunk_meta_dicts)
+    count = 0
+    for key in keys:
+        key = key.strip()
+        if not key:
+            continue
+        await session.execute(
+            text("""
+                INSERT INTO product_search_keys (product_id, document_id, key, source)
+                VALUES (:pid, :did, :key, 'chunk')
+                ON CONFLICT (product_id, document_id, key) DO NOTHING
+            """),
+            {"pid": product_id, "did": document_id, "key": key},
+        )
+        count += 1
+    await session.flush()
+    return count
+
+
+def _save_llm_keys_sync(session, product_id: int, keys: list[str]) -> int:
+    """Save LLM-generated keys for a product (document_id=NULL, sync).
+
+    Uses DELETE+INSERT pattern to avoid NULL-aware ON CONFLICT issues.
+    Deduplicates keys case-insensitively before inserting.
+    """
+    from sqlalchemy import text
+    session.execute(
+        text("DELETE FROM product_search_keys WHERE product_id = :pid AND source = 'llm' AND document_id IS NULL"),
+        {"pid": product_id},
+    )
+    seen: set[str] = set()
+    count = 0
+    for key in keys:
+        key = key.strip()
+        if not key or key.lower() in seen:
+            continue
+        seen.add(key.lower())
+        session.execute(
+            text("""
+                INSERT INTO product_search_keys (product_id, document_id, key, source)
+                VALUES (:pid, NULL, :key, 'llm')
+            """),
+            {"pid": product_id, "key": key},
+        )
+        count += 1
+    session.flush()
+    return count
+
+
+async def _save_llm_keys_async(session, product_id: int, keys: list[str]) -> int:
+    """Save LLM-generated keys for a product (document_id=NULL, async).
+
+    Uses DELETE+INSERT pattern to avoid NULL-aware ON CONFLICT issues.
+    Deduplicates keys case-insensitively before inserting.
+    """
+    from sqlalchemy import text
+    await session.execute(
+        text("DELETE FROM product_search_keys WHERE product_id = :pid AND source = 'llm' AND document_id IS NULL"),
+        {"pid": product_id},
+    )
+    seen: set[str] = set()
+    count = 0
+    for key in keys:
+        key = key.strip()
+        if not key or key.lower() in seen:
+            continue
+        seen.add(key.lower())
+        await session.execute(
+            text("""
+                INSERT INTO product_search_keys (product_id, document_id, key, source)
+                VALUES (:pid, NULL, :key, 'llm')
+            """),
+            {"pid": product_id, "key": key},
+        )
+        count += 1
+    await session.flush()
+    return count
+
+
+def _has_llm_keys_sync(session, product_id: int) -> bool:
+    from sqlalchemy import text
+    row = session.execute(
+        text("SELECT 1 FROM product_search_keys WHERE product_id = :pid AND source = 'llm' LIMIT 1"),
+        {"pid": product_id},
+    ).first()
+    return row is not None
+
+
+async def _has_llm_keys_async(session, product_id: int) -> bool:
+    from sqlalchemy import text
+    row = (await session.execute(
+        text("SELECT 1 FROM product_search_keys WHERE product_id = :pid AND source = 'llm' LIMIT 1"),
+        {"pid": product_id},
+    )).first()
+    return row is not None
+
+
 def _embedding_model_name() -> str:
     return _settings.embedding_model_gemini
 
 
-MAX_EMBEDDING_TOKENS = 500
+def _get_embedding_max_tokens() -> int:
+    val = _settings.embedding_max_tokens
+    if val and val > 0:
+        return val
+    return _settings.chunk_max_tokens + 256
+
 
 def enrich_for_embedding(
     chunks: list[ChunkData],
@@ -46,10 +262,11 @@ def enrich_for_embedding(
     2. Prepend heading hierarchy.
     3. Prepend doc_type and flattened entities (if metadata is available).
 
-    Warns and truncates if enriched text exceeds model max_seq_length.
+    Truncates if enriched text exceeds the configured embedding token limit.
     """
     from app.ingestion.chunker import _estimate_tokens
 
+    max_tokens = _get_embedding_max_tokens()
     enriched: list[str] = []
     for idx, c in enumerate(chunks):
         cleaned = _clean_md(c.content)
@@ -75,22 +292,40 @@ def enrich_for_embedding(
         text = heading_prefix + cleaned
 
         token_count = _estimate_tokens(text)
-        if token_count > MAX_EMBEDDING_TOKENS:
-            logger.warning(
-                "Enriched text exceeds embedding model limit, truncating",
+        if token_count > max_tokens:
+            logger.debug(
+                "Enriched text exceeds embedding token limit, truncating",
                 extra={
                     "heading_path": c.heading_path,
                     "token_count": token_count,
-                    "max_tokens": MAX_EMBEDDING_TOKENS,
+                    "max_tokens": max_tokens,
                 },
             )
             prefix_tokens = _estimate_tokens(heading_prefix) if heading_prefix else 0
-            content_budget = max(1, int((MAX_EMBEDDING_TOKENS - prefix_tokens) / 1.3))
+            content_budget = max(1, int((max_tokens - prefix_tokens) / 1.3))
             words = cleaned.split()
             text = heading_prefix + " ".join(words[:content_budget])
 
         enriched.append(text)
     return enriched
+
+
+def _prepend_context_header(sections: list, fm) -> None:
+    """Prepend ``[layer] topic >`` to heading_path of each section when front matter is available."""
+    prefix_parts: list[str] = []
+    if fm.layer:
+        prefix_parts.append(f"[{fm.layer}]")
+    if fm.topic:
+        prefix_parts.append(fm.topic)
+    if not prefix_parts:
+        return
+    prefix = " ".join(prefix_parts)
+    for s in sections:
+        hp = getattr(s, "heading_path", "")
+        if hp and hp not in ("Preamble", "Document"):
+            s.heading_path = f"{prefix} > {hp}"
+        elif hp in ("Preamble", "Document"):
+            s.heading_path = prefix
 
 
 def _replace_generic_headings(sections: list, title: str) -> list:
@@ -133,22 +368,34 @@ def _file_hash(path: str) -> str:
     return h.hexdigest()
 
 
-def detect_format(file_path: str) -> str:
-    """Auto-detect document format by extension and content."""
+def detect_format(file_path: str, content_path: str | None = None) -> str:
+    """Auto-detect document format by extension and content.
+
+    ``file_path`` is used for its extension.  ``content_path``, when given,
+    is the actual file on disk whose bytes will be inspected (e.g. the temp
+    file downloaded from S3).  When omitted, *file_path* is used for both.
+    """
     ext = os.path.splitext(file_path)[1].lower()
+    probe = content_path or file_path
 
     if ext in (".md", ".txt"):
         return "markdown"
+    if ext in (".html", ".htm"):
+        return "html"
     if ext == ".pdf":
         return "pdf"
+    if ext == ".docx":
+        return "docx"
     if ext == ".proto":
         return "proto"
-    if ext in (".wsdl", ".xml"):
+    if ext == ".wsdl":
+        return "wsdl"
+    if ext == ".xml":
         return "markdown"
     if ext in (".yaml", ".yml", ".json"):
-        if ext == ".json" and is_postman_collection(file_path):
+        if ext == ".json" and is_postman_collection(probe):
             return "postman"
-        if is_swagger_file(file_path):
+        if is_swagger_file(probe):
             return "swagger"
         if ext == ".json":
             return "markdown"
@@ -158,8 +405,9 @@ def detect_format(file_path: str) -> str:
 
 
 def _parse_content(text: str, fmt: str, file_path: str):
+    """Parse text into sections. Returns (sections, front_matter | None)."""
     if fmt == "swagger":
-        return parse_swagger(text, file_path)
+        return parse_swagger(text, file_path), None
     return parse_markdown(text)
 
 
@@ -255,6 +503,42 @@ async def ingest_file(
             )
             return {"status": "error", "error": f"Proto conversion failed: {e}"}
         fmt_effective = "markdown"
+    elif fmt == "wsdl":
+        try:
+            text, convert_metadata = convert_wsdl(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            logger.error(
+                "WSDL conversion failed",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
+            return {"status": "error", "error": f"WSDL conversion failed: {e}"}
+        fmt_effective = "markdown"
+    elif fmt == "docx":
+        try:
+            text, convert_metadata = convert_docx(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            logger.error(
+                "DOCX conversion failed",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
+            return {"status": "error", "error": f"DOCX conversion failed: {e}"}
+        fmt_effective = "markdown"
+    elif fmt == "html":
+        try:
+            text, convert_metadata = convert_html(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            logger.error(
+                "HTML conversion failed",
+                extra={"file_path": file_path, "error_type": type(e).__name__},
+                exc_info=True,
+            )
+            return {"status": "error", "error": f"HTML conversion failed: {e}"}
+        fmt_effective = "markdown"
     else:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -272,13 +556,11 @@ async def ingest_file(
 
     source_hash = _file_hash(file_path)
 
-    product = await _get_or_create_product(session, product_name, manufacturer)
-    fw = await _get_or_create_firmware(session, product.id, firmware_version)
+    product = await _get_or_create_product(session, product_name, manufacturer, version=firmware_version)
 
     existing = await session.execute(
         select(Document).where(
             Document.product_id == product.id,
-            Document.firmware_version_id == fw.id,
             Document.source_hash == source_hash,
         )
     )
@@ -305,7 +587,6 @@ async def ingest_file(
     title = os.path.splitext(os.path.basename(file_path))[0]
     doc = Document(
         product_id=product.id,
-        firmware_version_id=fw.id,
         format=fmt,
         source_path=file_path,
         source_hash=source_hash,
@@ -316,9 +597,16 @@ async def ingest_file(
     await session.flush()
 
     try:
+        from app.ingestion.lang_detect import detect_language
+        doc_language = detect_language(text)
+        if not doc.detected_language:
+            doc.detected_language = doc_language
+
         t_parse = time.perf_counter()
-        sections = _parse_content(text, fmt_effective, file_path)
+        sections, front_matter = _parse_content(text, fmt_effective, file_path)
         _replace_generic_headings(sections, title)
+        if front_matter and front_matter.topic:
+            _prepend_context_header(sections, front_matter)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -339,6 +627,7 @@ async def ingest_file(
             extra={
                 "sections": len(sections), "chunks": len(chunks),
                 "parse_ms": parse_ms, "read_ms": read_ms,
+                "front_matter": bool(front_matter),
             },
         )
 
@@ -353,8 +642,13 @@ async def ingest_file(
 
         t_embed = time.perf_counter()
         enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
-        embeddings = embed_texts(enriched)
+        embeddings, embedding_api_tokens = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
+
+        fm_layer = front_matter.layer if front_matter else None
+        fm_topic = front_matter.topic if front_matter else None
+        fm_doc_number = front_matter.doc_number if front_matter else None
+        fm_related = front_matter.related_docs if front_matter else None
 
         t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
@@ -371,6 +665,11 @@ async def ingest_file(
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
+                language=doc_language,
+                layer=fm_layer,
+                topic=fm_topic,
+                doc_number=fm_doc_number,
+                related_docs=fm_related,
             )
             session.add(db_chunk)
 
@@ -382,10 +681,32 @@ async def ingest_file(
         doc.min_chunk_tokens = min(token_counts)
         doc.max_chunk_tokens = max(token_counts)
         doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
-        doc.embedding_tokens = sum(token_counts)
+        doc.embedding_tokens = embedding_api_tokens or sum(token_counts)
 
         await session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+        from app.ingestion.product_keys_extractor import generate_product_keys_async
+        chunk_key_count = await _save_doc_chunk_keys_async(
+            session, product.id, doc.id, chunk_meta_dicts,
+        )
+        logger.info("Document chunk keys saved", extra={
+            "product_id": product.id, "document_id": doc.id,
+            "key_count": chunk_key_count,
+        })
+
+        if _settings.product_keys_extraction_enabled and not await _has_llm_keys_async(session, product.id):
+            keys_result = await generate_product_keys_async(
+                name=product.name,
+                manufacturer=product.manufacturer,
+                model=product.model,
+                category=product.category,
+            )
+            if keys_result.keys:
+                await _save_llm_keys_async(session, product.id, keys_result.keys)
+            doc.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
+            doc.product_keys_completion_tokens = keys_result.usage.completion_tokens
+            doc.product_keys_ms = keys_result.usage.extract_ms
 
         duration = time.perf_counter() - t0
         doc.ingest_duration_ms = round(duration * 1000, 1)
@@ -408,6 +729,9 @@ async def ingest_file(
             doc.ocr_images_success = ocr_stats.get("ocr_images_success")
             doc.ocr_images_empty = ocr_stats.get("ocr_images_empty")
             doc.ocr_images_failed = ocr_stats.get("ocr_images_failed")
+            doc.ocr_prompt_tokens = ocr_stats.get("ocr_prompt_tokens", 0)
+            doc.ocr_completion_tokens = ocr_stats.get("ocr_completion_tokens", 0)
+            doc.ocr_model = _settings.ocr_vision_model
 
         await session.commit()
 
@@ -490,13 +814,11 @@ async def ingest_url(
 
     source_hash = _text_hash(text)
 
-    product = await _get_or_create_product(session, product_name, manufacturer)
-    fw = await _get_or_create_firmware(session, product.id, firmware_version)
+    product = await _get_or_create_product(session, product_name, manufacturer, version=firmware_version)
 
     existing = await session.execute(
         select(Document).where(
             Document.product_id == product.id,
-            Document.firmware_version_id == fw.id,
             Document.source_hash == source_hash,
         )
     )
@@ -523,7 +845,6 @@ async def ingest_url(
     title = convert_metadata.get("page_title") or convert_metadata.get("api_title") or url
     doc = Document(
         product_id=product.id,
-        firmware_version_id=fw.id,
         format="url",
         source_path=url,
         source_hash=source_hash,
@@ -536,8 +857,10 @@ async def ingest_url(
 
     try:
         t_parse = time.perf_counter()
-        sections = parse_markdown(text)
+        sections, front_matter = parse_markdown(text)
         _replace_generic_headings(sections, title)
+        if front_matter and front_matter.topic:
+            _prepend_context_header(sections, front_matter)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -564,8 +887,13 @@ async def ingest_url(
 
         t_embed = time.perf_counter()
         enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
-        embeddings = embed_texts(enriched)
+        embeddings, embedding_api_tokens = embed_texts(enriched)
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
+
+        fm_layer = front_matter.layer if front_matter else None
+        fm_topic = front_matter.topic if front_matter else None
+        fm_doc_number = front_matter.doc_number if front_matter else None
+        fm_related = front_matter.related_docs if front_matter else None
 
         t_db = time.perf_counter()
         for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
@@ -582,6 +910,10 @@ async def ingest_url(
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
+                layer=fm_layer,
+                topic=fm_topic,
+                doc_number=fm_doc_number,
+                related_docs=fm_related,
             )
             session.add(db_chunk)
 
@@ -593,10 +925,32 @@ async def ingest_url(
         doc.min_chunk_tokens = min(token_counts)
         doc.max_chunk_tokens = max(token_counts)
         doc.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
-        doc.embedding_tokens = sum(token_counts)
+        doc.embedding_tokens = embedding_api_tokens or sum(token_counts)
 
         await session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
+
+        from app.ingestion.product_keys_extractor import generate_product_keys_async as _gen_url
+        chunk_key_count = await _save_doc_chunk_keys_async(
+            session, product.id, doc.id, chunk_meta_dicts,
+        )
+        logger.info("Document chunk keys saved", extra={
+            "product_id": product.id, "document_id": doc.id,
+            "key_count": chunk_key_count,
+        })
+
+        if _settings.product_keys_extraction_enabled and not await _has_llm_keys_async(session, product.id):
+            keys_result = await _gen_url(
+                name=product.name,
+                manufacturer=product.manufacturer,
+                model=product.model,
+                category=product.category,
+            )
+            if keys_result.keys:
+                await _save_llm_keys_async(session, product.id, keys_result.keys)
+            doc.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
+            doc.product_keys_completion_tokens = keys_result.usage.completion_tokens
+            doc.product_keys_ms = keys_result.usage.extract_ms
 
         duration = time.perf_counter() - t0
         doc.ingest_duration_ms = round(duration * 1000, 1)
@@ -673,9 +1027,12 @@ def _update_progress(session, document: "Document", percent: int, stage: str) ->
     """Persist ingestion progress so the UI can poll it.
 
     Throttled to commit at most once per second, unless the stage changes.
+    Also updates progress_updated_at so stale-detection knows the task is alive.
     """
+    from datetime import datetime, timezone
     document.progress_percent = percent
     document.progress_stage = stage
+    document.progress_updated_at = datetime.now(timezone.utc)
     if _progress_throttle.should_commit(stage):
         session.commit()
 
@@ -703,7 +1060,7 @@ def ingest_from_bytes(
     t0 = time.perf_counter()
     fmt = document.format
     if fmt == "auto":
-        fmt = detect_format(original_filename) if original_filename else detect_format(file_path)
+        fmt = detect_format(original_filename, content_path=file_path) if original_filename else detect_format(file_path)
         document.format = fmt
 
     logger.info(
@@ -722,25 +1079,46 @@ def ingest_from_bytes(
     convert_ms = 0.0
     convert_metadata: dict = {}
 
+    _ocr_image_dicts: list[dict] | None = None
+
     t_read = time.perf_counter()
     if fmt == "pdf":
+
+        def _pdf_convert_progress(frac: float, stage: str) -> None:
+            _update_progress(session, document, 5 + int(frac * 40), stage)
+
         try:
-
-            def _pdf_convert_progress(frac: float, stage: str) -> None:
-                _update_progress(session, document, 5 + int(frac * 40), stage)
-
-            text, convert_metadata = convert_pdf(
+            text, convert_metadata, ocr_images = convert_pdf_text_only(
                 file_path,
+                document_id=document.id,
                 progress_callback=_pdf_convert_progress,
             )
             convert_ms = convert_metadata.get("convert_ms", 0.0)
-        except Exception as e:
-            document.status = "error"
-            document.error_message = f"PDF conversion failed: {e}"
-            document.progress_percent = 0
-            document.progress_stage = ""
-            session.commit()
-            return {"status": "error", "error": str(e)}
+            if ocr_images:
+                _ocr_image_dicts = [
+                    {"seq": img.seq, "page": img.page, "xref": img.xref,
+                     "width": img.width, "height": img.height}
+                    for img in ocr_images
+                ]
+        except Exception as text_only_err:
+            logger.warning(
+                "convert_pdf_text_only failed, falling back to legacy convert_pdf",
+                extra={"document_id": document.id, "error": str(text_only_err)[:300]},
+                exc_info=True,
+            )
+            try:
+                text, convert_metadata = convert_pdf(
+                    file_path,
+                    progress_callback=_pdf_convert_progress,
+                )
+                convert_ms = convert_metadata.get("convert_ms", 0.0)
+            except Exception as legacy_err:
+                document.status = "error"
+                document.error_message = f"PDF conversion failed: {legacy_err}"
+                document.progress_percent = 0
+                document.progress_stage = ""
+                session.commit()
+                return {"status": "error", "error": str(legacy_err)}
         fmt_effective = "markdown"
     elif fmt == "swagger":
         try:
@@ -778,6 +1156,54 @@ def ingest_from_bytes(
             session.commit()
             return {"status": "error", "error": str(e)}
         fmt_effective = "markdown"
+    elif fmt == "wsdl":
+        try:
+            text, convert_metadata = convert_wsdl(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"WSDL conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
+    elif fmt == "xml":
+        try:
+            text, convert_metadata = convert_xml_doc(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"XML conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
+    elif fmt == "docx":
+        try:
+            text, convert_metadata = convert_docx(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"DOCX conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
+    elif fmt == "html":
+        try:
+            text, convert_metadata = convert_html(file_path)
+            convert_ms = convert_metadata.get("total_ms", 0.0)
+        except Exception as e:
+            document.status = "error"
+            document.error_message = f"HTML conversion failed: {e}"
+            document.progress_percent = 0
+            document.progress_stage = ""
+            session.commit()
+            return {"status": "error", "error": str(e)}
+        fmt_effective = "markdown"
     else:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -793,7 +1219,7 @@ def ingest_from_bytes(
 
     read_ms = round((time.perf_counter() - t_read) * 1000, 1)
 
-    if fmt in ("pdf", "swagger", "postman", "proto"):
+    if fmt in ("pdf", "swagger", "postman", "proto", "wsdl", "xml", "html"):
         try:
             from app.s3 import upload_file as _s3_upload
             converted_key = f"documents/{document.id}/converted.md"
@@ -803,14 +1229,21 @@ def ingest_from_bytes(
         except Exception:
             logger.warning("Failed to save converted MD to S3", extra={"document_id": document.id}, exc_info=True)
 
+    from app.ingestion.lang_detect import detect_language
+    doc_language = detect_language(text)
+    if not document.detected_language:
+        document.detected_language = doc_language
+
     _check_cancelled(session, document)
     _update_progress(session, document, 45, "chunking")
 
     try:
         t_parse = time.perf_counter()
-        sections = _parse_content(text, fmt_effective, file_path)
+        sections, front_matter = _parse_content(text, fmt_effective, file_path)
         doc_title = document.title or os.path.splitext(os.path.basename(original_filename or file_path))[0]
         _replace_generic_headings(sections, doc_title)
+        if front_matter and front_matter.topic:
+            _prepend_context_header(sections, front_matter)
         chunks = chunk_sections(sections)
         parse_ms = round((time.perf_counter() - t_parse) * 1000, 1)
 
@@ -829,7 +1262,10 @@ def ingest_from_bytes(
 
         from app.ingestion.metadata_extractor import extract_metadata_batch_sync
         extraction_result = extract_metadata_batch_sync(
-            [c.content for c in chunks]
+            [c.content for c in chunks],
+            progress_callback=lambda pct: _update_progress(
+                session, document, 50 + int(pct * 5), "extracting_metadata",
+            ),
         )
         chunk_meta_dicts = [
             {"doc_type": m.doc_type, "entities": m.entities}
@@ -841,7 +1277,7 @@ def ingest_from_bytes(
 
         t_embed = time.perf_counter()
         enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
-        embeddings = embed_texts(
+        embeddings, embedding_api_tokens = embed_texts(
             enriched,
             progress_callback=lambda pct: _update_progress(
                 session, document, 55 + int(pct * 37), "embedding",
@@ -850,7 +1286,40 @@ def ingest_from_bytes(
         embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
 
         _check_cancelled(session, document)
+        _update_progress(session, document, 90, "product_keys")
+
+        from app.ingestion.product_keys_extractor import generate_product_keys_sync
+
+        chunk_key_count = _save_doc_chunk_keys_sync(
+            session, document.product_id, document.id, chunk_meta_dicts,
+        )
+        logger.info("Document chunk keys saved", extra={
+            "product_id": document.product_id, "document_id": document.id,
+            "key_count": chunk_key_count,
+        })
+
+        if _settings.product_keys_extraction_enabled and not _has_llm_keys_sync(session, document.product_id):
+            product_obj = session.get(Product, document.product_id)
+            if product_obj:
+                keys_result = generate_product_keys_sync(
+                    name=product_obj.name,
+                    manufacturer=product_obj.manufacturer,
+                    model=product_obj.model,
+                    category=product_obj.category,
+                )
+                if keys_result.keys:
+                    _save_llm_keys_sync(session, document.product_id, keys_result.keys)
+                document.product_keys_prompt_tokens = keys_result.usage.prompt_tokens
+                document.product_keys_completion_tokens = keys_result.usage.completion_tokens
+                document.product_keys_ms = keys_result.usage.extract_ms
+
+        _check_cancelled(session, document)
         _update_progress(session, document, 92, "storing")
+
+        fm_layer = front_matter.layer if front_matter else None
+        fm_topic = front_matter.topic if front_matter else None
+        fm_doc_number = front_matter.doc_number if front_matter else None
+        fm_related = front_matter.related_docs if front_matter else None
 
         t_db = time.perf_counter()
         from sqlalchemy import select as sa_select
@@ -875,6 +1344,11 @@ def ingest_from_bytes(
                 embedding=embedding,
                 doc_type=meta.get("doc_type", "other"),
                 entities=meta.get("entities", {}),
+                language=doc_language,
+                layer=fm_layer,
+                topic=fm_topic,
+                doc_number=fm_doc_number,
+                related_docs=fm_related,
             )
             session.add(db_chunk)
 
@@ -889,7 +1363,7 @@ def ingest_from_bytes(
         document.min_chunk_tokens = min(token_counts)
         document.max_chunk_tokens = max(token_counts)
         document.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
-        document.embedding_tokens = sum(token_counts)
+        document.embedding_tokens = embedding_api_tokens or sum(token_counts)
 
         session.flush()
         db_ms = round((time.perf_counter() - t_db) * 1000, 1)
@@ -915,11 +1389,31 @@ def ingest_from_bytes(
             document.ocr_images_success = ocr_stats.get("ocr_images_success")
             document.ocr_images_empty = ocr_stats.get("ocr_images_empty")
             document.ocr_images_failed = ocr_stats.get("ocr_images_failed")
+            document.ocr_prompt_tokens = ocr_stats.get("ocr_prompt_tokens", 0)
+            document.ocr_completion_tokens = ocr_stats.get("ocr_completion_tokens", 0)
+            document.ocr_model = _settings.ocr_vision_model
 
         if convert_metadata.get("ocr_error"):
             document.error_message = f"OCR failed: {convert_metadata['ocr_error']}"
 
+        if _ocr_image_dicts:
+            document.ocr_status = "pending"
+            document.ocr_images_total = len(_ocr_image_dicts)
+            document.ocr_progress_percent = 0
+            document.ocr_image_dicts = _ocr_image_dicts
+
         session.commit()
+
+        _write_ingestion_usage(document)
+
+        if _ocr_image_dicts:
+            from app.celery_app import ocr_pdf_images_task
+            ocr_task = ocr_pdf_images_task.delay(document.id, _ocr_image_dicts)
+            document.ocr_task_id = ocr_task.id
+            session.commit()
+            logger.info("Dispatched async OCR task",
+                        extra={"document_id": document.id, "ocr_task_id": ocr_task.id,
+                               "ocr_images": len(_ocr_image_dicts)})
 
         logger.info(
             "Worker ingestion completed",
@@ -935,7 +1429,8 @@ def ingest_from_bytes(
                 "db_ms": db_ms,
                 "format": fmt,
                 "file_size_bytes": document.file_size_bytes,
-                "ocr_applied": convert_metadata.get("ocr_applied", False),
+                "ocr_deferred": bool(_ocr_image_dicts),
+                "ocr_images_count": len(_ocr_image_dicts) if _ocr_image_dicts else 0,
             },
         )
         result = {
@@ -958,46 +1453,133 @@ def ingest_from_bytes(
         return {"status": "error", "error": str(e), "document_id": document.id}
 
 
-async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str) -> Product:
-    from app.slugify import slugify
+def reingest_from_converted_md(session, document: "Document") -> dict:
+    """Re-chunk and re-embed a document from its converted.md in S3.
 
+    Used after OCR merges text into existing converted.md.
+    Does NOT re-convert the source file — only parse/chunk/embed from markdown.
+
+    Uses pg_advisory_xact_lock to prevent concurrent reingest on the same document.
+    """
+    from app.s3 import download_file as _s3_download
+    from sqlalchemy import text as sa_text
+
+    t0 = time.perf_counter()
+
+    if not document.converted_s3_key:
+        return {"status": "error", "error": "no_converted_s3_key"}
+
+    # Advisory lock scoped to transaction: prevents concurrent reingest of same doc.
+    # pg_advisory_xact_lock takes two int4 args: (namespace, document_id).
+    # Namespace 0x4F4352 ('OCR') avoids collisions with other advisory locks.
+    session.execute(
+        sa_text("SELECT pg_advisory_xact_lock(:ns, :doc_id)"),
+        {"ns": 0x4F4352, "doc_id": document.id},
+    )
+
+    text = _s3_download(document.converted_s3_key).decode("utf-8")
+
+    from app.ingestion.lang_detect import detect_language
+    doc_language = detect_language(text)
+    if not document.detected_language:
+        document.detected_language = doc_language
+
+    sections, front_matter = _parse_content(text, "markdown", document.original_filename or "doc.md")
+    doc_title = document.title or os.path.splitext(os.path.basename(document.original_filename or "doc.md"))[0]
+    _replace_generic_headings(sections, doc_title)
+    if front_matter and front_matter.topic:
+        _prepend_context_header(sections, front_matter)
+    chunks = chunk_sections(sections)
+
+    if not chunks:
+        return {"status": "error", "error": "No content extracted on re-ingest"}
+
+    from app.ingestion.metadata_extractor import extract_metadata_batch_sync
+    extraction_result = extract_metadata_batch_sync([c.content for c in chunks])
+    chunk_meta_dicts = [
+        {"doc_type": m.doc_type, "entities": m.entities}
+        for m in extraction_result.metadata
+    ]
+
+    enriched = enrich_for_embedding(chunks, chunk_metadata=chunk_meta_dicts)
+    embeddings, embedding_api_tokens = embed_texts(enriched)
+
+    from sqlalchemy import select as sa_select
+    existing_chunks = session.execute(
+        sa_select(Chunk).where(Chunk.document_id == document.id)
+    ).scalars().all()
+    for c in existing_chunks:
+        session.delete(c)
+    session.flush()
+
+    fm_layer = front_matter.layer if front_matter else None
+    fm_topic = front_matter.topic if front_matter else None
+    fm_doc_number = front_matter.doc_number if front_matter else None
+    fm_related = front_matter.related_docs if front_matter else None
+
+    for i, (chunk_data, embedding) in enumerate(zip(chunks, embeddings)):
+        meta = chunk_meta_dicts[i] if i < len(chunk_meta_dicts) else {}
+        db_chunk = Chunk(
+            document_id=document.id,
+            chunk_index=i,
+            heading_path=chunk_data.heading_path,
+            heading_level=chunk_data.heading_level,
+            content=chunk_data.content,
+            content_clean=_clean_md(chunk_data.content),
+            parent_content=chunk_data.parent_content,
+            token_count=chunk_data.token_count,
+            embedding=embedding,
+            doc_type=meta.get("doc_type", "other"),
+            entities=meta.get("entities", {}),
+            language=doc_language,
+            layer=fm_layer,
+            topic=fm_topic,
+            doc_number=fm_doc_number,
+            related_docs=fm_related,
+        )
+        session.add(db_chunk)
+
+    document.total_chunks = len(chunks)
+    token_counts = [c.token_count for c in chunks]
+    document.total_tokens = sum(token_counts)
+    document.min_chunk_tokens = min(token_counts)
+    document.max_chunk_tokens = max(token_counts)
+    document.avg_chunk_tokens = round(sum(token_counts) / len(token_counts), 1)
+    document.embedding_tokens = embedding_api_tokens or sum(token_counts)
+    document.indexed_at = datetime.now(timezone.utc)
+
+    session.commit()
+
+    duration = time.perf_counter() - t0
+    logger.info(
+        "Re-ingest from converted.md completed",
+        extra={
+            "document_id": document.id,
+            "chunks": len(chunks),
+            "duration_sec": round(duration, 2),
+        },
+    )
+    return {"status": "ok", "chunks": len(chunks), "duration_sec": round(duration, 2)}
+
+
+async def _get_or_create_product(session: AsyncSession, name: str, manufacturer: str, *, version: str = "", tenant_id=None) -> Product:
     result = await session.execute(
-        select(Product).where(Product.name == name, Product.manufacturer == manufacturer)
+        select(Product).where(Product.name == name, Product.manufacturer == manufacturer, Product.version == version)
     )
     product = result.scalar_one_or_none()
     if product:
-        if not product.slug:
-            product.slug = slugify(name)
-            product.manufacturer_slug = slugify(manufacturer) if manufacturer else "default"
-            await session.flush()
         return product
 
-    slug = slugify(name)
-    mfr_slug = slugify(manufacturer) if manufacturer else "default"
+    from app.products.utils import make_product_slug
+
     product = Product(
         name=name,
         manufacturer=manufacturer,
         model=name,
-        slug=slug,
-        manufacturer_slug=mfr_slug,
+        version=version,
+        slug=make_product_slug(manufacturer, name, version),
+        tenant_id=tenant_id,
     )
     session.add(product)
     await session.flush()
     return product
-
-
-async def _get_or_create_firmware(session: AsyncSession, product_id: int, version: str) -> FirmwareVersion:
-    result = await session.execute(
-        select(FirmwareVersion).where(
-            FirmwareVersion.product_id == product_id,
-            FirmwareVersion.version == version,
-        )
-    )
-    fw = result.scalar_one_or_none()
-    if fw:
-        return fw
-
-    fw = FirmwareVersion(product_id=product_id, version=version)
-    session.add(fw)
-    await session.flush()
-    return fw

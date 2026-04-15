@@ -8,12 +8,12 @@ interface Props {
   onCancel: () => void
   status: StreamStatus
   editValue?: string
-  onUploadClick?: () => void
 }
 
-export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }: Props) {
+export function ChatInput({ onSend, onCancel, status, editValue }: Props) {
   const { t } = useTranslation()
   const [value, setValue] = useState('')
+  const [showAttachToast, setShowAttachToast] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -55,15 +55,25 @@ export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }
     el.style.height = Math.min(el.scrollHeight, 200) + 'px'
   }
 
+  const handleAttachClick = useCallback(() => {
+    setShowAttachToast(true)
+    setTimeout(() => setShowAttachToast(false), 3000)
+  }, [])
+
   const hasText = value.trim().length > 0
   const isStreaming = status === 'streaming'
 
   return (
     <div className="chat-input-container">
       <div className="chat-input-wrapper">
-        <button className="chat-attach-btn" data-tooltip={t('input.upload')} onClick={onUploadClick}>
-          <Plus size={18} />
-        </button>
+        <div className="chat-attach-wrapper">
+          <button className="chat-attach-btn" onClick={handleAttachClick}>
+            <Plus size={18} />
+          </button>
+          {showAttachToast && (
+            <div className="chat-attach-toast">{t('input.attachComingSoon')}</div>
+          )}
+        </div>
         <textarea
           ref={textareaRef}
           className="chat-input"
@@ -74,7 +84,7 @@ export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }
           rows={1}
         />
         {isStreaming ? (
-          <button className="chat-send-btn active" onClick={onCancel} data-tooltip={t('input.stop')} data-tooltip-align="right">
+          <button className="chat-send-btn active" onClick={onCancel}>
             <Square size={16} />
           </button>
         ) : (
@@ -82,8 +92,6 @@ export function ChatInput({ onSend, onCancel, status, editValue, onUploadClick }
             className={`chat-send-btn${hasText ? ' active' : ''}`}
             onClick={handleSubmit}
             disabled={!hasText}
-            data-tooltip={t('input.send')}
-            data-tooltip-align="right"
           >
             <ArrowUp size={18} />
           </button>

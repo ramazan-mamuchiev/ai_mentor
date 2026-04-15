@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.logging_config import active_requests_count, request_id_ctx
+from app.logging_config import active_requests_count, request_id_ctx, tenant_id_ctx, tenant_name_ctx
 
 access_logger = logging.getLogger("access")
 
@@ -24,6 +24,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         req_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
         token = request_id_ctx.set(req_id)
+        tenant_id_token = tenant_id_ctx.set("-")
+        tenant_name_token = tenant_name_ctx.set("-")
 
         lc.active_requests_count += 1
         t0 = time.perf_counter()
@@ -32,11 +34,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
         except Exception:
             lc.active_requests_count -= 1
+            tenant_name_ctx.reset(tenant_name_token)
+            tenant_id_ctx.reset(tenant_id_token)
             request_id_ctx.reset(token)
             raise
 
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
         lc.active_requests_count -= 1
+
+        tenant = getattr(request.state, "tenant", None)
+        if tenant:
+            tenant_id_ctx.set(str(tenant.id))
+            tenant_name_ctx.set(tenant.name or "-")
 
         response.headers["X-Request-ID"] = req_id
 
@@ -75,5 +84,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             else:
                 access_logger.info(msg, extra=log_data)
 
+        tenant_name_ctx.reset(tenant_name_token)
+        tenant_id_ctx.reset(tenant_id_token)
         request_id_ctx.reset(token)
         return response

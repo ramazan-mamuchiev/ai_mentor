@@ -61,7 +61,7 @@ describe('ProductDebugPanel', () => {
     expect(screen.getByText('Camera X')).toBeInTheDocument()
   })
 
-  it('displays document count', async () => {
+  it('displays document count in summary', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -71,7 +71,7 @@ describe('ProductDebugPanel', () => {
     render(<ProductDebugPanel productId={1} />)
 
     await waitFor(() => {
-      expect(screen.getByText('3')).toBeInTheDocument()
+      expect(screen.getByText('Documents')).toBeInTheDocument()
     })
   })
 
@@ -89,7 +89,7 @@ describe('ProductDebugPanel', () => {
     })
   })
 
-  it('documents section is collapsed by default', async () => {
+  it('displays documents summary section', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -99,31 +99,9 @@ describe('ProductDebugPanel', () => {
     render(<ProductDebugPanel productId={1} />)
 
     await waitFor(() => {
-      expect(screen.getByText('Documents (3)')).toBeInTheDocument()
+      expect(screen.getByText('Documents Summary')).toBeInTheDocument()
+      expect(screen.getByText('Total documents')).toBeInTheDocument()
     })
-
-    expect(screen.queryByText('API Guide')).not.toBeInTheDocument()
-    expect(document.querySelector('.doc-debug-docs-table')).not.toBeInTheDocument()
-  })
-
-  it('expands documents table on toggle click', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve(mockDebug),
-    }))
-
-    render(<ProductDebugPanel productId={1} />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Documents (3)')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByText('Documents (3)'))
-
-    expect(screen.getByText('API Guide')).toBeInTheDocument()
-    expect(screen.getByText('Proto Spec')).toBeInTheDocument()
-    expect(screen.getByText('Manual')).toBeInTheDocument()
   })
 
   it('shows error state on API failure', async () => {

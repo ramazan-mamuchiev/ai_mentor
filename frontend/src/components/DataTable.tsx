@@ -111,6 +111,23 @@ export function DataTable<TData>({
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const colSettingsRef = useRef<HTMLDivElement>(null)
+  const tableWrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = tableWrapRef.current
+    if (!el) return
+    const update = () => {
+      const hasScrollLeft = el.scrollLeft > 1
+      const hasScrollRight = el.scrollWidth - el.clientWidth - el.scrollLeft > 1
+      el.classList.toggle('docs-table-wrap--scrolled-left', hasScrollLeft)
+      el.classList.toggle('docs-table-wrap--scrolled-right', hasScrollRight)
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', update); ro.disconnect() }
+  }, [])
 
   useEffect(() => {
     if (!showColumnSettings) return
@@ -155,7 +172,7 @@ export function DataTable<TData>({
             return (
               <span key={colId} className="docs-group-chip">
                 {label}
-                <button className="docs-group-chip-remove" onClick={() => removeGrouping(colId)} data-tooltip={t('docs.group.remove')}>
+                <button className="docs-group-chip-remove" onClick={() => removeGrouping(colId)}>
                   <X size={12} />
                 </button>
               </span>
@@ -165,7 +182,7 @@ export function DataTable<TData>({
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="docs-table-wrap">
+        <div className="docs-table-wrap" ref={tableWrapRef}>
           <table className="docs-table">
             <thead>
               {table.getHeaderGroups().map(headerGroup => (
@@ -183,8 +200,6 @@ export function DataTable<TData>({
                                 <button
                                   className="docs-col-settings-btn"
                                   onClick={() => setShowColumnSettings(v => !v)}
-                                  data-tooltip={t('docs.columns.settings')}
-                                  data-tooltip-align="right"
                                 >
                                   <Settings2 size={14} />
                                 </button>
@@ -293,7 +308,6 @@ export function DataTable<TData>({
               key={col.id}
               className={`docs-group-action-btn ${grouping.includes(col.id) ? 'docs-group-action-btn--active' : ''}`}
               onClick={() => toggleGrouping(col.id)}
-              data-tooltip={t('docs.group.toggle')}
             >
               <Layers size={12} />
               {flexRender(col.columnDef.header, { table, header: null as never, column: col })}

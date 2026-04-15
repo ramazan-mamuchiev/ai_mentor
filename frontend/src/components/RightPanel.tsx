@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bug, FileSearch, X } from 'lucide-react'
+import { Bug, FileSearch, Share2, X, Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { DebugInfo, SourceInfo } from '../types'
+import type { DebugInfo, SourceInfo, McpSourceInfo } from '../types'
+import type { McpRequestDetail } from '../api/admin'
 import { SourceCard } from './SourceCard'
 import { MarkdownPreviewModal } from './MarkdownPreviewModal'
+import { ShareModal } from './ShareModal'
+import { fmtUsd } from '../utils/format'
 
 const MOBILE_BP = 768
-const RATIO_KEY = 'ipcodex-right-panel-ratio'
+const RATIO_KEY = 'lexiro-right-panel-ratio'
 const DEFAULT_RATIO = 0.3
 const MIN_RATIO = 0.15
 const MAX_RATIO = 0.55
@@ -57,16 +60,27 @@ interface DebugContent {
   debug: DebugInfo
 }
 
-type PanelContent = SourcesContent | DebugContent
+interface McpDebugPanelMode {
+  mode: 'mcp-debug'
+  detail: McpRequestDetail
+}
+
+interface McpSourcesPanelMode {
+  mode: 'mcp-sources'
+  sources: McpSourceInfo[]
+}
+
+type PanelContent = SourcesContent | DebugContent | McpDebugPanelMode | McpSourcesPanelMode
 
 interface Props {
   content: PanelContent
-  sessionId?: number
+  sessionId?: string
   messageId?: number
   onClose: () => void
+  onSwitchToSources?: () => void
 }
 
-function DebugPanelContent({ debug }: { debug: DebugInfo }) {
+export function DebugPanelContent({ debug }: { debug: DebugInfo }) {
   const { t } = useTranslation()
   const promptTotal = (debug.query_tokens ?? 0) + (debug.context_tokens ?? 0)
     + (debug.history_tokens ?? 0) + (debug.system_prompt_tokens ?? 0)
@@ -85,6 +99,7 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
       </div>
       <div className="debug-section">
         <div className="debug-section-title">{t('debug.llmCost')}</div>
+        {debug.model && <div className="debug-row debug-row-config"><span>{t('debug.model')}</span><code>{debug.model}</code></div>}
         <div className="debug-row debug-row-sub"><span>{t('debug.queryTokens')}</span><code>{fmt(debug.query_tokens)}</code></div>
         <div className="debug-row debug-row-sub"><span>{t('debug.ctxTokens')}</span><code>{fmt(debug.context_tokens)}</code></div>
         <div className="debug-row debug-row-sub"><span>{t('debug.historyTokens')}</span><code>{fmt(debug.history_tokens)}</code></div>
@@ -106,6 +121,12 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.classifyCost')}</div>
           <div className="debug-row"><span>{t('debug.queryType')}</span><code>{debug.query_type}</code></div>
+          {debug.classify_input && (
+            <div className="debug-row debug-row-wide"><span>{t('debug.classifyInput')}</span><code className="debug-query-value">{debug.classify_input}</code></div>
+          )}
+          {debug.classify_product && (
+            <div className="debug-row"><span>{t('debug.classifyProduct')}</span><code>{debug.classify_product}</code></div>
+          )}
           {(debug.classify_total_tokens ?? 0) > 0 && (
             <>
               <div className="debug-row"><span>{t('debug.classifyPromptTokens')}</span><code>{fmt(debug.classify_prompt_tokens)}</code></div>
@@ -118,13 +139,121 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           {debug.prompt_hash && <div className="debug-row debug-row-config"><span>{t('debug.promptHash')}</span><code>{debug.prompt_hash}</code></div>}
         </div>
       )}
+      {debug.decompose_used && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.decompose')}</div>
+          <div className="debug-row"><span>{t('debug.decomposeUsed')}</span><code>✓</code></div>
+          {debug.decompose_sub_queries && debug.decompose_sub_queries.length > 0 && (
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.decomposeSubQueries')}</span>
+              <code className="debug-query-value">{debug.decompose_sub_queries.map((q, i) => `${i + 1}. ${q}`).join('\n')}</code>
+            </div>
+          )}
+          {debug.decompose_sub_products && debug.decompose_sub_products.some(Boolean) && (
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.decomposeSubProducts')}</span>
+              <code className="debug-query-value">{debug.decompose_sub_products.map((p, i) => `${i + 1}. ${p ?? '—'}`).join('\n')}</code>
+            </div>
+          )}
+          {(debug.decompose_total_tokens ?? 0) > 0 && (
+            <>
+              <div className="debug-row"><span>{t('debug.decomposePromptTokens')}</span><code>{fmt(debug.decompose_prompt_tokens)}</code></div>
+              <div className="debug-row"><span>{t('debug.decomposeCompletionTokens')}</span><code>{fmt(debug.decompose_completion_tokens)}</code></div>
+              <div className="debug-row debug-row-total"><span>{t('debug.decomposeTotalTokens')}</span><code>{fmt(debug.decompose_total_tokens)}</code></div>
+            </>
+          )}
+          {debug.decompose_model && <div className="debug-row debug-row-config"><span>{t('debug.decomposeModel')}</span><code>{debug.decompose_model}</code></div>}
+          {debug.decompose_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.decomposeTime')}</span><code>{(debug.decompose_ms / 1000).toFixed(2)}s</code></div>}
+        </div>
+      )}
+      {(debug.summary_total_tokens ?? 0) > 0 && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.summaryCost')}</div>
+          <div className="debug-row"><span>{t('debug.summaryPromptTokens')}</span><code>{fmt(debug.summary_prompt_tokens)}</code></div>
+          <div className="debug-row"><span>{t('debug.summaryCompletionTokens')}</span><code>{fmt(debug.summary_completion_tokens)}</code></div>
+          <div className="debug-row debug-row-total"><span>{t('debug.summaryTotalTokens')}</span><code>{fmt(debug.summary_total_tokens)}</code></div>
+          {debug.summary_model && <div className="debug-row debug-row-config"><span>{t('debug.summaryModel')}</span><code>{debug.summary_model}</code></div>}
+          {debug.summary_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.summaryTime')}</span><code>{(debug.summary_ms / 1000).toFixed(2)}s</code></div>}
+        </div>
+      )}
+      {debug.web_search_used && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.webSearchCost')}</div>
+          <div className="debug-row"><span>{t('debug.webSearchUsed')}</span><code>✓</code></div>
+          {debug.web_search_queries && debug.web_search_queries.length > 0 && (
+            <div className="debug-row debug-row-wide">
+              <span>{t('debug.webSearchQueries')}</span>
+              <code className="debug-query-value">{debug.web_search_queries.join('\n')}</code>
+            </div>
+          )}
+          {(debug.web_search_sources_count ?? 0) > 0 && (
+            <div className="debug-row"><span>{t('debug.webSearchSources')}</span><code>{fmt(debug.web_search_sources_count)}</code></div>
+          )}
+          {(debug.web_search_total_tokens ?? 0) > 0 && (
+            <>
+              <div className="debug-row"><span>{t('debug.webSearchPromptTokens')}</span><code>{fmt(debug.web_search_prompt_tokens)}</code></div>
+              <div className="debug-row"><span>{t('debug.webSearchCompletionTokens')}</span><code>{fmt(debug.web_search_completion_tokens)}</code></div>
+              <div className="debug-row debug-row-total"><span>{t('debug.webSearchTotalTokens')}</span><code>{fmt(debug.web_search_total_tokens)}</code></div>
+            </>
+          )}
+          {debug.web_search_model && <div className="debug-row debug-row-config"><span>{t('debug.webSearchModel')}</span><code>{debug.web_search_model}</code></div>}
+          {debug.web_search_ms != null && <div className="debug-row debug-row-config"><span>{t('debug.webSearchTime')}</span><code>{(debug.web_search_ms / 1000).toFixed(2)}s</code></div>}
+          {(debug.web_search_context_length ?? 0) > 0 && <div className="debug-row debug-row-config"><span>{t('debug.webSearchCtxLen')}</span><code>{fmt(debug.web_search_context_length)} chars</code></div>}
+        </div>
+      )}
+      {(debug.rewrite_total_tokens ?? 0) > 0 && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.rewriteCost')}</div>
+          <div className="debug-row"><span>{t('debug.rewritePromptTokens')}</span><code>{fmt(debug.rewrite_prompt_tokens)}</code></div>
+          <div className="debug-row"><span>{t('debug.rewriteCompletionTokens')}</span><code>{fmt(debug.rewrite_completion_tokens)}</code></div>
+          <div className="debug-row debug-row-total"><span>{t('debug.rewriteTotalTokens')}</span><code>{fmt(debug.rewrite_total_tokens)}</code></div>
+          {debug.rewrite_model && <div className="debug-row debug-row-config"><span>{t('debug.rewriteModel')}</span><code>{debug.rewrite_model}</code></div>}
+        </div>
+      )}
       {debug.retry_used && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.retryUsed')}</div>
           <div className="debug-row"><span>{t('debug.rephraseMs')}</span><code>{debug.rephrase_ms != null ? (debug.rephrase_ms / 1000).toFixed(2) + 's' : '—'}</code></div>
           {debug.rephrase_query && <div className="debug-row debug-row-wide"><span>{t('debug.rephraseQuery')}</span><code className="debug-query-value">{debug.rephrase_query}</code></div>}
+          {(debug.rephrase_total_tokens ?? 0) > 0 && (
+            <>
+              <div className="debug-row"><span>{t('debug.rephrasePromptTokens')}</span><code>{fmt(debug.rephrase_prompt_tokens)}</code></div>
+              <div className="debug-row"><span>{t('debug.rephraseCompletionTokens')}</span><code>{fmt(debug.rephrase_completion_tokens)}</code></div>
+              <div className="debug-row debug-row-total"><span>{t('debug.rephraseTotalTokens')}</span><code>{fmt(debug.rephrase_total_tokens)}</code></div>
+            </>
+          )}
+          {debug.rephrase_model && <div className="debug-row debug-row-config"><span>{t('debug.rephraseModel')}</span><code>{debug.rephrase_model}</code></div>}
         </div>
       )}
+      {(debug.embedding_api_tokens ?? 0) > 0 && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.embeddingApiCost')}</div>
+          <div className="debug-row"><span>{t('debug.embeddingApiTokens')}</span><code>{fmt(debug.embedding_api_tokens)}</code></div>
+          <div className="debug-row debug-row-config"><span>{t('debug.embeddingModel')}</span><code>{debug.embedding_model ?? '—'}</code></div>
+        </div>
+      )}
+      {(() => {
+        const grandPrompt = (debug.llm_prompt_tokens ?? 0) + (debug.rerank_prompt_tokens ?? 0)
+          + (debug.classify_prompt_tokens ?? 0) + (debug.summary_prompt_tokens ?? 0)
+          + (debug.rewrite_prompt_tokens ?? 0) + (debug.decompose_prompt_tokens ?? 0)
+          + (debug.web_search_prompt_tokens ?? 0) + (debug.rephrase_prompt_tokens ?? 0)
+        const grandCompletion = (debug.llm_completion_tokens ?? 0) + (debug.rerank_completion_tokens ?? 0)
+          + (debug.classify_completion_tokens ?? 0) + (debug.summary_completion_tokens ?? 0)
+          + (debug.rewrite_completion_tokens ?? 0) + (debug.decompose_completion_tokens ?? 0)
+          + (debug.web_search_completion_tokens ?? 0) + (debug.rephrase_completion_tokens ?? 0)
+        const grandEmbedding = debug.embedding_api_tokens ?? 0
+        const grandTotal = grandPrompt + grandCompletion + grandEmbedding
+        if (grandTotal <= 0) return null
+        return (
+          <div className="debug-section debug-section-grand">
+            <div className="debug-section-title">{t('debug.grandTotal')}</div>
+            <div className="debug-row"><span>{t('debug.grandTotalPrompt')}</span><code>{fmt(grandPrompt)}</code></div>
+            <div className="debug-row"><span>{t('debug.grandTotalCompletion')}</span><code>{fmt(grandCompletion)}</code></div>
+            <div className="debug-row debug-row-total"><span>{t('debug.grandTotalTokens')}</span><code>{fmt(grandPrompt + grandCompletion)}</code></div>
+            {grandEmbedding > 0 && <div className="debug-row"><span>{t('debug.grandTotalEmbedding')}</span><code>{fmt(grandEmbedding)}</code></div>}
+          </div>
+        )
+      })()}
       {hasTiming && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.timing')}</div>
@@ -145,12 +274,14 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
           <div className="debug-row"><span>{t('debug.tokens')}</span><code>{fmt(debug.token_count)}</code></div>
           <div className="debug-row debug-row-config"><span>{t('debug.temperature')}</span><code>{debug.temperature ?? '—'}</code></div>
           <div className="debug-row debug-row-config"><span>{t('debug.maxTokens')}</span><code>{fmt(debug.max_tokens)}</code></div>
+          {debug.finish_reason && <div className="debug-row debug-row-config"><span>{t('debug.finishReason')}</span><code className={debug.finish_reason !== 'stop' ? 'debug-warning-badge' : ''}>{debug.finish_reason}</code></div>}
+          {(debug.continuations ?? 0) > 0 && <div className="debug-row debug-row-config"><span>{t('debug.continuations')}</span><code className="debug-warning-badge">{debug.continuations}</code></div>}
         </div>
       )}
       {hasRag && (
         <div className="debug-section">
           <div className="debug-section-title">{t('debug.ragSection')}</div>
-          <div className="debug-row"><span>{t('debug.chunks')}</span><code>{fmt(debug.chunks_found)}</code></div>
+          <div className="debug-row"><span>{t('debug.chunks')}</span><code>{fmt(debug.chunks_found)}{debug.effective_top_k ? ` / ${debug.effective_top_k}` : ''}</code></div>
           <div className="debug-row"><span>{t('debug.topSim')}</span><code>{fmtPct(debug.top_similarity)}</code></div>
           <div className="debug-row"><span>{t('debug.minSim')}</span><code>{fmtPct(debug.min_similarity)}</code></div>
           <div className="debug-row"><span>{t('debug.historyMsgs')}</span><code>{fmt(debug.history_messages)}</code></div>
@@ -197,10 +328,114 @@ function DebugPanelContent({ debug }: { debug: DebugInfo }) {
   )
 }
 
-export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
+function fmtMs(ms: number | null | undefined): string {
+  if (ms == null) return '—'
+  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`
+}
+
+export function McpDebugPanelContent({ detail, onSwitchToSources }: { detail: McpRequestDetail; onSwitchToSources?: () => void }) {
+  const { t } = useTranslation()
+  const resolveTotal = (detail.resolve_prompt_tokens ?? 0) + (detail.resolve_completion_tokens ?? 0)
+  const rerankTotal = (detail.rerank_total_tokens ?? 0)
+  const totalTokens = detail.query_tokens + detail.response_tokens + detail.embedding_tokens
+    + rerankTotal + resolveTotal
+
+  return (
+    <div className="debug-grid right-panel-debug">
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.query')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.toolName')}</span><code>{detail.tool_name}</code></div>
+        {detail.query_text && <div className="debug-row debug-row-wide"><span>{t('debug.mcp.queryText')}</span><code className="debug-query-value">{detail.query_text}</code></div>}
+        {detail.product_filter && <div className="debug-row"><span>{t('debug.mcp.productFilter')}</span><code>{detail.product_filter}</code></div>}
+        {detail.version_filter && <div className="debug-row"><span>{t('debug.mcp.versionFilter')}</span><code>{detail.version_filter}</code></div>}
+        {detail.doc_type_filter && <div className="debug-row"><span>{t('debug.mcp.docTypeFilter')}</span><code>{detail.doc_type_filter}</code></div>}
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.results')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.resultCount')}</span><code>{fmt(detail.result_count)}</code></div>
+        <div className="debug-row"><span>{t('debug.mcp.topSimilarity')}</span><code>{fmtPct(detail.top_similarity)}</code></div>
+        <div className="debug-row"><span>{t('debug.mcp.responseLength')}</span><code>{fmt(detail.response_length)} chars</code></div>
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.timing')}</div>
+        <div className="debug-row debug-row-total"><span>{t('debug.mcp.totalDuration')}</span><code>{fmtMs(detail.duration_ms)}</code></div>
+        {(detail.embed_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.mcp.embedMs')}</span><code>{fmtMs(detail.embed_ms)}</code></div>}
+        {(detail.search_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.mcp.searchMs')}</span><code>{fmtMs(detail.search_ms)}</code></div>}
+        {(detail.rerank_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.mcp.rerankMs')}</span><code>{fmtMs(detail.rerank_ms)}</code></div>}
+        {(detail.resolve_ms ?? 0) > 0 && <div className="debug-row"><span>{t('debug.mcp.resolveMs')}</span><code>{fmtMs(detail.resolve_ms)}</code></div>}
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.tokens')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.queryTokens')}</span><code>{fmt(detail.query_tokens)}</code></div>
+        <div className="debug-row"><span>{t('debug.mcp.responseTokens')}</span><code>{fmt(detail.response_tokens)}</code></div>
+        {detail.embedding_tokens > 0 && <div className="debug-row"><span>{t('debug.mcp.embeddingTokens')}</span><code>{fmt(detail.embedding_tokens)}</code></div>}
+        {rerankTotal > 0 && (
+          <>
+            <div className="debug-row"><span>{t('debug.mcp.rerankPrompt')}</span><code>{fmt(detail.rerank_prompt_tokens)}</code></div>
+            <div className="debug-row"><span>{t('debug.mcp.rerankCompletion')}</span><code>{fmt(detail.rerank_completion_tokens)}</code></div>
+            <div className="debug-row"><span>{t('debug.mcp.rerankTotal')}</span><code>{fmt(detail.rerank_total_tokens)}</code></div>
+            {detail.rerank_model && <div className="debug-row debug-row-config"><span>{t('debug.mcp.rerankModel')}</span><code>{detail.rerank_model}</code></div>}
+          </>
+        )}
+        {resolveTotal > 0 && (
+          <>
+            <div className="debug-row"><span>{t('debug.mcp.resolvePrompt')}</span><code>{fmt(detail.resolve_prompt_tokens)}</code></div>
+            <div className="debug-row"><span>{t('debug.mcp.resolveCompletion')}</span><code>{fmt(detail.resolve_completion_tokens)}</code></div>
+            {detail.resolve_model && <div className="debug-row debug-row-config"><span>{t('debug.mcp.resolveModel')}</span><code>{detail.resolve_model}</code></div>}
+          </>
+        )}
+        <div className="debug-row debug-row-total"><span>{t('debug.mcp.totalTokens')}</span><code>{fmt(totalTokens)}</code></div>
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.cost')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.cogs')}</span><code>{fmtUsd(detail.cogs_usd)}</code></div>
+        <div className="debug-row debug-row-total"><span>{t('debug.mcp.charge')}</span><code>{fmtUsd(detail.charge_usd)}</code></div>
+      </div>
+
+      <div className="debug-section">
+        <div className="debug-section-title">{t('debug.mcp.client')}</div>
+        <div className="debug-row"><span>{t('debug.mcp.requestId')}</span><code style={{ fontSize: 10 }}>{detail.request_id}</code></div>
+        {detail.client_ip && <div className="debug-row"><span>{t('debug.mcp.clientIp')}</span><code>{detail.client_ip}</code></div>}
+        {detail.user_agent && <div className="debug-row debug-row-wide"><span>{t('debug.mcp.userAgent')}</span><code className="debug-query-value" style={{ fontSize: 10 }}>{detail.user_agent}</code></div>}
+        {detail.key_prefix && <div className="debug-row"><span>{t('debug.mcp.keyPrefix')}</span><code>{detail.key_prefix}</code></div>}
+      </div>
+
+      {detail.error && (
+        <div className="debug-section">
+          <div className="debug-section-title">{t('debug.mcp.error')}</div>
+          <div className="debug-row debug-row-wide">
+            <span>{t('debug.status')}</span>
+            <code className="debug-error-badge">{detail.error}</code>
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+function mcpSourceToSourceInfo(s: McpSourceInfo): SourceInfo {
+  return {
+    document_id: s.document_id,
+    doc_title: s.doc_title,
+    heading_path: s.heading_path,
+    similarity: s.similarity,
+    content_preview: s.content_preview ?? '',
+    product_name: s.product_name,
+    firmware_version: s.firmware_version ?? '',
+    doc_type: s.doc_type,
+  }
+}
+
+export function RightPanel({ content, sessionId, messageId, onClose, onSwitchToSources }: Props) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const [previewTarget, setPreviewTarget] = useState<{ id: number; title: string } | null>(null)
+  const [shareModal, setShareModal] = useState(false)
   const [ratio, setRatio] = useState(loadRatio)
   const dragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -237,10 +472,18 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
   const panelStyle = isMobile ? undefined : { width: widthPercent, minWidth: widthPercent }
 
   const isSourcesMode = content.mode === 'sources'
+  const isMcpDebug = content.mode === 'mcp-debug'
+  const isMcpSources = content.mode === 'mcp-sources'
   const title = isSourcesMode
     ? t('chat.sourcesPanel.title', { count: content.sources.length })
-    : t('chat.debugPanel.title')
-  const Icon = isSourcesMode ? FileSearch : Bug
+    : isMcpSources
+      ? t('chat.sourcesPanel.title', { count: content.sources.length })
+      : isMcpDebug
+        ? t('debug.mcp.panelTitle')
+        : t('chat.debugPanel.title')
+  const Icon = (isSourcesMode || isMcpSources) ? FileSearch : isMcpDebug ? Database : Bug
+
+  const mcpSubtitle = (isMcpDebug || isMcpSources) ? (sessionId ?? null) : null
 
   return (
     <>
@@ -260,22 +503,32 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
         <div className="sources-panel-header">
           <div className="sources-panel-header-content">
             <div className="sources-panel-header-icon">
-              <Icon size={14} />
+              <Icon size={18} />
             </div>
             <div className="sources-panel-header-text">
               <span className="sources-panel-title">{title}</span>
-              {(sessionId != null || messageId != null) && (
+              {mcpSubtitle ? (
+                <span className="sources-panel-ids">{mcpSubtitle}</span>
+              ) : (sessionId != null || messageId != null) ? (
                 <span className="sources-panel-ids">
-                  {sessionId != null && `S#${sessionId}`}
-                  {sessionId != null && messageId != null && ' '}
-                  {messageId != null && `M#${messageId}`}
+                  {sessionId != null ? `S: ${sessionId.slice(0, 8)}` : ''}{sessionId != null && messageId != null ? ' · ' : ''}{messageId != null ? `M: ${messageId}` : ''}
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
-          <button className="sources-panel-close" onClick={onClose}>
-            <X size={14} />
-          </button>
+          <div className="sources-panel-header-actions">
+            {!isSourcesMode && !isMcpDebug && !isMcpSources && messageId != null && (
+              <button
+                className="sources-panel-share"
+                onClick={() => setShareModal(true)}
+              >
+                <Share2 size={14} />
+              </button>
+            )}
+            <button className="sources-panel-close" onClick={onClose}>
+              <X size={14} />
+            </button>
+          </div>
         </div>
         <div className="sources-panel-body">
           {isSourcesMode ? (
@@ -283,6 +536,17 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
               <SourceCard
                 key={i}
                 source={s}
+                index={i + 1}
+                onPreview={(id, title) => setPreviewTarget({ id, title })}
+              />
+            ))
+          ) : isMcpDebug ? (
+            <McpDebugPanelContent detail={content.detail} onSwitchToSources={onSwitchToSources} />
+          ) : isMcpSources ? (
+            content.sources.map((s, i) => (
+              <SourceCard
+                key={i}
+                source={mcpSourceToSourceInfo(s)}
                 index={i + 1}
                 onPreview={(id, title) => setPreviewTarget({ id, title })}
               />
@@ -296,6 +560,13 @@ export function RightPanel({ content, sessionId, messageId, onClose }: Props) {
             documentId={previewTarget.id}
             documentTitle={previewTarget.title}
             onClose={() => setPreviewTarget(null)}
+          />
+        )}
+        {shareModal && messageId != null && (
+          <ShareModal
+            type="debug_chat"
+            id={messageId}
+            onClose={() => setShareModal(false)}
           />
         )}
       </div>

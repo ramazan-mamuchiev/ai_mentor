@@ -13,12 +13,13 @@ class FormatCount(BaseModel):
 class ProductListItem(BaseModel):
     id: int
     name: str
-    manufacturer: str = ""
-    model: str = ""
-    category: str = ""
     slug: str = ""
-    manufacturer_slug: str = ""
+    manufacturer: str = ""
+    category: str = ""
     created_at: datetime
+
+    version: str = ""
+    display_name: str = ""
 
     total_documents: int = 0
     pending_documents: int = 0
@@ -37,19 +38,48 @@ class ProductListItem(BaseModel):
     progress_percent: int = 0
     progress_detail: str = ""
 
+    sync_status: str = "idle"
+
+    lifecycle_ready_documents: int = 0
+    has_merged_lifecycle: bool = False
+
     model_config = {"from_attributes": True}
+
+
+class PaginatedProducts(BaseModel):
+    items: list[ProductListItem]
+    total: int
+    page: int
+    page_size: int
+    facets: "Facets | None" = None
+
+
+class FacetValue(BaseModel):
+    value: str
+    label: str = ""
+    count: int
+
+
+class Facets(BaseModel):
+    categories: list[FacetValue] = []
+    manufacturers: list[FacetValue] = []
+
+
+class ProductSuggestion(BaseModel):
+    id: int
+    name: str
+    manufacturer: str = ""
+    version: str = ""
 
 
 class ProductDetail(BaseModel):
     id: int
     name: str
-    manufacturer: str = ""
-    model: str = ""
-    category: str = ""
     slug: str = ""
-    manufacturer_slug: str = ""
+    manufacturer: str = ""
+    category: str = ""
     created_at: datetime
-    firmware_versions: list[str] = []
+    version: str = ""
 
     model_config = {"from_attributes": True}
 
@@ -57,14 +87,13 @@ class ProductDetail(BaseModel):
 class ProductUpdate(BaseModel):
     name: str | None = None
     manufacturer: str | None = None
-    model: str | None = None
     category: str | None = None
+    version: str | None = None
 
 
 class DocumentUpdate(BaseModel):
     title: str | None = None
     product_id: int | None = None
-    firmware_version_id: int | None = None
 
 
 class ProductDocumentSummary(BaseModel):
@@ -77,11 +106,49 @@ class ProductDocumentSummary(BaseModel):
     indexed_at: datetime | None = None
 
 
+class ProductDocumentUsage(BaseModel):
+    document_id: int
+    title: str
+    total_usages: int = 0
+    total_context_tokens: int = 0
+    total_charge_usd: float = 0
+    avg_similarity: float | None = None
+    last_used_at: datetime | None = None
+    thumbs_up: int = 0
+    thumbs_down: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class ProductUsageStats(BaseModel):
+    product_id: int
+    product_name: str
+    total_usages: int = 0
+    unique_sessions: int = 0
+    unique_documents: int = 0
+    total_context_tokens: int = 0
+    total_charge_usd: float = 0
+    avg_similarity: float | None = None
+    first_used_at: datetime | None = None
+    last_used_at: datetime | None = None
+    thumbs_up: int = 0
+    thumbs_down: int = 0
+    total_rated: int = 0
+    documents: list[ProductDocumentUsage] = []
+
+    model_config = {"from_attributes": True}
+
+
+class SuggestionChip(BaseModel):
+    text_en: str
+    text_ru: str
+    product_filter: str
+
+
 class ProductDebugInfo(BaseModel):
     product_id: int
     product_name: str
     total_documents: int = 0
-    firmware_version_count: int = 0
     total_file_size_bytes: int = 0
 
     sum_ingest_duration_ms: float | None = None
@@ -108,4 +175,22 @@ class ProductDebugInfo(BaseModel):
     sum_extract_ms: float | None = None
     total_extract_tokens: int = 0
 
+    search_keys_total: int = 0
+    search_keys_llm: int = 0
+    search_keys_chunk: int = 0
+
     documents: list[ProductDocumentSummary] = []
+
+
+class DocumentKeysGroup(BaseModel):
+    document_id: int
+    title: str
+    keys: list[str] = []
+
+
+class ProductSearchKeysResponse(BaseModel):
+    product_id: int
+    product_name: str
+    total_keys: int = 0
+    llm_keys: list[str] = []
+    chunk_keys_by_document: list[DocumentKeysGroup] = []

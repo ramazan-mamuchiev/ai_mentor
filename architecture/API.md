@@ -1,6 +1,6 @@
-# Plexicode — API Reference & MCP Tools
+# Lexiro — API Reference & MCP Tools
 
-> Part of [Plexicode Architecture](PLAN.md) | See also: [Database Schema](DATABASE.md)
+> Part of [Lexiro Architecture](PLAN.md) | See also: [Database Schema](DATABASE.md)
 
 ---
 
@@ -14,8 +14,8 @@
 ```json
 {
   "mcpServers": {
-    "ipcodex": {
-      "url": "https://api.ipcodex.dev/mcp/sse",
+    "lexiro": {
+      "url": "https://lexiro.io/mcp/sse",
       "headers": { "Authorization": "Bearer ipx_a1b2c3d4e5f6..." }
     }
   }
@@ -161,11 +161,65 @@
 | GET | `/vendor/v1/artifacts/{id}/scan-status` | Check antivirus scan result | Vendor Key (any scope) |
 | DELETE | `/vendor/v1/artifacts/{id}` | Remove artifact from distribution | Vendor Key (publish scope) |
 
+### Admin Endpoints (`/api/v1/admin/...`) — require admin role ✅
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| GET | `/api/v1/admin/dashboard` | Dashboard stats (tenants, docs, sessions, system) | Admin |
+| GET | `/api/v1/admin/tenants` | List all tenants with stats | Admin |
+| GET | `/api/v1/admin/tenants/{id}` | Tenant details with sessions, documents, usage | Admin |
+| PATCH | `/api/v1/admin/tenants/{id}` | Update tenant (tier, role, is_active) | Admin |
+| GET | `/api/v1/admin/documents` | List all documents across tenants | Admin |
+| GET | `/api/v1/admin/chats` | List chat sessions with analytics | Admin |
+| GET | `/api/v1/admin/chats/{id}` | Chat session details with messages and debug info | Admin |
+| GET | `/api/v1/admin/roles` | List roles with tenant counts | Admin |
+| POST | `/api/v1/admin/roles` | Create role | Admin |
+| GET | `/api/v1/admin/roles/{id}` | Role details with permissions | Admin |
+| PATCH | `/api/v1/admin/roles/{id}` | Update role permissions | Admin |
+| DELETE | `/api/v1/admin/roles/{id}` | Delete role (non-system only) | Admin |
+| GET | `/api/v1/admin/prompts` | List prompt templates | Admin |
+| POST | `/api/v1/admin/prompts` | Create/update prompt template | Admin |
+| GET | `/api/v1/admin/prompts/{id}` | Prompt template details | Admin |
+| PATCH | `/api/v1/admin/prompts/{id}` | Update prompt template body/hints | Admin |
+| DELETE | `/api/v1/admin/prompts/{id}` | Delete prompt template (non-system only) | Admin |
+| POST | `/api/v1/admin/prompts/seed` | Seed system prompts from files | Admin |
+| GET | `/api/v1/admin/logs` | Query structured logs | Admin |
+| GET | `/api/v1/admin/stats` | Usage statistics and analytics | Admin |
+| GET | `/api/v1/admin/system` | System info (services, queues, DB pool) | Admin |
+
+### Share Endpoints (`/api/v1/share/...`) ✅
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/api/v1/share` | Create shared link (session or message) | JWT |
+| GET | `/api/v1/share` | List shared links for current tenant | JWT |
+| DELETE | `/api/v1/share/{id}` | Revoke shared link | JWT |
+| GET | `/api/v1/s/{token}` | Public: get shared content (no auth) | None |
+| GET | `/api/v1/s/{token}/messages` | Public: get shared session messages | None |
+| GET | `/api/v1/s/{token}/debug/{message_id}` | Public: get shared message debug info | None |
+
+### Auth Endpoints (`/api/v1/...`) ✅
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/api/v1/register` | Register tenant (email + password) | Public |
+| POST | `/api/v1/login` | Login (email + password) → JWT cookie | Public |
+| POST | `/api/v1/refresh` | Refresh JWT token | Refresh token |
+| POST | `/api/v1/logout` | Logout (clear cookie + revoke refresh) | JWT |
+| GET | `/api/v1/me` | Current tenant info + tier + role | JWT or API Key |
+| POST | `/api/v1/api-keys` | Generate new API key | JWT |
+| GET | `/api/v1/api-keys` | List tenant API keys (prefix only) | JWT |
+| DELETE | `/api/v1/api-keys/{key_id}` | Revoke an API key | JWT |
+| GET | `/api/v1/auth/google` | Start Google OAuth flow | Public |
+| GET | `/api/v1/auth/google/callback` | Google OAuth callback | Public |
+| GET | `/api/v1/auth/github` | Start GitHub OAuth flow | Public |
+| GET | `/api/v1/auth/github/callback` | GitHub OAuth callback | Public |
+
 ### MCP Endpoint ✅
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| GET/POST | `/mcp` | Streamable HTTP MCP endpoint (FastMCP) | API Key (future) |
+| GET/POST | `/mcp` | Streamable HTTP MCP endpoint (FastMCP SDK) | API Key |
 
 ### System Endpoints
 
@@ -179,7 +233,7 @@
 
 ## MCP Tools ✅
 
-Plexicode exposes **3 tools** via the Model Context Protocol. The MCP server is focused on its core purpose: helping AI coding assistants find documentation for writing integration code.
+Lexiro exposes **3 tools** via the Model Context Protocol. The MCP server is focused on its core purpose: helping AI coding assistants find documentation for writing integration code.
 
 Ingestion tools (`ingest_document`, `ingest_url`) were intentionally excluded from MCP — they are administrative operations available via REST API only.
 
@@ -191,9 +245,9 @@ async def tool_search_documentation(
     version: str | None = None,
     limit: int = 5,
 ) -> str:
-    """Search Plexicode knowledge base for product integration documentation.
+    """Search Lexiro knowledge base for product integration documentation.
 
-    Plexicode indexes API documentation for hardware devices (IP cameras, access controllers,
+    Lexiro indexes API documentation for hardware devices (IP cameras, access controllers,
     intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs).
 
     Use this tool when you need to write integration code and need to find:
@@ -231,7 +285,7 @@ async def tool_list_products(
     category: str | None = None,
     query: str | None = None,
 ) -> str:
-    """List products with indexed documentation available in Plexicode.
+    """List products with indexed documentation available in Lexiro.
 
     Call this FIRST to discover what products are available before using search_documentation.
 
@@ -305,7 +359,7 @@ Response 201:
 
 → DB: insert into vendors + vendor_api_keys
 → Email: welcome email with documentation upload guide
-→ Admin: notify Plexicode team for review (optional manual verification)
+→ Admin: notify Lexiro team for review (optional manual verification)
 ```
 
 ---

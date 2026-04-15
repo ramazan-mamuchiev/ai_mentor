@@ -1,10 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { Layout } from '../../components/Layout'
+
+vi.mock('../../auth/AuthContext', () => ({
+  useAuth: () => ({
+    user: {
+      id: '1',
+      email: 'layout@test.dev',
+      name: 'Layout User',
+      slug: 'layout-user',
+      tier: 'free',
+      role: 'user',
+      roles: [],
+      permissions: { features: { admin: true } },
+      email_verified: true,
+      created_at: '2020-01-01T00:00:00Z',
+    },
+    logout: vi.fn(),
+    login: vi.fn(),
+    register: vi.fn(),
+    refreshUser: vi.fn(),
+    loading: false,
+  }),
+}))
 
 const defaultProps: {
   sessions: any[]
-  activeSessionId: number | null
+  activeSessionId: string | null
   theme: 'light' | 'dark'
   onSelectSession: ReturnType<typeof vi.fn>
   onNewSession: ReturnType<typeof vi.fn>
@@ -20,11 +44,13 @@ const defaultProps: {
   onToggleTheme: vi.fn(),
 }
 
-function renderLayout(overrides: Partial<typeof defaultProps> = {}, children?: React.ReactNode) {
+function renderLayout(overrides: Partial<typeof defaultProps> = {}, children?: React.ReactNode, initialPath = '/app') {
   return render(
-    <Layout {...defaultProps} {...overrides}>
-      {children ?? <div>Main content</div>}
-    </Layout>,
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Layout {...defaultProps} {...overrides}>
+        {children ?? <div>Main content</div>}
+      </Layout>
+    </MemoryRouter>,
   )
 }
 
@@ -33,9 +59,9 @@ beforeEach(() => {
 })
 
 describe('Layout', () => {
-  it('renders sidebar with Plexicode title', () => {
+  it('renders sidebar with Lexiro title', () => {
     renderLayout()
-    expect(screen.getByText('Plexicode')).toBeInTheDocument()
+    expect(screen.getByText('Lexiro')).toBeInTheDocument()
   })
 
   it('renders children in main area', () => {
@@ -43,9 +69,18 @@ describe('Layout', () => {
     expect(screen.getByText('Test content here')).toBeInTheDocument()
   })
 
-  it('renders theme toggle in sidebar', () => {
-    renderLayout()
-    expect(screen.getByTitle('Toggle theme')).toBeInTheDocument()
+  it('renders theme entry in account menu', async () => {
+    const user = userEvent.setup()
+    const { container } = renderLayout()
+    await user.click(container.querySelector('.account-badge-btn') as HTMLElement)
+    expect(screen.getByRole('button', { name: 'Dark theme' })).toBeInTheDocument()
+  })
+})
+
+describe('Layout admin sub-nav', () => {
+  it('shows dashboard entry on admin route', () => {
+    renderLayout({}, undefined, '/app/admin')
+    expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument()
   })
 })
 
@@ -62,21 +97,21 @@ describe('Layout splitter', () => {
   })
 
   it('restores sidebar width from localStorage', () => {
-    localStorage.setItem('ipcodex-sidebar-width', '350')
+    localStorage.setItem('lexiro-sidebar-width', '350')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('350px')
   })
 
   it('ignores invalid localStorage values and falls back to default', () => {
-    localStorage.setItem('ipcodex-sidebar-width', 'garbage')
+    localStorage.setItem('lexiro-sidebar-width', 'garbage')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('280px')
   })
 
   it('clamps localStorage value within min/max bounds', () => {
-    localStorage.setItem('ipcodex-sidebar-width', '50')
+    localStorage.setItem('lexiro-sidebar-width', '50')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('280px')
@@ -126,7 +161,7 @@ describe('Layout splitter', () => {
     fireEvent.pointerMove(splitter, { clientX: 400 })
     fireEvent.pointerUp(splitter)
 
-    expect(localStorage.getItem('ipcodex-sidebar-width')).toBe('400')
+    expect(localStorage.getItem('lexiro-sidebar-width')).toBe('400')
   })
 
   it('does not resize when pointer moves without prior pointerDown', () => {

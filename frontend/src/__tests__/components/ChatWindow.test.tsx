@@ -28,8 +28,8 @@ function renderChatWindow(overrides: Partial<Parameters<typeof ChatWindow>[0]> =
 describe('ChatWindow', () => {
   it('shows empty state when no messages', () => {
     renderChatWindow()
-    expect(screen.getByText('Plexicode')).toBeInTheDocument()
-    expect(screen.getByText(/Protocols speak/)).toBeInTheDocument()
+    expect(screen.getByText('Lexiro')).toBeInTheDocument()
+    expect(screen.getByText(/Ask, don't search/)).toBeInTheDocument()
   })
 
   it('renders messages when present', () => {
@@ -41,7 +41,7 @@ describe('ChatWindow', () => {
   it('shows branded empty state with badge and slogan', () => {
     renderChatWindow()
     expect(screen.getByText('AI Integration Platform')).toBeInTheDocument()
-    expect(screen.getByText('Plexicode')).toBeInTheDocument()
+    expect(screen.getByText('Lexiro')).toBeInTheDocument()
   })
 
   it('renders streaming message during streaming', () => {
@@ -183,7 +183,7 @@ describe('ChatWindow smart auto-scroll', () => {
       />,
     )
 
-    const input = screen.getByPlaceholderText(/Ask about device/i)
+    const input = screen.getByPlaceholderText(/Ask anything about your docs/i)
     await user.type(input, 'follow up{Enter}')
 
     const scrollTopSpy = vi.spyOn(container, 'scrollTop', 'set')
