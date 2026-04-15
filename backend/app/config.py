@@ -83,7 +83,7 @@ class Settings(BaseSettings):
 
     metadata_extraction_enabled: bool = True
     metadata_extraction_model: str = "gemini-2.5-flash"
-    metadata_extraction_batch_size: int = 5
+    metadata_extraction_batch_size: int = 20
 
     product_keys_extraction_enabled: bool = True
     product_resolve_model: str = "gemini-2.5-flash"
@@ -121,7 +121,7 @@ class Settings(BaseSettings):
     ocr_lang_detect_model: str = "gemini-2.5-flash"
     ocr_vision_model: str = "gemini-2.5-flash"
 
-    document_stale_timeout_sec: int = 900
+    document_stale_timeout_sec: int = 2700
 
     # --- Crawl defaults (shared across Confluence / Site / GitHub) ---
     crawl_max_pages: int = 10000

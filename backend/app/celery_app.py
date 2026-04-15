@@ -2777,13 +2777,15 @@ def check_stale_documents_task(self):
     )
 
     with Session(engine) as session:
-        effective_started = sa_func.coalesce(
-            Document.processing_started_at, Document.uploaded_at,
+        last_activity = sa_func.coalesce(
+            Document.progress_updated_at,
+            Document.processing_started_at,
+            Document.uploaded_at,
         )
         stale_docs = session.execute(
             select(Document).where(
                 Document.status == "processing",
-                effective_started < threshold,
+                last_activity < threshold,
             )
         ).scalars().all()
 

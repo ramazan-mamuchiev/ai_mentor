@@ -61,6 +61,7 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS rag_last_used_at TIMESTAMPTZ;
 -- Progress tracking for real-time ingestion feedback
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_percent INT NOT NULL DEFAULT 0;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_stage TEXT NOT NULL DEFAULT '';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_updated_at TIMESTAMPTZ;
 
 -- Celery task ID for cancellation support
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS celery_task_id TEXT;

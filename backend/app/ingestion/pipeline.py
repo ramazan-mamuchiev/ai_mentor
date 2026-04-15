@@ -1027,9 +1027,12 @@ def _update_progress(session, document: "Document", percent: int, stage: str) ->
     """Persist ingestion progress so the UI can poll it.
 
     Throttled to commit at most once per second, unless the stage changes.
+    Also updates progress_updated_at so stale-detection knows the task is alive.
     """
+    from datetime import datetime, timezone
     document.progress_percent = percent
     document.progress_stage = stage
+    document.progress_updated_at = datetime.now(timezone.utc)
     if _progress_throttle.should_commit(stage):
         session.commit()
 

@@ -410,22 +410,32 @@ async def _migrate_ingested_at_to_uploaded_at():
 
 
 async def _migrate_ingestion_attempts():
-    """Add ingestion_attempts column to documents if missing."""
+    """Add ingestion_attempts and progress_updated_at columns to documents if missing."""
     from app.database import engine
 
     async with engine.begin() as conn:
         raw = await conn.get_raw_connection()
         drv = raw.driver_connection
+
         row = await drv.fetchrow(
             "SELECT 1 FROM information_schema.columns "
             "WHERE table_name = 'documents' AND column_name = 'ingestion_attempts'"
         )
-        if row:
-            return
-        await drv.execute(
-            "ALTER TABLE documents ADD COLUMN ingestion_attempts INT NOT NULL DEFAULT 0"
+        if not row:
+            await drv.execute(
+                "ALTER TABLE documents ADD COLUMN ingestion_attempts INT NOT NULL DEFAULT 0"
+            )
+            logger.info("Added ingestion_attempts column to documents")
+
+        row2 = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'documents' AND column_name = 'progress_updated_at'"
         )
-        logger.info("Added ingestion_attempts column to documents")
+        if not row2:
+            await drv.execute(
+                "ALTER TABLE documents ADD COLUMN progress_updated_at TIMESTAMPTZ"
+            )
+            logger.info("Added progress_updated_at column to documents")
 
 
 @contextlib.asynccontextmanager
