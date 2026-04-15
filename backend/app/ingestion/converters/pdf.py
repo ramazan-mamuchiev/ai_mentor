@@ -32,7 +32,7 @@ from app.utils.retry import retry_call
 logger = logging.getLogger(__name__)
 
 PARALLEL_THRESHOLD = 10
-MAX_PDF_WORKERS = 4
+MAX_PDF_WORKERS = 1
 MAX_RETRIES = 2
 PAGES_PER_CHUNK_SMALL = 2
 PAGES_PER_CHUNK_LARGE = 10

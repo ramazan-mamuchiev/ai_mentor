@@ -214,6 +214,7 @@ class Document(Base):
     progress_stage: Mapped[str] = mapped_column(Text, default="")
 
     celery_task_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ingestion_attempts: Mapped[int] = mapped_column(Integer, default=0)
 
     ocr_status: Mapped[str] = mapped_column(Text, default="")
     ocr_progress_percent: Mapped[int] = mapped_column(Integer, default=0)

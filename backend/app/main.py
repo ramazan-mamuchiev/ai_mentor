@@ -122,6 +122,7 @@ async def _apply_schema():
     await _migrate_upload_sessions()
     await _migrate_chunks_parent_content()
     await _migrate_ingested_at_to_uploaded_at()
+    await _migrate_ingestion_attempts()
     await _apply_auth_schema()
 
 
@@ -406,6 +407,25 @@ async def _migrate_ingested_at_to_uploaded_at():
                 "UPDATE documents SET indexed_at = uploaded_at WHERE status = 'ready' AND indexed_at IS NULL"
             )
             logger.info("Added indexed_at column and backfilled from uploaded_at for ready documents")
+
+
+async def _migrate_ingestion_attempts():
+    """Add ingestion_attempts column to documents if missing."""
+    from app.database import engine
+
+    async with engine.begin() as conn:
+        raw = await conn.get_raw_connection()
+        drv = raw.driver_connection
+        row = await drv.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'documents' AND column_name = 'ingestion_attempts'"
+        )
+        if row:
+            return
+        await drv.execute(
+            "ALTER TABLE documents ADD COLUMN ingestion_attempts INT NOT NULL DEFAULT 0"
+        )
+        logger.info("Added ingestion_attempts column to documents")
 
 
 @contextlib.asynccontextmanager

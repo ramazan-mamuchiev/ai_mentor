@@ -65,6 +65,9 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS progress_stage TEXT NOT NULL DEFA
 -- Celery task ID for cancellation support
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS celery_task_id TEXT;
 
+-- Ingestion attempt counter (prevents infinite stale-rescue loops)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ingestion_attempts INT NOT NULL DEFAULT 0;
+
 -- Async OCR pipeline state
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_status TEXT NOT NULL DEFAULT '';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS ocr_progress_percent INT NOT NULL DEFAULT 0;

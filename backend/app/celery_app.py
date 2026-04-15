@@ -353,6 +353,7 @@ def ingest_document_task(self, document_id: int):
         doc.status = "processing"
         doc.processing_started_at = datetime.now(_tz.utc)
         doc.celery_task_id = self.request.id
+        doc.ingestion_attempts = (doc.ingestion_attempts or 0) + 1
         session.commit()
 
         ext = os.path.splitext(doc.original_filename)[1].lower() or ".bin"
@@ -2786,9 +2787,32 @@ def check_stale_documents_task(self):
             )
         ).scalars().all()
 
+        MAX_INGESTION_ATTEMPTS = 3
+
         rescued = 0
+        abandoned = 0
         for doc in stale_docs:
             started = doc.processing_started_at or doc.uploaded_at
+
+            if (doc.ingestion_attempts or 0) >= MAX_INGESTION_ATTEMPTS:
+                doc.status = "error"
+                doc.error_message = (
+                    f"Abandoned after {doc.ingestion_attempts} failed ingestion attempts"
+                )
+                doc.progress_percent = 0
+                doc.progress_stage = ""
+                abandoned += 1
+                logger.error(
+                    "Stale document abandoned (max attempts reached)",
+                    extra={
+                        "event": "document_stale_abandoned",
+                        "document_id": doc.id,
+                        "title": doc.title,
+                        "ingestion_attempts": doc.ingestion_attempts,
+                    },
+                )
+                continue
+
             doc.error_message = None
             doc.progress_percent = 0
             doc.progress_stage = ""
@@ -2806,6 +2830,7 @@ def check_stale_documents_task(self):
                     "format": doc.format,
                     "processing_started_at": str(started),
                     "re_queued": task_id is not None,
+                    "ingestion_attempts": doc.ingestion_attempts or 0,
                 },
             )
 
@@ -2813,7 +2838,7 @@ def check_stale_documents_task(self):
             session.commit()
             logger.info(
                 "Stale documents reset",
-                extra={"count": len(stale_docs), "re_queued": rescued},
+                extra={"count": len(stale_docs), "re_queued": rescued, "abandoned": abandoned},
             )
 
 
