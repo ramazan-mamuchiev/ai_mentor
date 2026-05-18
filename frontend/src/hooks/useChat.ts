@@ -15,7 +15,7 @@ interface ProductUpdate {
 }
 
 interface UseChatOptions {
-  onProductDetected?: (sessionId: number, update: ProductUpdate) => void
+  onProductDetected?: (sessionId: string, update: ProductUpdate) => void
 }
 
 interface UseChatReturn {
@@ -26,10 +26,10 @@ interface UseChatReturn {
   streamingStage: string
   status: StreamStatus
   lastUserPrompt: string
-  sendMessage: (sessionId: number, content: string) => Promise<void>
+  sendMessage: (sessionId: string, content: string) => Promise<void>
   cancel: () => void
   reset: () => void
-  retryLast: (sessionId: number) => void
+  retryLast: (sessionId: string) => void
 }
 
 export function useChat(options?: UseChatOptions): UseChatReturn {
@@ -73,7 +73,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
 
       const stoppedMsg: ChatMessage = {
         id: Date.now() + 1,
-        session_id: (serverDebug.session_id as number) ?? 0,
+        session_id: (serverDebug.session_id as string) ?? '',
         role: 'assistant',
         content: partial + '\n\n' + i18n.t('chat.stopped'),
         sources: partialSources.length > 0 ? partialSources : undefined,
@@ -111,7 +111,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
     stageRef.current = ''
   }, [])
 
-  const sendMessage = useCallback(async (sessionId: number, content: string) => {
+  const sendMessage = useCallback(async (sessionId: string, content: string) => {
     const userMsg: ChatMessage = {
       id: Date.now(),
       session_id: sessionId,
@@ -272,7 +272,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
     }
   }, [])
 
-  const retryLast = useCallback((sessionId: number) => {
+  const retryLast = useCallback((sessionId: string) => {
     const prompt = lastPromptRef.current
     if (!prompt) return
     setMessages(prev => {

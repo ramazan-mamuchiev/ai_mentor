@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import func, select
 
-from app.models import Document, FirmwareVersion, Product, UploadSession
+from app.models import Document, Product, UploadSession
 
 
 def _encode_metadata(**kwargs) -> str:
@@ -234,17 +234,12 @@ class TestConcurrentUploads:
 
 class TestQuotaIntegration:
     async def _create_product_with_docs(self, db_session, name, doc_size_bytes):
-        product = Product(name=name, manufacturer="TestMfg", model=f"M-{name}")
+        product = Product(name=name, manufacturer="TestMfg", model=f"M-{name}", version="1.0", slug=f"testmfg-m-{name.lower()}-1-0")
         db_session.add(product)
-        await db_session.flush()
-
-        fw = FirmwareVersion(product_id=product.id, version="1.0")
-        db_session.add(fw)
         await db_session.flush()
 
         doc = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             file_size_bytes=doc_size_bytes,
             original_filename="data.pdf",
             status="ready",

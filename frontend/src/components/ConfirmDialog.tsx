@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertTriangle, X } from 'lucide-react'
 
 interface ConfirmDialogProps {
@@ -34,7 +35,7 @@ export function ConfirmDialog({
     return () => window.removeEventListener('keydown', handleKey)
   }, [onCancel])
 
-  return (
+  return createPortal(
     <div className="confirm-overlay" onClick={onCancel}>
       <div
         className="confirm-dialog"
@@ -43,7 +44,7 @@ export function ConfirmDialog({
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
       >
-        <button className="confirm-close" onClick={onCancel} aria-label="Close" data-tooltip={cancelLabel} data-tooltip-align="right">
+        <button className="confirm-close" onClick={onCancel} aria-label="Close">
           <X size={16} />
         </button>
 
@@ -74,6 +75,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

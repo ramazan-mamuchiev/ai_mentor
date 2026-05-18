@@ -5,9 +5,10 @@ import logging
 import os
 import time
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy import func, select
 
+from app.auth.dependencies import get_current_tenant, require_permission
 from app.database import async_session
 from app.documents.schemas import (
     ArchiveFileResult,
@@ -17,14 +18,18 @@ from app.documents.schemas import (
     DocumentDownload,
     DocumentListItem,
     DocumentMarkdownPreview,
+    DocumentSearchKeysResponse,
     DocumentStatus,
     DocumentUsageEntry,
     DocumentUsageStats,
+    GitHubIngestRequest,
     IngestResponse,
+    SearchKeyItem,
+    SiteIngestRequest,
     UrlIngestRequest,
     UrlIngestResponse,
 )
-from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, FirmwareVersion
+from app.models import ChatMessage, Chunk, DocumentUsageLog, Product, Document, ProductSearchKey, Tenant
 from app.s3 import delete_file, generate_presigned_url, s3_key_for_document, upload_file
 from app.config import settings
 
@@ -32,11 +37,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-ALLOWED_EXTENSIONS = {".md", ".json", ".yaml", ".yml", ".pdf", ".proto", ".txt", ".wsdl", ".xml"}
+ALLOWED_EXTENSIONS = {".md", ".json", ".yaml", ".yml", ".pdf", ".proto", ".txt", ".wsdl", ".xml", ".docx", ".html", ".htm"}
 MAX_UPLOAD_BYTES = settings.max_upload_size_mb * 1024 * 1024
 
 
-@router.post("/ingest", response_model=IngestResponse)
+@router.post("/ingest", response_model=IngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
 async def ingest_document(
     request: Request,
     file: UploadFile = File(...),
@@ -45,6 +50,7 @@ async def ingest_document(
     manufacturer: str = Form(default=""),
     format: str = Form(default="auto"),
     force: bool = Form(default=False),
+    tenant: Tenant = Depends(get_current_tenant),
 ):
     """Upload a documentation file and trigger background ingestion.
 
@@ -94,43 +100,47 @@ async def ingest_document(
     )
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, product_name, manufacturer)
-        fw = await _get_or_create_firmware(session, product.id, firmware_version)
+        product = await _get_or_create_product(session, product_name, manufacturer, version=firmware_version, tenant_id=tenant.id)
 
         if not force:
-            existing = await _find_by_hash(session, source_hash, product.id, fw.id)
-            if existing is not None:
+            existing_by_hash = await _find_by_hash(session, source_hash, product.id)
+            if existing_by_hash is not None:
                 logger.info(
                     "Duplicate document skipped",
                     extra={
                         "source_hash": source_hash,
-                        "existing_document_id": existing.id,
-                        "existing_title": existing.title,
+                        "existing_document_id": existing_by_hash.id,
+                        "existing_title": existing_by_hash.title,
                         "uploaded_filename": original_filename,
                     },
                 )
                 return IngestResponse(
-                    document_id=existing.id,
+                    document_id=existing_by_hash.id,
                     status="skipped",
                     message=(
                         f"Документ с таким содержимым уже загружен: "
-                        f"«{existing.title}» (id={existing.id}, "
-                        f"файл: {existing.original_filename}). "
+                        f"«{existing_by_hash.title}» (id={existing_by_hash.id}, "
+                        f"файл: {existing_by_hash.original_filename}). "
                         f"Повторная загрузка пропущена."
                     ),
-                    existing_document_id=existing.id,
-                    existing_document_title=existing.title,
+                    existing_document_id=existing_by_hash.id,
+                    existing_document_title=existing_by_hash.title,
                 )
+
+        replaced_id = None
+        existing_by_name = await _find_by_filename(session, original_filename, product.id)
+        if existing_by_name is not None:
+            replaced_id = await _remove_old_document(session, existing_by_name)
 
         doc = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format=format,
             original_filename=original_filename,
             file_size_bytes=file_size,
             title=os.path.splitext(original_filename)[0],
             status="pending",
             source_hash=source_hash,
+            tenant_id=tenant.id,
         )
         session.add(doc)
         await session.flush()
@@ -148,6 +158,7 @@ async def ingest_document(
         doc.celery_task_id = task.id
         await session.commit()
 
+        msg = f"Document replaced old version (id={replaced_id})" if replaced_id else "Document uploaded and queued for processing"
         logger.info(
             "Document ingestion queued",
             extra={
@@ -156,22 +167,23 @@ async def ingest_document(
                 "s3_key": s3_key,
                 "file_size_bytes": file_size,
                 "client_ip": client_ip,
+                "replaced_document_id": replaced_id,
             },
         )
 
         return IngestResponse(
             document_id=doc.id,
-            status="pending",
-            message="Document uploaded and queued for processing",
+            status="replaced" if replaced_id else "pending",
+            message=msg,
             task_id=task.id,
         )
 
 
-@router.post("/ingest-url", response_model=UrlIngestResponse)
-async def ingest_url(request: Request, body: UrlIngestRequest):
+@router.post("/ingest-url", response_model=UrlIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
+async def ingest_url(request: Request, body: UrlIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
     """Import documentation from a web URL.
 
-    Creates Product + FirmwareVersion + Document placeholder synchronously,
+    Creates Product + Document placeholder synchronously,
     then dispatches a Celery task for background crawl/ingestion.
     The placeholder tracks overall progress visible to the frontend via polling.
     """
@@ -199,12 +211,22 @@ async def ingest_url(request: Request, body: UrlIngestRequest):
     doc_format = "confluence" if is_confluence else "url"
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, body.product_name, body.manufacturer)
-        fw = await _get_or_create_firmware(session, product.id, body.firmware_version)
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, version=body.firmware_version, tenant_id=tenant.id)
+
+        crawl_checkpoint = None
+        if is_confluence and body.confluence_username and body.confluence_password:
+            from app.utils.crypto import encrypt_credentials
+            encrypted = encrypt_credentials(body.confluence_username, body.confluence_password)
+            if encrypted:
+                crawl_checkpoint = {"auth": encrypted}
+        elif not is_confluence and body.http_username and body.http_password:
+            from app.utils.crypto import encrypt_credentials
+            encrypted = encrypt_credentials(body.http_username, body.http_password)
+            if encrypted:
+                crawl_checkpoint = {"http_auth": encrypted}
 
         placeholder = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format=doc_format,
             original_filename=url[:200],
             title=url[:200],
@@ -212,6 +234,8 @@ async def ingest_url(request: Request, body: UrlIngestRequest):
             source_path=url,
             source_container=url,
             progress_stage="queued",
+            tenant_id=tenant.id,
+            crawl_checkpoint=crawl_checkpoint,
         )
         session.add(placeholder)
         await session.flush()
@@ -219,7 +243,11 @@ async def ingest_url(request: Request, body: UrlIngestRequest):
         try:
             if is_confluence:
                 from app.celery_app import ingest_confluence_task
-                task = ingest_confluence_task.delay(document_id=placeholder.id)
+                task = ingest_confluence_task.delay(
+                    document_id=placeholder.id,
+                    max_pages=body.max_pages,
+                    max_depth=body.max_depth,
+                )
             else:
                 from app.celery_app import ingest_single_url_task
                 task = ingest_single_url_task.delay(document_id=placeholder.id)
@@ -250,6 +278,159 @@ async def ingest_url(request: Request, body: UrlIngestRequest):
             raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
 
 
+@router.post("/ingest-site", response_model=UrlIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
+async def ingest_site(request: Request, body: SiteIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
+    """Crawl an entire website and ingest all pages + downloadable files.
+
+    Creates a placeholder Document (format='site') and dispatches a Celery task
+    that BFS-crawls the site within the same domain.
+    """
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+
+    logger.info("Site ingest request received", extra={
+        "url": url,
+        "product_name": body.product_name,
+        "max_depth": body.max_depth,
+        "max_pages": body.max_pages,
+        "client_ip": client_ip,
+    })
+
+    async with async_session() as session:
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, version=body.firmware_version, tenant_id=tenant.id)
+
+        from urllib.parse import urlparse as _urlparse
+        domain = _urlparse(url).netloc
+
+        placeholder = Document(
+            product_id=product.id,
+            format="site",
+            original_filename=url[:200],
+            title=f"Site: {domain}",
+            status="pending",
+            source_path=url,
+            source_container=url,
+            progress_stage="queued",
+            tenant_id=tenant.id,
+        )
+        session.add(placeholder)
+        await session.flush()
+
+        try:
+            from app.celery_app import ingest_site_task
+            task = ingest_site_task.delay(
+                document_id=placeholder.id,
+                max_depth=body.max_depth,
+                max_pages=body.max_pages,
+                download_resources=body.download_resources,
+            )
+
+            placeholder.celery_task_id = task.id
+            await session.commit()
+
+            logger.info("Site ingest task queued", extra={
+                "url": url, "task_id": task.id, "document_id": placeholder.id,
+                "product_id": product.id, "max_depth": body.max_depth,
+                "max_pages": body.max_pages, "client_ip": client_ip,
+            })
+
+            return UrlIngestResponse(
+                status="pending",
+                message=f"Site crawl queued for {domain}",
+                url=url,
+                product_name=body.product_name,
+                task_id=task.id,
+                product_id=product.id,
+                document_id=placeholder.id,
+            )
+        except Exception as exc:
+            await session.rollback()
+            logger.error("Failed to queue site ingest task", extra={
+                "url": url, "error_type": type(exc).__name__, "error": str(exc),
+            }, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
+
+
+@router.post("/ingest-github", response_model=UrlIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
+async def ingest_github(request: Request, body: GitHubIngestRequest, tenant: Tenant = Depends(get_current_tenant)):
+    """Import documentation files from a public GitHub repository.
+
+    Creates a placeholder Document (format='github') and dispatches a Celery task
+    that fetches the repo tree via GitHub API and imports matching files.
+    """
+    from app.ingestion.converters.github import parse_github_url
+
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    try:
+        owner, repo, url_branch = parse_github_url(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    branch = url_branch or body.branch or "main"
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+
+    logger.info("GitHub ingest request received", extra={
+        "url": url, "owner": owner, "repo": repo, "branch": branch,
+        "product_name": body.product_name, "client_ip": client_ip,
+    })
+
+    async with async_session() as session:
+        product = await _get_or_create_product(session, body.product_name, body.manufacturer, version=body.firmware_version, tenant_id=tenant.id)
+
+        placeholder = Document(
+            product_id=product.id,
+            format="github",
+            original_filename=url[:200],
+            title=f"GitHub: {owner}/{repo}",
+            status="pending",
+            source_path=url,
+            source_container=url,
+            progress_stage="queued",
+            tenant_id=tenant.id,
+        )
+        session.add(placeholder)
+        await session.flush()
+
+        try:
+            from app.celery_app import ingest_github_task
+            task = ingest_github_task.delay(
+                document_id=placeholder.id,
+                branch=branch,
+            )
+
+            placeholder.celery_task_id = task.id
+            await session.commit()
+
+            logger.info("GitHub ingest task queued", extra={
+                "url": url, "task_id": task.id, "document_id": placeholder.id,
+                "owner": owner, "repo": repo, "branch": branch,
+                "product_id": product.id, "client_ip": client_ip,
+            })
+
+            return UrlIngestResponse(
+                status="pending",
+                message=f"GitHub import queued for {owner}/{repo} ({branch})",
+                url=url,
+                product_name=body.product_name,
+                task_id=task.id,
+                product_id=product.id,
+                document_id=placeholder.id,
+            )
+        except Exception as exc:
+            await session.rollback()
+            logger.error("Failed to queue GitHub ingest task", extra={
+                "url": url, "error_type": type(exc).__name__, "error": str(exc),
+            }, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to queue task: {type(exc).__name__}: {exc}")
+
+
 from app.documents.archive import (
     ARCHIVE_ALLOWED_EXTENSIONS,
     SUPPORTED_ARCHIVE_EXTENSIONS,
@@ -260,7 +441,70 @@ from app.documents.archive import (
 MAX_ARCHIVE_BYTES = settings.max_archive_size_mb * 1024 * 1024
 
 
-@router.post("/ingest-archive", response_model=ArchiveIngestResponse)
+async def _create_proto_bundle_docs_async(
+    session,
+    proto_entries: list[tuple[str, bytes]],
+    *,
+    product_id: int,
+    archive_filename: str,
+    tenant_id=None,
+    force: bool = False,
+) -> list[int]:
+    """Async version of proto bundle creation for FastAPI endpoint."""
+    from app.ingestion.converters.proto import convert_proto_bundle
+
+    files = []
+    for arc_path, data in proto_entries:
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        files.append((arc_path.replace("\\", "/"), text))
+
+    bundles = convert_proto_bundle(files)
+
+    doc_ids: list[int] = []
+    for domain_name, source_folder, markdown, meta in bundles:
+        md_bytes = markdown.encode("utf-8")
+        md_hash = hashlib.sha256(md_bytes).hexdigest()
+
+        existing_by_hash = await _find_by_hash(session, md_hash, product_id)
+        if existing_by_hash is not None and not force:
+            continue
+
+        title = f"gRPC API: {domain_name}"
+        filename = f"{domain_name}.md"
+
+        old_doc = await _find_by_filename(session, filename, product_id)
+        if old_doc is not None:
+            await _remove_old_document(session, old_doc)
+
+        doc = Document(
+            product_id=product_id,
+            format="markdown",
+            original_filename=filename,
+            file_size_bytes=len(md_bytes),
+            title=title,
+            status="pending",
+            source_hash=md_hash,
+            source_container=archive_filename,
+            source_folder=source_folder,
+            tenant_id=tenant_id,
+        )
+        session.add(doc)
+        await session.flush()
+
+        s3_key = s3_key_for_document(doc.id, filename)
+        upload_file(s3_key, md_bytes, "text/markdown")
+        doc.s3_key = s3_key
+        await session.commit()
+
+        doc_ids.append(doc.id)
+
+    return doc_ids
+
+
+@router.post("/ingest-archive", response_model=ArchiveIngestResponse, dependencies=[Depends(require_permission("documents.upload"))])
 async def ingest_archive(
     request: Request,
     file: UploadFile = File(...),
@@ -268,6 +512,7 @@ async def ingest_archive(
     firmware_version: str = Form(default="1.0"),
     manufacturer: str = Form(default=""),
     force: bool = Form(default=False),
+    tenant: Tenant = Depends(get_current_tenant),
 ):
     """Upload an archive containing multiple documentation files for a single product.
 
@@ -313,36 +558,69 @@ async def ingest_archive(
     if not entries:
         raise HTTPException(status_code=400, detail="No supported files found in archive")
 
+    from app.documents.archive import is_proto_heavy, classify_archive_entries
+
     results: list[ArchiveFileResult] = []
     accepted = 0
     skipped = 0
+    replaced = 0
     errors = 0
 
     async with async_session() as session:
-        product = await _get_or_create_product(session, product_name, manufacturer)
-        fw = await _get_or_create_firmware(session, product.id, firmware_version)
+        product = await _get_or_create_product(session, product_name, manufacturer, version=firmware_version, tenant_id=tenant.id)
 
-        for arc_path, entry_data in entries:
+        proto_entries, other_entries = classify_archive_entries(entries)
+        use_bundle = is_proto_heavy(entries) and len(proto_entries) >= 5
+
+        if use_bundle:
+            bundle_ids = await _create_proto_bundle_docs_async(
+                session, proto_entries,
+                product_id=product.id,
+                archive_filename=original_filename,
+                tenant_id=tenant.id,
+                force=force,
+            )
+            for doc_id in bundle_ids:
+                from app.celery_app import ingest_document_task
+                task = ingest_document_task.delay(doc_id)
+                accepted += 1
+                results.append(ArchiveFileResult(
+                    filename=f"[proto-bundle-{doc_id}]",
+                    status="pending",
+                    document_id=doc_id,
+                    task_id=task.id,
+                    message="Proto bundle queued for processing",
+                ))
+            remaining_entries = other_entries
+        else:
+            remaining_entries = entries
+
+        for arc_path, entry_data in remaining_entries:
             entry_filename = os.path.basename(arc_path)
+            entry_folder = os.path.dirname(arc_path).replace("\\", "/")
 
             try:
                 entry_hash = hashlib.sha256(entry_data).hexdigest()
 
-                if not force:
-                    existing = await _find_by_hash(session, entry_hash)
-                    if existing is not None:
-                        skipped += 1
-                        results.append(ArchiveFileResult(
-                            filename=arc_path,
-                            status="skipped",
-                            document_id=existing.id,
-                            message=f"Duplicate of «{existing.title}» (id={existing.id})",
-                        ))
-                        continue
+                existing_by_hash = await _find_by_hash(session, entry_hash, product.id)
+                if existing_by_hash is not None:
+                    skipped += 1
+                    results.append(ArchiveFileResult(
+                        filename=arc_path,
+                        status="skipped",
+                        document_id=existing_by_hash.id,
+                        message=f"Unchanged: «{existing_by_hash.title}» (id={existing_by_hash.id})",
+                    ))
+                    continue
+
+                replaced_id = None
+                existing_by_name = await _find_by_filename(session, entry_filename, product.id)
+                if existing_by_name is not None:
+                    replaced_id = await _remove_old_document(session, existing_by_name)
+                    replaced += 1
 
                 doc = Document(
                     product_id=product.id,
-                    firmware_version_id=fw.id,
                     format="auto",
                     original_filename=entry_filename,
                     file_size_bytes=len(entry_data),
@@ -350,6 +628,8 @@ async def ingest_archive(
                     status="pending",
                     source_hash=entry_hash,
                     source_container=original_filename,
+                    source_folder=entry_folder,
+                    tenant_id=tenant.id,
                 )
                 session.add(doc)
                 await session.flush()
@@ -365,12 +645,13 @@ async def ingest_archive(
                 task = ingest_document_task.delay(doc.id)
 
                 accepted += 1
+                msg = f"Replaced old document (id={replaced_id})" if replaced_id else "Queued for processing"
                 results.append(ArchiveFileResult(
                     filename=arc_path,
-                    status="pending",
+                    status="replaced" if replaced_id else "pending",
                     document_id=doc.id,
                     task_id=task.id,
-                    message="Queued for processing",
+                    message=msg,
                 ))
 
             except Exception as e:
@@ -393,6 +674,7 @@ async def ingest_archive(
             "total_files": len(entries),
             "accepted": accepted,
             "skipped": skipped,
+            "replaced": replaced,
             "errors": errors,
         },
     )
@@ -402,6 +684,7 @@ async def ingest_archive(
         total_files=len(entries),
         accepted=accepted,
         skipped=skipped,
+        replaced=replaced,
         errors=errors,
         files=results,
     )
@@ -410,61 +693,82 @@ async def ingest_archive(
 @router.get("", response_model=list[DocumentListItem])
 async def list_documents(product_id: int | None = None):
     """List all documents with their status. Optionally filter by product_id."""
+    import orjson
+    from starlette.responses import Response
+
     async with async_session() as session:
-        query = (
-            select(
-                Document.id,
-                Document.title,
-                Document.format,
-                Document.status,
-                Document.original_filename,
-                Document.file_size_bytes,
-                Document.total_chunks,
-                Product.name.label("product_name"),
-                FirmwareVersion.version.label("firmware_version"),
-                Document.error_message,
-                Document.uploaded_at,
-                Document.indexed_at,
-                Document.progress_percent,
-                Document.progress_stage,
-                Document.detected_language,
-                Document.source_container,
-                Document.source_path,
-            )
-            .join(Product, Document.product_id == Product.id)
-            .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
-            .order_by(Document.uploaded_at.desc())
-        )
+        _base_cols = [
+            Document.id,
+            Document.title,
+            Document.format,
+            Document.status,
+            Document.original_filename,
+            Document.file_size_bytes,
+            Document.total_chunks,
+            Document.error_message,
+            Document.uploaded_at,
+            Document.indexed_at,
+            Document.progress_percent,
+            Document.progress_stage,
+            Document.detected_language,
+            Document.source_container,
+            Document.source_path,
+            Document.lifecycle_status,
+        ]
+
         if product_id is not None:
-            query = query.where(Document.product_id == product_id)
+            query = (
+                select(*_base_cols)
+                .where(Document.product_id == product_id)
+                .order_by(Document.uploaded_at.desc())
+            )
+        else:
+            query = (
+                select(
+                    *_base_cols,
+                    Product.name.label("product_name"),
+                    Product.version.label("firmware_version"),
+                )
+                .join(Product, Document.product_id == Product.id)
+                .order_by(Document.uploaded_at.desc())
+            )
+
         result = await session.execute(query)
         rows = result.all()
-        return [DocumentListItem(**dict(row._mapping)) for row in rows]
+        items = [dict(row._mapping) for row in rows]
+        return Response(
+            content=orjson.dumps(items, option=orjson.OPT_NAIVE_UTC),
+            media_type="application/json",
+        )
 
 
 @router.patch("/{document_id}", response_model=DocumentStatus)
-async def update_document(document_id: int, title: str | None = None, product_id: int | None = None, firmware_version_id: int | None = None):
-    """Update document properties (title, product, firmware version)."""
+async def update_document(document_id: int, title: str | None = None, product_id: int | None = None):
+    """Update document properties (title, product)."""
     async with async_session() as session:
         doc = await session.get(Document, document_id)
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        if title is not None:
+        changes: dict[str, tuple] = {}
+        if title is not None and title != doc.title:
+            changes["title"] = (doc.title, title)
             doc.title = title
-        if product_id is not None:
+        if product_id is not None and product_id != doc.product_id:
             product = await session.get(Product, product_id)
             if product is None:
                 raise HTTPException(status_code=400, detail="Target product not found")
+            changes["product_id"] = (doc.product_id, product_id)
             doc.product_id = product_id
-        if firmware_version_id is not None:
-            fw = await session.get(FirmwareVersion, firmware_version_id)
-            if fw is None:
-                raise HTTPException(status_code=400, detail="Firmware version not found")
-            doc.firmware_version_id = firmware_version_id
 
         await session.commit()
         await session.refresh(doc)
+
+        if changes:
+            logger.info(
+                "Document updated",
+                extra={"document_id": document_id, "changes": {k: {"from": v[0], "to": v[1]} for k, v in changes.items()}},
+            )
 
         return DocumentStatus(
             document_id=doc.id,
@@ -507,7 +811,7 @@ async def get_document_status(document_id: int):
     return await get_document(document_id)
 
 
-@router.get("/{document_id}/debug", response_model=DocumentDebugInfo)
+@router.get("/{document_id}/debug", response_model=DocumentDebugInfo, dependencies=[Depends(require_permission("debug"))])
 async def get_document_debug(document_id: int):
     """Get detailed debug/analytics info for a document (indexing timings, token stats, RAG usage)."""
     async with async_session() as session:
@@ -545,15 +849,17 @@ async def get_document_debug(document_id: int):
                 Document.ocr_images_success,
                 Document.ocr_images_empty,
                 Document.ocr_images_failed,
+                Document.ocr_prompt_tokens,
+                Document.ocr_completion_tokens,
+                Document.ocr_model,
                 Document.detected_language,
                 Document.extract_ms,
                 Document.extract_prompt_tokens,
                 Document.extract_completion_tokens,
                 Product.name.label("product_name"),
-                FirmwareVersion.version.label("firmware_version"),
+                Product.version.label("firmware_version"),
             )
             .join(Product, Document.product_id == Product.id)
-            .join(FirmwareVersion, Document.firmware_version_id == FirmwareVersion.id)
             .where(Document.id == document_id)
         )
         row = result.one_or_none()
@@ -563,7 +869,36 @@ async def get_document_debug(document_id: int):
         if data.get("extract_ms") is not None:
             from app.config import settings as _cfg
             data["extract_model"] = _cfg.metadata_extraction_model
+
+        keys_count = (await session.execute(
+            select(func.count()).select_from(ProductSearchKey)
+            .where(ProductSearchKey.document_id == document_id)
+        )).scalar() or 0
+        data["search_keys_count"] = keys_count
+
         return DocumentDebugInfo(**data)
+
+
+@router.get("/{document_id}/search-keys", response_model=DocumentSearchKeysResponse)
+async def get_document_search_keys(document_id: int):
+    """Get all search keys associated with a document."""
+    async with async_session() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        rows = (await session.execute(
+            select(ProductSearchKey.key, ProductSearchKey.source)
+            .where(ProductSearchKey.document_id == document_id)
+            .order_by(ProductSearchKey.source, ProductSearchKey.key)
+        )).all()
+
+        keys = [SearchKeyItem(key=r.key, source=r.source) for r in rows]
+        return DocumentSearchKeysResponse(
+            document_id=document_id,
+            total_keys=len(keys),
+            keys=keys,
+        )
 
 
 @router.get("/{document_id}/usage-stats", response_model=DocumentUsageStats)
@@ -736,6 +1071,144 @@ async def preview_markdown(document_id: int):
         )
 
 
+@router.post("/{document_id}/analyze-lifecycle", status_code=202, dependencies=[Depends(require_permission("lifecycle.run"))])
+async def analyze_document_lifecycle(document_id: int):
+    """Manually trigger API lifecycle analysis for a document.
+
+    Dispatches an async Celery task. Returns immediately with task info.
+    """
+    from app.models import ApiLifecycle
+    async with async_session() as session:
+        doc = (await session.execute(
+            select(Document).where(Document.id == document_id)
+        )).scalar_one_or_none()
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        if doc.status != "ready":
+            raise HTTPException(status_code=409, detail=f"Document status is '{doc.status}', must be 'ready'")
+
+        existing = (await session.execute(
+            select(ApiLifecycle.status).where(
+                ApiLifecycle.document_id == document_id,
+                ApiLifecycle.batch_index.is_(None),
+            )
+        )).scalar_one_or_none()
+
+        doc.lifecycle_status = "pending"
+        await session.commit()
+
+    from app.celery_app import celery
+    task = celery.send_task("analyze_api_lifecycle", args=[document_id])
+
+    return {
+        "document_id": document_id,
+        "task_id": task.id,
+        "message": "Lifecycle analysis started",
+        "previous_status": existing or "none",
+    }
+
+
+@router.get("/{document_id}/lifecycle")
+async def get_document_lifecycle(document_id: int):
+    """Get lifecycle analysis result for a document."""
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    async with async_session() as session:
+        doc = (await session.execute(
+            select(Document).where(Document.id == document_id)
+        )).scalar_one_or_none()
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        lc = (await session.execute(
+            select(ApiLifecycle).where(
+                ApiLifecycle.document_id == document_id,
+                ApiLifecycle.batch_index.is_(None),
+            )
+        )).scalar_one_or_none()
+        if lc is None:
+            lc = (await session.execute(
+                select(ApiLifecycle).where(
+                    ApiLifecycle.document_id == document_id,
+                ).order_by(ApiLifecycle.created_at.desc()).limit(1)
+            )).scalar_one_or_none()
+        if lc is None:
+            return {"document_id": document_id, "status": "not_analyzed"}
+
+        issues = (await session.execute(
+            select(DocIssueAnnotation).where(
+                DocIssueAnnotation.document_id == document_id,
+                DocIssueAnnotation.detected_by == "lifecycle_analysis",
+            )
+        )).scalars().all()
+
+        return {
+            "document_id": document_id,
+            "product_id": lc.product_id,
+            "status": lc.status,
+            "phases": lc.phases,
+            "unique_patterns": lc.unique_patterns,
+            "dependency_chains": lc.dependency_chains,
+            "code_skeleton": lc.code_skeleton,
+            "code_skeleton_translations": lc.code_skeleton_translations or {},
+            "data_models": lc.data_models or [],
+            "error_catalog": lc.error_catalog or [],
+            "prerequisites": lc.prerequisites or [],
+            "data_access_patterns": lc.data_access_patterns or [],
+            "endpoint_coverage": lc.endpoint_coverage or [],
+            "integration_data_flows": lc.integration_data_flows or {},
+            "validation_issues": lc.validation_issues,
+            "validation_retries": lc.validation_retries,
+            "doc_scope": getattr(lc, "doc_scope", "unknown") or "unknown",
+            "prompt_tokens": lc.prompt_tokens,
+            "completion_tokens": lc.completion_tokens,
+            "analysis_ms": lc.analysis_ms,
+            "model": lc.model,
+            "error_message": lc.error_message,
+            "created_at": lc.created_at.isoformat() if lc.created_at else None,
+            "updated_at": lc.updated_at.isoformat() if lc.updated_at else None,
+            "doc_issues": [
+                {
+                    "issue_type": i.issue_type,
+                    "severity": i.severity,
+                    "description": i.description,
+                    "affected_entity": i.affected_entity,
+                    "suggestion": i.suggestion,
+                }
+                for i in issues
+            ],
+        }
+
+
+@router.delete("/{document_id}/lifecycle", dependencies=[Depends(require_permission("lifecycle.run"))])
+async def delete_document_lifecycle(document_id: int):
+    """Delete lifecycle analysis for a document and its associated doc issue annotations."""
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    from sqlalchemy import delete as sa_delete
+    async with async_session() as session:
+        doc = (await session.execute(
+            select(Document).where(Document.id == document_id)
+        )).scalar_one_or_none()
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        result = await session.execute(
+            sa_delete(ApiLifecycle).where(ApiLifecycle.document_id == document_id)
+        )
+        await session.execute(
+            sa_delete(DocIssueAnnotation).where(
+                DocIssueAnnotation.document_id == document_id,
+                DocIssueAnnotation.detected_by == "lifecycle_analysis",
+            )
+        )
+        doc.lifecycle_status = ""
+        await session.commit()
+
+    return {
+        "document_id": document_id,
+        "deleted": result.rowcount > 0,
+    }
+
+
 @router.post("/{document_id}/cancel", status_code=200)
 async def cancel_document(document_id: int):
     """Cancel ingestion of a pending or processing document.
@@ -777,7 +1250,7 @@ async def cancel_document(document_id: int):
     return {"document_id": document_id, "status": "cancelled", "message": "Ingestion cancelled"}
 
 
-@router.delete("/{document_id}", response_model=DeleteResponse)
+@router.delete("/{document_id}", response_model=DeleteResponse, dependencies=[Depends(require_permission("documents.delete"))])
 async def delete_document(document_id: int):
     """Delete a document and all its chunks. Also removes the file from S3."""
     async with async_session() as session:
@@ -808,26 +1281,77 @@ async def delete_document(document_id: int):
         )
 
 
-@router.post("/{document_id}/reingest", status_code=202)
-async def reingest_single_document(document_id: int):
-    """Re-run full ingestion for a single document.
+@router.post("/{document_id}/reingest", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
+async def reingest_single_document(
+    document_id: int,
+    reindex_only: bool = False,
+):
+    """Re-run ingestion for a single document.
 
-    For file-based documents: resets to 'pending', clears chunks, re-queues
-    the ingestion task (the original file in S3 is preserved).
+    reindex_only=False (default / "sync"): for linked documents re-crawls
+    from source; for file-based documents re-indexes from stored S3 file.
 
-    For URL/Confluence documents: deletes all child documents produced by
-    the previous crawl, resets the placeholder, and re-queues the
-    appropriate Celery task.
+    reindex_only=True ("reindex"): always re-indexes from the stored S3
+    file without going to the external source. Returns 400 for placeholder
+    documents that have no stored content.
     """
     from app.celery_app import ingest_document_task
 
+    _PLACEHOLDER_FORMATS = {"site", "confluence", "url", "github"}
+
     async with async_session() as session:
-        doc = await session.get(Document, document_id)
+        doc = (await session.execute(
+            select(Document).where(Document.id == document_id).with_for_update()
+        )).scalar_one_or_none()
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
+        if doc.status in ("pending", "processing"):
+            raise HTTPException(status_code=409, detail="Document is already being processed")
+
+        is_placeholder = doc.format in _PLACEHOLDER_FORMATS
+
+        if reindex_only:
+            if is_placeholder:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Placeholder document has no stored content — use sync instead",
+                )
+            if not doc.s3_key:
+                raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
+
+            chunks = (await session.execute(
+                select(Chunk).where(Chunk.document_id == doc.id)
+            )).scalars().all()
+            for chunk in chunks:
+                await session.delete(chunk)
+
+            doc.status = "pending"
+            doc.total_chunks = 0
+            doc.error_message = None
+            doc.progress_percent = 0
+            doc.progress_stage = "queued"
+            await session.flush()
+
+            task = ingest_document_task.delay(document_id)
+            doc.celery_task_id = task.id
+            await session.commit()
+
+            logger.info("Single document reindex queued", extra={
+                "document_id": document_id, "task_id": task.id, "format": doc.format,
+            })
+            return {
+                "document_id": document_id,
+                "status": "pending",
+                "task_id": task.id,
+                "message": "Document queued for reindexing",
+            }
+
+        # --- Full sync: re-crawl from source for linked, re-index for files ---
         is_confluence = doc.format == "confluence"
         is_url = doc.format == "url"
+        is_github = doc.format == "github"
+        is_site = doc.format == "site"
         is_confluence_child = (
             doc.format == "markdown"
             and doc.source_path
@@ -836,10 +1360,23 @@ async def reingest_single_document(document_id: int):
             and "confluence" in (doc.source_path or "").lower()
         )
 
-        if not doc.s3_key and not is_confluence and not is_url and not is_confluence_child:
+        if is_url and doc.source_path:
+            from app.ingestion.converters.confluence import parse_confluence_url
+            try:
+                parse_confluence_url(doc.source_path)
+                is_confluence = True
+                is_url = False
+                doc.format = "confluence"
+                logger.info("Reingest: reclassified URL as Confluence", extra={
+                    "document_id": document_id, "url": doc.source_path,
+                })
+            except ValueError:
+                pass
+
+        if not doc.s3_key and not is_confluence and not is_url and not is_github and not is_site and not is_confluence_child:
             raise HTTPException(status_code=400, detail="No source file stored — cannot reingest")
 
-        if is_confluence or is_url:
+        if is_confluence or is_url or is_github or is_site:
             if not doc.source_path:
                 raise HTTPException(status_code=400, detail="No source URL stored — cannot reingest")
 
@@ -877,10 +1414,26 @@ async def reingest_single_document(document_id: int):
         doc.error_message = None
         doc.progress_percent = 0
         doc.progress_stage = "queued"
-        doc.title = doc.source_path[:200] if (is_confluence or is_url) else doc.title
+        doc.title = doc.source_path[:200] if (is_confluence or is_url or is_github or is_site) else doc.title
+        if is_site:
+            doc.crawl_checkpoint = None
         await session.flush()
 
-        if is_confluence:
+        if is_site:
+            from app.celery_app import ingest_site_task
+            task = ingest_site_task.delay(document_id=document_id)
+        elif is_github:
+            from app.celery_app import ingest_github_task
+            from app.ingestion.converters.github import parse_github_url
+            _branch = "main"
+            try:
+                _, _, url_branch = parse_github_url(doc.source_path)
+                if url_branch:
+                    _branch = url_branch
+            except ValueError:
+                pass
+            task = ingest_github_task.delay(document_id=document_id, branch=_branch)
+        elif is_confluence:
             from app.celery_app import ingest_confluence_task
             task = ingest_confluence_task.delay(document_id=document_id)
         elif is_url:
@@ -895,7 +1448,7 @@ async def reingest_single_document(document_id: int):
         doc.celery_task_id = task.id
         await session.commit()
 
-    logger.info("Single document reingest queued", extra={
+    logger.info("Single document sync queued", extra={
         "document_id": document_id, "task_id": task.id,
         "format": doc.format,
     })
@@ -903,7 +1456,7 @@ async def reingest_single_document(document_id: int):
         "document_id": document_id,
         "status": "pending",
         "task_id": task.id,
-        "message": "Document queued for reingestion",
+        "message": "Document queued for sync",
     }
 
 
@@ -927,7 +1480,7 @@ async def get_queue_stats():
     }
 
 
-@router.post("/requeue-pending", status_code=202)
+@router.post("/requeue-pending", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def requeue_pending_documents():
     """Re-queue ingestion for all documents with status 'pending'.
 
@@ -950,7 +1503,7 @@ async def requeue_pending_documents():
     return {"status": "accepted", "documents_queued": queued}
 
 
-@router.post("/reindex", status_code=202)
+@router.post("/reindex", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def reindex_all_documents():
     """Re-embed all chunks using the current embedding model.
 
@@ -980,7 +1533,7 @@ async def reindex_all_documents():
                 continue
 
             contents = [c.content for c in chunks]
-            embeddings = embed_texts(contents)
+            embeddings, _ = embed_texts(contents)
 
             for chunk, emb in zip(chunks, embeddings):
                 chunk.embedding = emb
@@ -1008,7 +1561,7 @@ async def reindex_all_documents():
     }
 
 
-@router.post("/reingest", status_code=202)
+@router.post("/reingest", status_code=202, dependencies=[Depends(require_permission("documents.reindex"))])
 async def reingest_documents(
     product_name: str = Form(default=""),
     format_filter: str = Form(default=""),
@@ -1065,57 +1618,100 @@ async def reingest_documents(
 
 
 async def _find_by_hash(
-    session, source_hash: str, product_id: int, firmware_version_id: int
+    session, source_hash: str, product_id: int,
 ) -> Document | None:
-    """Find an existing document with the same content hash within the same product+version."""
+    """Find an existing document with the same content hash within the same product."""
     result = await session.execute(
         select(Document).where(
             Document.source_hash == source_hash,
             Document.product_id == product_id,
-            Document.firmware_version_id == firmware_version_id,
         ).limit(1)
     )
     return result.scalar_one_or_none()
 
 
-async def _get_or_create_product(session, name: str, manufacturer: str):
-    from app.slugify import slugify
+async def _find_by_filename(
+    session, original_filename: str, product_id: int,
+) -> Document | None:
+    """Find existing document by filename within same product (for replacement)."""
+    result = await session.execute(
+        select(Document).where(
+            Document.original_filename == original_filename,
+            Document.product_id == product_id,
+        ).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _remove_old_document(session, doc: Document) -> int:
+    """Delete a document and its S3 file. Chunks/lifecycle/annotations cascade in DB.
+
+    Returns the id of the removed document.
+    """
+    old_id = doc.id
+    old_title = doc.title or doc.original_filename
+
+    if doc.s3_key:
+        try:
+            delete_file(doc.s3_key)
+        except Exception:
+            logger.warning("Failed to delete S3 file for replaced document",
+                           extra={"s3_key": doc.s3_key, "document_id": old_id})
+
+    if doc.converted_s3_key:
+        try:
+            delete_file(doc.converted_s3_key)
+        except Exception:
+            logger.warning("Failed to delete converted S3 file for replaced document",
+                           extra={"s3_key": doc.converted_s3_key, "document_id": old_id})
+
+    if doc.celery_task_id:
+        try:
+            from app.celery_app import celery
+            celery.control.revoke(doc.celery_task_id, terminate=True)
+        except Exception:
+            logger.warning("Failed to revoke celery task for replaced document",
+                           extra={"task_id": doc.celery_task_id, "document_id": old_id})
+
+    await session.delete(doc)
+    await session.flush()
+
+    logger.info("Old document removed (replaced by new upload)",
+                extra={"document_id": old_id, "title": old_title})
+    return old_id
+
+
+async def _get_or_create_product(session, name: str, manufacturer: str, *, version: str = "", tenant_id=None):
+    from sqlalchemy.exc import IntegrityError
 
     result = await session.execute(
-        select(Product).where(Product.name == name, Product.manufacturer == manufacturer)
+        select(Product).where(Product.name == name, Product.manufacturer == manufacturer, Product.version == version)
     )
     product = result.scalar_one_or_none()
     if product:
-        if not product.slug:
-            product.slug = slugify(name)
-            product.manufacturer_slug = slugify(manufacturer) if manufacturer else "default"
-            await session.flush()
         return product
-    slug = slugify(name)
-    mfr_slug = slugify(manufacturer) if manufacturer else "default"
+
+    from app.products.utils import make_product_slug
+
     product = Product(
         name=name,
         manufacturer=manufacturer,
         model=name,
-        slug=slug,
-        manufacturer_slug=mfr_slug,
+        version=version,
+        slug=make_product_slug(manufacturer, name, version),
+        tenant_id=tenant_id,
     )
     session.add(product)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        await session.rollback()
+        result = await session.execute(
+            select(Product).where(Product.name == name, Product.manufacturer == manufacturer, Product.version == version)
+        )
+        product = result.scalar_one_or_none()
+        if product is None:
+            raise
     return product
 
 
-async def _get_or_create_firmware(session, product_id: int, version: str):
-    result = await session.execute(
-        select(FirmwareVersion).where(
-            FirmwareVersion.product_id == product_id,
-            FirmwareVersion.version == version,
-        )
-    )
-    fw = result.scalar_one_or_none()
-    if fw:
-        return fw
-    fw = FirmwareVersion(product_id=product_id, version=version)
-    session.add(fw)
-    await session.flush()
-    return fw

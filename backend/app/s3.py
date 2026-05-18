@@ -39,15 +39,31 @@ def ensure_bucket():
         logger.info("S3 bucket created", extra={"bucket": settings.s3_bucket})
 
 
+def _classify_s3_error(exc: ClientError) -> str:
+    """Extract the S3 error code from a botocore ClientError."""
+    return exc.response.get("Error", {}).get("Code", "Unknown")
+
+
 def upload_file(key: str, data: bytes, content_type: str = "application/octet-stream") -> str:
     """Upload bytes to S3. Returns the key."""
     client = _get_client()
-    client.put_object(
-        Bucket=settings.s3_bucket,
-        Key=key,
-        Body=data,
-        ContentType=content_type,
-    )
+    try:
+        client.put_object(
+            Bucket=settings.s3_bucket,
+            Key=key,
+            Body=data,
+            ContentType=content_type,
+        )
+    except ClientError as exc:
+        error_code = _classify_s3_error(exc)
+        logger.error("S3 write failed", extra={
+            "key": key,
+            "size": len(data),
+            "error_code": error_code,
+            "is_throttle": "SlowDown" in error_code,
+            "error": str(exc)[:300],
+        })
+        raise
     logger.debug("S3 upload", extra={"key": key, "size": len(data)})
     return key
 
@@ -189,9 +205,26 @@ def s3_key_for_upload(upload_id: str, filename: str) -> str:
 
 
 def check_health() -> bool:
-    """Check if S3 is reachable."""
+    """Check if S3 is reachable (read-only, bucket exists)."""
     try:
         _get_client().head_bucket(Bucket=settings.s3_bucket)
+        return True
+    except Exception:
+        return False
+
+
+def check_write_health() -> bool:
+    """Write + delete a tiny probe object to verify MinIO is writable."""
+    client = _get_client()
+    probe_key = "_health/write-probe"
+    try:
+        client.put_object(
+            Bucket=settings.s3_bucket,
+            Key=probe_key,
+            Body=b"ok",
+            ContentType="text/plain",
+        )
+        client.delete_object(Bucket=settings.s3_bucket, Key=probe_key)
         return True
     except Exception:
         return False

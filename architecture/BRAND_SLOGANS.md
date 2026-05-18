@@ -251,7 +251,7 @@ I.R.O. — Intelligent Response Orchestration
 │   From documentation to code.           │
 │            Instantly.                    │
 │                                         │
-│         ▸ lexiro.ai                     │
+│         ▸ lexiro.io                     │
 │                                         │
 └─────────────────────────────────────────┘
 ```
@@ -268,7 +268,7 @@ I.R.O. — Intelligent Response Orchestration
 
 ### 4.5 Podcast / Webinar Intro (10 sec)
 
-> "This episode is powered by Lexiro — the AI integration platform that transforms documentation into code. Complex docs, simple code. Check it out at lexiro.ai."
+> "This episode is powered by Lexiro — the AI integration platform that transforms documentation into code. Complex docs, simple code. Check it out at lexiro.io."
 
 ---
 
@@ -357,7 +357,9 @@ Lexiro occupies the unique intersection of **documentation intelligence** + **co
 
 ### Branding
 
-- [ ] Register domains (lexiro.ai, lexiro.dev, lexiro.io)
+- [x] Register domain — **lexiro.io purchased**, DNS active, **HTTPS live** (GlobalSign AlphaSSL)
+- [x] Register domain — **lexiro.dev purchased**, DNS active, SSL pending
+- [ ] Register domain (lexiro.ai) — brand protection (deferred)
 - [ ] Register social accounts (@lexiro on GitHub, Twitter, LinkedIn, YouTube)
 - [ ] File trademark (FIPS, EUIPO, USPTO) — Classes 9, 42
 - [ ] Commission logo design (brief in BRAND.md §7)

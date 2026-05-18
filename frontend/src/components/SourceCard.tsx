@@ -36,7 +36,6 @@ export function SourceCard({ source, index, onPreview }: Props) {
             <button
               className="source-card-preview-btn"
               onClick={() => onPreview!(source.document_id!, source.doc_title)}
-              data-tooltip={t('chat.sources.preview')}
             >
               <Eye size={14} />
             </button>

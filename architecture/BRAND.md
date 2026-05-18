@@ -204,11 +204,12 @@ Lexiro = Lex + iro
 |--------|--------|-------|
 | lexiro.com | Parked / for sale | Timeout on fetch — likely on domain marketplace |
 | lexiro.in | Occupied | Indian hardware company |
-| **lexiro.ai** | **Likely available** | Not found in WHOIS searches |
-| **lexiro.dev** | **Likely available** | Not found in WHOIS searches |
-| **lexiro.io** | **Likely available** | Not found in WHOIS searches |
+| lexiro.ai | Not purchased | Consider purchasing later |
+| **lexiro.dev** | **✅ Purchased** | DNS → 82.38.66.177, SSL pending activation |
+| **lexiro.io** | **✅ Purchased + HTTPS** | **Primary production domain** — DNS → 82.38.66.177, GlobalSign AlphaSSL active |
 
-> **Action required:** Manually verify .ai, .dev, .io at registrar (e.g. Namecheap, Porkbun) and purchase immediately.
+> **https://lexiro.io** is the live production URL with HTTPS (GlobalSign AlphaSSL, valid until Oct 2026).
+> **lexiro.dev** purchased, SSL certificate pending activation. Consider purchasing .ai later as brand protection.
 
 #### Developer Platforms
 
@@ -367,7 +368,7 @@ See [BRAND_SLOGANS.md](BRAND_SLOGANS.md) for full collection including taglines,
 ```
 [Name] | Lexiro
 Complex docs. Simple code.
-https://lexiro.ai
+https://lexiro.io
 ```
 
 ### 6.4 GitHub README Header
@@ -437,10 +438,10 @@ Lexiro transforms chaotic product documentation into a structured knowledge base
 
 | Domain | Priority | Status | Action |
 |--------|----------|--------|--------|
-| lexiro.ai | **Critical** | Likely available | Register immediately |
-| lexiro.dev | **Critical** | Likely available | Register immediately |
-| lexiro.io | High | Likely available | Register immediately |
-| lexiro.com | Medium | Parked / for sale | Negotiate purchase ($500–$3000) |
+| **lexiro.io** | **Primary** | **✅ Live HTTPS** | Production domain — GlobalSign AlphaSSL, HSTS, HTTP/2 |
+| **lexiro.dev** | **High** | **✅ Purchased** | DNS active, SSL pending activation |
+| lexiro.ai | Medium | Not purchased | Consider later for brand protection |
+| lexiro.com | Low | Parked / for sale | Negotiate purchase ($500–$3000) if needed |
 
 ### 8.2 Social & Code Accounts
 
@@ -491,7 +492,9 @@ When renaming from Plexicode to Lexiro:
 
 ### 9.3 External
 
-- [ ] Domain registration (.ai, .dev, .io)
+- [x] Domain registration — **lexiro.io purchased**, DNS active, **HTTPS live** (GlobalSign AlphaSSL)
+- [x] Domain registration — **lexiro.dev purchased**, DNS active, SSL pending
+- [ ] Domain registration (.ai) — brand protection (deferred)
 - [ ] GitHub organization — create @lexiro
 - [ ] Social account registration (Twitter, LinkedIn, YouTube)
 - [ ] Trademark filing (FIPS, EUIPO, USPTO)

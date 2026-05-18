@@ -1,7 +1,7 @@
 import { apiFetch } from './client'
-import type { SharedContentResponse, SharedDebugContentResponse, SharedLinkResponse } from '../types'
+import type { SharedContentResponse, SharedDebugContentResponse, SharedDocumentPreviewResponse, SharedLinkResponse } from '../types'
 
-export async function shareSession(sessionId: number): Promise<SharedLinkResponse> {
+export async function shareSession(sessionId: string): Promise<SharedLinkResponse> {
   return apiFetch<SharedLinkResponse>(`/share/session/${sessionId}`, {
     method: 'POST',
     body: '{}',
@@ -29,22 +29,42 @@ export async function shareDebugDocument(documentId: number): Promise<SharedLink
   })
 }
 
-export async function shareDebugProduct(manufacturerSlug: string, productSlug: string): Promise<SharedLinkResponse> {
-  return apiFetch<SharedLinkResponse>(`/share/debug/product/${manufacturerSlug}/${productSlug}`, {
+export async function shareDebugProduct(productId: number): Promise<SharedLinkResponse> {
+  return apiFetch<SharedLinkResponse>(`/share/debug/product/${productId}`, {
     method: 'POST',
     body: '{}',
   })
 }
 
-export async function getSharedContent(token: string): Promise<SharedContentResponse | SharedDebugContentResponse> {
-  return apiFetch<SharedContentResponse | SharedDebugContentResponse>(`/s/${token}`)
+export async function shareDocumentPreview(documentId: number): Promise<SharedLinkResponse> {
+  return apiFetch<SharedLinkResponse>(`/share/document/${documentId}`, {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
+export async function shareLifecycle(productId: number): Promise<SharedLinkResponse> {
+  return apiFetch<SharedLinkResponse>(`/share/lifecycle/${productId}`, {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
+export async function getSharedContent(token: string): Promise<SharedContentResponse | SharedDebugContentResponse | SharedDocumentPreviewResponse> {
+  return apiFetch<SharedContentResponse | SharedDebugContentResponse | SharedDocumentPreviewResponse>(`/s/${token}`)
 }
 
 export async function deleteSharedLink(token: string): Promise<void> {
   return apiFetch<void>(`/share/${token}`, { method: 'DELETE' })
 }
 
-export async function listSharedLinks(sessionId?: number): Promise<SharedLinkResponse[]> {
-  const params = sessionId != null ? `?session_id=${sessionId}` : ''
-  return apiFetch<SharedLinkResponse[]>(`/share/links${params}`)
+export async function listSharedLinks(params?: {
+  sessionId?: string
+  includeInactive?: boolean
+}): Promise<SharedLinkResponse[]> {
+  const sp = new URLSearchParams()
+  if (params?.sessionId) sp.set('session_uuid', params.sessionId)
+  if (params?.includeInactive) sp.set('include_inactive', 'true')
+  const qs = sp.toString()
+  return apiFetch<SharedLinkResponse[]>(`/share/links${qs ? `?${qs}` : ''}`)
 }

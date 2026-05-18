@@ -1,13 +1,16 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  MessageSquare, Box, BarChart3, Settings, X,
+  MessageSquare, Box, BarChart3, Settings, X, Shield, Plug, Link2,
+  LayoutDashboard, Users, FileText, ScrollText, KeyRound, MessageSquareCode,
+  ArrowLeft, Activity, BookOpen, Target, HelpCircle, ListTodo,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatSession } from '../types'
-import { LanguageToggle } from './LanguageToggle'
+import { useAuth } from '../auth/AuthContext'
+import { AccountBadge } from './AccountBadge'
+import { useHelpTour } from '../tour/HelpTourContext'
 import { SessionList } from './SessionList'
-import { ThemeToggle } from './ThemeToggle'
 import { SidebarMenuIcon, SidebarCollapseIcon, SidebarExpandIcon } from './icons'
 
 const MOBILE_BP = 768
@@ -50,17 +53,36 @@ function loadCollapsed(): boolean {
 const NAV_ITEMS = [
   { path: '/app', icon: MessageSquare, labelKey: 'nav.chat' },
   { path: '/app/products', icon: Box, labelKey: 'nav.products' },
+  { path: '/kb', icon: BookOpen, labelKey: 'nav.kb' },
   { path: '/app/analytics', icon: BarChart3, labelKey: 'nav.analytics' },
   { path: '/app/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const
 
+const ADMIN_NAV_ITEM = { path: '/app/admin', icon: Shield, labelKey: 'nav.admin' } as const
+
+const ADMIN_SUB_NAV: readonly { path: string; icon: typeof LayoutDashboard; labelKey: string; exact?: boolean }[] = [
+  { path: '/app/admin', icon: LayoutDashboard, labelKey: 'admin.nav.dashboard', exact: true },
+  { path: '/app/admin/tenants', icon: Users, labelKey: 'admin.nav.tenants' },
+  { path: '/app/admin/documents', icon: FileText, labelKey: 'admin.nav.documents' },
+  { path: '/app/admin/chats', icon: MessageSquare, labelKey: 'admin.nav.chatAudit' },
+  { path: '/app/admin/mcp', icon: Plug, labelKey: 'admin.nav.mcp' },
+  { path: '/app/admin/roles', icon: KeyRound, labelKey: 'admin.nav.roles' },
+  { path: '/app/admin/prompts', icon: MessageSquareCode, labelKey: 'admin.nav.prompts' },
+  { path: '/app/admin/logs', icon: ScrollText, labelKey: 'admin.nav.logs' },
+  { path: '/app/admin/stats', icon: BarChart3, labelKey: 'admin.nav.stats' },
+  { path: '/app/admin/system', icon: Activity, labelKey: 'admin.nav.system' },
+  { path: '/app/admin/tasks', icon: ListTodo, labelKey: 'admin.nav.taskQueue' },
+  { path: '/app/admin/rag-eval', icon: Target, labelKey: 'admin.nav.ragEval' },
+  { path: '/app/admin/shared-links', icon: Link2, labelKey: 'admin.nav.sharedLinks' },
+]
+
 interface Props {
   sessions: ChatSession[]
-  activeSessionId: number | null
+  activeSessionId: string | null
   theme: 'light' | 'dark'
-  onSelectSession: (id: number) => void
+  onSelectSession: (id: string) => void
   onNewSession: () => void
-  onDeleteSession: (id: number) => void
+  onDeleteSession: (id: string) => void
   onToggleTheme: () => void
   onLogoClick?: () => void
   children: ReactNode
@@ -87,10 +109,14 @@ export function Layout({
   const navigate = useNavigate()
   const location = useLocation()
 
+  const { user } = useAuth()
+  const { startTour, hasTour } = useHelpTour()
   const isChat = location.pathname === '/app' || location.pathname === '/app/'
+  const isAdmin = location.pathname.startsWith('/app/admin')
 
   useEffect(() => { if (!isMobile) setMobileOpen(false) }, [isMobile])
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
+  useEffect(() => { if (isMobile) setMobileOpen(false) }, [activeSessionId])
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed(prev => {
@@ -166,7 +192,6 @@ export function Layout({
               className="sidebar-toggle-btn"
               onClick={() => setMobileOpen(false)}
               aria-label={t('sidebar.collapse')}
-              data-tooltip={t('sidebar.collapse')}
             >
               <X size={18} />
             </button>
@@ -175,48 +200,86 @@ export function Layout({
               className="sidebar-toggle-btn"
               onClick={toggleCollapsed}
               aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-              data-tooltip={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
             >
               {collapsed ? <SidebarExpandIcon size={18} /> : <SidebarCollapseIcon size={18} />}
             </button>
           )}
         </div>
 
-        <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => {
-            const Icon = item.icon
-            const active = item.path === '/app'
-              ? isChat
-              : location.pathname.startsWith(item.path)
-            return (
-              <button
-                key={item.path}
-                className={`nav-item${active ? ' nav-item--active' : ''}`}
-                onClick={() => navigate(item.path)}
-                data-tooltip={collapsed && !isMobile ? t(item.labelKey) : undefined}
-              >
-                <Icon size={18} />
-                {(!collapsed || isMobile) && t(item.labelKey)}
-              </button>
-            )
-          })}
-        </nav>
+        {isAdmin ? (
+          <nav className="sidebar-nav sidebar-nav--admin">
+            <button
+              className="admin-back-btn"
+              onClick={() => navigate('/app')}
+            >
+              <ArrowLeft size={16} />
+              {(!collapsed || isMobile) && t('admin.nav.backToApp')}
+            </button>
+            <div className="nav-divider" />
+            {ADMIN_SUB_NAV.map(item => {
+              const Icon = item.icon
+              const active = item.exact
+                ? location.pathname === item.path || location.pathname === item.path + '/'
+                : location.pathname.startsWith(item.path)
+              return (
+                <button
+                  key={item.path}
+                  className={`nav-item nav-item--sub${active ? ' nav-item--active' : ''}`}
+                  onClick={() => navigate(item.path)}
+                >
+                  <Icon size={16} />
+                  {(!collapsed || isMobile) && t(item.labelKey)}
+                </button>
+              )
+            })}
+          </nav>
+        ) : (
+          <nav className="sidebar-nav">
+            {NAV_ITEMS.map(item => {
+              const Icon = item.icon
+              const active = item.path === '/app'
+                ? isChat
+                : location.pathname.startsWith(item.path)
+              return (
+                <button
+                  key={item.path}
+                  className={`nav-item${active ? ' nav-item--active' : ''}`}
+                  onClick={() => { if (isMobile) { setMobileOpen(false); setTimeout(() => navigate(item.path), 0) } else { navigate(item.path) } }}
+                >
+                  <Icon size={18} />
+                  {(!collapsed || isMobile) && t(item.labelKey)}
+                </button>
+              )
+            })}
+            {(user?.permissions as any)?.features?.admin && (() => {
+              const Icon = ADMIN_NAV_ITEM.icon
+              return (
+                <button
+                  className={`nav-item${isAdmin ? ' nav-item--active' : ''}`}
+                  onClick={() => navigate(ADMIN_NAV_ITEM.path)}
+                >
+                  <Icon size={18} />
+                  {(!collapsed || isMobile) && t(ADMIN_NAV_ITEM.labelKey)}
+                </button>
+              )
+            })()}
+          </nav>
+        )}
 
-        {(!collapsed || isMobile) && isChat ? (
+        {(!collapsed || isMobile) && isChat && !isAdmin ? (
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
-            onSelect={onSelectSession}
-            onNew={onNewSession}
+            onSelect={(id) => { if (isMobile) { setMobileOpen(false); setTimeout(() => onSelectSession(id), 0) } else { onSelectSession(id) } }}
+            onNew={() => { if (isMobile) { setMobileOpen(false); setTimeout(() => onNewSession(), 0) } else { onNewSession() } }}
             onDelete={onDeleteSession}
           />
-        ) : (
+        ) : !isAdmin ? (
           <div className="sidebar-spacer" />
-        )}
+        ) : null}
 
         <div className="sidebar-footer">
-          <LanguageToggle />
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          <AccountBadge collapsed={collapsed && !isMobile} theme={theme} onToggleTheme={onToggleTheme} />
         </div>
       </aside>
       {!isMobile && !collapsed && (
@@ -235,7 +298,6 @@ export function Layout({
               className="mobile-menu-btn"
               onClick={() => setMobileOpen(true)}
               aria-label="Menu"
-              data-tooltip={t('sidebar.menu')}
             >
               <SidebarMenuIcon size={20} />
             </button>
@@ -247,6 +309,15 @@ export function Layout({
           </div>
         )}
         {children}
+        {hasTour && !isAdmin && (
+          <button
+            className="help-tour-fab"
+            onClick={startTour}
+            aria-label={t('help.btn')}
+          >
+            <HelpCircle size={18} />
+          </button>
+        )}
       </div>
     </div>
   )

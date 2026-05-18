@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Key, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getProductDebug, getProductUsageStats } from '../api/products'
 import type { ProductDebugInfo, ProductUsageStats } from '../types'
 import { DebugPanelWrapper } from './DebugPanelWrapper'
+import { SearchKeysModal } from './SearchKeysModal'
+import { fmtUsd } from '../utils/format'
 
 function fmt(n: number | undefined | null): string {
   return n != null ? n.toLocaleString() : '—'
@@ -58,33 +60,33 @@ function TimingBar({ stages }: { stages: { label: string; ms: number | null; col
 }
 
 interface ContentProps {
-  manufacturerSlug?: string
-  productSlug?: string
+  productId?: number
   initialDebug?: ProductDebugInfo
   initialUsage?: ProductUsageStats | null
 }
 
-export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebug, initialUsage }: ContentProps) {
+export function ProductDebugContent({ productId, initialDebug, initialUsage }: ContentProps) {
   const { t } = useTranslation()
   const [debug, setDebug] = useState<ProductDebugInfo | null>(initialDebug ?? null)
   const [usage, setUsage] = useState<ProductUsageStats | null>(initialUsage ?? null)
   const [loading, setLoading] = useState(!initialDebug)
   const [error, setError] = useState<string | null>(null)
+  const [showKeysModal, setShowKeysModal] = useState(false)
 
   useEffect(() => {
-    if (initialDebug || !manufacturerSlug || !productSlug) return
+    if (initialDebug || productId == null) return
     let cancelled = false
     setLoading(true)
     setError(null)
     Promise.all([
-      getProductDebug(manufacturerSlug, productSlug),
-      getProductUsageStats(manufacturerSlug, productSlug).catch(() => null),
+      getProductDebug(productId),
+      getProductUsageStats(productId).catch(() => null),
     ])
       .then(([d, u]) => { if (!cancelled) { setDebug(d); setUsage(u) } })
       .catch(e => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [manufacturerSlug, productSlug, initialDebug])
+  }, [productId, initialDebug])
 
   const docsSummary = useMemo(() => {
     if (!debug?.documents.length) return null
@@ -148,7 +150,6 @@ export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebu
           <div className="doc-debug-section-title">Product Summary</div>
           <div className="doc-debug-row"><span>Product</span><code>{debug.product_name}</code></div>
           <div className="doc-debug-row"><span>Documents</span><code>{fmt(debug.total_documents)}</code></div>
-          <div className="doc-debug-row"><span>Firmware versions</span><code>{fmt(debug.firmware_version_count)}</code></div>
           <div className="doc-debug-row"><span>Total size</span><code>{fmtBytes(debug.total_file_size_bytes)}</code></div>
         </div>
 
@@ -182,6 +183,30 @@ export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebu
         </div>
 
         <div className="doc-debug-section">
+          <div className="doc-debug-section-title">{t('searchKeys.sectionTitle')}</div>
+          <div className="doc-debug-row"><span>{t('searchKeys.totalKeys')}</span><code>{fmt(debug.search_keys_total)}</code></div>
+          <div className="doc-debug-row"><span>{t('searchKeys.llmKeys')}</span><code>{fmt(debug.search_keys_llm)}</code></div>
+          <div className="doc-debug-row"><span>{t('searchKeys.chunkKeys')}</span><code>{fmt(debug.search_keys_chunk)}</code></div>
+          {debug.search_keys_total > 0 && (
+            <div className="doc-debug-row">
+              <button className="sk-view-btn" onClick={() => setShowKeysModal(true)}>
+                <Key size={12} />
+                {t('searchKeys.viewKeys')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {showKeysModal && (
+          <SearchKeysModal
+            mode="product"
+            entityId={debug.product_id}
+            entityTitle={debug.product_name}
+            onClose={() => setShowKeysModal(false)}
+          />
+        )}
+
+        <div className="doc-debug-section">
           <div className="doc-debug-section-title">{t('docDebug.ragUsage')}</div>
           <div className="doc-debug-row"><span>{t('docDebug.ragHitCount')}</span><code>{fmt(debug.total_rag_hit_count)}</code></div>
           <div className="doc-debug-row"><span>{t('docDebug.ragAvgSimilarity')}</span><code>{fmtPct(debug.avg_rag_similarity)}</code></div>
@@ -203,7 +228,7 @@ export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebu
                 </>
               )}
               <div className="doc-debug-row"><span>{t('docDebug.totalContextTokens')}</span><code>{fmt(usage.total_context_tokens)}</code></div>
-              <div className="doc-debug-row"><span>{t('docDebug.totalChargeUsd')}</span><code>${usage.total_charge_usd.toFixed(6)}</code></div>
+              <div className="doc-debug-row"><span>{t('docDebug.totalChargeUsd')}</span><code>{fmtUsd(usage.total_charge_usd)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.avgSimilarity')}</span><code>{fmtPct(usage.avg_similarity)}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.firstUsedAt')}</span><code>{usage.first_used_at ? new Date(usage.first_used_at).toLocaleString() : '—'}</code></div>
               <div className="doc-debug-row"><span>{t('docDebug.lastUsedAt')}</span><code>{usage.last_used_at ? new Date(usage.last_used_at).toLocaleString() : '—'}</code></div>
@@ -244,15 +269,14 @@ export function ProductDebugContent({ manufacturerSlug, productSlug, initialDebu
 }
 
 interface Props {
-  manufacturerSlug: string
-  productSlug: string
+  productId: number
   onCollapse?: () => void
 }
 
-export function ProductDebugPanel({ manufacturerSlug, productSlug, onCollapse }: Props) {
+export function ProductDebugPanel({ productId, onCollapse }: Props) {
   return (
     <DebugPanelWrapper onCollapse={onCollapse}>
-      <ProductDebugContent manufacturerSlug={manufacturerSlug} productSlug={productSlug} />
+      <ProductDebugContent productId={productId} />
     </DebugPanelWrapper>
   )
 }

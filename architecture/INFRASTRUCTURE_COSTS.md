@@ -62,14 +62,14 @@
 | Medium | Primary + read replica, 8 vCPU, 32 GB RAM, 500 GB | $800-1,500 |
 | Large | Managed (RDS/Cloud SQL), HA, 16 vCPU, 64 GB RAM, 1 TB | $1,500-3,000 |
 
-**Key cost driver**: pgvector index size. Each chunk = 1536 dims × 4 bytes = 6 KB for the vector alone. 1M chunks ≈ 6 GB just for vectors + overhead.
+**Key cost driver**: pgvector index size. With `halfvec(768)`: each chunk = 768 dims × 2 bytes = 1.5 KB for the vector. 1M chunks ≈ 1.5 GB for vectors + overhead. This is **~3.5× smaller** than the previous `vector(1024)` layout (768×2 = 1,536 bytes vs 1024×4 = 4,096 bytes per vector).
 
-| Chunks in DB | Vector Storage | Total DB Size (est.) |
-|:------------:|:--------------:|:--------------------:|
-| 100K | 600 MB | ~2 GB |
-| 500K | 3 GB | ~10 GB |
-| 1M | 6 GB | ~20 GB |
-| 5M | 30 GB | ~80 GB |
+| Chunks in DB | Vector Storage (halfvec 768) | Previous (vector 1024) | Savings |
+|:------------:|:--------------:|:--------------:|:------:|
+| 100K | 150 MB | 410 MB | 63% |
+| 500K | 750 MB | 2 GB | 63% |
+| 1M | 1.5 GB | 4 GB | 63% |
+| 5M | 7.5 GB | 20 GB | 63% |
 
 ### 2.3 Redis
 

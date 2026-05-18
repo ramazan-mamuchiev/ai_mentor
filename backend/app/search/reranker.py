@@ -9,6 +9,7 @@ No local models or heavy dependencies (PyTorch, sentence-transformers) required.
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -46,6 +47,11 @@ Scoring guidelines:
 - 0.5-0.7: Chunk is partially relevant — covers a related topic or contains useful context.
 - 0.2-0.4: Chunk is tangentially related — same domain but does not address the query.
 - 0.0-0.1: Chunk is irrelevant to the query.
+
+When the query is a "how-to" or conceptual question, prefer chunks from guides and overviews \
+(type: user_guide, overview, troubleshooting) over raw API/protocol references \
+(type: api_reference, protocol, model_schema). \
+A guide that explains the data flow is more useful than a bare RPC signature.
 
 Score based on the chunk's language-independent meaning. A Russian query can match English docs and vice versa.
 
@@ -90,6 +96,31 @@ def _build_chunks_text(results: list[dict]) -> str:
 
 _MAX_RERANK_ATTEMPTS = 2
 
+_FLOAT_RE = re.compile(r"[\d]+\.?[\d]*")
+
+
+def _parse_scores(content: str, expected_count: int) -> list[float] | None:
+    """Parse rerank scores from LLM output, tolerating formatting quirks."""
+    try:
+        scores = json.loads(content)
+        if isinstance(scores, list) and len(scores) == expected_count:
+            return [float(s) for s in scores]
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    numbers = _FLOAT_RE.findall(content)
+    if len(numbers) == expected_count:
+        try:
+            return [min(max(float(n), 0.0), 1.0) for n in numbers]
+        except ValueError:
+            pass
+
+    logger.warning(
+        "Gemini rerank returned unparseable format",
+        extra={"expected": expected_count, "extracted": len(numbers), "raw": content[:200]},
+    )
+    return None
+
 
 async def _call_rerank_api(
     prompt: str,
@@ -133,16 +164,11 @@ async def _call_rerank_api(
         if content.startswith("```"):
             content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
-        scores = json.loads(content)
-
-        if not isinstance(scores, list) or len(scores) != expected_count:
-            logger.warning(
-                "Gemini rerank returned unexpected format",
-                extra={"expected": expected_count, "got": len(scores) if isinstance(scores, list) else type(scores).__name__},
-            )
+        scores = _parse_scores(content, expected_count)
+        if scores is None:
             return None
 
-        return [float(s) for s in scores]
+        return scores
 
     except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, ValueError) as e:
         logger.warning("Gemini rerank call failed", extra={"error": str(e)})
@@ -176,7 +202,7 @@ async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResul
         if scores is not None:
             break
         if attempt < _MAX_RERANK_ATTEMPTS - 1:
-            logger.info("Retrying rerank after parse failure", extra={"attempt": attempt + 1})
+            logger.warning("Retrying rerank after parse failure", extra={"attempt": attempt + 1})
 
     if scores is None:
         logger.warning("Gemini rerank failed after retries, falling back to original order")
@@ -192,7 +218,6 @@ async def rerank(query: str, results: list[dict], top_k: int = 5) -> RerankResul
     for r, score in scored[:top_k]:
         r = dict(r)
         r["rerank_score"] = round(score, 4)
-        r["similarity"] = round(score, 4)
         reranked.append(r)
 
     logger.debug(

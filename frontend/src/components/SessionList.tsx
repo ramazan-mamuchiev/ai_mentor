@@ -5,15 +5,15 @@ import type { ChatSession } from '../types'
 
 interface Props {
   sessions: ChatSession[]
-  activeSessionId: number | null
-  onSelect: (id: number) => void
+  activeSessionId: string | null
+  onSelect: (id: string) => void
   onNew: () => void
-  onDelete: (id: number) => void
+  onDelete: (id: string) => void
 }
 
 export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDelete }: Props) {
   const { t } = useTranslation()
-  const [menuOpenId, setMenuOpenId] = useState<number | null>(null)
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const closeMenu = useCallback(() => setMenuOpenId(null), [])
@@ -51,9 +51,12 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
           <div
             key={s.id}
             className={`session-item${isActive ? ' active' : ''}${isMenuOpen ? ' menu-open' : ''}`}
-            onClick={() => onSelect(s.id)}
           >
-            <div className="session-item-content">
+            <button
+              type="button"
+              className="session-item-content"
+              onClick={() => onSelect(s.id)}
+            >
               <span className="session-item-title">
                 {s.title || s.last_message_preview || t('session.newChat')}
               </span>
@@ -64,7 +67,7 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
                   <><Globe size={11} />{t('session.allProducts')}</>
                 )}
               </span>
-            </div>
+            </button>
             <div className="session-item-actions" ref={isMenuOpen ? menuRef : undefined}>
               <button
                 className="session-menu-btn"
@@ -73,8 +76,6 @@ export function SessionList({ sessions, activeSessionId, onSelect, onNew, onDele
                   setMenuOpenId(isMenuOpen ? null : s.id)
                 }}
                 aria-label={t('session.options')}
-                data-tooltip={t('session.options')}
-                data-tooltip-align="right"
               >
                 <MoreHorizontal size={16} />
               </button>

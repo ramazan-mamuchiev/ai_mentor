@@ -68,7 +68,9 @@ services:
       retries: 5
 
   api:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     image: lexiro-backend
     restart: unless-stopped
     logging: *default-logging
@@ -117,6 +119,15 @@ services:
       RAG_HISTORY_MESSAGES: ${RAG_HISTORY_MESSAGES:-6}
       RAG_HISTORY_MAX_TOKENS: ${RAG_HISTORY_MAX_TOKENS:-8000}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      APP_BASE_URL: ${APP_BASE_URL:-https://lexiro.io}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-onboarding@resend.dev}
+      CONFLUENCE_CREDENTIALS_KEY: ${CONFLUENCE_CREDENTIALS_KEY:-}
       APP_ENV: production
       APP_LOG_LEVEL: INFO
       LOG_DIR: /app/logs
@@ -126,8 +137,8 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 60s
+      retries: 30
+      start_period: 120s
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
 
   worker:
@@ -138,16 +149,14 @@ services:
       resources:
         limits:
           cpus: "2.0"
-          memory: 4G
+          memory: 6G
         reservations:
           memory: 512M
     depends_on:
-      postgres:
+      api:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
-        condition: service_started
     environment: &worker-env
       DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
       DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
@@ -169,7 +178,7 @@ services:
       LOG_DIR: /app/logs
     volumes:
       - ${LOG_DIR:-./logs}:/app/logs
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring,translation,critical
 
   beat:
     image: lexiro-backend
@@ -181,20 +190,46 @@ services:
           cpus: "0.25"
           memory: 256M
     depends_on:
+      api:
+        condition: service_healthy
       redis:
         condition: service_healthy
     environment: *worker-env
     command: celery -A app.celery_app beat --loglevel=info
 
-  web:
-    build: ./frontend
+  teams-bot:
+    build:
+      context: ./teams-bot
+      dockerfile: Dockerfile
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
     ports:
-      - "80:80"
-    depends_on:
-      api:
-        condition: service_healthy
+      - "3978:3978"
+    environment:
+      BOT_ID: ${BOT_ID:-}
+      BOT_PASSWORD: ${BOT_PASSWORD:-}
+      CLIENT_ID: ${BOT_ID:-}
+      CLIENT_SECRET: ${BOT_PASSWORD:-}
+      TENANT_ID: ${ALLOWED_TENANT_ID:-}
+      OPENAI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      OPENAI_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
+      LEXIRO_MCP_URL: https://lexiro.io/mcp
+      LEXIRO_API_KEY: ${TEAMS_BOT_LEXIRO_API_KEY:-}
+      ALLOWED_TENANT_ID: ${ALLOWED_TENANT_ID:-}
+      ALLOWED_DOMAIN: ${ALLOWED_DOMAIN:-axxonsoft.dev}
+      PORT: "3978"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3978/api/messages',r=>{process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   loki:
     image: grafana/loki:3.4.2

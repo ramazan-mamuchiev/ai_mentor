@@ -10,6 +10,7 @@ import httpx
 from app.config import settings
 from app.llm.credentials import llm_credentials
 from app.llm.http_client import gemini_client
+from app.utils.retry import retry_call
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +31,11 @@ _EXTRACTION_PROMPT = (
     "You are a metadata extraction engine. For each numbered text chunk below, extract:\n"
     "1. doc_type: exactly one of: " + ", ".join(DOC_TYPES) + "\n"
     "2. entities: an object with these keys (each value is an array of strings, empty array if none found):\n"
-    "   - api_endpoints: HTTP endpoints like 'GET /api/v1/users'\n"
+    "   - api_endpoints: HTTP endpoints like 'GET /api/v1/users' OR gRPC methods like 'rpc ListCameras(ListCamerasRequest) returns (stream ListCamerasResponse)'\n"
     "   - config_params: configuration parameter names\n"
     "   - error_codes: error codes or error identifiers\n"
     "   - protocols: protocol names (HTTP, RTSP, ONVIF, gRPC, etc.)\n"
-    "   - keywords: 3-7 most important domain-specific terms\n\n"
+    "   - keywords: 3-7 most important terms (include protobuf message names, service names, package names if present)\n\n"
     "Return ONLY a JSON array with one object per chunk, in order. "
     "Each object must have exactly two keys: \"doc_type\" and \"entities\".\n"
     "Do NOT include any text outside the JSON array."
@@ -131,6 +132,15 @@ def _parse_response(raw: str, expected_count: int) -> list[ChunkMetadata]:
     return results
 
 
+_RETRYABLE_CODES = {429, 503, 502, 500}
+
+
+def _is_retryable_http(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _RETRYABLE_CODES
+    return False
+
+
 def _call_llm_sync(prompt: str) -> tuple[str, dict]:
     """Synchronous LLM call for use in Celery worker. Returns (response_text, usage_dict)."""
     api_key, base_url = llm_credentials()
@@ -149,10 +159,20 @@ def _call_llm_sync(prompt: str) -> tuple[str, dict]:
         "Authorization": f"Bearer {api_key}",
     }
 
-    with httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
-        resp = client.post(url, json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+    def _do_request() -> dict:
+        with httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
+            resp = client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
+
+    data = retry_call(
+        _do_request,
+        max_retries=3,
+        base_delay=2.0,
+        max_delay=30.0,
+        is_retryable=_is_retryable_http,
+        label="metadata_extraction_sync",
+    )
 
     text = data["choices"][0]["message"]["content"].strip()
     usage = data.get("usage", {})
@@ -186,10 +206,14 @@ async def _call_llm_async(prompt: str) -> tuple[str, dict]:
     return text, usage
 
 
-def extract_metadata_batch_sync(chunk_texts: list[str]) -> ExtractionResult:
+def extract_metadata_batch_sync(
+    chunk_texts: list[str],
+    progress_callback: "Callable[[float], None] | None" = None,
+) -> ExtractionResult:
     """Extract metadata from chunks synchronously (for Celery worker).
 
     Splits chunks into batches, calls LLM for each batch, and aggregates results.
+    ``progress_callback`` receives a float 0.0→1.0 after each batch.
     """
     if not settings.metadata_extraction_enabled or not chunk_texts:
         return ExtractionResult(
@@ -223,6 +247,9 @@ def extract_metadata_batch_sync(chunk_texts: list[str]) -> ExtractionResult:
             )
             all_metadata.extend([_default_metadata() for _ in batch])
 
+        if progress_callback:
+            progress_callback(len(all_metadata) / len(chunk_texts))
+
     total_usage.total_tokens = total_usage.prompt_tokens + total_usage.completion_tokens
     total_usage.extract_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -240,8 +267,14 @@ def extract_metadata_batch_sync(chunk_texts: list[str]) -> ExtractionResult:
     return ExtractionResult(metadata=all_metadata, usage=total_usage)
 
 
-async def extract_metadata_batch_async(chunk_texts: list[str]) -> ExtractionResult:
-    """Extract metadata from chunks asynchronously (for FastAPI endpoints)."""
+async def extract_metadata_batch_async(
+    chunk_texts: list[str],
+    progress_callback: "Callable[[float], None] | None" = None,
+) -> ExtractionResult:
+    """Extract metadata from chunks asynchronously (for FastAPI endpoints).
+
+    ``progress_callback`` receives a float 0.0→1.0 after each batch.
+    """
     if not settings.metadata_extraction_enabled or not chunk_texts:
         return ExtractionResult(
             metadata=[_default_metadata() for _ in chunk_texts],
@@ -273,6 +306,9 @@ async def extract_metadata_batch_async(chunk_texts: list[str]) -> ExtractionResu
                 exc_info=True,
             )
             all_metadata.extend([_default_metadata() for _ in batch])
+
+        if progress_callback:
+            progress_callback(len(all_metadata) / len(chunk_texts))
 
     total_usage.total_tokens = total_usage.prompt_tokens + total_usage.completion_tokens
     total_usage.extract_ms = round((time.perf_counter() - t0) * 1000, 1)

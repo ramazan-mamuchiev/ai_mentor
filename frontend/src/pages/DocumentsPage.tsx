@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   FileText,
   Upload,
   Globe,
-  Download,
   RefreshCw,
+  CloudDownload,
   Trash2,
   Clock,
   Loader2,
@@ -17,12 +18,23 @@ import {
   Ban,
   ExternalLink,
   Eye,
+  MoreHorizontal,
+  Key,
+  Activity,
+  FileSearch,
+  ChevronRight,
+  Play,
+  Pencil,
 } from 'lucide-react'
 import type { ColumnDef, ColumnFiltersState, FilterFn } from '@tanstack/react-table'
-import { listDocuments, previewMarkdown, deleteDocument, reingestDocument, cancelDocument } from '../api/documents'
+import { listDocuments, deleteDocument, reingestDocument, cancelDocument, analyzeDocumentLifecycle, deleteDocumentLifecycle, updateDocument } from '../api/documents'
+import { usePermission } from '../auth/usePermission'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { MarkdownPreviewModal } from '../components/MarkdownPreviewModal'
 import { DocsRightPanel } from '../components/DocsRightPanel'
+import { SearchKeysModal } from '../components/SearchKeysModal'
+import { LifecycleModal } from '../components/LifecycleModal'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
@@ -38,12 +50,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
 }
 
-function formatDateTime(iso: string | null): string {
+function formatDateCompact(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  return `${date}\n${time}`
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function formatDateTimeFull(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
 }
 
 function isUrl(value: string): boolean {
@@ -63,12 +82,16 @@ function StatusBadge({
   errorMessage,
   progressPercent = 0,
   progressStage = '',
+  ocrStatus = '',
+  ocrProgressPercent = 0,
   onCancel,
 }: {
   status: DocumentStatusValue
   errorMessage?: string | null
   progressPercent?: number
   progressStage?: string
+  ocrStatus?: string
+  ocrProgressPercent?: number
   onCancel?: () => void
 }) {
   const { t } = useTranslation()
@@ -80,8 +103,15 @@ function StatusBadge({
     cancelled: <Ban size={14} />,
   }
 
-  const stageLabel = progressStage ? t(`docs.stage.${progressStage}`, progressStage) : ''
-  const pct = status === 'processing' ? Math.max(0, Math.min(100, progressPercent)) : 0
+  const isOcrRunning = status === 'ready' && (ocrStatus === 'pending' || ocrStatus === 'processing')
+  const stageLabel = isOcrRunning
+    ? t('docs.stage.ocr', 'OCR')
+    : progressStage ? t(`docs.stage.${progressStage}`, progressStage) : ''
+  const pct = status === 'processing'
+    ? Math.max(0, Math.min(100, progressPercent))
+    : isOcrRunning
+      ? Math.max(0, Math.min(100, ocrProgressPercent))
+      : 0
   const canCancel = onCancel && (status === 'pending' || status === 'processing')
 
   return (
@@ -94,11 +124,16 @@ function StatusBadge({
           {icons[status]}
           {t(`docs.status.${status}`)}
         </span>
+        {isOcrRunning && (
+          <span className="docs-status docs-status--ocr" title={t('docs.stage.ocr_hint', 'Extracting text from images')}>
+            <Loader2 size={12} className="spin-icon" />
+            {t('docs.stage.ocr_short', 'OCR')}
+          </span>
+        )}
         {canCancel && (
           <button
             className="docs-status-cancel"
             onClick={e => { e.stopPropagation(); onCancel() }}
-            data-tooltip={t('docs.actions.cancel')}
           >
             <X size={14} />
           </button>
@@ -120,6 +155,22 @@ function StatusBadge({
           )}
         </>
       )}
+      {isOcrRunning && (
+        <>
+          <div className="docs-progress-bar">
+            <div
+              className="docs-progress-fill docs-progress-fill--ocr"
+              style={pct > 0 ? { width: `${pct}%`, animation: 'none' } : undefined}
+            />
+          </div>
+          {pct > 0 && (
+            <div className="docs-progress-info">
+              <span className="docs-progress-pct">{pct}%</span>
+              <span className="docs-progress-stage">{stageLabel}</span>
+            </div>
+          )}
+        </>
+      )}
       {status === 'pending' && (
         <div className="docs-progress-bar">
           <div className="docs-progress-fill docs-progress-fill--pending" />
@@ -132,6 +183,30 @@ function StatusBadge({
       )}
     </div>
   )
+}
+
+function LifecycleStatusIcon({ status }: { status?: string }) {
+  const { t } = useTranslation()
+  if (!status) return null
+  if (status === 'pending' || status === 'processing')
+    return (
+      <span className="docs-lc-icon docs-lc-icon--pending" title={t('docs.lifecycle.statusPending')}>
+        <Loader2 size={13} className="spin-icon" />
+      </span>
+    )
+  if (status === 'ready')
+    return (
+      <span className="docs-lc-icon docs-lc-icon--ready" title={t('docs.lifecycle.statusReady')}>
+        <Activity size={13} />
+      </span>
+    )
+  if (status === 'error')
+    return (
+      <span className="docs-lc-icon docs-lc-icon--error" title={t('docs.lifecycle.statusError')}>
+        <AlertCircle size={13} />
+      </span>
+    )
+  return null
 }
 
 function OverflowCell({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -155,6 +230,13 @@ function OverflowCell({ children, className }: { children: React.ReactNode; clas
   )
 }
 
+const _PLACEHOLDER_FORMATS = new Set(['site', 'confluence', 'github', 'url'])
+
+function isLinkedDoc(doc: DocumentListItem): boolean {
+  return _PLACEHOLDER_FORMATS.has(doc.format)
+    || (!!doc.source_path && doc.source_path.startsWith('http'))
+}
+
 const docGlobalFilter: FilterFn<DocumentListItem> = (row, _columnId, filterValue) => {
   const q = String(filterValue).toLowerCase()
   if (!q) return true
@@ -167,8 +249,299 @@ const docGlobalFilter: FilterFn<DocumentListItem> = (row, _columnId, filterValue
   )
 }
 
+function LifecycleSubmenu({
+  doc, onAnalyzeLifecycle, onViewLifecycle, onDeleteLifecycle, onClose,
+}: {
+  doc: DocumentListItem
+  onAnalyzeLifecycle?: (d: DocumentListItem) => void
+  onViewLifecycle?: (d: DocumentListItem) => void
+  onDeleteLifecycle?: (d: DocumentListItem) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const subRef = useRef<HTMLDivElement>(null)
+  const [subOpen, setSubOpen] = useState(false)
+  const [flipLeft, setFlipLeft] = useState(false)
+
+  useEffect(() => {
+    if (!subOpen || !wrapperRef.current || !subRef.current) return
+    const wrapperRect = wrapperRef.current.getBoundingClientRect()
+    const subW = subRef.current.offsetWidth || 200
+    const spaceRight = window.innerWidth - wrapperRect.right
+    setFlipLeft(spaceRight < subW + 8)
+  }, [subOpen])
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="docs-actions-submenu-wrapper"
+      onMouseEnter={() => setSubOpen(true)}
+      onMouseLeave={() => setSubOpen(false)}
+    >
+      <button className="docs-actions-dropdown-item docs-actions-submenu-trigger">
+        <Activity size={15} />
+        API Lifecycle
+        <ChevronRight size={13} className="docs-actions-submenu-arrow" />
+      </button>
+      {subOpen && (
+        <div
+          ref={subRef}
+          className={`docs-actions-submenu${flipLeft ? ' docs-actions-submenu--left' : ''}`}
+        >
+          {onAnalyzeLifecycle && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onAnalyzeLifecycle(doc); onClose() }}>
+              <Play size={14} />
+              {t('docs.actions.analyzeLifecycle')}
+            </button>
+          )}
+          {onViewLifecycle && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onViewLifecycle(doc); onClose() }}>
+              <FileSearch size={14} />
+              {t('docs.actions.viewLifecycle')}
+            </button>
+          )}
+          {doc.lifecycle_status === 'ready' && onDeleteLifecycle && (
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDeleteLifecycle(doc); onClose() }}>
+              <Trash2 size={14} />
+              {t('docs.actions.deleteLifecycle')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RenameDialog({
+  currentTitle,
+  originalFilename,
+  onConfirm,
+  onCancel,
+}: {
+  currentTitle: string
+  originalFilename: string
+  onConfirm: (value: string) => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [canSave, setCanSave] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }, 50)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => { clearTimeout(timer); window.removeEventListener('keydown', handleKey) }
+  }, [onCancel])
+
+  const validate = () => {
+    const v = inputRef.current?.value.trim() ?? ''
+    setCanSave(v.length > 0 && v !== currentTitle)
+  }
+
+  const handleSubmit = () => {
+    if (!canSave) return
+    onConfirm(inputRef.current?.value ?? currentTitle)
+  }
+
+  return createPortal(
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div
+        className="confirm-dialog"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-labelledby="rename-title"
+      >
+        <button className="confirm-close" onClick={onCancel} aria-label="Close">
+          <X size={16} />
+        </button>
+
+        <div className="confirm-icon confirm-icon--default">
+          <Pencil size={24} />
+        </div>
+
+        <h3 id="rename-title" className="confirm-title">{t('docs.rename.title')}</h3>
+
+        <input
+          ref={inputRef}
+          className="rename-dialog-input"
+          defaultValue={currentTitle}
+          onChange={validate}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit() } }}
+        />
+        {originalFilename && originalFilename !== currentTitle && (
+          <div className="rename-dialog-hint">{originalFilename}</div>
+        )}
+
+        <div className="confirm-actions">
+          <button className="confirm-btn confirm-btn--cancel" onClick={onCancel}>
+            {t('docs.rename.cancel')}
+          </button>
+          <button className="confirm-btn confirm-btn--default" onClick={handleSubmit} disabled={!canSave}>
+            {t('docs.rename.confirm')}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+function DocActions({
+  doc,
+  onDebug,
+  onPreview,
+  onReingest,
+  onSync,
+  onDelete,
+  onRename,
+  onSearchKeys,
+  onAnalyzeLifecycle,
+  onViewLifecycle,
+  onDeleteLifecycle,
+}: {
+  doc: DocumentListItem
+  onDebug?: (d: DocumentListItem) => void
+  onPreview: (d: DocumentListItem) => void
+  onReingest?: (d: DocumentListItem) => void
+  onSync?: (d: DocumentListItem) => void
+  onDelete?: (d: DocumentListItem) => void
+  onRename?: (d: DocumentListItem) => void
+  onSearchKeys?: (d: DocumentListItem) => void
+  onAnalyzeLifecycle?: (d: DocumentListItem) => void
+  onViewLifecycle?: (d: DocumentListItem) => void
+  onDeleteLifecycle?: (d: DocumentListItem) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 })
+
+  useEffect(() => {
+    if (!open) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node) &&
+          btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onScroll = () => setOpen(false)
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('scroll', onScroll, true)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !dropRef.current || !btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    const dropRect = dropRef.current.getBoundingClientRect()
+    const dropW = dropRect.width || 200
+    const dropH = dropRect.height
+    let left = rect.right - dropW
+    if (left < 8) left = 8
+    if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8
+    const top = (rect.bottom + 4 + dropH > window.innerHeight)
+      ? rect.top - dropH - 4
+      : rect.bottom + 4
+    setPos({ top, left })
+  }, [open])
+
+  const isLinked = isLinkedDoc(doc)
+  const isPlaceholder = _PLACEHOLDER_FORMATS.has(doc.format)
+  const canAct = doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled'
+
+  const handleToggle = useCallback(() => {
+    if (!open) setPos({ top: -9999, left: -9999 })
+    setOpen(v => !v)
+  }, [open])
+
+  return (
+    <div className="docs-actions">
+      {doc.status === 'ready' && (
+        <button
+          className="docs-action-btn"
+          onClick={() => onPreview(doc)}
+          aria-label={t('docs.actions.previewMd')}
+        >
+          <Eye size={16} />
+        </button>
+      )}
+      <button
+        ref={btnRef}
+        className="docs-action-btn"
+        onClick={handleToggle}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && createPortal(
+        <div ref={dropRef} className="docs-actions-dropdown" style={{ top: pos.top, left: pos.left }}>
+          {onRename && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onRename(doc); setOpen(false) }}>
+              <Pencil size={15} />
+              {t('docs.actions.rename')}
+            </button>
+          )}
+          {doc.status === 'ready' && onDebug && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onDebug(doc); setOpen(false) }}>
+              <Bug size={15} />
+              {t('docs.actions.debug')}
+            </button>
+          )}
+          {canAct && !isPlaceholder && onReingest && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onReingest(doc); setOpen(false) }}>
+              <RefreshCw size={15} />
+              {t('docs.actions.reindex')}
+            </button>
+          )}
+          {canAct && isLinked && onSync && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onSync(doc); setOpen(false) }}>
+              <CloudDownload size={15} />
+              {t('docs.actions.sync')}
+            </button>
+          )}
+          {doc.status === 'ready' && onSearchKeys && (
+            <button className="docs-actions-dropdown-item" onClick={() => { onSearchKeys(doc); setOpen(false) }}>
+              <Key size={15} />
+              {t('docs.actions.searchKeys')}
+            </button>
+          )}
+          {doc.status === 'ready' && (onAnalyzeLifecycle || onViewLifecycle) && (
+            <LifecycleSubmenu
+              doc={doc}
+              onAnalyzeLifecycle={onAnalyzeLifecycle}
+              onViewLifecycle={onViewLifecycle}
+              onDeleteLifecycle={onDeleteLifecycle}
+              onClose={() => setOpen(false)}
+            />
+          )}
+          {onDelete && (
+            <button className="docs-actions-dropdown-item docs-actions-dropdown-item--danger" onClick={() => { onDelete(doc); setOpen(false) }}>
+              <Trash2 size={15} />
+              {t('docs.actions.delete')}
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
 interface Props {
-  onUploadClick: () => void
+  onUploadClick?: () => void
   onUrlImportClick?: () => void
   refreshKey?: number
   productId?: number
@@ -179,18 +552,37 @@ const DEFAULT_COLUMN_ORDER = ['title', 'format', 'status', 'size', 'chunks', 'pr
 
 export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, productId, headerSlot }: Props) {
   const { t } = useTranslation()
+  const canDebug = usePermission('debug')
+  const canLifecycle = usePermission('lifecycle.run')
+  const canDelete = usePermission('documents.delete')
+  const canReindex = usePermission('documents.reindex')
+  const canSync = usePermission('documents.sync')
   const [documents, setDocuments] = useState<DocumentListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null)
   const [reingestTarget, setReingestTarget] = useState<DocumentListItem | null>(null)
+  const [syncTarget, setSyncTarget] = useState<DocumentListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<DocumentListItem | null>(null)
+  const [deleteLcTarget, setDeleteLcTarget] = useState<DocumentListItem | null>(null)
   const [previewTarget, setPreviewTarget] = useState<DocumentListItem | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
   const [debugPanel, setDebugPanel] = useState<DocumentListItem | null>(null)
+  const [searchKeysTarget, setSearchKeysTarget] = useState<DocumentListItem | null>(null)
+  const [lifecycleTarget, setLifecycleTarget] = useState<DocumentListItem | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{ id: number; title: string; originalFilename: string } | null>(null)
+  const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' | 'info' } | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [formatFilter, setFormatFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
+  const [lifecycleFilter, setLifecycleFilter] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  const showToast = useCallback((message: string, variant: 'success' | 'error' | 'info') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ message, variant })
+    toastTimer.current = setTimeout(() => setToast(null), 4000)
+  }, [])
 
   const fetchDocs = useCallback(async () => {
     try {
@@ -206,25 +598,15 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   useEffect(() => { fetchDocs() }, [fetchDocs, refreshKey])
 
   useEffect(() => {
-    const hasPending = documents.some(d => d.status === 'pending' || d.status === 'processing')
+    const hasPending = documents.some(d =>
+      d.status === 'pending' || d.status === 'processing' ||
+      d.lifecycle_status === 'pending' || d.lifecycle_status === 'processing'
+    )
     if (hasPending) {
       pollRef.current = setInterval(fetchDocs, POLL_INTERVAL)
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [documents, fetchDocs])
-
-  const handleDownload = useCallback(async (doc: DocumentListItem) => {
-    try {
-      const result = await previewMarkdown(doc.id)
-      const blob = new Blob([result.markdown], { type: 'text/markdown;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${result.title || `document-${doc.id}`}.md`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch { /* ignore */ }
-  }, [])
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return
@@ -235,16 +617,45 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     finally { setDeleteTarget(null) }
   }, [deleteTarget])
 
+  const _setDocPending = useCallback((docId: number) => {
+    setDocuments(prev =>
+      prev.map(d => d.id === docId ? { ...d, status: 'pending' as const, error_message: null, total_chunks: 0, progress_percent: 0, progress_stage: '' } : d)
+    )
+  }, [])
+
   const handleReingestConfirm = useCallback(async () => {
     if (!reingestTarget) return
+    const id = reingestTarget.id
+    setReingestTarget(null)
+    _setDocPending(id)
     try {
-      await reingestDocument(reingestTarget.id)
-      setDocuments(prev =>
-        prev.map(d => d.id === reingestTarget.id ? { ...d, status: 'pending' as const, error_message: null, total_chunks: 0, progress_percent: 0, progress_stage: '' } : d)
-      )
-    } catch { /* ignore */ }
-    finally { setReingestTarget(null) }
-  }, [reingestTarget])
+      await reingestDocument(id, true)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      if (detail.includes('409') || detail.includes('already being processed')) {
+        alert(t('docs.conflict'))
+      } else {
+        alert(`${t('docs.reingest.error')}: ${detail}`)
+      }
+    }
+  }, [reingestTarget, t, _setDocPending])
+
+  const handleSyncConfirm = useCallback(async () => {
+    if (!syncTarget) return
+    const id = syncTarget.id
+    setSyncTarget(null)
+    _setDocPending(id)
+    try {
+      await reingestDocument(id, false)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      if (detail.includes('409') || detail.includes('already being processed')) {
+        alert(t('docs.conflict'))
+      } else {
+        alert(`${t('docs.sync.error')}: ${detail}`)
+      }
+    }
+  }, [syncTarget, t, _setDocPending])
 
   const handleCancelConfirm = useCallback(async () => {
     if (!cancelTarget) return
@@ -260,6 +671,57 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const openDebug = useCallback((doc: DocumentListItem) => {
     setDebugPanel(doc)
   }, [])
+
+  const handleAnalyzeLifecycle = useCallback(async (doc: DocumentListItem) => {
+    try {
+      await analyzeDocumentLifecycle(doc.id)
+      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, lifecycle_status: 'pending' } : d))
+      showToast(t('docs.lifecycle.started', { title: doc.title }), 'success')
+    } catch {
+      showToast(t('docs.lifecycle.error'), 'error')
+    }
+  }, [showToast, t])
+
+  const handleDeleteLifecycle = useCallback((doc: DocumentListItem) => {
+    setDeleteLcTarget(doc)
+  }, [])
+
+  const handleDeleteLcConfirm = useCallback(async () => {
+    if (!deleteLcTarget) return
+    try {
+      await deleteDocumentLifecycle(deleteLcTarget.id)
+      setDocuments(prev => prev.map(d => d.id === deleteLcTarget.id ? { ...d, lifecycle_status: '' } : d))
+      showToast(t('docs.lifecycle.deleted', { title: deleteLcTarget.title }), 'success')
+    } catch {
+      showToast(t('docs.lifecycle.deleteError'), 'error')
+    } finally {
+      setDeleteLcTarget(null)
+    }
+  }, [deleteLcTarget, showToast, t])
+
+  const handleRenameStart = useCallback((doc: DocumentListItem) => {
+    setRenameTarget({ id: doc.id, title: doc.title, originalFilename: doc.original_filename })
+  }, [])
+
+  const handleRenameConfirm = useCallback(async (newTitle: string) => {
+    if (!renameTarget) return
+    const trimmed = newTitle.trim()
+    if (!trimmed || trimmed === renameTarget.title) {
+      setRenameTarget(null)
+      return
+    }
+    try {
+      await updateDocument(renameTarget.id, { title: trimmed })
+      setDocuments(prev =>
+        prev.map(d => d.id === renameTarget.id ? { ...d, title: trimmed } : d)
+      )
+      showToast(t('docs.rename.success', { title: trimmed }), 'success')
+    } catch {
+      showToast(t('docs.rename.error'), 'error')
+    } finally {
+      setRenameTarget(null)
+    }
+  }, [renameTarget, showToast, t])
 
   const closeDebug = useCallback(() => {
     setDebugPanel(null)
@@ -281,6 +743,10 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     return [...map.entries()].sort((a, b) => b[1] - a[1])
   }, [documents])
 
+  const lifecycleReadyCount = useMemo(() =>
+    documents.filter(d => d.lifecycle_status === 'ready').length
+  , [documents])
+
   const toggleFilter = useCallback((setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
     setter(prev => {
       const next = new Set(prev)
@@ -293,29 +759,65 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
   const clearFilters = useCallback(() => {
     setFormatFilter(new Set())
     setStatusFilter(new Set())
+    setLifecycleFilter(false)
   }, [])
 
-  const hasActiveFilters = formatFilter.size > 0 || statusFilter.size > 0
+  const hasActiveFilters = formatFilter.size > 0 || statusFilter.size > 0 || lifecycleFilter
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const filters: ColumnFiltersState = []
     if (formatFilter.size > 0) filters.push({ id: 'format', value: formatFilter })
     if (statusFilter.size > 0) filters.push({ id: 'status', value: statusFilter })
+    if (lifecycleFilter) filters.push({ id: 'title', value: 'lifecycle_ready' })
     return filters
-  }, [formatFilter, statusFilter])
+  }, [formatFilter, statusFilter, lifecycleFilter])
 
   const columns = useMemo<ColumnDef<DocumentListItem, unknown>[]>(() => [
     {
       id: 'title',
       accessorFn: row => row.title,
       header: () => t('docs.table.name'),
+      filterFn: (row, _columnId, filterValue) => {
+        if (filterValue === 'lifecycle_ready') return row.original.lifecycle_status === 'ready'
+        return true
+      },
       cell: ({ row }) => {
-        const { title, original_filename, source_container, source_path } = row.original
+        const { title, original_filename, source_container, source_path, lifecycle_status } = row.original
         const linkUrl = source_path || source_container
         const sourceIsUrl = linkUrl && isUrl(linkUrl)
+        const lcReady = lifecycle_status === 'ready'
+        const lcRunning = lifecycle_status === 'pending' || lifecycle_status === 'processing'
         return (
           <div className="docs-name-cell">
-            <OverflowCell className="docs-name">{title}</OverflowCell>
+            <div className="docs-name-row">
+              <OverflowCell className="docs-name">{title}</OverflowCell>
+              {lcReady && (
+                <button
+                  className="docs-lc-badge docs-lc-badge--ready"
+                  onClick={e => { e.stopPropagation(); setLifecycleTarget(row.original) }}
+                  title={t('docs.actions.viewLifecycle')}
+                >
+                  <Activity size={10} />
+                  API Lifecycle
+                </button>
+              )}
+              {lcRunning && (
+                <span className="docs-lc-badge docs-lc-badge--running">
+                  <Loader2 size={10} className="spin-icon" />
+                  {t('lifecycleModal.running')}
+                </span>
+              )}
+              {lifecycle_status === 'error' && (
+                <button
+                  className="docs-lc-badge docs-lc-badge--error"
+                  onClick={e => { e.stopPropagation(); setLifecycleTarget(row.original) }}
+                  title={t('docs.lifecycle.statusError')}
+                >
+                  <AlertCircle size={10} />
+                  Lifecycle
+                </button>
+              )}
+            </div>
             {sourceIsUrl ? (
               <a
                 href={linkUrl}
@@ -371,6 +873,8 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           errorMessage={row.original.error_message}
           progressPercent={row.original.progress_percent}
           progressStage={row.original.progress_stage}
+          ocrStatus={row.original.ocr_status}
+          ocrProgressPercent={row.original.ocr_progress_percent}
           onCancel={() => setCancelTarget(row.original)}
         />
       ),
@@ -404,7 +908,10 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       id: 'uploaded',
       accessorFn: row => row.uploaded_at,
       header: () => t('docs.table.uploaded'),
-      cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return <span className="docs-date">{formatDateCompact(v)}</span>
+      },
       enableGrouping: false,
       sortingFn: 'datetime',
     },
@@ -412,7 +919,10 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       id: 'indexed',
       accessorFn: row => row.indexed_at,
       header: () => t('docs.table.indexed'),
-      cell: ({ getValue }) => <span className="docs-date docs-date--twoline">{formatDateTime(getValue() as string | null)}</span>,
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return <span className="docs-date">{formatDateCompact(v)}</span>
+      },
       enableGrouping: false,
       sortingFn: 'datetime',
     },
@@ -421,43 +931,23 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
       header: () => t('docs.table.actions'),
       enableSorting: false,
       enableGrouping: false,
-      cell: ({ row }) => {
-        const doc = row.original
-        const isDebugOpen = debugPanel?.id === doc.id
-        return (
-          <div className="docs-actions">
-            {doc.status === 'ready' && (
-              <button
-                className={`docs-action-btn docs-debug-toggle${isDebugOpen ? ' docs-debug-toggle--active' : ''}`}
-                onClick={() => openDebug(doc)}
-                data-tooltip={t('docs.actions.debug')}
-              >
-                <Bug size={16} />
-              </button>
-            )}
-            {doc.status === 'ready' && (
-              <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} data-tooltip={t('docs.actions.previewMd')}>
-                <Eye size={16} />
-              </button>
-            )}
-            {doc.status === 'ready' && (
-              <button className="docs-action-btn" onClick={() => handleDownload(doc)} data-tooltip={t('docs.actions.download')}>
-                <Download size={16} />
-              </button>
-            )}
-            {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
-              <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} data-tooltip={t('docs.actions.reindex')}>
-                <RefreshCw size={16} />
-              </button>
-            )}
-            <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')} data-tooltip-align="right">
-              <Trash2 size={16} />
-            </button>
-          </div>
-        )
-      },
+      cell: ({ row }) => (
+        <DocActions
+          doc={row.original}
+          onDebug={canDebug ? openDebug : undefined}
+          onPreview={setPreviewTarget}
+          onReingest={canReindex ? setReingestTarget : undefined}
+          onSync={canSync ? setSyncTarget : undefined}
+          onDelete={canDelete ? setDeleteTarget : undefined}
+          onRename={handleRenameStart}
+          onSearchKeys={setSearchKeysTarget}
+          onAnalyzeLifecycle={canLifecycle ? handleAnalyzeLifecycle : undefined}
+          onViewLifecycle={setLifecycleTarget}
+          onDeleteLifecycle={canLifecycle ? handleDeleteLifecycle : undefined}
+        />
+      ),
     },
-  ], [t, handleDownload, debugPanel, openDebug])
+  ], [t, openDebug, canDebug, canLifecycle, canDelete, canReindex, canSync, handleAnalyzeLifecycle, handleDeleteLifecycle, handleRenameStart])
 
   const {
     table,
@@ -472,6 +962,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
     columns,
     storageKey: STORAGE_KEY,
     defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+    defaultSorting: [{ id: 'title', desc: false }],
     getRowId: row => String(row.id),
     columnFilters,
     globalFilter,
@@ -503,10 +994,12 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           <FileText size={48} className="docs-empty-icon" />
           <h2>{t('docs.empty.title')}</h2>
           <p>{t('docs.empty.description')}</p>
-          <button className="docs-upload-btn" onClick={onUploadClick}>
-            <Upload size={16} />
-            <span>{t('docs.empty.cta')}</span>
-          </button>
+          {onUploadClick && (
+            <button className="docs-upload-btn" onClick={onUploadClick}>
+              <Upload size={16} />
+              <span>{t('docs.empty.cta')}</span>
+            </button>
+          )}
         </div>
       </div>
     )
@@ -533,7 +1026,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               className="docs-search-input"
             />
             {globalFilter && (
-              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }} data-tooltip={t('docs.search.clear')}>
+              <button className="docs-search-clear" onClick={() => { setGlobalFilter(''); searchRef.current?.focus() }}>
                 <X size={14} />
               </button>
             )}
@@ -544,14 +1037,16 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               <span>{t('urlImport.button')}</span>
             </button>
           )}
-          <button className="docs-upload-btn" onClick={onUploadClick}>
-            <Upload size={16} />
-            <span>{t('docs.upload')}</span>
-          </button>
+          {onUploadClick && (
+            <button className="docs-upload-btn" onClick={onUploadClick}>
+              <Upload size={16} />
+              <span>{t('docs.upload')}</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {(formatCounts.length > 1 || statusCounts.length > 1) && (
+      {(formatCounts.length > 1 || statusCounts.length > 1 || lifecycleReadyCount > 0) && (
         <div className="docs-filter-bar">
           {formatCounts.length > 1 && (
             <div className="docs-filter-group">
@@ -587,6 +1082,20 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
               </div>
             </div>
           )}
+          {lifecycleReadyCount > 0 && (
+            <div className="docs-filter-group">
+              <div className="docs-filter-chips">
+                <button
+                  className={`docs-filter-chip docs-filter-chip--lifecycle${lifecycleFilter ? ' docs-filter-chip--active' : ''}`}
+                  onClick={() => setLifecycleFilter(prev => !prev)}
+                >
+                  <Activity size={12} />
+                  API Lifecycle
+                  <span className="docs-filter-chip-count">{lifecycleReadyCount}</span>
+                </button>
+              </div>
+            </div>
+          )}
           {hasActiveFilters && (
             <button className="docs-filter-clear" onClick={clearFilters}>
               <X size={14} />
@@ -612,6 +1121,7 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           .filter(doc => {
             if (formatFilter.size > 0 && !formatFilter.has(doc.format)) return false
             if (statusFilter.size > 0 && !statusFilter.has(doc.status)) return false
+            if (lifecycleFilter && doc.lifecycle_status !== 'ready') return false
             if (!globalFilter) return true
             const q = globalFilter.toLowerCase()
             return (
@@ -626,8 +1136,36 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
             return (
             <div className="docs-card" key={doc.id}>
               <div className="docs-card-header">
-                <div className="docs-card-title">{doc.title}</div>
-                <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} onCancel={() => setCancelTarget(doc)} />
+                <div className="docs-card-title-row">
+                  <span className="docs-card-title">{doc.title}</span>
+                  {doc.lifecycle_status === 'ready' && (
+                    <button
+                      className="docs-lc-badge docs-lc-badge--ready"
+                      onClick={() => setLifecycleTarget(doc)}
+                      title={t('docs.actions.viewLifecycle')}
+                    >
+                      <Activity size={10} />
+                      API Lifecycle
+                    </button>
+                  )}
+                  {(doc.lifecycle_status === 'pending' || doc.lifecycle_status === 'processing') && (
+                    <span className="docs-lc-badge docs-lc-badge--running">
+                      <Loader2 size={10} className="spin-icon" />
+                      {t('lifecycleModal.running')}
+                    </span>
+                  )}
+                  {doc.lifecycle_status === 'error' && (
+                    <button
+                      className="docs-lc-badge docs-lc-badge--error"
+                      onClick={() => setLifecycleTarget(doc)}
+                      title={t('docs.lifecycle.statusError')}
+                    >
+                      <AlertCircle size={10} />
+                      Lifecycle
+                    </button>
+                  )}
+                </div>
+                <StatusBadge status={doc.status} errorMessage={doc.error_message} progressPercent={doc.progress_percent} progressStage={doc.progress_stage} ocrStatus={doc.ocr_status} ocrProgressPercent={doc.ocr_progress_percent} onCancel={() => setCancelTarget(doc)} />
               </div>
               {cardLinkUrl && isUrl(cardLinkUrl) && (
                 <a
@@ -646,37 +1184,57 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
                   {doc.detected_language && <span className="docs-lang-badge" title={doc.detected_language}>{doc.detected_language}</span>}
                 </span>
                 <span>{formatBytes(doc.file_size_bytes)}</span>
+                {doc.total_chunks > 0 && <span>{t('docs.table.chunks')}: {doc.total_chunks}</span>}
                 {doc.product_name && <span>{doc.product_name}</span>}
-                <span>{formatDateTime(doc.uploaded_at)}</span>
+                <span>{formatDateCompact(doc.uploaded_at)}</span>
               </div>
               <div className="docs-card-actions">
-                {doc.status === 'ready' && (
+                <button className="docs-action-btn" onClick={() => handleRenameStart(doc)} title={t('docs.actions.rename')}>
+                  <Pencil size={16} />
+                </button>
+                {doc.status === 'ready' && canDebug && (
                   <button
-                    className={`docs-action-btn docs-debug-toggle${debugPanel?.id === doc.id ? ' docs-debug-toggle--active' : ''}`}
+                    className="docs-action-btn"
                     onClick={() => openDebug(doc)}
-                    data-tooltip={t('docs.actions.debug')}
                   >
                     <Bug size={16} />
                   </button>
                 )}
                 {doc.status === 'ready' && (
-                  <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)} data-tooltip={t('docs.actions.previewMd')}>
+                  <button className="docs-action-btn" onClick={() => setPreviewTarget(doc)}>
                     <Eye size={16} />
                   </button>
                 )}
                 {doc.status === 'ready' && (
-                  <button className="docs-action-btn" onClick={() => handleDownload(doc)} data-tooltip={t('docs.actions.download')}>
-                    <Download size={16} />
+                  <button className="docs-action-btn" onClick={() => setSearchKeysTarget(doc)} title={t('docs.actions.searchKeys')}>
+                    <Key size={16} />
                   </button>
                 )}
-                {(doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && (
-                  <button className="docs-action-btn" onClick={() => setReingestTarget(doc)} data-tooltip={t('docs.actions.reindex')}>
+                {doc.status === 'ready' && canLifecycle && (
+                  <button className="docs-action-btn" onClick={() => handleAnalyzeLifecycle(doc)} title={t('docs.actions.analyzeLifecycle')}>
+                    <Activity size={16} />
+                  </button>
+                )}
+                {doc.status === 'ready' && (
+                  <button className="docs-action-btn" onClick={() => setLifecycleTarget(doc)} title={t('docs.actions.viewLifecycle')}>
+                    <FileSearch size={16} />
+                  </button>
+                )}
+                {canReindex && (doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && !_PLACEHOLDER_FORMATS.has(doc.format) && (
+                  <button className="docs-action-btn" onClick={() => setReingestTarget(doc)}>
                     <RefreshCw size={16} />
                   </button>
                 )}
-                <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)} data-tooltip={t('docs.actions.delete')} data-tooltip-align="right">
-                  <Trash2 size={16} />
-                </button>
+                {canSync && (doc.status === 'ready' || doc.status === 'error' || doc.status === 'cancelled') && isLinkedDoc(doc) && (
+                  <button className="docs-action-btn" onClick={() => setSyncTarget(doc)}>
+                    <CloudDownload size={16} />
+                  </button>
+                )}
+                {canDelete && (
+                  <button className="docs-action-btn docs-action-btn--danger" onClick={() => setDeleteTarget(doc)}>
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </div>
           )})}
@@ -708,6 +1266,19 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         />
       )}
 
+      {syncTarget && (
+        <ConfirmDialog
+          title={t('docs.sync.title')}
+          message={t('docs.sync.message')}
+          details={`${syncTarget.title} (${syncTarget.original_filename}, ${formatBytes(syncTarget.file_size_bytes)})`}
+          confirmLabel={t('docs.sync.confirm')}
+          cancelLabel={t('docs.sync.cancel')}
+          variant="default"
+          onConfirm={handleSyncConfirm}
+          onCancel={() => setSyncTarget(null)}
+        />
+      )}
+
       {cancelTarget && (
         <ConfirmDialog
           title={t('docs.cancel.title')}
@@ -721,12 +1292,57 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
         />
       )}
 
+      {deleteLcTarget && (
+        <ConfirmDialog
+          title={t('docs.lifecycle.deleteTitle')}
+          message={t('docs.lifecycle.deleteMessage')}
+          details={deleteLcTarget.title}
+          confirmLabel={t('docs.lifecycle.deleteConfirm')}
+          cancelLabel={t('docs.delete.cancel')}
+          variant="danger"
+          onConfirm={handleDeleteLcConfirm}
+          onCancel={() => setDeleteLcTarget(null)}
+        />
+      )}
+
+      {renameTarget && (
+        <RenameDialog
+          currentTitle={renameTarget.title}
+          originalFilename={renameTarget.originalFilename}
+          onConfirm={handleRenameConfirm}
+          onCancel={() => setRenameTarget(null)}
+        />
+      )}
+
       {previewTarget && (
         <MarkdownPreviewModal
           documentId={previewTarget.id}
           documentTitle={previewTarget.title}
           onClose={() => setPreviewTarget(null)}
         />
+      )}
+
+      {searchKeysTarget && (
+        <SearchKeysModal
+          mode="document"
+          entityId={searchKeysTarget.id}
+          entityTitle={searchKeysTarget.title}
+          onClose={() => setSearchKeysTarget(null)}
+        />
+      )}
+
+      {lifecycleTarget && (
+        <ErrorBoundary onError={() => setLifecycleTarget(null)}>
+          <LifecycleModal
+            documentId={lifecycleTarget.id}
+            documentTitle={lifecycleTarget.title}
+            canRun={canLifecycle}
+            onClose={() => setLifecycleTarget(null)}
+            onDeleted={() => {
+              setDocuments(prev => prev.map(d => d.id === lifecycleTarget.id ? { ...d, lifecycle_status: '' } : d))
+            }}
+          />
+        </ErrorBoundary>
       )}
       </div>
 
@@ -737,6 +1353,15 @@ export function DocumentsPage({ onUploadClick, onUrlImportClick, refreshKey, pro
           documentTitle={debugPanel.title}
           onClose={closeDebug}
         />
+      )}
+
+      {toast && (
+        <div className={`docs-toast docs-toast--${toast.variant}`}>
+          <span>{toast.message}</span>
+          <button className="docs-toast-close" onClick={() => setToast(null)}>
+            <X size={14} />
+          </button>
+        </div>
       )}
     </div>
   )

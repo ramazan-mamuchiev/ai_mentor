@@ -1,0 +1,54 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "366800d6-60c2-4364-b571-9d12ec1a1667",
+  "developer": {
+    "name": "AxxonSoft",
+    "websiteUrl": "https://lexiro.io",
+    "privacyUrl": "https://lexiro.io/privacy",
+    "termsOfUseUrl": "https://lexiro.io/terms"
+  },
+  "name": {
+    "short": "Lexiro Bot",
+    "full": "Lexiro Documentation Assistant"
+  },
+  "description": {
+    "short": "AI-powered documentation search for hardware integration developers",
+    "full": "Lexiro Bot helps developers find API documentation for IP cameras, access controllers, intercoms, VMS platforms, and IoT SDKs. Ask questions in natural language and get accurate answers with code examples, endpoint details, and authentication instructions — all sourced from indexed vendor documentation."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#4F46E5",
+  "bots": [
+    {
+      "botId": "366800d6-60c2-4364-b571-9d12ec1a1667",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["personal", "team", "groupChat"],
+          "commands": [
+            {
+              "title": "search",
+              "description": "Search documentation (e.g., 'how to open a door via HikCentral API')"
+            },
+            {
+              "title": "products",
+              "description": "List available products with indexed documentation"
+            },
+            {
+              "title": "help",
+              "description": "Show available commands and usage examples"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["lexiro.io"]
+}

@@ -1,18 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Loader2 } from 'lucide-react'
+import { ExternalLink, Loader2, FileText, Layers } from 'lucide-react'
 import { getSharedContent } from '../api/share'
-import type { SharedContentResponse, SharedDebugContentResponse, DebugInfo, DocumentDebugInfo, DocumentUsageStats, ProductDebugInfo, ProductUsageStats } from '../types'
+import type { SharedContentResponse, SharedDebugContentResponse, SharedDocumentPreviewResponse, SharedLifecycleContentResponse, DebugInfo, DocumentDebugInfo, DocumentUsageStats, ProductDebugInfo, ProductUsageStats } from '../types'
+import type { LifecyclePayload, DocumentLifecycle } from '../api/products'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { DebugPanelContent } from '../components/RightPanel'
 import { DocumentDebugContent } from '../components/DocumentDebugPanel'
 import { ProductDebugContent } from '../components/ProductDebugPanel'
+import { LifecycleContent } from '../components/ProductLifecycleModal'
 
-type SharedData = SharedContentResponse | SharedDebugContentResponse
+type SharedData = SharedContentResponse | SharedDebugContentResponse | SharedDocumentPreviewResponse | SharedLifecycleContentResponse
 
 function isDebugResponse(data: SharedData): data is SharedDebugContentResponse {
   return data.share_type.startsWith('debug_')
+}
+
+function isDocumentPreviewResponse(data: SharedData): data is SharedDocumentPreviewResponse {
+  return data.share_type === 'document_preview'
+}
+
+function isLifecycleResponse(data: SharedData): data is SharedLifecycleContentResponse {
+  return data.share_type === 'lifecycle'
 }
 
 export function SharedView() {
@@ -78,6 +88,14 @@ export function SharedView() {
     )
   }
 
+  if (isDocumentPreviewResponse(data)) {
+    return <SharedDocumentPreviewView data={data} />
+  }
+
+  if (isLifecycleResponse(data)) {
+    return <SharedLifecycleView data={data} />
+  }
+
   if (isDebugResponse(data)) {
     return <SharedDebugView data={data} />
   }
@@ -115,6 +133,136 @@ export function SharedView() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="shared-view-footer">
+        <span>{t('share.poweredBy')}</span>
+      </div>
+    </div>
+  )
+}
+
+
+function SharedLifecycleView({ data }: { data: SharedLifecycleContentResponse }) {
+  const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState<string>('merged')
+
+  const merged = data.merged as LifecyclePayload | null
+  const docLcs = (data.document_lifecycles ?? []) as unknown as DocumentLifecycle[]
+  const readyDocLcs = docLcs.filter(d => d.status === 'ready')
+  const issues = (data.doc_issues ?? []) as Array<{ document_id: number; issue_type: string; severity: string; description: string; affected_entity?: string; suggestion?: string }>
+  const showTabs = merged && readyDocLcs.length > 0
+
+  const totalUsage = useMemo(() => {
+    let pt = 0, ct = 0, ms = 0
+    for (const dl of readyDocLcs) {
+      pt += (dl as unknown as Record<string, number>).prompt_tokens ?? 0
+      ct += (dl as unknown as Record<string, number>).completion_tokens ?? 0
+      ms += (dl as unknown as Record<string, number>).analysis_ms ?? 0
+    }
+    if (merged) {
+      pt += merged.prompt_tokens ?? 0
+      ct += merged.completion_tokens ?? 0
+      ms += merged.analysis_ms ?? 0
+    }
+    return { prompt_tokens: pt, completion_tokens: ct, analysis_ms: ms }
+  }, [readyDocLcs, merged])
+
+  const activeDocLc = activeTab !== 'merged'
+    ? docLcs.find(d => `doc-${d.document_id}` === activeTab) ?? null
+    : null
+  const activeIssues = activeTab === 'merged'
+    ? issues
+    : issues.filter(i => activeDocLc && i.document_id === activeDocLc.document_id)
+
+  return (
+    <div className="shared-view shared-view--lifecycle">
+      <div className="shared-view-header">
+        <Link to="/" className="shared-view-logo">
+          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+        </Link>
+        <div className="shared-view-meta">
+          <h1 className="shared-view-title">{data.title}</h1>
+          <span className="shared-view-product">{data.product_name}</span>
+        </div>
+        <Link to="/app" className="shared-view-cta">
+          <ExternalLink size={14} />
+          {t('share.tryIt')}
+        </Link>
+      </div>
+
+      <div className="shared-view-lifecycle-content">
+        {showTabs && (
+          <div className="plc-tabs" role="tablist">
+            <button
+              className={`plc-tab${activeTab === 'merged' ? ' plc-tab--active' : ''}`}
+              role="tab"
+              aria-selected={activeTab === 'merged'}
+              onClick={() => setActiveTab('merged')}
+            >
+              <Layers size={13} />
+              <span>{t('lifecycleModal.tabMerged', 'Merged')}</span>
+            </button>
+            {readyDocLcs.map(dl => (
+              <button
+                key={dl.document_id}
+                className={`plc-tab${activeTab === `doc-${dl.document_id}` ? ' plc-tab--active' : ''}`}
+                role="tab"
+                aria-selected={activeTab === `doc-${dl.document_id}`}
+                onClick={() => setActiveTab(`doc-${dl.document_id}`)}
+                title={dl.document_name || `Document ${dl.document_id}`}
+              >
+                <FileText size={13} />
+                <span className="plc-tab-label">{dl.document_name || `Doc ${dl.document_id}`}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showTabs && activeTab === 'merged' && merged && (
+          <LifecycleContent lc={merged} issues={activeIssues} aggregatedUsage={totalUsage} />
+        )}
+        {showTabs && activeTab !== 'merged' && activeDocLc && (
+          <LifecycleContent lc={activeDocLc} issues={activeIssues} />
+        )}
+        {!showTabs && merged && (
+          <LifecycleContent lc={merged} issues={issues} aggregatedUsage={totalUsage} />
+        )}
+        {!showTabs && !merged && readyDocLcs.length === 1 && (
+          <LifecycleContent lc={readyDocLcs[0]} issues={activeIssues} />
+        )}
+      </div>
+
+      <div className="shared-view-footer">
+        <span>{t('share.poweredBy')}</span>
+      </div>
+    </div>
+  )
+}
+
+
+function SharedDocumentPreviewView({ data }: { data: SharedDocumentPreviewResponse }) {
+  const { t } = useTranslation()
+  return (
+    <div className="shared-view shared-view--document">
+      <div className="shared-view-header">
+        <Link to="/" className="shared-view-logo">
+          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+        </Link>
+        <div className="shared-view-meta">
+          <FileText size={18} />
+          <h1 className="shared-view-title">{data.title}</h1>
+        </div>
+        <Link to="/app" className="shared-view-cta">
+          <ExternalLink size={14} />
+          {t('share.tryIt')}
+        </Link>
+      </div>
+
+      <div className="shared-view-document-content">
+        <MarkdownRenderer content={data.markdown} />
       </div>
 
       <div className="shared-view-footer">

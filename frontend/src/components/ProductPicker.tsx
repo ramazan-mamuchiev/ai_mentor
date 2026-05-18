@@ -102,7 +102,7 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
         <div className="product-picker-header">
           <h3>{t('productPicker.title')}</h3>
           {onClose && (
-            <button className="product-picker-close" onClick={onClose} data-tooltip={t('productPicker.close')} data-tooltip-align="right">
+            <button className="product-picker-close" onClick={onClose}>
               <X size={16} />
             </button>
           )}
@@ -140,9 +140,7 @@ export function ProductPicker({ value, onChange, onClose }: Props) {
               {group.products.map(p => {
                 const isActive = value.productName === p.name
                   && (value.versionFilter ?? '') === (p.version ?? '')
-                const itemKey = p.firmware_version_id
-                  ? `${p.id}-${p.firmware_version_id}`
-                  : String(p.id)
+                const itemKey = String(p.id)
                 return (
                   <button
                     key={itemKey}
@@ -180,7 +178,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
 
   if (!productFilter) {
     return (
-      <div className="product-badge product-badge--all" onClick={onEdit} role="button" data-tooltip={t('productBadge.change')}>
+      <div className="product-badge product-badge--all" onClick={onEdit} role="button">
         <Globe size={13} className="product-badge-icon" />
         <span className="product-badge-name">{t('productBadge.allProducts')}</span>
         <ChevronDown size={14} className="product-badge-chevron" />
@@ -206,7 +204,7 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
           {t('productBadge.locked')}
         </span>
       )}
-      <span className="product-badge-label" onClick={onEdit} data-tooltip={t('productBadge.change')}>
+      <span className="product-badge-label" onClick={onEdit}>
         <Box size={13} className="product-badge-icon" />
         <span className="product-badge-name">{productFilter}</span>
         {versionFilter && <span className="product-badge-version">{versionFilter}</span>}
@@ -215,8 +213,6 @@ export function ProductBadge({ productFilter, versionFilter, autoDetected, locke
       <button
         className="product-badge-clear"
         onClick={onClear}
-        data-tooltip={t('productBadge.clear')}
-        data-tooltip-align="right"
       >
         <X size={12} />
       </button>

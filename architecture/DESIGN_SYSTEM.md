@@ -90,6 +90,31 @@
 | Warning (pending) | `#d69e2e` | `#ffc107` |
 | Info (processing) | `var(--accent)` | `var(--accent)` |
 
+### Цвета данных в Audit / Logs (определены в `frontend/src/styles/admin.css`)
+
+Отдельная палитра для визуального разделения типов данных в строках аудита и логов.
+Каждый тип данных имеет **уникальный цвет**, чтобы не путаться с UI-элементами (синие фильтры, ссылки).
+
+| Переменная | Light | Dark | Назначение | CSS-класс |
+|-----------|-------|------|-----------|-----------|
+| `--log-info` | `#2563eb` | `#58a6ff` | Log level INFO | `.log-row__level--info` |
+| `--log-warn` | `#b45309` | `#d29922` | Log level WARN | `.log-row__level--warning` |
+| `--log-error` | `#dc2626` | `#f85149` | Log level ERROR, MCP error status | `.log-row__level--error` |
+| `--log-debug` | `#6b7280` | `#8b949e` | Log level DEBUG | `.log-row__level--debug` |
+| `--log-ok` | `#16a34a` | `#7ee787` | MCP status OK (зелёный = успех) | `.log-row__level--ok`, `.logs-level-chip--ok` |
+| `--log-tool` | `#7c3aed` | `#a78bfa` | MCP tool name (фиолетовый = функция/API) | `.log-row__level--tool` |
+| `--log-tenant` | `#0d9488` | `#5eead4` | Tenant email / username (бирюзовый) | `.log-row__level--tenant` |
+| `--log-key` | `#16a34a` | `#7ee787` | JSON key в развёрнутой строке | — |
+| `--log-highlight-bg` | `#fef08a` | `#e3b34180` | Подсветка поискового совпадения | `.log-highlight` |
+
+**Принципы выбора цветов:**
+- **Синий** (`--log-info`) — зарезервирован для UI-элементов (фильтры, ссылки, активные чипы) и нейтрального уровня INFO в логах
+- **Фиолетовый** (`--log-tool`) — инструменты и функции (по аналогии с VS Code, где функции фиолетовые)
+- **Бирюзовый** (`--log-tenant`) — пользователи/тенанты; нейтральный, хорошо различим от фиолетового
+- **Зелёный** (`--log-ok`) — положительный статус (успех, OK); стандартная семантика «всё хорошо»
+- **Красный** (`--log-error`) — ошибки; стандартная семантика «проблема»
+- Все цвета имеют light/dark варианты для контраста на соответствующем фоне
+
 ---
 
 ## 3. Типографика
@@ -238,6 +263,43 @@ display: flex;
 align-items: center;
 justify-content: center;
 ```
+
+**Toggle button (language / theme switch):**
+Единый стиль для ВСЕХ страниц (auth, landing, app). Квадратная кнопка 36×36px.
+```css
+width: 36px;
+height: 36px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+background: var(--surface);
+border: 1px solid var(--border);
+color: var(--text-secondary);
+border-radius: 10px;
+font-size: 0.8rem;
+font-weight: 600;
+```
+Hover: `background: var(--surface-hover); border-color: var(--text-muted); color: var(--text)`.
+- Language toggle: shows `RU` / `EN` text
+- Theme toggle: shows `Sun` (18px) in dark mode, `Moon` (18px) in light mode
+- CSS classes: `.landing-toggle-btn` (landing), `.theme-toggle` / `.lang-toggle` (auth pages)
+
+**Primary CTA (gradient):**
+Used for main call-to-action buttons on landing and auth pages.
+```css
+display: inline-flex;
+align-items: center;
+gap: 8px;
+padding: 10px 24px;
+background: var(--gradient);
+color: #fff;
+font-size: 14px;
+font-weight: 600;
+border: none;
+border-radius: 8px;
+```
+Hover: `opacity: 0.9; transform: translateY(-1px)`.
+Auth submit button uses the same gradient via `var(--gradient)`.
 
 ### 6.2 Инпуты
 
@@ -439,11 +501,52 @@ tr:hover td {
 }
 ```
 
+#### Responsive strategy: sticky edges + scroll fallback
+
+Tables in Products and Documents are **reference catalogs**, not analytics grids. The approach:
+
+- **First column** (name/title) is `position: sticky; left: 0` -- always visible
+- **Last column** (actions) is `position: sticky; right: 0` -- always visible
+- **Middle columns** have `min-width` to prevent text truncation
+- On wide screens everything fits with no scroll; on narrow screens horizontal scroll activates with sticky edges
+- **<768px**: table is hidden, replaced by mobile cards (`.docs-cards`)
+- Scroll shadows (`.docs-table-wrap--scrolled-left/right`) hint at scrollable content
+
+Column min-widths (set via `.col-*` classes):
+
+| Column | min-width | Notes |
+|--------|-----------|-------|
+| `col-name` / `col-title` | 180px | Sticky left |
+| `col-documents` | 70px | |
+| `col-format` | 100px | |
+| `col-status` | 120px | Segmented bar in Products |
+| `col-size` | 70px | |
+| `col-chunks` | 60px | |
+| `col-product` | 100px | Documents only |
+| `col-uploaded` / `col-indexed` | 90px | Compact date, full datetime in tooltip |
+| `col-actions` | 72px | Sticky right, primary btn + "..." dropdown |
+
+#### Actions dropdown
+
+Instead of 4-5 inline icon buttons, actions use a compact layout:
+- **One primary button** always visible (edit for Products, debug for Documents)
+- **"..." button** opens a dropdown with remaining actions (reindex, delete, etc.)
+- Dropdown: `.docs-actions-dropdown`, positioned absolutely, auto-closes on outside click
+
+#### Product segmented status bar
+
+Products use a segmented color bar instead of individual status badges:
+- Segments: green (ready), blue (processing), yellow (pending), red (error), gray (cancelled)
+- Width proportional to document count in each status
+- Compact text below: "90% 155/174"
+- Full breakdown in tooltip on hover
+- CSS: `.product-segmented-bar`, `.product-segmented-segment--{status}`
+
 #### CSS-классы таблицы
 
 | Класс | Назначение |
 |-------|-----------|
-| `.docs-table-wrap` | Контейнер с overflow: auto |
+| `.docs-table-wrap` | Контейнер с overflow: auto, scroll detection |
 | `.docs-table` | Элемент `<table>` |
 | `.docs-th` | Заголовок колонки |
 | `.docs-th-inner` | Flex-контейнер внутри th (drag handle + label) |
@@ -455,6 +558,8 @@ tr:hover td {
 | `.docs-col-settings-*` | Dropdown настроек колонок |
 | `.docs-group-bar` | Полоска активных группировок |
 | `.docs-group-actions` | Кнопки группировки под таблицей |
+| `.docs-actions-dropdown` | Dropdown-меню действий |
+| `.product-segmented-bar` | Сегментированный статус-бар продукта |
 | `.docs-row-group` | Строка-группа (bg-secondary) |
 | `.docs-group-cell` | Ячейка с toggle expand/collapse |
 
@@ -634,9 +739,9 @@ Lexiro — публичный коммерческий SaaS-продукт. Side
 |---|---|---|---|
 | `MessageSquare` | Chat | `'chat'` | ✅ |
 | `FileText` | Documents | `'documents'` | ✅ |
-| `Box` | Products | `'products'` | ✅ Заглушка |
-| `BarChart3` | Analytics | `'analytics'` | ✅ Заглушка |
-| `Settings` | Settings | `'settings'` | ✅ Заглушка |
+| `Box` | Products | `'products'` | ✅ |
+| `BarChart3` | Analytics | `'analytics'` | ✅ |
+| `Settings` | Settings | `'settings'` | ✅ |
 
 ### Стиль навигационных пунктов
 
@@ -736,9 +841,11 @@ color: var(--text-muted);
 ```
 frontend/src/styles/
   globals.css      — CSS-переменные, reset, scrollbar, base styles
+  auth.css         — ✅ Страницы авторизации: login, register, OAuth
   chat.css         — Sidebar, layout, messages, input, sources, debug, file upload, code blocks
   landing.css      — ✅ Лендинг: header, hero, секции, карточки, steps, footer, responsive
-  documents.css    — ✅ Навигация sidebar, таблица документов, статус-бейджи, карточки (mobile), stub-pages, responsive
+  documents.css    — ✅ Таблицы (sticky columns, min-widths, scroll shadows), статус-бейджи, segmented bar, actions dropdown, карточки (mobile), responsive
+  admin.css        — ✅ Админ-панель: dashboard, tenants, roles, prompts, logs, stats, system
 ```
 
 ### Правила
@@ -783,7 +890,7 @@ frontend/src/styles/
 - **Touch targets**: минимум 44×44px для кнопок на mobile (Apple HIG)
 - **Лендинг**: hero — одна колонка на mobile; карточки — 1 колонка mobile, 2 tablet, 3 desktop
 - **App sidebar**: на tablet/mobile — скрыт, открывается по hamburger (overlay)
-- **Таблица документов**: на mobile — заменяется карточками
+- **Таблицы Products/Documents**: sticky name + sticky actions + horizontal scroll fallback on desktop; mobile cards on <768px (see section 6.5)
 - **Header лендинга**: на mobile — hamburger-меню вместо горизонтальной навигации
 - **CTA-кнопки**: на mobile — full-width
 - **Все отступы/шрифты**: уменьшаются через media queries
@@ -811,9 +918,23 @@ frontend/src/styles/
 | `/` | `LandingPage` | Публичный лендинг (маркетинговая страница) | ✅ |
 | `/app` | `ChatApp` | Основное приложение (Chat) | ✅ |
 | `/app/documents` | `DocumentsPage` | Управление документами | ✅ |
-| `/app/products` | `ProductsPage` | Продукты (заглушка) | ✅ |
-| `/app/analytics` | `AnalyticsPage` | Аналитика (заглушка) | ✅ |
-| `/app/settings` | `SettingsPage` | Настройки (заглушка) | ✅ |
+| `/app/products` | `ProductsPage` | Список продуктов | ✅ |
+| `/app/products/:manufacturer/:product` | `ProductDetailPage` | Детали продукта | ✅ |
+| `/app/analytics` | `AnalyticsPage` | Аналитика | ✅ |
+| `/app/settings` | `SettingsPage` | Настройки аккаунта | ✅ |
+| `/s/:token` | `SharedView` | Публичная ссылка | ✅ |
+| `/app/admin` | `AdminApp > DashboardPage` | Главная админ-панели | ✅ |
+| `/app/admin/tenants` | `TenantsPage` | Управление тенантами | ✅ |
+| `/app/admin/tenants/:id` | `TenantDetailPage` | Детали тенанта | ✅ |
+| `/app/admin/documents` | `DocumentsAdminPage` | Документы (админ) | ✅ |
+| `/app/admin/chats` | `ChatAuditPage` | Аудит чатов | ✅ |
+| `/app/admin/roles` | `RolesPage` | Управление ролями | ✅ |
+| `/app/admin/roles/:id` | `RoleDetailPage` | Детали роли | ✅ |
+| `/app/admin/prompts` | `PromptsPage` | Управление промптами | ✅ |
+| `/app/admin/prompts/:id` | `PromptEditorPage` | Редактор промптов | ✅ |
+| `/app/admin/logs` | `LogsPage` | Логи | ✅ |
+| `/app/admin/stats` | `StatsPage` | Статистика | ✅ |
+| `/app/admin/system` | `SystemPage` | Системная информация | ✅ |
 | `*` | Redirect → `/` | Fallback | ✅ |
 
 ### Файловая структура

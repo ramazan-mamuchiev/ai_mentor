@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- auto-check handled by JS below -->
+  <title>Maintenance — Lexiro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { opacity: 0; }
+    body.ready { opacity: 1; transition: opacity .15s; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #2563eb;
+      --gradient: linear-gradient(135deg, #2563eb, #7c3aed, #db2777);
+      --bg: #ffffff;
+      --bg-secondary: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --radius: 8px;
+    }
+
+    [data-theme='dark'] {
+      --accent: #60a5fa;
+      --gradient: linear-gradient(135deg, #77B8FD, #FEA5D0);
+      --bg: #0b0f19;
+      --bg-secondary: #111827;
+      --surface: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+    }
+
+    html {
+      height: 100%;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .logo-dark { display: none; }
+    [data-theme='dark'] .logo-light { display: none; }
+    [data-theme='dark'] .logo-dark { display: initial; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      padding: 2rem;
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .bg-glow {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.12;
+      pointer-events: none;
+    }
+    .bg-glow-1 { top: -150px; left: -100px; background: #2563eb; }
+    .bg-glow-2 { bottom: -200px; right: -150px; background: #db2777; }
+    [data-theme='dark'] .bg-glow { opacity: 0.08; }
+
+    .container {
+      text-align: center;
+      max-width: 440px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .logo-wrap {
+      margin-bottom: 2rem;
+      animation: pulse-logo 3s ease-in-out infinite;
+    }
+    .logo-wrap svg { width: 72px; height: auto; }
+
+    @keyframes pulse-logo {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(0.96); }
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+      line-height: 1.6;
+    }
+
+    .description {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    .progress-bar {
+      width: 200px;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 0 auto 2rem;
+      overflow: hidden;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      width: 40%;
+      border-radius: 2px;
+      background: var(--gradient);
+      animation: slide 2s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(400%); }
+    }
+
+    .btn-refresh {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.75rem;
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-refresh:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+    .btn-refresh:active { transform: translateY(0); }
+    .btn-refresh svg { width: 16px; height: 16px; }
+
+    .footer {
+      position: absolute;
+      bottom: 2rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="container">
+    <div class="logo-wrap">
+      <svg class="logo-light" width="237" height="263" viewBox="0 0 237 263" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g clip-path="url(#clipL)">
+          <path d="M99.9004 4.96973C111.38 -1.65007 125.63 -1.66021 137.11 4.96973L218.4 51.8994C229.88 58.5194 237 70.8702 237 84.1201V177.99C237 191.24 229.87 203.59 218.4 210.21L137.11 257.14C131.37 260.45 124.94 262.109 118.51 262.109L118.5 262.12C112.07 262.12 105.63 260.459 99.9004 257.149L18.6104 210.22C7.13046 203.59 0.000133936 191.24 0 177.99V84.1201C0 70.8702 7.12967 58.5194 18.5996 51.8994L99.9004 4.96973ZM118.5 23.9902C116.22 23.9902 113.93 24.5801 111.9 25.75L30.5996 72.6895C26.5297 75.0395 24 79.4199 24 84.1299V178C24.0001 182.7 26.5299 187.089 30.5996 189.439L111.89 236.37C115.96 238.72 121.03 238.72 125.1 236.37L206.39 189.439C210.46 187.089 212.99 182.71 212.99 178V84.1299C212.99 79.4299 210.46 75.0395 206.39 72.6895L125.1 25.75C123.06 24.5701 120.78 23.9902 118.5 23.9902ZM116.74 169.89C115.42 174.71 111.03 178.059 106.03 178.06H97.5L121.26 91.2295C122.58 86.4098 126.97 83.0597 131.97 83.0596H140.5L116.74 169.89ZM93.9004 106.62L64.8604 130.56L93.9004 154.5L83.0898 167.62L46.0898 137.12C44.1298 135.51 43 133.1 43 130.56C43.0001 128.02 44.13 125.62 46.0898 124L83.0898 93.5L93.9004 106.62ZM191.91 124C193.87 125.61 195 128.02 195 130.56C195 133.1 193.87 135.5 191.91 137.12L154.91 167.62L144.1 154.5L173.14 130.56L144.1 106.62L154.91 93.5L191.91 124Z" fill="url(#paintL)"/>
+        </g>
+        <defs>
+          <linearGradient id="paintL" x1="0" y1="130.56" x2="237" y2="124" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#286CEA"/><stop offset="1" stop-color="#DF2F7F"/>
+          </linearGradient>
+          <clipPath id="clipL"><rect width="237" height="262.12" fill="white"/></clipPath>
+        </defs>
+      </svg>
+      <svg class="logo-dark" width="237" height="263" viewBox="0 0 237 263" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g clip-path="url(#clipD)">
+          <path d="M99.9004 4.96963C111.38 -1.65017 125.63 -1.66031 137.11 4.96963L218.4 51.8993C229.88 58.5193 237 70.8701 237 84.12V177.99C237 191.24 229.87 203.59 218.4 210.21L137.11 257.14C131.37 260.45 124.94 262.109 118.51 262.109L118.5 262.12C112.07 262.12 105.63 260.459 99.9004 257.149L18.6104 210.22C7.13046 203.59 0.000133936 191.24 0 177.99V84.12C0 70.8701 7.12967 58.5193 18.5996 51.8993L99.9004 4.96963ZM118.5 23.9901C116.22 23.9901 113.93 24.58 111.9 25.7499L30.5996 72.6894C26.5297 75.0394 24 79.4198 24 84.1298V178C24.0001 182.7 26.5299 187.089 30.5996 189.439L111.89 236.37C115.96 238.72 121.03 238.72 125.1 236.37L206.39 189.439C210.46 187.089 212.99 182.71 212.99 178V84.1298C212.99 79.4298 210.46 75.0394 206.39 72.6894L125.1 25.7499C123.06 24.57 120.78 23.9901 118.5 23.9901ZM116.74 169.89C115.42 174.709 111.03 178.059 106.03 178.059H97.5L121.26 91.2294C122.58 86.4097 126.97 83.0596 131.97 83.0595H140.5L116.74 169.89ZM93.9004 106.62L64.8604 130.559L93.9004 154.5L83.0898 167.62L46.0898 137.12C44.1298 135.51 43 133.099 43 130.559C43.0001 128.02 44.13 125.62 46.0898 124L83.0898 93.4999L93.9004 106.62ZM191.91 124C193.87 125.61 195 128.02 195 130.559C195 133.099 193.87 135.5 191.91 137.12L154.91 167.62L144.1 154.5L173.14 130.559L144.1 106.62L154.91 93.4999L191.91 124Z" fill="url(#paintD)"/>
+        </g>
+        <defs>
+          <linearGradient id="paintD" x1="0" y1="130.56" x2="237" y2="124" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#77B8FD"/><stop offset="1" stop-color="#FEA5D0"/>
+          </linearGradient>
+          <clipPath id="clipD"><rect width="237" height="262.12" fill="white"/></clipPath>
+        </defs>
+      </svg>
+    </div>
+
+    <h1>Scheduled Maintenance</h1>
+    <p class="subtitle">We're updating the system</p>
+    <p class="description">This usually takes a few minutes.<br>Please try again shortly.</p>
+
+    <div class="progress-bar">
+      <div class="progress-bar-inner"></div>
+    </div>
+
+    <button class="btn-refresh" onclick="location.reload()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Refresh page
+    </button>
+  </div>
+
+  <div class="footer">Lexiro &mdash; AI-powered product assistant</div>
+
+  <script>
+    (function() {
+      var t = 'light';
+      try { t = localStorage.getItem('lexiro-theme') || t; } catch(e) {}
+      if (t !== 'dark' && t !== 'light') {
+        t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', t);
+
+      document.fonts.ready.then(function() {
+        document.body.classList.add('ready');
+      });
+      setTimeout(function() { document.body.classList.add('ready'); }, 800);
+
+      setInterval(function() {
+        fetch('/', { method: 'HEAD', cache: 'no-store' })
+          .then(function(r) {
+            if (r.ok && r.headers.get('content-type')?.indexOf('text/html') >= 0) {
+              location.replace('/');
+            }
+          })
+          .catch(function() {});
+      }, 15000);
+    })();
+  </script>
+</body>
+</html>

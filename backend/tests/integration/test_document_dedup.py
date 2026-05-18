@@ -9,7 +9,7 @@ import hashlib
 import pytest
 from sqlalchemy import select, text
 
-from app.models import Product, Document, FirmwareVersion
+from app.models import Product, Document
 
 
 # ---------------------------------------------------------------------------
@@ -21,18 +21,13 @@ async def _insert_document(db_session, *, content: bytes, title: str = "Existing
                            manufacturer: str | None = None):
     """Insert a product + firmware + document directly into the DB."""
     mfg = manufacturer or f"Mfg-{product_name}"
-    product = Product(name=product_name, manufacturer=mfg, model=product_name)
+    product = Product(name=product_name, manufacturer=mfg, model=product_name, version="1.0", slug=f"{mfg.lower()}-{product_name.lower()}-1-0")
     db_session.add(product)
-    await db_session.flush()
-
-    fw = FirmwareVersion(product_id=product.id, version="1.0")
-    db_session.add(fw)
     await db_session.flush()
 
     source_hash = hashlib.sha256(content).hexdigest()
     doc = Document(
         product_id=product.id,
-        firmware_version_id=fw.id,
         format="markdown",
         original_filename=filename,
         file_size_bytes=len(content),
@@ -170,17 +165,12 @@ class TestDeduplicationFlow:
 
     async def test_empty_hash_not_matched_by_real_content(self, db_session):
         """A document with empty source_hash should not match a real content hash."""
-        product = Product(name="EmptyHashDev", manufacturer="Test")
+        product = Product(name="EmptyHashDev", manufacturer="Test", version="1.0", slug="test-emptyhashdev-1-0")
         db_session.add(product)
-        await db_session.flush()
-
-        fw = FirmwareVersion(product_id=product.id, version="1.0")
-        db_session.add(fw)
         await db_session.flush()
 
         doc = Document(
             product_id=product.id,
-            firmware_version_id=fw.id,
             format="markdown",
             original_filename="old.md",
             file_size_bytes=10,

@@ -1,40 +1,49 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Loader2 } from 'lucide-react'
-import { getProduct } from '../api/products'
+import { ArrowLeft, Loader2, Activity } from 'lucide-react'
+import { getProductBySlug } from '../api/products'
 import { DocumentsPage } from './DocumentsPage'
+import { ProductLifecycleModal } from '../components/ProductLifecycleModal'
+import { ErrorBoundary } from '../components/ErrorBoundary'
+import { usePermission } from '../auth/usePermission'
 import type { ProductDetail } from '../types'
 import type { ProductContext } from '../components/FileUpload'
 
 interface ProductDetailPageProps {
-  onUploadClick: (ctx?: ProductContext) => void
+  onUploadClick?: (ctx?: ProductContext) => void
   onUrlImportClick?: (ctx?: ProductContext) => void
 }
 
 export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDetailPageProps) {
   const { t } = useTranslation()
-  const { manufacturer, product: productSlug } = useParams<{ manufacturer: string; product: string }>()
+  const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
+  const canLifecycle = usePermission('lifecycle.run')
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showLifecycle, setShowLifecycle] = useState(false)
 
   useEffect(() => {
-    if (!manufacturer || !productSlug) return
+    if (!slug) return
     setLoading(true)
-    getProduct(manufacturer, productSlug)
+    getProductBySlug(slug)
       .then(setProduct)
       .catch(() => navigate('/app/products'))
       .finally(() => setLoading(false))
-  }, [manufacturer, productSlug, navigate])
+  }, [slug, navigate])
 
   const productCtx = useMemo<ProductContext | undefined>(() =>
-    product ? { name: product.name, manufacturer: product.manufacturer || undefined } : undefined,
-    [product?.name, product?.manufacturer],
+    product ? {
+      name: product.name,
+      manufacturer: product.manufacturer || undefined,
+      version: product.version || undefined,
+    } : undefined,
+    [product?.name, product?.manufacturer, product?.version],
   )
 
   const handleUploadClick = useCallback(() => {
-    onUploadClick(productCtx)
+    onUploadClick?.(productCtx)
   }, [onUploadClick, productCtx])
 
   const handleUrlImportClick = useCallback(() => {
@@ -51,7 +60,19 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
     )
   }
 
-  if (!product) return null
+  if (!product) {
+    return (
+      <div className="docs-page">
+        <div className="docs-empty">
+          <ArrowLeft size={18} />
+          <p>{t('products.notFound', 'Product not found')}</p>
+          <button className="product-back-btn" onClick={() => navigate('/app/products')}>
+            {t('products.title')}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const productHeader = (
     <div className="product-detail-header">
@@ -59,26 +80,46 @@ export function ProductDetailPage({ onUploadClick, onUrlImportClick }: ProductDe
         <ArrowLeft size={18} />
         {t('products.title')}
       </button>
-      <h1 className="product-detail-title">
-        {product.name}
-        {product.manufacturer && <span className="product-manufacturer"> — {product.manufacturer}</span>}
-      </h1>
-      {product.firmware_versions.length > 0 && (
+      <div className="product-detail-title-row">
+        <h1 className="product-detail-title">
+          {product.name}
+          {product.manufacturer && <span className="product-manufacturer"> — {product.manufacturer}</span>}
+        </h1>
+        <button
+          className="product-lifecycle-btn"
+          onClick={() => setShowLifecycle(true)}
+          title={t('lifecycleModal.title')}
+        >
+          <Activity size={14} />
+          API Lifecycle
+        </button>
+      </div>
+      {product.version && (
         <div className="product-versions">
-          {product.firmware_versions.map(v => (
-            <span key={v} className="docs-format-badge">{v}</span>
-          ))}
+          <span className="docs-format-badge">{product.version}</span>
         </div>
       )}
     </div>
   )
 
   return (
-    <DocumentsPage
-      onUploadClick={handleUploadClick}
-      onUrlImportClick={handleUrlImportClick}
-      productId={product.id}
-      headerSlot={productHeader}
-    />
+    <>
+      <DocumentsPage
+        onUploadClick={onUploadClick ? handleUploadClick : undefined}
+        onUrlImportClick={onUrlImportClick ? handleUrlImportClick : undefined}
+        productId={product.id}
+        headerSlot={productHeader}
+      />
+      {showLifecycle && (
+        <ErrorBoundary onError={() => setShowLifecycle(false)}>
+          <ProductLifecycleModal
+            productId={product.id}
+            productName={product.name}
+            canRun={canLifecycle}
+            onClose={() => setShowLifecycle(false)}
+          />
+        </ErrorBoundary>
+      )}
+    </>
   )
 }

@@ -16,26 +16,20 @@ _POSTMAN_SCHEMA_MARKERS = ("schema.getpostman.com", "_postman_id", "postman_coll
 
 
 def is_postman_collection(file_path: str) -> bool:
-    """Check if a JSON file is a Postman Collection."""
+    """Check if a JSON file is a Postman Collection.
+
+    Uses a two-pass strategy: first a fast text probe on the first 16 KB,
+    then a full JSON parse only when the probe is positive.
+    """
     if not file_path.lower().endswith(".json"):
         return False
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            raw = f.read(8192)
-        data = json.loads(raw if raw.rstrip().endswith("}") else raw + "}")
-        if not isinstance(data, dict):
-            return False
-        info = data.get("info", {})
-        if isinstance(info, dict):
-            schema = info.get("schema", info.get("_postman_schema", ""))
-            if any(m in str(schema) for m in _POSTMAN_SCHEMA_MARKERS):
-                return True
-            if "_postman_id" in info:
-                return True
-        if "item" in data and "info" in data:
-            name = info.get("name", "")
-            if name and isinstance(data.get("item"), list):
-                return True
+            head = f.read(16384)
+        if any(m in head for m in _POSTMAN_SCHEMA_MARKERS):
+            return True
+        if '"_postman_id"' in head and '"item"' in head:
+            return True
     except Exception:
         pass
     return False

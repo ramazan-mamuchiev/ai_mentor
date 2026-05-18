@@ -37,8 +37,7 @@ function useIsMobile() {
 
 interface ProductDebugProps {
   mode: 'product'
-  manufacturerSlug: string
-  productSlug: string
+  productId: number
   productName: string
 }
 
@@ -125,7 +124,6 @@ export function DocsRightPanel(props: Props) {
             <button
               className="sources-panel-share"
               onClick={() => setShareModal(true)}
-              data-tooltip={t('share.shareDebug')}
             >
               <Share2 size={14} />
             </button>
@@ -137,8 +135,7 @@ export function DocsRightPanel(props: Props) {
         <div className="sources-panel-body">
           {props.mode === 'product' ? (
             <ProductDebugContent
-              manufacturerSlug={props.manufacturerSlug}
-              productSlug={props.productSlug}
+              productId={props.productId}
             />
           ) : (
             <DocumentDebugContent documentId={props.documentId} />
@@ -148,7 +145,7 @@ export function DocsRightPanel(props: Props) {
           <ShareModal
             type={props.mode === 'product' ? 'debug_product' : 'debug_document'}
             id={props.mode === 'product'
-              ? `${props.manufacturerSlug}/${props.productSlug}`
+              ? props.productId
               : props.documentId}
             onClose={() => setShareModal(false)}
           />

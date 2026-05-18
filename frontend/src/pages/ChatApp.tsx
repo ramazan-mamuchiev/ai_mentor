@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { createSession, deleteSession, getSession, listSessions, updateSession } from '../api/chat'
 import { ChatWindow } from '../components/ChatWindow'
 import { FileUpload, type ProductContext } from '../components/FileUpload'
@@ -9,19 +9,32 @@ import { ProductPicker } from '../components/ProductPicker'
 import { useChat } from '../hooks/useChat'
 import { useTheme } from '../hooks/useTheme'
 import type { ChatSession } from '../types'
+import { OnboardingChecklist } from '../components/OnboardingChecklist'
+import { usePermission } from '../auth/usePermission'
+import { HelpTourProvider } from '../tour/HelpTourContext'
 import { DocumentsPage } from './DocumentsPage'
 import { ProductsPage } from './ProductsPage'
 import { ProductDetailPage } from './ProductDetailPage'
 import { AnalyticsPage } from './AnalyticsPage'
 import { SettingsPage } from './SettingsPage'
+import { ErrorBoundary } from '../components/ErrorBoundary'
+function NavigateToKB() {
+  const { '*': rest } = useParams()
+  return <Navigate to={`/kb/${rest || ''}`} replace />
+}
 
 export function ChatApp() {
   const { theme, toggle: toggleTheme } = useTheme()
   const [sessions, setSessions] = useState<ChatSession[]>([])
-  const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
+  const [pendingProduct, setPendingProduct] = useState<{
+    productId: number | null
+    productName: string | null
+    versionFilter: string | null
+  } | null>(null)
 
-  const handleProductDetected = useCallback((sessionId: number, update: {
+  const handleProductDetected = useCallback((sessionId: string, update: {
     product_filter?: string | null
     product_filter_source?: string | null
     version_filter?: string | null
@@ -44,6 +57,7 @@ export function ChatApp() {
   const [showUrlImport, setShowUrlImport] = useState(false)
   const [docsRefreshKey, setDocsRefreshKey] = useState(0)
   const productContextRef = useRef<ProductContext | undefined>(undefined)
+  const canUpload = usePermission('documents.upload')
 
   const activeSession = sessions.find(s => s.id === activeSessionId) ?? null
 
@@ -62,6 +76,7 @@ export function ChatApp() {
 
   const handleNewSession = useCallback(async () => {
     reset()
+    setPendingProduct(null)
     try {
       const session = await createSession()
       setSessions(prev => [session, ...prev])
@@ -71,8 +86,9 @@ export function ChatApp() {
     }
   }, [reset])
 
-  const handleSelectSession = useCallback(async (id: number) => {
+  const handleSelectSession = useCallback(async (id: string) => {
     reset()
+    setPendingProduct(null)
     setActiveSessionId(id)
     try {
       const detail = await getSession(id)
@@ -82,7 +98,7 @@ export function ChatApp() {
     }
   }, [reset, setMessages])
 
-  const handleDeleteSession = useCallback(async (id: number) => {
+  const handleDeleteSession = useCallback(async (id: string) => {
     try {
       await deleteSession(id)
       setSessions(prev => prev.filter(s => s.id !== id))
@@ -99,21 +115,31 @@ export function ChatApp() {
     let sessionId = activeSessionId
     if (!sessionId) {
       try {
-        const session = await createSession()
+        const createParams: Parameters<typeof createSession>[0] = {}
+        if (pendingProduct) {
+          if (pendingProduct.productId) createParams.product_id = pendingProduct.productId
+          if (pendingProduct.productName) createParams.product_filter = pendingProduct.productName
+          if (pendingProduct.versionFilter) createParams.version_filter = pendingProduct.versionFilter
+          createParams.product_filter_source = 'explicit'
+        }
+        const session = await createSession(
+          Object.keys(createParams).length > 0 ? createParams : undefined,
+        )
         setSessions(prev => [session, ...prev])
         setActiveSessionId(session.id)
+        setPendingProduct(null)
         sessionId = session.id
       } catch {
         setMessages([
-          { id: Date.now(), session_id: 0, role: 'user', content, created_at: new Date().toISOString() },
-          { id: Date.now() + 1, session_id: 0, role: 'assistant', content: '', error_code: 'networkError', created_at: new Date().toISOString() },
+          { id: Date.now(), session_id: '', role: 'user', content, created_at: new Date().toISOString() },
+          { id: Date.now() + 1, session_id: '', role: 'assistant', content: '', error_code: 'networkError', created_at: new Date().toISOString() },
         ])
         return
       }
     }
     await sendMessage(sessionId, content)
     refreshSessions()
-  }, [activeSessionId, sendMessage, setMessages, refreshSessions])
+  }, [activeSessionId, pendingProduct, sendMessage, setMessages, refreshSessions])
 
   const handleProductChange = useCallback(async (selection: {
     productId: number | null
@@ -121,7 +147,14 @@ export function ChatApp() {
     manufacturer: string | null
     versionFilter: string | null
   }) => {
-    if (!activeSessionId) return
+    if (!activeSessionId) {
+      setPendingProduct({
+        productId: selection.productId,
+        productName: selection.productName,
+        versionFilter: selection.versionFilter,
+      })
+      return
+    }
 
     try {
       const updated = await updateSession(activeSessionId, {
@@ -144,7 +177,10 @@ export function ChatApp() {
   }, [activeSessionId])
 
   const handleClearProduct = useCallback(async () => {
-    if (!activeSessionId) return
+    if (!activeSessionId) {
+      setPendingProduct(null)
+      return
+    }
     try {
       const updated = await updateSession(activeSessionId, {
         product_id: null,
@@ -199,6 +235,9 @@ export function ChatApp() {
     }
   }, [activeSessionId])
 
+  const effectiveProductFilter = activeSession?.product_filter ?? pendingProduct?.productName ?? null
+  const effectiveVersionFilter = activeSession?.version_filter ?? pendingProduct?.versionFilter ?? null
+
   const chatContent = (
     <ChatWindow
       messages={messages}
@@ -218,11 +257,10 @@ export function ChatApp() {
           : undefined
       }
       editValue={lastUserPrompt}
-      onUploadClick={() => setShowUpload(true)}
-      productFilter={activeSession?.product_filter}
-      versionFilter={activeSession?.version_filter}
+      productFilter={effectiveProductFilter}
+      versionFilter={effectiveVersionFilter}
       autoDetected={activeSession?.product_filter_source === 'auto'}
-      productLocked={activeSession?.product_filter_source === 'explicit'}
+      productLocked={activeSession?.product_filter_source === 'explicit' || (!activeSessionId && !!pendingProduct?.productName)}
       onEditProduct={() => setShowProductPicker(true)}
       onClearProduct={handleClearProduct}
       onLockProduct={handleLockProduct}
@@ -232,6 +270,7 @@ export function ChatApp() {
   )
 
   return (
+    <HelpTourProvider>
     <Layout
       sessions={sessions}
       activeSessionId={activeSessionId}
@@ -240,22 +279,26 @@ export function ChatApp() {
       onNewSession={handleNewSession}
       onDeleteSession={handleDeleteSession}
       onToggleTheme={toggleTheme}
-      onLogoClick={() => { reset(); setActiveSessionId(null) }}
+      onLogoClick={() => { reset(); setActiveSessionId(null); setPendingProduct(null) }}
     >
-      <Routes>
-        <Route index element={chatContent} />
-        <Route path="documents" element={<DocumentsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
-        <Route path="products" element={<ProductsPage onUploadClick={() => { productContextRef.current = undefined; setShowUpload(true) }} onUrlImportClick={() => { productContextRef.current = undefined; setShowUrlImport(true) }} refreshKey={docsRefreshKey} />} />
-        <Route path="products/:manufacturer/:product" element={
-          <ProductDetailPage
-            onUploadClick={(ctx) => { productContextRef.current = ctx; setShowUpload(true) }}
-            onUrlImportClick={(ctx) => { productContextRef.current = ctx; setShowUrlImport(true) }}
-          />
-        } />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/app" replace />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route index element={chatContent} />
+          <Route path="documents" element={<DocumentsPage onUploadClick={canUpload ? () => { productContextRef.current = undefined; setShowUpload(true) } : undefined} onUrlImportClick={canUpload ? () => { productContextRef.current = undefined; setShowUrlImport(true) } : undefined} refreshKey={docsRefreshKey} />} />
+          <Route path="products" element={<ProductsPage onUploadClick={canUpload ? () => { productContextRef.current = undefined; setShowUpload(true) } : undefined} onUrlImportClick={canUpload ? () => { productContextRef.current = undefined; setShowUrlImport(true) } : undefined} refreshKey={docsRefreshKey} />} />
+          <Route path="products/:slug" element={
+            <ProductDetailPage
+              onUploadClick={canUpload ? (ctx) => { productContextRef.current = ctx; setShowUpload(true) } : undefined}
+              onUrlImportClick={canUpload ? (ctx) => { productContextRef.current = ctx; setShowUrlImport(true) } : undefined}
+            />
+          } />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="kb" element={<Navigate to="/kb" replace />} />
+          <Route path="kb/*" element={<NavigateToKB />} />
+          <Route path="*" element={<Navigate to="/app" replace />} />
+        </Routes>
+      </ErrorBoundary>
       {showUpload && (
         <FileUpload
           onClose={() => setShowUpload(false)}
@@ -277,15 +320,17 @@ export function ChatApp() {
       {showProductPicker && (
         <ProductPicker
           value={{
-            productId: activeSession?.product_id ?? null,
-            productName: activeSession?.product_filter ?? null,
+            productId: activeSession?.product_id ?? pendingProduct?.productId ?? null,
+            productName: effectiveProductFilter,
             manufacturer: null,
-            versionFilter: activeSession?.version_filter ?? null,
+            versionFilter: effectiveVersionFilter,
           }}
           onChange={handleProductChange}
           onClose={() => setShowProductPicker(false)}
         />
       )}
+      <OnboardingChecklist />
     </Layout>
+    </HelpTourProvider>
   )
 }

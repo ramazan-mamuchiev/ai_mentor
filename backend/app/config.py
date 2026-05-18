@@ -10,6 +10,8 @@ class Settings(BaseSettings):
 
     embedding_model_gemini: str = "gemini-embedding-2-preview"
     embedding_dims: int = 1024
+    embedding_cache_enabled: bool = True
+    embedding_cache_ttl_hours: int = 48
 
     redis_url: str = "redis://localhost:6379/0"
 
@@ -43,7 +45,7 @@ class Settings(BaseSettings):
     # === Gemini (OpenAI-compatible) ===
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     gemini_api_key: str = ""
-    openai_llm_model: str = "gemini-2.5-pro"
+    openai_llm_model: str = "gemini-3.1-pro-preview"
 
     # === BotHub ===
     bothub_api_key: str = ""
@@ -69,19 +71,38 @@ class Settings(BaseSettings):
     rerank_enabled: bool = True
     rerank_candidates: int = 20
     rerank_model: str = "gemini-2.5-flash"
+    rerank_min_score: float = 0.3
 
     hybrid_search_enabled: bool = True
     hybrid_bm25_weight: float = 0.3
     hybrid_vector_weight: float = 0.7
     hybrid_rrf_k: int = 60
+    hnsw_ef_search: int = 128
+
+    doc_type_boost_enabled: bool = True
+
+    multilang_bm25_enabled: bool = True
 
     chunk_max_tokens: int = 512
     chunk_min_tokens: int = 50
     chunk_overlap_paragraphs: int = 2
+    embedding_max_tokens: int = 0  # 0 = auto (chunk_max_tokens + 256)
 
     metadata_extraction_enabled: bool = True
     metadata_extraction_model: str = "gemini-2.5-flash"
-    metadata_extraction_batch_size: int = 5
+    metadata_extraction_batch_size: int = 20
+
+    product_keys_extraction_enabled: bool = True
+    product_resolve_model: str = "gemini-2.5-flash"
+
+    lifecycle_analysis_enabled: bool = True
+    lifecycle_analysis_model: str = "gemini-2.5-pro"
+    lifecycle_analysis_fallback_model: str = "gemini-2.5-flash"
+    lifecycle_analysis_max_doc_tokens: int = 800_000
+    lifecycle_analysis_max_output_tokens: int = 65_536
+    lifecycle_validation_max_retries: int = 2
+    lifecycle_batch_target_tokens: int = 100_000
+    lifecycle_batch_min_chunks: int = 80
 
     search_retry_enabled: bool = True
 
@@ -89,10 +110,73 @@ class Settings(BaseSettings):
     decompose_model: str = "gemini-2.5-flash"
     decompose_max_sub_queries: int = 4
 
+    cross_doc_expansion_enabled: bool = True
+    cross_doc_expansion_limit: int = 3
+
+    web_search_enabled: bool = True
+    web_search_model: str = "gemini-2.5-flash"
+    web_search_max_tokens: int = 1500
+    web_search_max_context_chars: int = 5000
+
+    rag_max_context_tokens_per_source: int = 3000
+
+    mcp_default_limit: int = 10
+
     model_max_input_tokens: int = 1_000_000
 
     ocr_enabled: bool = True
     ocr_lang_detect_model: str = "gemini-2.5-flash"
+    ocr_vision_model: str = "gemini-2.5-flash"
+
+    document_stale_timeout_sec: int = 2700
+
+    # --- Crawl defaults (shared across Confluence / Site / GitHub) ---
+    crawl_max_pages: int = 10000
+    crawl_max_depth: int = 100
+    crawl_max_seconds: int = 7200
+
+    # --- Per-type overrides (0 = use shared default above) ---
+    confluence_crawl_max_pages: int = 0
+    confluence_crawl_max_depth: int = 0
+    confluence_crawl_max_seconds: int = 0
+    confluence_credentials_key: str = ""
+
+    site_crawl_max_pages: int = 0
+    site_crawl_max_depth: int = 0
+    site_crawl_max_seconds: int = 0
+
+    # --- GitHub importer ---
+    github_api_token: str = ""
+    github_max_files: int = 0
+    github_max_file_size_mb: int = 10
+
+    # --- Auth ---
+    api_key_hmac_secret: str = ""  # HMAC-SHA256 secret for API key hashing; empty = plain SHA-256 fallback
+    jwt_secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_minutes: int = 15
+    jwt_refresh_token_days: int = 7
+
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
+
+    oauth_enabled: bool = False  # master switch — disables all OAuth providers when False
+    allowed_email_domain: str = "axxonsoft.dev"  # only emails ending with this domain can register; empty = no restriction
+    guest_allowed_emails: str = ""  # comma-separated emails allowed outside allowed_email_domain, e.g. "test@lexiro.io,qa@lexiro.io"
+    guest_approval_email: str = ""  # admin email that receives verification links for guest accounts
+
+    app_base_url: str = "http://localhost:80"
+
+    # --- Email (Resend) ---
+    resend_api_key: str = ""
+    email_from: str = "onboarding@resend.dev"
+
+    # --- Sentry ---
+    sentry_dsn: str = ""
+
+    platform_name: str = "Lexiro"
 
     app_env: str = "development"
     app_log_level: str = "INFO"

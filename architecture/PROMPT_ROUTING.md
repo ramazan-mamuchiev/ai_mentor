@@ -13,7 +13,7 @@ User query: "расскажи про DataLen"
        │
        ▼
 ┌─────────────────────────────────────────────────┐
-│  LLM Classifier (gemini-2.0-flash, ~100ms)      │
+│  LLM Classifier (gemini-2.5-flash, ~100ms)      │
 │  "Classify into: overview | technical | code..." │
 │  → "overview"                                    │
 └─────────────────────────────────────────────────┘
@@ -58,6 +58,7 @@ prompts/
 ├── comparison.md        ← type: comparing products/versions
 ├── troubleshooting.md   ← type: errors and debugging
 ├── chitchat.md          ← type: greetings, meta-questions
+├── decompose.md         ← type: complex queries requiring sub-query decomposition
 └── README.md            ← documentation (ignored by loader)
 ```
 
@@ -84,7 +85,7 @@ Create one `.md` file. No code changes required. See `prompts/README.md` for the
 
 | Parameter | Value |
 |-----------|-------|
-| Model | `gemini-2.0-flash` (configurable via `CLASSIFIER_MODEL`) |
+| Model | `gemini-2.5-flash` (configurable via `CLASSIFIER_MODEL`) |
 | Temperature | 0 |
 | Max tokens | 20 |
 | Reasoning | none |
@@ -107,6 +108,7 @@ Categories:
 - comparison: comparing products, versions, or features (...)
 - troubleshooting: error, problem, or debugging question (...)
 - chitchat: greeting, off-topic, or meta-question (...)
+- decompose: complex query requiring decomposition into sub-queries (...)
 
 Question: {query}
 Category:
@@ -155,19 +157,26 @@ The debug panel shows classification results:
 | Model | Classifier model name |
 | Time | Classification latency |
 
+## MCP Query Classification
+
+Since April 2026, query classification is also available in the **MCP pipeline** (`mcp/server.py`). When `MCP_CLASSIFY_ENABLED=true`, the `search_documentation` MCP tool classifies the incoming query before search, passing the `query_type` to the search service for **doc-type boosting** (e.g. `api_reference` chunks boosted for `code` queries).
+
+The MCP classifier reuses the same `_classify_query` function from `chat/rag.py`, exposed via `search/classifier.py` module. This provides consistent classification logic across both Web Chat and MCP channels.
+
 ## Configuration
 
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
-| `CLASSIFIER_ENABLED` | `true` | Enable/disable LLM classification |
-| `CLASSIFIER_MODEL` | `gemini-2.0-flash` | Model for classification |
+| `CLASSIFIER_ENABLED` | `true` | Enable/disable LLM classification (Web Chat) |
+| `MCP_CLASSIFY_ENABLED` | `true` | Enable/disable LLM classification (MCP tools) |
+| `CLASSIFIER_MODEL` | `gemini-2.5-flash` | Model for classification |
 
 When `CLASSIFIER_ENABLED=false`, all queries use `"overview"` type (backward compatible).
 
 ## Future Improvements
 
-1. **Prompt overrides in DB** — table `prompt_templates` for editing without deploy
-2. **Admin UI** — edit prompts with live preview and test
+1. ~~**Prompt overrides in DB**~~ — ✅ Implemented: `prompt_templates` table with role-based overrides, `is_system`/`is_customized` flags, `max_response_tokens`/`rag_top_k` per type
+2. ~~**Admin UI**~~ — ✅ Implemented: `PromptsPage` + `PromptEditorPage` in admin panel (`/app/admin/prompts`), roles management (`/app/admin/roles`), system prompt seeding via `seed_prompts.py`
 3. **A/B testing** — multiple active versions per type, track quality metrics
 4. **DSPy optimization** — automatic prompt tuning from example Q&A pairs
 5. **Semantic Router** — embedding-based classification without LLM call (~10ms)

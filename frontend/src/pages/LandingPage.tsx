@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -21,10 +21,17 @@ import {
   ArrowRight,
   Sun,
   Moon,
-  Globe,
   Rocket,
+  MessageSquare,
+  FileCode,
+  CheckCircle2,
+  Wrench,
+  FileText,
+  Timer,
+  Globe,
 } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
+import { useRotatingSlogan } from '../hooks/useRotatingSlogan'
 import '../styles/landing.css'
 
 const AUTHOR_LINKEDIN = 'https://www.linkedin.com/in/aleh-vaitsekhovich-067557a9/'
@@ -41,8 +48,66 @@ const STEP_KEYS = ['step1', 'step2', 'step3', 'step4', 'step5'] as const
 export function LandingPage() {
   const { t, i18n } = useTranslation()
   const { theme, toggle: toggleTheme } = useTheme()
+  const { line1, line2, accent, visible: sloganVisible } = useRotatingSlogan()
   const [activeStep, setActiveStep] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const [headerHidden, setHeaderHidden] = useState(false)
+  const scrollRef = useRef({ lastY: 0, anchor: 0, direction: 'up' as 'up' | 'down' })
+  const landingRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const HIDE_AFTER = 60
+    const SHOW_AFTER = 5
+    const handleScroll = () => {
+      const y = window.scrollY
+      const s = scrollRef.current
+
+      if (y < 64) {
+        setHeaderHidden(false)
+        s.anchor = y
+        s.direction = 'up'
+      } else if (y > s.lastY) {
+        if (s.direction === 'up') {
+          s.anchor = y
+          s.direction = 'down'
+        }
+        if (y - s.anchor > HIDE_AFTER) {
+          setHeaderHidden(true)
+          setMobileMenuOpen(false)
+        }
+      } else if (y < s.lastY) {
+        if (s.direction === 'down') {
+          s.anchor = y
+          s.direction = 'up'
+        }
+        if (s.anchor - y > SHOW_AFTER) {
+          setHeaderHidden(false)
+        }
+      }
+
+      s.lastY = y
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  useEffect(() => {
+    const root = landingRef.current
+    if (!root) return
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible')
+          }
+        })
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    )
+    root.querySelectorAll('.landing-reveal, .landing-reveal-card').forEach(el => observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
 
   const toggleLang = () => {
     const next = i18n.language === 'ru' ? 'en' : 'ru'
@@ -68,9 +133,9 @@ export function LandingPage() {
   }, [scrollTo])
 
   return (
-    <div className="landing">
+    <div className="landing" ref={landingRef}>
       {/* Header */}
-      <header className="landing-header">
+      <header className={`landing-header${headerHidden ? ' landing-header-hidden' : ''}`}>
         <a
           href="/"
           className="landing-header-logo"
@@ -91,16 +156,17 @@ export function LandingPage() {
           <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
             {t('landing.nav.howItWorks')}
           </a>
+          <Link to="/kb">{t('landing.nav.kb')}</Link>
         </nav>
 
         <div className="landing-header-actions">
-          <button className="landing-btn-ghost" onClick={toggleLang} aria-label={t('lang.toggle')} data-tooltip={t('lang.toggle')}>
-            <Globe size={18} />
+          <button className="landing-toggle-btn" onClick={toggleLang} aria-label={t('lang.toggle')}>
+            {i18n.language?.startsWith('ru') ? 'RU' : 'EN'}
           </button>
-          <button className="landing-btn-ghost" onClick={toggleTheme} aria-label={t('theme.toggle')} data-tooltip={t('theme.toggle')}>
+          <button className="landing-toggle-btn" onClick={toggleTheme} aria-label={t('theme.toggle')}>
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <Link to="/app" className="landing-btn-primary">
+          <Link to="/app" className="landing-btn-primary landing-header-cta">
             {t('landing.nav.openApp')}
             <ArrowRight size={16} />
           </Link>
@@ -116,16 +182,26 @@ export function LandingPage() {
 
       {/* Mobile nav overlay */}
       <div className={`landing-mobile-nav${mobileMenuOpen ? ' open' : ''}`}>
-        <a href="#problems" onClick={e => handleAnchorClick(e, 'problems')}>
-          {t('landing.nav.problems')}
-        </a>
-        <a href="#goals" onClick={e => handleAnchorClick(e, 'goals')}>
-          {t('landing.nav.goals')}
-        </a>
-        <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
-          {t('landing.nav.howItWorks')}
-        </a>
-        <Link to="/app" className="landing-btn-primary" style={{ marginTop: 12, justifyContent: 'center' }}>
+        <nav className="landing-mobile-links">
+          <a href="#problems" onClick={e => handleAnchorClick(e, 'problems')}>
+            {t('landing.nav.problems')}
+          </a>
+          <a href="#goals" onClick={e => handleAnchorClick(e, 'goals')}>
+            {t('landing.nav.goals')}
+          </a>
+          <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
+            {t('landing.nav.howItWorks')}
+          </a>
+          <Link to="/kb" onClick={() => setMobileMenuOpen(false)}>
+            {t('landing.nav.kb')}
+          </Link>
+        </nav>
+        <div className="landing-mobile-divider" />
+        <Link
+          to="/app"
+          className="landing-btn-primary landing-mobile-cta"
+          onClick={() => setMobileMenuOpen(false)}
+        >
           {t('landing.nav.openApp')}
           <ArrowRight size={16} />
         </Link>
@@ -140,13 +216,13 @@ export function LandingPage() {
           {t('landing.hero.badge')}
         </div>
         <h1 className="landing-hero-title">{t('landing.hero.title')}</h1>
-        <p className="landing-hero-slogan">{t('landing.hero.slogan')}</p>
+        <p className={`landing-hero-slogan${sloganVisible ? '' : ' fading'}`}>{line1}</p>
         <div className="landing-hero-divider">
           <span /><span className="landing-hero-dot">·</span><span />
         </div>
-        <p className="landing-hero-subslogan">
-          {t('landing.hero.subslogan')}{' '}
-          <em>{t('landing.hero.instantly')}</em>
+        <p className={`landing-hero-subslogan${sloganVisible ? '' : ' fading'}`}>
+          {line2}{' '}
+          <em>{accent}</em>
         </p>
         <p className="landing-hero-description">{t('landing.hero.description')}</p>
         <div className="landing-hero-cta">
@@ -155,10 +231,55 @@ export function LandingPage() {
             <ArrowRight size={16} />
           </Link>
         </div>
+
+        {/* Product mockup */}
+        <div className="hero-mockup">
+          <div className="hero-mockup-window">
+            <div className="hero-mockup-titlebar">
+              <div className="hero-mockup-dots">
+                <span /><span /><span />
+              </div>
+              <span className="hero-mockup-url">lexiro.io</span>
+            </div>
+            <div className="hero-mockup-body">
+              <aside className="hero-mockup-sidebar">
+                <div className="hero-mockup-sidebar-logo">
+                  <img src="/logo-on-light.svg" alt="" className="logo-light" />
+                  <img src="/logo-on-dark.svg" alt="" className="logo-dark" />
+                  <span>Lexiro</span>
+                </div>
+                <div className="hero-mockup-sidebar-nav">
+                  <div className="hero-mockup-nav-item active"><MessageSquare size={14} /> {t('nav.chat')}</div>
+                  <div className="hero-mockup-nav-item"><FileCode size={14} /> {t('nav.products')}</div>
+                </div>
+              </aside>
+              <div className="hero-mockup-chat">
+                <div className="hero-mockup-msg hero-mockup-msg--user">
+                  <div className="hero-mockup-bubble">{t('landing.mockup.question')}</div>
+                </div>
+                <div className="hero-mockup-msg hero-mockup-msg--ai">
+                  <div className="hero-mockup-bubble">
+                    <p>{t('landing.mockup.answer')}</p>
+                    <pre className="hero-mockup-code"><code>{`import requests
+from requests.auth import HTTPDigestAuth
+
+url = f"http://{host}/ISAPI/System/Video/inputs/channels"
+r = requests.get(url, auth=HTTPDigestAuth(user, pwd))
+channels = r.json()["VideoInputChannelList"]`}</code></pre>
+                    <div className="hero-mockup-sources">
+                      <CheckCircle2 size={12} />
+                      <span>{t('landing.mockup.sources')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Elevator Pitch */}
-      <section className="landing-section">
+      <section className="landing-elevator-section landing-reveal">
         <div className="landing-elevator">
           <span className="landing-elevator-label">
             <Rocket size={14} />
@@ -168,21 +289,19 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Why This Matters */}
-      <section className="landing-section" id="why">
-        <h2 className="landing-section-title">{t('landing.why.title')}</h2>
-        <p className="landing-section-text">{t('landing.why.text')}</p>
-      </section>
-
       {/* Problems Today */}
       <section className="landing-section" id="problems">
-        <h2 className="landing-section-title">{t('landing.problems.title')}</h2>
+        <h2 className="landing-section-title landing-reveal">{t('landing.problems.title')}</h2>
         <div className="landing-cards">
           {PROBLEM_KEYS.map((key, i) => {
             const Icon = PROBLEM_ICONS[i]
             return (
-              <div className="landing-card" key={key}>
-                <div className="landing-card-icon">
+              <div
+                className="landing-card landing-card--warning landing-reveal-card"
+                key={key}
+                style={{ transitionDelay: `${i * 100}ms` }}
+              >
+                <div className="landing-card-icon landing-card-icon--warning">
                   <Icon size={22} />
                 </div>
                 <h3>{t(`landing.problems.${key}.title`)}</h3>
@@ -195,13 +314,17 @@ export function LandingPage() {
 
       {/* Goals */}
       <section className="landing-section" id="goals">
-        <h2 className="landing-section-title">{t('landing.goals.title')}</h2>
+        <h2 className="landing-section-title landing-reveal">{t('landing.goals.title')}</h2>
         <div className="landing-cards landing-cards-3">
           {GOAL_KEYS.map((key, i) => {
             const Icon = GOAL_ICONS[i]
             return (
-              <div className="landing-card" key={key}>
-                <div className="landing-card-icon">
+              <div
+                className="landing-card landing-card--success landing-reveal-card"
+                key={key}
+                style={{ transitionDelay: `${i * 100}ms` }}
+              >
+                <div className="landing-card-icon landing-card-icon--success">
                   <Icon size={22} />
                 </div>
                 <h3>{t(`landing.goals.${key}.title`)}</h3>
@@ -213,7 +336,7 @@ export function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section className="landing-section" id="how-it-works">
+      <section className="landing-section landing-reveal" id="how-it-works">
         <h2 className="landing-section-title">{t('landing.howItWorks.title')}</h2>
         <p className="landing-section-text">{t('landing.howItWorks.subtitle')}</p>
 
@@ -247,12 +370,78 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* Metrics */}
+      <section className="landing-metrics landing-reveal">
+        <div className="landing-metrics-grid">
+          <div className="landing-metric">
+            <Wrench size={20} className="landing-metric-icon" />
+            <span className="landing-metric-value">9</span>
+            <span className="landing-metric-label">{t('landing.metrics.mcpTools')}</span>
+          </div>
+          <div className="landing-metric">
+            <FileText size={20} className="landing-metric-icon" />
+            <span className="landing-metric-value">12+</span>
+            <span className="landing-metric-label">{t('landing.metrics.formats')}</span>
+          </div>
+          <div className="landing-metric">
+            <Timer size={20} className="landing-metric-icon" />
+            <span className="landing-metric-value">&lt;3s</span>
+            <span className="landing-metric-label">{t('landing.metrics.responseTime')}</span>
+          </div>
+          <div className="landing-metric">
+            <Globe size={20} className="landing-metric-icon" />
+            <span className="landing-metric-value">30+</span>
+            <span className="landing-metric-label">{t('landing.metrics.languages')}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Closing CTA */}
+      <section className="landing-closing-cta landing-reveal">
+        <h2>{t('landing.closingCta.title')}</h2>
+        <p>{t('landing.closingCta.text')}</p>
+        <Link to="/app" className="landing-btn-primary landing-closing-cta-btn">
+          {t('landing.hero.cta')}
+          <ArrowRight size={16} />
+        </Link>
+      </section>
+
       {/* Footer */}
       <footer className="landing-footer">
-        {t('landing.footer.copyright')} · {t('landing.footer.by')}{' '}
-        <a href={AUTHOR_LINKEDIN} target="_blank" rel="noopener noreferrer">
-          {t('landing.footer.author')}
-        </a>
+        <div className="landing-footer-grid">
+          <div className="landing-footer-brand">
+            <div className="landing-footer-logo">
+              <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
+              <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+              <span>Lexiro</span>
+            </div>
+            <p className="landing-footer-tagline">{t('landing.footer.tagline')}</p>
+          </div>
+          <div className="landing-footer-col">
+            <h4>{t('landing.footer.product')}</h4>
+            <Link to="/app">{t('landing.footer.webChat')}</Link>
+            <Link to="/kb">{t('landing.nav.kb')}</Link>
+          </div>
+          <div className="landing-footer-col">
+            <h4>{t('landing.footer.resources')}</h4>
+            <a href="#how-it-works" onClick={e => handleAnchorClick(e, 'how-it-works')}>
+              {t('landing.nav.howItWorks')}
+            </a>
+            <Link to="/kb">{t('landing.footer.docs')}</Link>
+          </div>
+          <div className="landing-footer-col">
+            <h4>{t('landing.footer.company')}</h4>
+            <a href={AUTHOR_LINKEDIN} target="_blank" rel="noopener noreferrer">
+              LinkedIn
+            </a>
+          </div>
+        </div>
+        <div className="landing-footer-bottom">
+          {t('landing.footer.copyright')} · {t('landing.footer.by')}{' '}
+          <a href={AUTHOR_LINKEDIN} target="_blank" rel="noopener noreferrer">
+            {t('landing.footer.author')}
+          </a>
+        </div>
       </footer>
     </div>
   )

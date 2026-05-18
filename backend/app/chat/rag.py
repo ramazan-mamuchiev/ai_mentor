@@ -20,8 +20,8 @@ from app.config import settings
 from app.llm.credentials import llm_credentials
 from app.llm.http_client import gemini_client, ollama_client
 from app.ingestion.text_cleaner import clean_for_embedding as _clean_md
-from app.models import ChatMessage, Product
-from app.search.service import search_documents
+from app.models import ChatMessage, Product, SearchAnalytics
+from app.search.service import ResolveResult, resolve_product, search_documents
 
 
 @dataclass
@@ -98,13 +98,19 @@ QUERY_TYPES = tuple(_TYPE_PROMPTS.keys())
 def _build_classify_prompt() -> str:
     lines = [
         "Classify the user question and detect the product mentioned.",
-        "Return ONLY a JSON object with two fields, no other text:",
-        '  {{"category": "<category>", "product": "<exact_product_name or null>"}}',
+        "Return ONLY a JSON object with three fields, no other text:",
+        '  {{"category": "<category>", "product": "<exact_product_name or null>", "web_search": <true or false>}}',
         "",
         "Rules for product field:",
         "- Copy the product name EXACTLY as written in the list below (preserve spelling, spacing, capitalization).",
         "- If the user mentions a product by any variation (abbreviation, translation, misspelling), map it to the EXACT name from the list.",
         "- If no product is mentioned or cannot be determined, return null.",
+        "",
+        "Rules for web_search field:",
+        '- Set to true when the user explicitly or implicitly asks to search external sources (web, internet, Google, etc.).',
+        '- Also set to true when the question is about general industry knowledge, market trends, competitors, or information unlikely to exist in product documentation.',
+        '- Also set to true for real-time or factual questions (weather, news, current events, prices, exchange rates, sports scores, etc.) that require up-to-date external data.',
+        '- Set to false for questions that can be answered from product documentation alone.',
         "",
         "Categories:",
     ]
@@ -147,12 +153,29 @@ def _build_system_prompt(query_type: str) -> str:
     return _BASE_PROMPT
 
 
+async def _build_system_prompt_with_roles(
+    query_type: str,
+    db: AsyncSession,
+    role_ids: list[int] | None = None,
+) -> str:
+    """Build system prompt using DB-backed PromptRegistry with role overrides."""
+    from app.chat.prompt_registry import prompt_registry
+    resolved = await prompt_registry.get_prompt(query_type, role_ids, db)
+    if resolved:
+        return f"{_BASE_PROMPT}\n\n{resolved.body}"
+    return _build_system_prompt(query_type)
+
+
 def _embedding_model_name() -> str:
     return settings.embedding_model_gemini
 
 
 from app.chat.prompts import REWRITE_PROMPT as _REWRITE_PROMPT_IMPORTED
-from app.chat.prompts import REPHRASE_FOR_SEARCH_PROMPT, SUMMARIZE_HISTORY_PROMPT, SYSTEM_PROMPT_NO_DOCS
+from app.chat.prompts import (
+    REPHRASE_FOR_SEARCH_PROMPT,
+    SUMMARIZE_HISTORY_PROMPT,
+    SYSTEM_PROMPT_NO_DOCS,
+)
 
 async def _classify_query(db: AsyncSession, query: str, product_names: list[str] | None = None) -> tuple[str, str | None, dict]:
     """Classify user query and detect product using a single LLM call.
@@ -194,6 +217,7 @@ async def _classify_query(db: AsyncSession, query: str, product_names: list[str]
 
         query_type = "overview"
         detected_product: str | None = None
+        classify_web_search = False
 
         try:
             clean = raw
@@ -214,6 +238,7 @@ async def _classify_query(db: AsyncSession, query: str, product_names: list[str]
                             if pn.lower() == prod.lower():
                                 detected_product = pn
                                 break
+                classify_web_search = bool(parsed.get("web_search"))
         except (json_lib.JSONDecodeError, KeyError):
             raw_lower = raw.lower().strip()
             query_type = raw_lower if raw_lower in QUERY_TYPES else "overview"
@@ -226,6 +251,7 @@ async def _classify_query(db: AsyncSession, query: str, product_names: list[str]
             "classify_total_tokens": usage.get("total_tokens", 0),
             "query_type": query_type,
             "classify_product": detected_product,
+            "classify_web_search": classify_web_search,
             "classify_input": query,
             "classify_raw": raw,
         }
@@ -289,9 +315,19 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
         if parent:
             parent_key = hashlib.sha256(parent.encode("utf-8")).hexdigest()
             if parent_key in seen_parents:
-                continue
-            seen_parents.add(parent_key)
-            body = _clean_md(parent)
+                body = _clean_md(chunk["content"])
+            else:
+                seen_parents.add(parent_key)
+                body = _clean_md(parent)
+                max_chars = settings.rag_max_context_tokens_per_source * 4
+                if len(body) > max_chars:
+                    chunk_text = _clean_md(chunk["content"])
+                    pos = body.find(chunk_text[:100])
+                    if pos >= 0:
+                        start = max(0, pos - max_chars // 3)
+                        body = body[start:start + max_chars] + "\n..."
+                    else:
+                        body = body[:max_chars] + "\n..."
         else:
             body = _clean_md(chunk["content"])
 
@@ -305,7 +341,101 @@ def _format_context(chunks: list[dict], *, no_documents_at_all: bool = False) ->
             if flat:
                 entity_line = f"Entities: {', '.join(flat[:15])}\n"
 
-        parts.append(f"--- Source {i}{doc_id_tag}: {source} (similarity: {chunk['similarity']}) ---\n{entity_line}{body}")
+        sim_info = f"similarity: {chunk['similarity']}"
+        if "rerank_score" in chunk:
+            sim_info += f", rerank: {chunk['rerank_score']}"
+        parts.append(f"--- Source {i}{doc_id_tag}: {source} ({sim_info}) ---\n{entity_line}{body}")
+
+    return "\n\n".join(parts)
+
+
+async def _get_lifecycle_context_for_chunks(db: AsyncSession, chunks: list[dict]) -> str:
+    """Fetch compact lifecycle context for products referenced in RAG chunks.
+
+    No LLM calls — pure DB lookups. Returns formatted string or empty.
+    """
+    from app.models import ApiLifecycle, DocIssueAnnotation
+    from sqlalchemy import select as sa_select
+
+    product_ids = {c.get("product_id") for c in chunks if c.get("product_id")}
+    if not product_ids:
+        return ""
+
+    parts: list[str] = []
+    for pid in product_ids:
+        lc = (await db.execute(
+            sa_select(ApiLifecycle).where(
+                ApiLifecycle.product_id == pid,
+                ApiLifecycle.document_id.is_(None),
+                ApiLifecycle.batch_index.is_(None),
+                ApiLifecycle.status == "ready",
+            )
+        )).scalar_one_or_none()
+
+        if not lc:
+            continue
+
+        product_name = None
+        for c in chunks:
+            if c.get("product_id") == pid:
+                product_name = c.get("product_name")
+                break
+
+        lines = [f"--- API Integration Context ({product_name or f'product {pid}'}) ---"]
+
+        for prereq in (lc.prerequisites or [])[:2]:
+            lines.append(f"Prerequisite: {prereq.get('name', '?')} [{prereq.get('type', '')}]: {prereq.get('description', '')}")
+
+        auth_phase = next(
+            (p for p in (lc.phases or [])
+             if p.get("phase_name") in ("authentication", "setup")
+             and "auth" in (p.get("action", "") + p.get("notes", "")).lower()),
+            None,
+        )
+        if auth_phase:
+            ct = f" ({auth_phase['content_type']})" if auth_phase.get("content_type") else ""
+            lines.append(f"Auth: {auth_phase.get('action', 'See docs')}{ct}")
+
+        init_phases = [p for p in (lc.phases or []) if p.get("phase_name") == "initialization"]
+        if init_phases:
+            init_desc = "; ".join(p.get("action", "") for p in init_phases[:2])
+            lines.append(f"Init: {init_desc}")
+
+        for pat in (lc.unique_patterns or [])[:3]:
+            lines.append(f"Unique: {pat.get('pattern', '')}: {pat.get('description', '')}")
+
+        for err in (lc.error_catalog or [])[:3]:
+            recovery = err.get("recovery_action", "")
+            lines.append(f"Error {err.get('http_status', '?')}: {err.get('meaning', '')} [{recovery}]")
+
+        idf = lc.integration_data_flows or {}
+        idf_comps = idf.get("components", [])
+        if idf_comps:
+            comp_names = [f"{c.get('name', '?')} ({c.get('type', '')})" for c in idf_comps[:5]]
+            lines.append(f"Architecture: {' → '.join(comp_names)}")
+
+        coverage = lc.endpoint_coverage or []
+        if coverage:
+            avg = sum(e.get("completeness", 0) for e in coverage) / len(coverage)
+            doc_scope = getattr(lc, "doc_scope", "unknown") or "unknown"
+            if avg < 0.5:
+                if doc_scope == "industry_protocol":
+                    lines.append(f"Doc quality {round(avg * 100)}% (generic protocol spec — some details are implementation-dependent)")
+                else:
+                    lines.append(f"Doc quality low ({round(avg * 100)}%) — verify generated code carefully")
+
+        issues = (await db.execute(
+            sa_select(DocIssueAnnotation).where(
+                DocIssueAnnotation.product_id == pid,
+                DocIssueAnnotation.severity.in_(["warning", "error"]),
+            ).limit(3)
+        )).scalars().all()
+
+        for issue in issues:
+            lines.append(f"WARNING: {issue.description}")
+
+        lines.append("---")
+        parts.append("\n".join(lines))
 
     return "\n\n".join(parts)
 
@@ -359,17 +489,18 @@ def _build_history_messages(
 _REWRITE_PROMPT = _REWRITE_PROMPT_IMPORTED
 
 
-async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> str:
+async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> tuple[str, dict]:
     """Use LLM to rewrite a follow-up query into a standalone question.
 
-    Falls back to the original query on any error or if there is no history.
+    Returns (rewritten_query, usage_dict). Falls back to (original, empty_usage) on error.
     """
+    empty_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
     if not history:
-        return query
+        return query, empty_usage
 
     recent = [m for m in history if m.role == "user"][-3:]
     if not recent:
-        return query
+        return query, empty_usage
 
     messages = [{"role": "system", "content": _REWRITE_PROMPT}]
     for msg in recent:
@@ -378,19 +509,20 @@ async def _rewrite_query(query: str, history: list[ChatMessage] | None) -> str:
 
     try:
         if settings.llm_provider == "openai":
-            result = await _llm_rewrite_openai(messages)
+            result, usage = await _llm_rewrite_openai(messages)
         else:
             result = await _llm_rewrite_ollama(messages)
+            usage = empty_usage
         if result and len(result) < 500:
             logger.info("Query rewritten", extra={"original": query[:100], "rewritten": result[:200]})
-            return result
+            return result, usage
     except Exception:
         logger.warning("Query rewrite failed, using original", exc_info=True)
 
-    return query
+    return query, empty_usage
 
 
-async def _llm_rewrite_openai(messages: list[dict]) -> str:
+async def _llm_rewrite_openai(messages: list[dict]) -> tuple[str, dict]:
     api_key, base_url = llm_credentials()
     url = f"{base_url.rstrip('/')}/chat/completions"
     payload = {
@@ -406,7 +538,14 @@ async def _llm_rewrite_openai(messages: list[dict]) -> str:
     resp = await gemini_client().post(url, json=payload, headers=headers, timeout=15.0)
     resp.raise_for_status()
     data = resp.json()
-    return data["choices"][0]["message"]["content"].strip()
+    text = data["choices"][0]["message"]["content"].strip()
+    api_usage = data.get("usage", {})
+    usage = {
+        "prompt_tokens": api_usage.get("prompt_tokens", 0),
+        "completion_tokens": api_usage.get("completion_tokens", 0),
+        "model": settings.openai_llm_model,
+    }
+    return text, usage
 
 
 async def _llm_rewrite_ollama(messages: list[dict]) -> str:
@@ -423,19 +562,126 @@ async def _llm_rewrite_ollama(messages: list[dict]) -> str:
     return data["message"]["content"].strip()
 
 
-async def _rephrase_for_retry(query: str) -> str | None:
-    """Rephrase a failed search query using LLM for a retry attempt."""
+async def _rephrase_for_retry(query: str) -> tuple[str | None, dict]:
+    """Rephrase a failed search query using LLM for a retry attempt.
+
+    Returns (rephrased_text_or_None, usage_dict).
+    """
+    empty_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
     messages = [
         {"role": "system", "content": REPHRASE_FOR_SEARCH_PROMPT},
         {"role": "user", "content": query},
     ]
     try:
-        result = await _llm_rewrite_openai(messages)
+        result, usage = await _llm_rewrite_openai(messages)
         if result and result.lower() != query.lower() and len(result) < 500:
-            return result
+            return result, usage
     except Exception:
         logger.warning("Query rephrase for retry failed", exc_info=True)
-    return None
+    return None, empty_usage
+
+
+_grounding_genai_client = None
+
+
+def _get_grounding_client():
+    """Lazy-init a google-genai Client for grounding calls (reuses embedder key)."""
+    global _grounding_genai_client
+    if _grounding_genai_client is None:
+        from google import genai
+        _grounding_genai_client = genai.Client(api_key=settings.gemini_api_key)
+        logger.info("Gemini grounding client initialized")
+    return _grounding_genai_client
+
+
+async def _web_search_grounding(query: str) -> tuple[str, dict]:
+    """Use Gemini Grounding with Google Search to get web context for the query.
+
+    Makes a single Gemini call with google_search tool enabled.
+    Returns (formatted_context, usage_meta).
+    """
+    if not settings.web_search_enabled or not settings.gemini_api_key:
+        return "", {}
+
+    try:
+        from google.genai import types
+        import asyncio
+
+        t0 = time.perf_counter()
+        client = _get_grounding_client()
+
+        grounding_prompt = (
+            f"Search the web and answer the following question thoroughly.\n\n"
+            f"Question: {query}\n\n"
+            f"Provide a detailed, factual answer based on web search results. "
+            f"Include specific names, numbers, links, and examples where available. "
+            f"If the question is about companies, partners, or products — list as many as you can find."
+        )
+
+        def _call():
+            return client.models.generate_content(
+                model=settings.web_search_model,
+                contents=grounding_prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.1,
+                    max_output_tokens=settings.web_search_max_tokens,
+                ),
+            )
+
+        response = await asyncio.to_thread(_call)
+        ws_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        context_text = response.text or ""
+
+        grounding_meta = response.candidates[0].grounding_metadata if response.candidates else None
+        search_queries = []
+        grounding_sources = []
+        if grounding_meta:
+            search_queries = list(grounding_meta.web_search_queries or [])
+            if grounding_meta.grounding_chunks:
+                for gc in grounding_meta.grounding_chunks:
+                    if gc.web:
+                        grounding_sources.append({
+                            "title": gc.web.title or "",
+                            "uri": gc.web.uri or "",
+                        })
+
+        usage = response.usage_metadata
+        prompt_tokens = usage.prompt_token_count if usage else 0
+        completion_tokens = usage.candidates_token_count if usage else 0
+        total_tokens = usage.total_token_count if usage else 0
+
+        if len(context_text) > settings.web_search_max_context_chars:
+            context_text = context_text[: settings.web_search_max_context_chars] + "\n..."
+
+        meta = {
+            "web_search_ms": ws_ms,
+            "web_search_model": settings.web_search_model,
+            "web_search_prompt_tokens": prompt_tokens,
+            "web_search_completion_tokens": completion_tokens,
+            "web_search_total_tokens": total_tokens,
+            "web_search_queries": search_queries,
+            "web_search_sources_count": len(grounding_sources),
+            "web_search_sources": grounding_sources[:5],
+            "web_search_context_length": len(context_text),
+        }
+        logger.info(
+            "Gemini grounding search completed",
+            extra={
+                "query": query[:200],
+                "search_queries": search_queries,
+                "sources": len(grounding_sources),
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "ms": ws_ms,
+            },
+        )
+        return context_text, meta
+
+    except Exception:
+        logger.warning("Gemini grounding search failed", exc_info=True)
+        return "", {}
 
 
 def _load_decompose_prompt() -> str:
@@ -554,6 +800,58 @@ async def _decompose_query(
         return None
 
 
+async def _expand_related_docs(
+    db: AsyncSession,
+    chunks: list[dict],
+    query: str,
+    limit: int = 3,
+) -> list[dict]:
+    """Expand search results with chunks from related documents.
+
+    For each primary chunk that has ``related_docs`` metadata, fetch the most
+    relevant chunk from each related document and append it to the results.
+    Deduplicates by document_id so we don't add docs already present.
+    """
+    existing_doc_ids = {c.get("document_id") for c in chunks}
+    related_paths: set[str] = set()
+    for c in chunks:
+        for rd in c.get("related_docs") or []:
+            if rd:
+                related_paths.add(rd)
+
+    if not related_paths:
+        return chunks
+
+    expanded: list[dict] = []
+    for rel_path in list(related_paths)[:limit * 2]:
+        title_hint = rel_path.rsplit("/", 1)[-1].replace(".md", "").replace("-", " ")
+        try:
+            extra = await search_documents(
+                session=db,
+                query=query,
+                doc_context=title_hint,
+                limit=1,
+            )
+            for r in extra:
+                if r.get("document_id") not in existing_doc_ids:
+                    r["_cross_doc"] = True
+                    expanded.append(r)
+                    existing_doc_ids.add(r["document_id"])
+        except Exception:
+            logger.warning("Cross-doc expansion failed for %s", rel_path, exc_info=True)
+
+        if len(expanded) >= limit:
+            break
+
+    if expanded:
+        logger.info(
+            "Cross-document expansion",
+            extra={"related_paths": len(related_paths), "expanded_chunks": len(expanded)},
+        )
+
+    return chunks + expanded[:limit]
+
+
 async def _parallel_search(
     db: AsyncSession,
     sub_queries: list[str],
@@ -565,23 +863,30 @@ async def _parallel_search(
     locked_product_id: int | None = None,
     locked_product_name: str | None = None,
     metadata: dict | None = None,
+    query_type: str | None = None,
 ) -> list[dict]:
     """Run parallel searches for each sub-query and merge results with balanced interleaving."""
 
+    resolved_ids: dict[str, int | None] = {}
+    for sp in sub_products:
+        if sp and sp not in resolved_ids:
+            r = await resolve_product(db, sp)
+            resolved_ids[sp] = r.product_id
+
     async def _single(sq: str, sp: str | None) -> list[dict]:
         meta: dict = {}
-        if locked_product_id and sp and locked_product_name and sp.lower() == locked_product_name.lower():
-            results = await search_documents(
-                session=db, query=sq, product_id=locked_product_id,
-                version=version, doc_context=doc_context,
-                limit=limit_per_query, metadata=meta,
-            )
-        else:
-            results = await search_documents(
-                session=db, query=sq, product=sp,
-                version=version, doc_context=doc_context,
-                limit=limit_per_query, metadata=meta,
-            )
+        pid = locked_product_id
+        if not pid and sp:
+            if locked_product_name and sp.lower() == locked_product_name.lower():
+                pid = locked_product_id
+            else:
+                pid = resolved_ids.get(sp)
+        results = await search_documents(
+            session=db, query=sq, product_id=pid,
+            version=version, doc_context=doc_context,
+            limit=limit_per_query, metadata=meta,
+            query_type=query_type,
+        )
         for r in results:
             r["_sub_query"] = sq
         return results
@@ -723,6 +1028,9 @@ async def build_rag_prompt(
     product_filter_source: str | None = None,
     history_summary: str | None = None,
     progress_callback: ProgressCallback | None = None,
+    role_ids: list[int] | None = None,
+    allowed_query_types: list[str] | None = None,
+    tenant_id: str | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """Build a complete prompt with RAG context for the LLM.
 
@@ -743,178 +1051,152 @@ async def build_rag_prompt(
 
     has_docs = await _has_any_documents(db)
 
-    if not has_docs:
-        query_tokens = _estimate_tokens(query)
-        system_prompt_tokens = _estimate_tokens(SYSTEM_PROMPT_NO_DOCS)
-
-        messages: list[dict] = [
-            {"role": "system", "content": SYSTEM_PROMPT_NO_DOCS},
-        ]
+    if has_docs:
         if history:
-            messages.extend(_build_history_messages(
-                history, settings.rag_history_messages, settings.rag_history_max_tokens,
-                summary=history_summary,
-            ))
-        messages.append({"role": "user", "content": query})
+            await _emit("rewriting")
+        t_rewrite = time.perf_counter()
+        if history:
+            search_query, rewrite_usage = await _rewrite_query(query, history)
+        else:
+            search_query, rewrite_usage = query, {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
+        rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
 
-        history_msgs = _build_history_messages(
-            history, settings.rag_history_messages, settings.rag_history_max_tokens,
-            summary=history_summary,
-        ) if history else []
-        history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
+        product_names = await _load_product_names(db)
 
-        total_ms = round((time.perf_counter() - t0) * 1000, 1)
-        rag_debug = {
-            "chunks_found": 0,
-            "top_similarity": 0,
-            "min_similarity": 0,
-            "context_tokens": 0,
-            "query_tokens": query_tokens,
-            "history_tokens": history_tokens,
-            "system_prompt_tokens": system_prompt_tokens,
-            "rewrite_ms": 0,
-            "search_ms": 0,
-            "rag_build_ms": total_ms,
-            "history_messages": len(history) if history else 0,
-            "prompt_messages": len(messages),
-            "embedding_model": _embedding_model_name(),
-            "product_filter": product_filter,
-            "version_filter": version_filter,
-            "doc_context": doc_context,
-            "auto_product": None,
-            "detected_doc_context": None,
-            "search_query": query,
-            "no_documents": True,
-            "type_max_tokens": None,
-        }
+        await _emit("classifying")
+        classify_input = search_query if search_query != query else query
+        query_type, classify_product, classify_meta = await _classify_query(db, classify_input, product_names)
+
+        if allowed_query_types and query_type not in allowed_query_types:
+            query_type = allowed_query_types[0] if allowed_query_types else "overview"
+            classify_meta["query_type_filtered"] = True
+
+        auto_product = classify_product
+        if auto_product and auto_product != product_filter:
+            if product_filter_source == "explicit":
+                logger.info(
+                    "Auto-detected product ignored (explicit lock)",
+                    extra={"detected": auto_product, "locked": product_filter, "query": query[:100]},
+                )
+            else:
+                logger.info(
+                    "Auto-detected product from query via LLM classify",
+                    extra={"product": auto_product, "previous": product_filter, "query": query[:100]},
+                )
+                product_filter = auto_product
+
+        from app.chat.prompt_registry import prompt_registry
+        _resolved = await prompt_registry.get_prompt(query_type, role_ids, db)
+        type_max_tokens = (_resolved.max_response_tokens if _resolved else None) or _TYPE_MAX_TOKENS.get(query_type)
+        effective_top_k = (_resolved.rag_top_k if _resolved else None) or _TYPE_TOP_K.get(query_type, settings.rag_top_k)
+
+        search_meta: dict = {}
 
         logger.info(
-            "RAG prompt built (no documents in system)",
-            extra={"query": query[:100], **rag_debug},
-        )
-
-        return messages, [], rag_debug
-
-    if history:
-        await _emit("rewriting")
-    t_rewrite = time.perf_counter()
-    search_query = await _rewrite_query(query, history) if history else query
-    rewrite_ms = round((time.perf_counter() - t_rewrite) * 1000, 1)
-
-    product_names = await _load_product_names(db)
-
-    await _emit("classifying")
-    classify_input = search_query if search_query != query else query
-    query_type, classify_product, classify_meta = await _classify_query(db, classify_input, product_names)
-
-    auto_product = classify_product
-    if auto_product and auto_product != product_filter:
-        if product_filter_source == "explicit":
-            logger.info(
-                "Auto-detected product ignored (explicit lock)",
-                extra={"detected": auto_product, "locked": product_filter, "query": query[:100]},
-            )
-        else:
-            logger.info(
-                "Auto-detected product from query via LLM classify",
-                extra={"product": auto_product, "previous": product_filter, "query": query[:100]},
-            )
-            product_filter = auto_product
-
-    type_max_tokens = _TYPE_MAX_TOKENS.get(query_type)
-    effective_top_k = _TYPE_TOP_K.get(query_type, settings.rag_top_k)
-
-    search_meta: dict = {}
-
-    logger.info(
-        "RAG search params",
-        extra={
-            "product_id": product_id,
-            "product_filter": product_filter,
-            "product_filter_source": product_filter_source,
-        },
-    )
-
-    effective_product_id = product_id
-    if product_filter_source == "explicit" and product_id is None and product_filter:
-        product = await db.scalar(
-            sa_select(Product).where(Product.name.ilike(product_filter))
-        )
-        if not product:
-            product = await db.scalar(
-                sa_select(Product).where(Product.name.ilike(f"%{product_filter}%"))
-            )
-        if product:
-            effective_product_id = product.id
-            logger.info(
-                "Resolved product_id from product_filter for explicit lock",
-                extra={"product_filter": product_filter, "product_id": effective_product_id, "product_name": product.name},
-            )
-        else:
-            logger.warning(
-                "Could not resolve product_id for explicit lock - product not found",
-                extra={"product_filter": product_filter},
-            )
-
-    is_explicit_lock = product_filter_source == "explicit" and effective_product_id is not None
-
-    if query_type in _DECOMPOSE_TYPES and settings.decompose_enabled:
-        await _emit("decomposing")
-    decompose_result = await _decompose_query(search_query, query_type, product_names)
-
-    await _emit("searching", sub_queries=len(decompose_result.sub_queries) if decompose_result and decompose_result.sub_queries else 0)
-    t_search = time.perf_counter()
-
-    if decompose_result and decompose_result.sub_queries:
-        chunks = await _parallel_search(
-            db,
-            decompose_result.sub_queries,
-            decompose_result.sub_products,
-            version=version_filter,
-            doc_context=doc_context,
-            limit_per_query=max(4, effective_top_k // len(decompose_result.sub_queries)),
-            locked_product_id=effective_product_id if is_explicit_lock else None,
-            locked_product_name=product_filter if is_explicit_lock else None,
-            metadata=search_meta,
-        )
-    else:
-        chunks = await search_documents(
-            session=db,
-            query=search_query,
-            product_id=effective_product_id if is_explicit_lock else None,
-            product=product_filter if not is_explicit_lock else None,
-            version=version_filter,
-            doc_context=doc_context,
-            limit=effective_top_k,
-            metadata=search_meta,
-        )
-
-    search_ms = round((time.perf_counter() - t_search) * 1000, 1)
-
-    all_chunks_before_filter = chunks
-    if settings.rag_min_similarity > 0:
-        chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
-
-    if not chunks and all_chunks_before_filter and not is_explicit_lock and (product_filter or auto_product):
-        chunks = all_chunks_before_filter[:effective_top_k]
-        logger.info(
-            "Similarity fallback: product detected but all chunks below threshold, "
-            "returning top chunks without threshold",
+            "RAG search params",
             extra={
-                "product": product_filter or auto_product,
-                "original_threshold": settings.rag_min_similarity,
-                "chunks_recovered": len(chunks),
-                "top_similarity": chunks[0]["similarity"] if chunks else 0,
+                "product_id": product_id,
+                "product_filter": product_filter,
+                "product_filter_source": product_filter_source,
             },
         )
+
+        effective_product_id = product_id
+        resolve_usage = ResolveResult()
+        if product_filter_source == "explicit" and product_id is None and product_filter:
+            resolve_usage = await resolve_product(db, product_filter)
+            if resolve_usage.product_id:
+                effective_product_id = resolve_usage.product_id
+                logger.info(
+                    "Resolved product_id from product_filter for explicit lock",
+                    extra={"product_filter": product_filter, "product_id": effective_product_id, "product_name": resolve_usage.product_name},
+                )
+            else:
+                logger.warning(
+                    "Could not resolve product_id for explicit lock - product not found",
+                    extra={"product_filter": product_filter},
+                )
+
+        is_explicit_lock = product_filter_source == "explicit" and effective_product_id is not None
+
+        if query_type in _DECOMPOSE_TYPES and settings.decompose_enabled:
+            await _emit("decomposing")
+        decompose_result = await _decompose_query(search_query, query_type, product_names)
+
+        await _emit("searching", sub_queries=len(decompose_result.sub_queries) if decompose_result and decompose_result.sub_queries else 0)
+        t_search = time.perf_counter()
+
+        if decompose_result and decompose_result.sub_queries:
+            chunks = await _parallel_search(
+                db,
+                decompose_result.sub_queries,
+                decompose_result.sub_products,
+                version=version_filter,
+                doc_context=doc_context,
+                limit_per_query=max(4, effective_top_k // len(decompose_result.sub_queries)),
+                locked_product_id=effective_product_id if is_explicit_lock else None,
+                locked_product_name=product_filter if is_explicit_lock else None,
+                metadata=search_meta,
+                query_type=query_type,
+            )
+        else:
+            chunks = await search_documents(
+                session=db,
+                query=search_query,
+                product_id=effective_product_id if is_explicit_lock else None,
+                version=version_filter,
+                doc_context=doc_context,
+                limit=effective_top_k,
+                metadata=search_meta,
+                query_type=query_type,
+            )
+
+        search_ms = round((time.perf_counter() - t_search) * 1000, 1)
+
+        all_chunks_before_filter = chunks
+        if settings.rerank_enabled and settings.rerank_min_score > 0:
+            chunks = [c for c in chunks if c.get("rerank_score", c["similarity"]) >= settings.rerank_min_score]
+        elif settings.rag_min_similarity > 0:
+            chunks = [c for c in chunks if c["similarity"] >= settings.rag_min_similarity]
+
+        if not chunks and all_chunks_before_filter and not is_explicit_lock and (product_filter or auto_product):
+            chunks = all_chunks_before_filter[:effective_top_k]
+            logger.info(
+                "Similarity fallback: product detected but all chunks below threshold, "
+                "returning top chunks without threshold",
+                extra={
+                    "product": product_filter or auto_product,
+                    "original_threshold": settings.rag_min_similarity,
+                    "chunks_recovered": len(chunks),
+                    "top_similarity": chunks[0]["similarity"] if chunks else 0,
+                },
+            )
+    else:
+        logger.info("No documents in system — skipping search pipeline, will attempt web search")
+        search_query = query
+        rewrite_ms = 0.0
+        rewrite_usage = {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
+        query_type = "overview"
+        classify_product = None
+        classify_meta: dict = {}
+        auto_product = None
+        type_max_tokens = None
+        effective_top_k = settings.rag_top_k
+        search_meta: dict = {}
+        effective_product_id = product_id
+        is_explicit_lock = False
+        decompose_result = None
+        chunks: list[dict] = []
+        search_ms = 0.0
 
     retry_used = False
     rephrase_ms = 0.0
     rephrase_query: str | None = None
+    rephrase_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "model": ""}
 
-    if not chunks and query_type != "chitchat" and settings.search_retry_enabled and not decompose_result:
+    if has_docs and not chunks and query_type != "chitchat" and settings.search_retry_enabled and not decompose_result:
         t_rephrase = time.perf_counter()
-        rephrased = await _rephrase_for_retry(search_query)
+        rephrased, rephrase_usage = await _rephrase_for_retry(search_query)
         rephrase_ms = round((time.perf_counter() - t_rephrase) * 1000, 1)
 
         if rephrased:
@@ -927,14 +1209,16 @@ async def build_rag_prompt(
                 session=db,
                 query=rephrased,
                 product_id=effective_product_id if is_explicit_lock else None,
-                product=product_filter if not is_explicit_lock else None,
                 version=version_filter,
                 doc_context=doc_context,
                 limit=effective_top_k,
                 metadata=retry_meta,
+                query_type=query_type,
             )
 
-            if settings.rag_min_similarity > 0:
+            if settings.rerank_enabled and settings.rerank_min_score > 0:
+                retry_chunks = [c for c in retry_chunks if c.get("rerank_score", c["similarity"]) >= settings.rerank_min_score]
+            elif settings.rag_min_similarity > 0:
                 retry_chunks = [c for c in retry_chunks if c["similarity"] >= settings.rag_min_similarity]
 
             if retry_chunks:
@@ -947,6 +1231,36 @@ async def build_rag_prompt(
                     extra={"chunks_found": len(chunks), "top_sim": chunks[0]["similarity"]},
                 )
 
+    if chunks and settings.cross_doc_expansion_enabled:
+        chunks = await _expand_related_docs(db, chunks, search_query, limit=settings.cross_doc_expansion_limit)
+
+    try:
+        db.add(SearchAnalytics(
+            source="chat",
+            tool_name="build_rag_prompt",
+            query=search_query[:500],
+            product_filter=product_filter,
+            version_filter=version_filter,
+            result_count=len(chunks),
+            top_similarity=chunks[0]["similarity"] if chunks else 0.0,
+            duration_ms=search_ms,
+            embedding_model=settings.embedding_model_gemini,
+            tenant_id=tenant_id,
+        ))
+    except Exception:
+        logger.warning("Failed to save chat search analytics", exc_info=True)
+
+    web_search_context = ""
+    web_search_meta: dict = {}
+    has_low_confidence = not chunks or (chunks and chunks[0]["similarity"] < 0.5)
+    classifier_wants_web = classify_meta.get("classify_web_search", False)
+
+    if (query_type != "chitchat" or classifier_wants_web) and (has_low_confidence or classifier_wants_web) and settings.web_search_enabled:
+        await _emit("web_searching")
+        web_search_context, web_search_meta = await _web_search_grounding(search_query)
+        if classifier_wants_web:
+            web_search_meta["web_search_trigger"] = "classifier"
+
     detected_product = auto_product or product_filter
     detected_doc = doc_context
     if not doc_context and chunks:
@@ -955,7 +1269,7 @@ async def build_rag_prompt(
             detected_doc = next(iter(titles))
 
     effective_max_tokens = type_max_tokens or settings.llm_max_tokens
-    pre_system_prompt = _build_system_prompt(query_type)
+    pre_system_prompt = await _build_system_prompt_with_roles(query_type, db, role_ids)
     pre_history_msgs = _build_history_messages(
         history, settings.rag_history_messages, settings.rag_history_max_tokens,
         summary=history_summary,
@@ -976,9 +1290,11 @@ async def build_rag_prompt(
     chunks_before_trim = len(chunks)
     trimmed: list[dict] = []
     used_budget = 0
+    per_source_cap = settings.rag_max_context_tokens_per_source
     for chunk in chunks:
         parent = chunk.get("parent_content")
         est = _estimate_tokens(parent) if parent else chunk.get("token_count", 0) or _estimate_tokens(chunk.get("content", ""))
+        est = min(est, per_source_cap)
         if used_budget + est > context_budget:
             break
         trimmed.append(chunk)
@@ -1001,17 +1317,62 @@ async def build_rag_prompt(
     if doc_types_found - {"other"}:
         context_header += f"Source types: {', '.join(sorted(doc_types_found - {'other'}))}\n"
 
+    layers_found = {c.get("layer") for c in chunks if c.get("layer")}
+    if layers_found:
+        context_header += f"Architecture layers: {', '.join(sorted(layers_found))}\n"
+
+    cross_doc_count = sum(1 for c in chunks if c.get("_cross_doc"))
+    if cross_doc_count:
+        context_header += f"Cross-document expansion: {cross_doc_count} related chunks added\n"
+
+    lifecycle_ctx = ""
+    try:
+        lifecycle_ctx = await _get_lifecycle_context_for_chunks(db, chunks)
+    except Exception:
+        logger.warning("Failed to enrich RAG with lifecycle context", exc_info=True)
+    if lifecycle_ctx:
+        context_header += f"\n{lifecycle_ctx}\n\n"
+
     context_header += "\n"
     context_block = f"{context_header}{context}\n</documentation_context>"
 
-    system_prompt = _build_system_prompt(query_type)
+    if web_search_context:
+        if not has_docs or not chunks:
+            web_ctx_preamble = (
+                "No documentation is available. The following information was retrieved "
+                "from the web. Use it as the primary source to answer the user's question."
+            )
+        else:
+            web_ctx_preamble = (
+                "The following information was retrieved from the web to help answer "
+                "the user's question. Use it as a primary source when the documentation "
+                "above does not contain the needed information."
+            )
+        context_block += (
+            f"\n\n<web_search_context>\n"
+            f"{web_ctx_preamble}\n\n"
+            f"{web_search_context}\n"
+            "</web_search_context>"
+        )
+
+    if not has_docs and not web_search_context:
+        system_prompt = SYSTEM_PROMPT_NO_DOCS
+    else:
+        system_prompt = await _build_system_prompt_with_roles(query_type, db, role_ids)
     prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:12]
 
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
     ]
 
-    if query_type == "chitchat":
+    if not has_docs and not web_search_context:
+        if history:
+            messages.extend(_build_history_messages(
+                history, settings.rag_history_messages, settings.rag_history_max_tokens,
+                summary=history_summary,
+            ))
+        messages.append({"role": "user", "content": query})
+    elif query_type == "chitchat" and not web_search_context:
         if history:
             messages.extend(_build_history_messages(
                 history, settings.rag_history_messages, settings.rag_history_max_tokens,
@@ -1020,7 +1381,7 @@ async def build_rag_prompt(
         messages.append({"role": "user", "content": query})
     else:
         messages.append({"role": "user", "content": context_block})
-        messages.append({"role": "assistant", "content": "Understood. I will use the documentation context above to answer questions. If the sources contain relevant information, I will summarize it."})
+        messages.append({"role": "assistant", "content": "Understood. I will use the provided context to answer questions. If the sources contain relevant information, I will summarize it."})
 
         if history:
             messages.extend(_build_history_messages(
@@ -1095,26 +1456,39 @@ async def build_rag_prompt(
         summary=history_summary,
     ) if history else []
     history_tokens = sum(_estimate_tokens(m["content"]) for m in history_msgs)
-    system_prompt_tokens = _estimate_tokens(system_prompt) + _estimate_tokens(context_block)
+    if not has_docs and not web_search_context:
+        system_prompt_tokens = _estimate_tokens(system_prompt)
+    else:
+        system_prompt_tokens = _estimate_tokens(system_prompt) + _estimate_tokens(context_block)
 
     total_ms = round((time.perf_counter() - t0) * 1000, 1)
     top_sim = round(chunks[0]["similarity"], 4) if chunks else 0
     min_sim = round(chunks[-1]["similarity"], 4) if chunks else 0
+    rerank_scores = [c["rerank_score"] for c in chunks if "rerank_score" in c]
+    top_rerank = round(max(rerank_scores), 4) if rerank_scores else 0
+    min_rerank = round(min(rerank_scores), 4) if rerank_scores else 0
 
     rag_debug = {
         "chunks_found": len(chunks),
         "top_similarity": top_sim,
         "min_similarity": min_sim,
+        "top_rerank_score": top_rerank,
+        "min_rerank_score": min_rerank,
         "context_tokens": context_tokens,
         "query_tokens": query_tokens,
         "history_tokens": history_tokens,
         "system_prompt_tokens": system_prompt_tokens,
         "rewrite_ms": rewrite_ms if history else 0,
+        "rewrite_prompt_tokens": rewrite_usage.get("prompt_tokens", 0),
+        "rewrite_completion_tokens": rewrite_usage.get("completion_tokens", 0),
+        "rewrite_total_tokens": rewrite_usage.get("prompt_tokens", 0) + rewrite_usage.get("completion_tokens", 0),
+        "rewrite_model": rewrite_usage.get("model", ""),
         "search_ms": search_ms,
         "rag_build_ms": total_ms,
         "history_messages": len(history) if history else 0,
         "prompt_messages": len(messages),
         "embedding_model": _embedding_model_name(),
+        "embedding_api_tokens": search_meta.get("embedding_api_tokens", 0),
         "product_id": effective_product_id,
         "product_filter": product_filter,
         "product_filter_source": product_filter_source,
@@ -1123,16 +1497,25 @@ async def build_rag_prompt(
         "auto_product": auto_product,
         "detected_doc_context": detected_doc,
         "search_query": search_query,
-        "no_documents": False,
+        "no_documents": not has_docs,
         "rerank_prompt_tokens": search_meta.get("rerank_prompt_tokens", 0),
         "rerank_completion_tokens": search_meta.get("rerank_completion_tokens", 0),
         "rerank_total_tokens": search_meta.get("rerank_total_tokens", 0),
         "rerank_model": search_meta.get("rerank_model", ""),
+        "resolve_prompt_tokens": resolve_usage.prompt_tokens,
+        "resolve_completion_tokens": resolve_usage.completion_tokens,
+        "resolve_total_tokens": resolve_usage.prompt_tokens + resolve_usage.completion_tokens,
+        "resolve_model": resolve_usage.model,
+        "resolve_ms": resolve_usage.resolve_ms,
         "query_type": query_type,
         "prompt_hash": prompt_hash,
         "retry_used": retry_used,
         "rephrase_ms": rephrase_ms,
         "rephrase_query": rephrase_query,
+        "rephrase_prompt_tokens": rephrase_usage.get("prompt_tokens", 0),
+        "rephrase_completion_tokens": rephrase_usage.get("completion_tokens", 0),
+        "rephrase_total_tokens": rephrase_usage.get("prompt_tokens", 0) + rephrase_usage.get("completion_tokens", 0),
+        "rephrase_model": rephrase_usage.get("model", ""),
         "type_max_tokens": type_max_tokens,
         "reasoning_effort": _QUERY_TYPE_REASONING.get(query_type, settings.llm_reasoning_effort),
         "effective_top_k": effective_top_k,
@@ -1141,8 +1524,10 @@ async def build_rag_prompt(
         "decompose_used": decompose_result is not None and bool(decompose_result.sub_queries),
         "decompose_sub_queries": decompose_result.sub_queries if decompose_result else [],
         "decompose_sub_products": decompose_result.sub_products if decompose_result else [],
+        "web_search_used": bool(web_search_context),
         **(decompose_result.meta if decompose_result else {}),
         **classify_meta,
+        **web_search_meta,
     }
 
     logger.info(

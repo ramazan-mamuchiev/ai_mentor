@@ -7,11 +7,13 @@ import {
   shareDebugMessage,
   shareDebugDocument,
   shareDebugProduct,
+  shareDocumentPreview,
+  shareLifecycle,
   deleteSharedLink,
 } from '../api/share'
 import type { SharedLinkResponse } from '../types'
 
-export type ShareType = 'session' | 'message' | 'debug_chat' | 'debug_document' | 'debug_product'
+export type ShareType = 'session' | 'message' | 'debug_chat' | 'debug_document' | 'debug_product' | 'document_preview' | 'lifecycle'
 
 interface Props {
   type: ShareType
@@ -22,17 +24,19 @@ interface Props {
 async function createShareLink(type: ShareType, id: number | string): Promise<SharedLinkResponse> {
   switch (type) {
     case 'session':
-      return shareSession(id as number)
+      return shareSession(id as string)
     case 'message':
       return shareMessage(id as number)
     case 'debug_chat':
       return shareDebugMessage(id as number)
     case 'debug_document':
       return shareDebugDocument(id as number)
-    case 'debug_product': {
-      const [mfr, slug] = (id as string).split('/')
-      return shareDebugProduct(mfr, slug)
-    }
+    case 'debug_product':
+      return shareDebugProduct(id as number)
+    case 'document_preview':
+      return shareDocumentPreview(id as number)
+    case 'lifecycle':
+      return shareLifecycle(id as number)
   }
 }
 
@@ -40,6 +44,8 @@ function getModalTitle(type: ShareType, t: (key: string) => string): string {
   switch (type) {
     case 'session': return t('share.shareChat')
     case 'message': return t('share.shareAnswer')
+    case 'document_preview': return t('share.shareDocument')
+    case 'lifecycle': return t('share.shareLifecycle')
     default: return t('share.shareDebug')
   }
 }
@@ -162,12 +168,11 @@ export function ShareModal({ type, id, onClose }: Props) {
                       onFocus={e => e.target.select()}
                     />
                     <button
-                      className="share-copy-btn"
+                      className={`share-copy-btn${copied ? ' share-copy-btn--copied' : ''}`}
                       onClick={handleCopy}
-                      data-tooltip={copied ? t('share.linkCopied') : t('share.copyLink')}
+                      aria-label={t('share.copyLink')}
                     >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
-                      <span>{copied ? t('share.linkCopied') : t('share.copyLink')}</span>
                     </button>
                   </div>
                   <div className="share-actions">

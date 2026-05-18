@@ -10,7 +10,9 @@ from app.ingestion.converters.proto import (
     ProtoMethod,
     ProtoService,
     convert_proto,
+    convert_proto_bundle,
     parse_proto,
+    _collect_external_types,
 )
 
 
@@ -237,7 +239,7 @@ class TestConvertProto:
 
     def test_title(self):
         md, _ = convert_proto(SAMPLE_PROTO, "domophone.proto")
-        assert "# domophone.proto" in md
+        assert "# domophone.proto (axxon.domophone.v1)" in md
 
     def test_package_in_output(self):
         md, _ = convert_proto(SAMPLE_PROTO)
@@ -246,6 +248,12 @@ class TestConvertProto:
     def test_service_heading(self):
         md, _ = convert_proto(SAMPLE_PROTO)
         assert "## Service `DomophoneService`" in md
+
+    def test_service_contains_package(self):
+        md, _ = convert_proto(SAMPLE_PROTO, "domophone.proto")
+        svc_idx = md.index("## Service `DomophoneService`")
+        svc_section = md[svc_idx:svc_idx + 300]
+        assert "**Package:** `axxon.domophone.v1`" in svc_section
 
     def test_method_signatures(self):
         md, _ = convert_proto(SAMPLE_PROTO)
@@ -304,7 +312,7 @@ class TestConvertProtoFileOriginalFilename:
 
         try:
             md, meta = convert_proto_file(temp_path, original_filename="AcfaService.proto")
-            assert "# AcfaService.proto" in md
+            assert "# AcfaService.proto (axxon.domophone.v1)" in md
             assert os.path.basename(temp_path) not in md
         finally:
             os.unlink(temp_path)
@@ -450,7 +458,7 @@ class TestAllmanStyleBraces:
 
     def test_convert_allman_produces_markdown(self):
         md, meta = convert_proto(ALLMAN_PROTO, "AcfaService.proto")
-        assert "# AcfaService.proto" in md
+        assert "# AcfaService.proto (axxon.acfa)" in md
         assert "## Service `AcfaService`" in md
         assert "### Message `ListUnitsEventsResponse`" in md
         assert "### Enum `EStatesMode`" in md
@@ -516,6 +524,12 @@ message Status {
     def test_no_filename_uses_default_title(self):
         md, _ = convert_proto('syntax = "proto3";')
         assert "# Proto Definition" in md
+
+    def test_no_filename_with_package_keeps_default_title(self):
+        proto = 'syntax = "proto3";\npackage foo.bar;\n'
+        md, _ = convert_proto(proto)
+        assert "# Proto Definition" in md
+        assert "(foo.bar)" not in md.split("\n")[0]
 
     def test_block_comments_skipped(self):
         proto = """\
@@ -726,7 +740,7 @@ class TestAcfaLikeProto:
 
     def test_markdown_contains_all_key_elements(self):
         md, meta = convert_proto(ACFA_LIKE_PROTO, "AcfaService.proto")
-        assert "# AcfaService.proto" in md
+        assert "# AcfaService.proto (axxonsoft.bl.acfa)" in md
         assert "## Service `AcfaService`" in md
         assert "### Message `ListUnitsEventsResponse`" in md
         assert "### Message `PropertyDescriptor`" in md
@@ -765,7 +779,7 @@ class TestConvertProtoFileAllmanWithFilename:
 
         try:
             md, meta = convert_proto_file(temp_path, original_filename="AcfaService.proto")
-            assert "# AcfaService.proto" in md
+            assert "# AcfaService.proto (axxonsoft.bl.acfa)" in md
             assert os.path.basename(temp_path) not in md
             assert "## Service `AcfaService`" in md
             assert "### Message `ListUnitsEventsResponse`" in md
@@ -1055,3 +1069,109 @@ message Filter {
         assert "message Filter {" in md
         assert "oneof criteria {" in md
         assert "string by_id = 2;" in md
+
+
+# ---------------------------------------------------------------------------
+# Cross-references
+# ---------------------------------------------------------------------------
+
+class TestCrossReferences:
+    def test_external_types_detected(self):
+        proto = parse_proto(SAMPLE_PROTO)
+        ext = _collect_external_types(proto)
+        assert "google.protobuf.Timestamp" in ext
+        assert "EventType" not in ext
+        assert "DoorOpenEvent" not in ext  # defined locally in this file
+
+    def test_cross_references_section_in_markdown(self):
+        md, _ = convert_proto(SAMPLE_PROTO, "domophone.proto")
+        assert "## Cross-References" in md
+        assert "**Imported files:**" in md
+        assert "google/protobuf/timestamp.proto" in md
+        assert "**External types used:**" in md
+
+    def test_no_cross_references_for_minimal(self):
+        proto = 'syntax = "proto3";\nmessage Ping { string id = 1; }'
+        md, _ = convert_proto(proto)
+        assert "## Cross-References" not in md
+
+    def test_builtin_types_not_external(self):
+        proto = parse_proto('syntax = "proto3";\nmessage M { string a = 1; int32 b = 2; }')
+        ext = _collect_external_types(proto)
+        assert len(ext) == 0
+
+
+# ---------------------------------------------------------------------------
+# Proto bundle
+# ---------------------------------------------------------------------------
+
+class TestProtoBundleConversion:
+    DOMAIN_PROTO = """\
+syntax = "proto3";
+package axxonsoft.bl.domain;
+service DomainService {
+  rpc ListCameras(ListCamerasRequest) returns (stream ListCamerasResponse);
+}
+message ListCamerasRequest { string filter = 1; }
+message ListCamerasResponse { string camera_id = 1; }
+"""
+
+    EVENTS_PROTO = """\
+syntax = "proto3";
+package axxonsoft.bl.events;
+message Event { string id = 1; string type = 2; }
+enum EventType { UNKNOWN = 0; ALARM = 1; }
+"""
+
+    SMALL_PROTO = """\
+syntax = "proto3";
+package axxonsoft.bl.tiny;
+message Ping { string id = 1; }
+"""
+
+    def test_groups_by_domain(self):
+        files = [
+            ("axxonsoft/bl/domain/Domain.proto", self.DOMAIN_PROTO),
+            ("axxonsoft/bl/events/Events.proto", self.EVENTS_PROTO),
+        ]
+        results = convert_proto_bundle(files, min_lines_for_standalone=3)
+        domains = [r[0] for r in results]
+        assert "domain" in domains
+        assert "events" in domains
+
+    def test_small_domains_merged(self):
+        files = [
+            ("axxonsoft/bl/domain/Domain.proto", self.DOMAIN_PROTO),
+            ("axxonsoft/bl/tiny/Ping.proto", self.SMALL_PROTO),
+        ]
+        results = convert_proto_bundle(files, min_lines_for_standalone=5)
+        domains = [r[0] for r in results]
+        assert "domain" in domains
+        assert "auxiliary" in domains
+
+    def test_bundle_contains_service(self):
+        files = [
+            ("axxonsoft/bl/domain/Domain.proto", self.DOMAIN_PROTO),
+        ]
+        results = convert_proto_bundle(files, min_lines_for_standalone=3)
+        assert len(results) == 1
+        domain, folder, md, meta = results[0]
+        assert "## Service `DomainService`" in md
+        assert meta["services"] == 1
+        assert meta["methods"] == 1
+
+    def test_bundle_source_folder(self):
+        files = [
+            ("axxonsoft/bl/domain/Domain.proto", self.DOMAIN_PROTO),
+        ]
+        results = convert_proto_bundle(files, min_lines_for_standalone=3)
+        _, folder, _, _ = results[0]
+        assert folder == "axxonsoft/bl/domain"
+
+    def test_bundle_title_format(self):
+        files = [
+            ("axxonsoft/bl/events/Events.proto", self.EVENTS_PROTO),
+        ]
+        results = convert_proto_bundle(files, min_lines_for_standalone=3)
+        _, _, md, _ = results[0]
+        assert md.startswith("# gRPC API: events (")

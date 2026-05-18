@@ -1,0 +1,162 @@
+[
+  {
+    "slug": "indexing-pipeline",
+    "icon": "Database",
+    "category": "architecture",
+    "tags": ["architecture", "rag", "gemini"],
+    "createdAt": "2026-03-30",
+    "title": {
+      "en": "Document Indexing Pipeline",
+      "ru": "Пайплайн индексации документов"
+    },
+    "description": {
+      "en": "Full document path: from upload to semantic search readiness. 9 stages including conversion, chunking, embedding via Gemini, and HNSW indexing in pgvector.",
+      "ru": "Полный путь документа: от загрузки до готовности к семантическому поиску. 9 этапов — конвертация, чанкинг, эмбеддинг через Gemini, индексирование в pgvector."
+    },
+    "languages": ["en", "ru"]
+  },
+  {
+    "slug": "ask-pipeline",
+    "icon": "MessageSquare",
+    "category": "architecture",
+    "tags": ["architecture", "rag", "gemini", "search"],
+    "createdAt": "2026-03-30",
+    "title": {
+      "en": "Web Chat Pipeline",
+      "ru": "Пайплайн веб-чата"
+    },
+    "description": {
+      "en": "Full query path: from user input to SSE-streamed response. 11 stages including query rewrite, classification, hybrid search (vector + BM25 + RRF), LLM reranking, and Gemini Pro generation.",
+      "ru": "Полный путь вопроса: от ввода до стриминга ответа. 11 этапов — переформулировка, классификация, гибридный поиск (vector + BM25 + RRF), LLM-реранкинг и генерация через Gemini Pro."
+    },
+    "languages": ["en", "ru"]
+  },
+  {
+    "slug": "mcp-server",
+    "icon": "Server",
+    "category": "architecture",
+    "tags": ["mcp", "architecture", "ide", "tools"],
+    "createdAt": "2026-03-30",
+    "title": {
+      "en": "Lexiro MCP Server",
+      "ru": "MCP-сервер Lexiro"
+    },
+    "description": {
+      "en": "All your product documentation right in your IDE. 9 tools, one API key, zero context switching. Architecture, tools catalog, search pipeline, and comparison with Web Chat.",
+      "ru": "Вся документация ваших продуктов прямо в IDE. 9 инструментов, один API-ключ, ноль переключений. Архитектура, каталог инструментов, поисковый pipeline и сравнение с Web Chat."
+    },
+    "languages": ["en", "ru"]
+  },
+  {
+    "slug": "ops-architecture",
+    "icon": "Server",
+    "category": "ops",
+    "tags": ["ops", "architecture", "docker"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "System Architecture",
+      "ru": "Архитектура системы"
+    },
+    "description": {
+      "en": "Components, services, ports, volumes, and connections — everything you need to know for platform support.",
+      "ru": "Компоненты, сервисы, порты, тома и связи — всё, что нужно знать для поддержки платформы."
+    },
+    "languages": ["ru", "en"]
+  },
+  {
+    "slug": "ops-setup",
+    "icon": "Settings",
+    "category": "ops",
+    "tags": ["ops", "setup", "configuration"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "Installation & Configuration",
+      "ru": "Установка и настройка"
+    },
+    "description": {
+      "en": "Server requirements, .env variables, Docker Compose, frontend build, Nginx setup, SSL certificates.",
+      "ru": "Требования к серверу, переменные .env, Docker Compose, сборка фронтенда, настройка Nginx, SSL-сертификаты."
+    },
+    "languages": ["ru", "en"]
+  },
+  {
+    "slug": "ops-deploy",
+    "icon": "Rocket",
+    "category": "ops",
+    "tags": ["ops", "deploy", "docker"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "Deploy & Update",
+      "ru": "Деплой и обновление"
+    },
+    "description": {
+      "en": "Maintenance mode, backend/frontend rebuild, rollback, deploy checklist and common mistakes.",
+      "ru": "Maintenance mode, пересборка бэкенда и фронтенда, откат, чеклист деплоя и типичные ошибки."
+    },
+    "languages": ["ru", "en"]
+  },
+  {
+    "slug": "ops-monitoring",
+    "icon": "Activity",
+    "category": "ops",
+    "tags": ["ops", "monitoring", "grafana"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "Monitoring, Logging & Alerting",
+      "ru": "Мониторинг, логи и алерты"
+    },
+    "description": {
+      "en": "Grafana dashboards, Loki logs, Prometheus metrics, 10 alert rules with thresholds and recommended actions.",
+      "ru": "Grafana дашборды, логи в Loki, метрики Prometheus, 10 правил алертов с порогами и рекомендованными действиями."
+    },
+    "languages": ["ru", "en"]
+  },
+  {
+    "slug": "ops-runbook",
+    "icon": "BookOpen",
+    "category": "ops",
+    "tags": ["ops", "runbook", "incidents"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "Runbook: Operations & Incidents",
+      "ru": "Сценарии: операции и инциденты"
+    },
+    "description": {
+      "en": "Routine operations and incident response: API down, DB overload, disk full, S3 failure, queue stuck, cert expired.",
+      "ru": "Рутинные операции и реагирование на инциденты: API не отвечает, БД перегружена, диск заполнен, S3 упал, очередь растёт."
+    },
+    "languages": ["ru", "en"]
+  },
+  {
+    "slug": "ops-access",
+    "icon": "Shield",
+    "category": "ops",
+    "tags": ["ops", "security", "rbac"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "Access Control & Security",
+      "ru": "Управление доступами и безопасность"
+    },
+    "description": {
+      "en": "Authentication methods, RBAC roles and permissions, API keys, OAuth, SSL/TLS, secrets management.",
+      "ru": "Способы аутентификации, RBAC-роли и пермиссии, API-ключи, OAuth, SSL/TLS, управление секретами."
+    },
+    "languages": ["ru", "en"]
+  },
+  {
+    "slug": "ops-security",
+    "icon": "Lock",
+    "category": "security",
+    "tags": ["security", "audit", "hardening", "compliance"],
+    "createdAt": "2026-04-13",
+    "title": {
+      "en": "Security Profile for InfoSec",
+      "ru": "Профиль безопасности для ИБ"
+    },
+    "description": {
+      "en": "Threat model, network perimeter, authentication hardening, container security, audit logging, risk matrix and recommendations.",
+      "ru": "Модель угроз, сетевой периметр, харденинг аутентификации, контейнерная безопасность, аудит, матрица рисков и рекомендации."
+    },
+    "languages": ["ru", "en"]
+  }
+]

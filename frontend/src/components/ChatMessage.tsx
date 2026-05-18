@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bug, Check, Copy, FileSearch, Loader2, Pencil, RefreshCw, Share2, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { AlertTriangle, Bug, Check, Copy, FileSearch, Globe, Loader2, Pencil, RefreshCw, Share2, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ChatMessage as ChatMessageType, DebugInfo, SourceInfo } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -12,8 +12,8 @@ interface Props {
   streamingSources?: SourceInfo[]
   streamingStage?: string
   onRetry?: () => void
-  onShowSources?: (sources: SourceInfo[], sessionId?: number, messageId?: number) => void
-  onShowDebug?: (debug: DebugInfo, sessionId?: number, messageId?: number) => void
+  onShowSources?: (sources: SourceInfo[], sessionId?: string, messageId?: number) => void
+  onShowDebug?: (debug: DebugInfo, sessionId?: string, messageId?: number) => void
   onEditMessage?: (content: string) => void
   onShareMessage?: (messageId: number) => void
   onFeedbackChange?: (messageId: number, feedback: 'up' | 'down') => void
@@ -24,6 +24,7 @@ const STAGE_I18N: Record<string, string> = {
   classifying: 'chat.stageClassifying',
   decomposing: 'chat.stageDecomposing',
   searching: 'chat.stageSearching',
+  web_searching: 'chat.stageWebSearching',
   generating: 'chat.stageGenerating',
 }
 
@@ -49,6 +50,9 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
       el.setSelectionRange(el.value.length, el.value.length)
       el.style.height = 'auto'
       el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+      setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 300)
     }
   }, [isEditing])
 
@@ -174,10 +178,18 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
                 <span>{t(streamingStage && STAGE_I18N[streamingStage] ? STAGE_I18N[streamingStage] : 'chat.searching')}</span>
               </div>
             ) : (
-              <MarkdownRenderer
-                content={content}
-                isStreaming={isStreaming}
-              />
+              <>
+                {debug?.web_search_used && (
+                  <div className="message-source-banner message-source-banner--web">
+                    <Globe size={14} />
+                    <span>{t('chat.webSearchBanner')}</span>
+                  </div>
+                )}
+                <MarkdownRenderer
+                  content={content}
+                  isStreaming={isStreaming}
+                />
+              </>
             )}
           </div>
         )}
@@ -186,21 +198,19 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
             <button
               className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
               onClick={handleCopy}
-              data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
               aria-label={t('chat.copy')}
               type="button"
             >
-              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
             {onEditMessage && (
               <button
                 className="message-action-btn"
                 onClick={handleEditStart}
-                data-tooltip={t('chat.edit')}
                 aria-label={t('chat.edit')}
                 type="button"
               >
-                <Pencil size={12} />
+                <Pencil size={14} />
               </button>
             )}
           </div>
@@ -211,7 +221,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               className="sources-toggle"
               onClick={() => onShowSources?.(sources, message.debug?.session_id, message.debug?.message_id)}
             >
-              <FileSearch size={14} />
+              <FileSearch size={16} />
               <span className="sources-label">{t('chat.sources', { count: sources.length })}</span>
             </button>
           </div>
@@ -227,7 +237,7 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               <>
                 {(debug.session_id != null) && (
                   <span className="message-ids">
-                    S#{debug.session_id}{debug.message_id ? ` M#${debug.message_id}` : ''}
+                    S: {String(debug.session_id).slice(0, 8)}{debug.message_id != null ? ` · M: ${debug.message_id}` : ''}
                   </span>
                 )}
                 {debug.status === 'stopped' && (
@@ -239,51 +249,46 @@ export function ChatMessageComponent({ message, isStreaming, streamingContent, s
               </>
             )}
             <div className="message-footer-actions">
-              {debug && (
+              {debug && onShowDebug && (
                 <button
                   className="message-action-btn debug-toggle"
-                  onClick={() => onShowDebug?.(debug, debug.session_id, debug.message_id)}
-                  data-tooltip={t('chat.debug')}
+                  onClick={() => onShowDebug(debug, debug.session_id, debug.message_id)}
                 >
-                  <Bug size={12} />
+                  <Bug size={14} />
                 </button>
               )}
               <button
                 className={`message-action-btn feedback-btn${currentFeedback === 'up' ? ' feedback-btn--active' : ''}`}
                 onClick={() => handleFeedback('up')}
-                data-tooltip={t('chat.thumbsUp')}
                 aria-label={t('chat.thumbsUp')}
                 type="button"
               >
-                <ThumbsUp size={12} />
+                <ThumbsUp size={14} />
               </button>
               <button
                 className={`message-action-btn feedback-btn${currentFeedback === 'down' ? ' feedback-btn--active' : ''}`}
                 onClick={() => handleFeedback('down')}
-                data-tooltip={t('chat.thumbsDown')}
                 aria-label={t('chat.thumbsDown')}
                 type="button"
               >
-                <ThumbsDown size={12} />
+                <ThumbsDown size={14} />
               </button>
               <button
                 className={`message-action-btn${copied ? ' message-action-btn--copied' : ''}`}
                 onClick={handleCopy}
-                data-tooltip={copied ? t('chat.copied') : t('chat.copy')}
                 aria-label={t('chat.copy')}
                 type="button"
               >
-                {copied ? <Check size={12} /> : <Copy size={12} />}
+                {copied ? <Check size={14} /> : <Copy size={14} />}
               </button>
               {onShareMessage && message.id > 0 && (
                 <button
                   className="message-action-btn share-action-btn"
                   onClick={() => onShareMessage(message.id)}
-                  data-tooltip={t('share.shareAnswer')}
                   aria-label={t('share.shareAnswer')}
                   type="button"
                 >
-                  <Share2 size={12} />
+                  <Share2 size={14} />
                 </button>
               )}
             </div>

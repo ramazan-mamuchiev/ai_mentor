@@ -1,11 +1,16 @@
 #!/usr/bin/env pwsh
-# Lexiro deploy script — pushes to git and deploys to VPS (82.38.66.177)
+# Lexiro deploy script — pushes to git and deploys to VPS (lexiro.io)
+#
+# Architecture:
+#   - Backend (api/worker/beat) runs in Docker
+#   - Frontend is built via Docker and copied to /var/www/lexiro/ (served by host nginx)
+#   - Nginx runs on the host (systemd), not in Docker
 #
 # Usage:
-#   .\deploy.ps1              # auto-detect changed services
-#   .\deploy.ps1 -All         # rebuild everything
-#   .\deploy.ps1 -NoCache     # force --no-cache (when requirements changed)
-#   .\deploy.ps1 -Services api,web  # explicit services
+#   .\deploy.ps1                       # auto-detect changed services
+#   .\deploy.ps1 -All                  # rebuild everything
+#   .\deploy.ps1 -NoCache              # force --no-cache (when dependencies changed)
+#   .\deploy.ps1 -Services api,frontend  # explicit services (api and/or frontend)
 
 param(
     [switch]$All,
@@ -14,7 +19,7 @@ param(
     [switch]$SkipPush
 )
 
-$VPS = "root@82.38.66.177"
+$VPS = "root@lexiro.io"
 $REMOTE_DIR = "/opt/lexiro"
 $ErrorActionPreference = "Stop"
 
@@ -30,12 +35,14 @@ if (-not $Services -and -not $All) {
 
     $backendChanged  = $diff | Where-Object { $_ -match "^backend/" }
     $frontendChanged = $diff | Where-Object { $_ -match "^frontend/" }
+    $nginxChanged    = $diff | Where-Object { $_ -match "^nginx/" }
     $reqChanged      = $diff | Where-Object { $_ -match "requirements\.txt" }
     $pkgChanged      = $diff | Where-Object { $_ -match "package\.json|package-lock\.json" }
 
     $Services = @()
     if ($backendChanged)  { $Services += "api"; Write-OK "Backend changed" }
-    if ($frontendChanged) { $Services += "web"; Write-OK "Frontend changed" }
+    if ($frontendChanged) { $Services += "frontend"; Write-OK "Frontend changed" }
+    if ($nginxChanged)    { $Services += "nginx"; Write-OK "Nginx config changed" }
     if ($reqChanged -or $pkgChanged) { $NoCache = $true; Write-Warn "Dependencies changed - will use --no-cache" }
 
     if ($Services.Count -eq 0) {
@@ -44,46 +51,104 @@ if (-not $Services -and -not $All) {
     }
 }
 
-if ($All) { $Services = @("api", "web") }
+if ($All) { $Services = @("api", "frontend") }
 
-$buildServices = $Services -join " "
-$restartServices = @($Services)
-if ($restartServices -contains "api" -and $restartServices -notcontains "worker") {
-    $restartServices += "worker"
-}
-$restartList = $restartServices -join " "
+$buildApi      = $Services -contains "api"
+$buildFrontend = $Services -contains "frontend"
+$updateNginx   = $Services -contains "nginx"
 
-Write-Step "Plan: build [$buildServices], restart [$restartList], no-cache=$NoCache"
+$planParts = @()
+if ($buildApi)      { $planParts += "backend (api+worker+beat)" }
+if ($buildFrontend) { $planParts += "frontend -> /var/www/lexiro/" }
+if ($updateNginx)   { $planParts += "nginx config" }
+Write-Step "Plan: $($planParts -join ', '), no-cache=$NoCache"
+
+# --- Enable maintenance mode ---
+Write-Step "Enabling maintenance mode..."
+ssh $VPS "mkdir -p $REMOTE_DIR/maintenance-flag; touch $REMOTE_DIR/maintenance-flag/on"
+Write-OK "Maintenance mode ON"
 
 # --- Git push ---
 if (-not $SkipPush) {
     Write-Step "Pushing to origin/main..."
     git push origin main
-    if ($LASTEXITCODE -ne 0) { Write-Error "git push failed"; exit 1 }
+    if ($LASTEXITCODE -ne 0) {
+        ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
+        Write-Error "git push failed"; exit 1
+    }
     Write-OK "Push complete"
 }
 
 # --- Pull on VPS ---
 Write-Step "Pulling on VPS..."
 ssh $VPS "cd $REMOTE_DIR; git pull origin main"
-if ($LASTEXITCODE -ne 0) { Write-Error "git pull on VPS failed"; exit 1 }
+if ($LASTEXITCODE -ne 0) {
+    ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
+    Write-Error "git pull on VPS failed"; exit 1
+}
 Write-OK "Pull complete"
 
-# --- Build ---
-Write-Step "Building [$buildServices] on VPS..."
-if ($NoCache) {
-    ssh $VPS "cd $REMOTE_DIR; docker compose build --no-cache $buildServices"
-} else {
-    ssh $VPS "cd $REMOTE_DIR; docker compose build $buildServices"
-}
-if ($LASTEXITCODE -ne 0) { Write-Error "docker build failed"; exit 1 }
-Write-OK "Build complete"
+# --- Build backend ---
+if ($buildApi) {
+    Write-Step "Building backend (api) on VPS..."
+    if ($NoCache) {
+        ssh $VPS "cd $REMOTE_DIR; docker compose build --no-cache api"
+    } else {
+        ssh $VPS "cd $REMOTE_DIR; docker compose build api"
+    }
+    if ($LASTEXITCODE -ne 0) {
+        ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
+        Write-Error "Backend build failed"; exit 1
+    }
+    Write-OK "Backend build complete"
 
-# --- Restart ---
-Write-Step "Restarting [$restartList] on VPS..."
-ssh $VPS "cd $REMOTE_DIR; docker compose up -d $restartList --force-recreate"
-if ($LASTEXITCODE -ne 0) { Write-Error "docker restart failed"; exit 1 }
-Write-OK "Restart complete"
+    Write-Step "Restarting api, worker, beat..."
+    ssh $VPS "cd $REMOTE_DIR; docker compose up -d api worker beat --force-recreate"
+    if ($LASTEXITCODE -ne 0) {
+        ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
+        Write-Error "Docker restart failed"; exit 1
+    }
+    Write-OK "Backend restart complete"
+
+    Write-Step "Waiting for API health check..."
+    ssh $VPS "for i in `$(seq 1 30); do curl -sf http://localhost:8000/health && break; sleep 2; done"
+    Write-OK "API is healthy"
+}
+
+# --- Build frontend ---
+if ($buildFrontend) {
+    Write-Step "Building frontend and deploying to /var/www/lexiro/..."
+    $nocacheArg = if ($NoCache) { "--no-cache" } else { "" }
+    ssh $VPS "cd $REMOTE_DIR; docker build $nocacheArg --target build -t lexiro-frontend-build ./frontend && docker run --rm -v /var/www/lexiro:/out lexiro-frontend-build sh -c 'cp -r /app/dist/* /out/'"
+    if ($LASTEXITCODE -ne 0) {
+        ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
+        Write-Error "Frontend build failed"; exit 1
+    }
+    Write-OK "Frontend deployed to /var/www/lexiro/"
+}
+
+# --- Update nginx config ---
+if ($updateNginx) {
+    Write-Step "Updating nginx config on VPS..."
+    ssh $VPS "cp $REMOTE_DIR/nginx/lexiro.conf /etc/nginx/sites-available/lexiro.conf"
+    Write-OK "Config copied"
+}
+
+# --- Reload nginx if frontend or config changed ---
+if ($buildFrontend -or $updateNginx) {
+    Write-Step "Testing and reloading nginx..."
+    ssh $VPS "nginx -t && nginx -s reload"
+    if ($LASTEXITCODE -ne 0) {
+        ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
+        Write-Error "Nginx reload failed"; exit 1
+    }
+    Write-OK "Nginx reloaded"
+}
+
+# --- Disable maintenance mode ---
+Write-Step "Disabling maintenance mode..."
+ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
+Write-OK "Maintenance mode OFF"
 
 # --- Verify ---
 Write-Step "Verifying deployment..."

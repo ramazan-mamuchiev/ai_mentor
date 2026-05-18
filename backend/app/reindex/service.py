@@ -442,7 +442,7 @@ def _reembed_document(session: SyncSession, doc_id: int) -> int:
         return 0
 
     contents = [c.content for c in chunks]
-    embeddings = embed_texts(contents)
+    embeddings, _ = embed_texts(contents)
     for chunk, emb in zip(chunks, embeddings):
         chunk.embedding = emb
     session.commit()

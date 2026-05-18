@@ -195,7 +195,7 @@ def main():
     parser.add_argument("--product", required=True, help="Product name (e.g. 'HikCentral Professional')")
     parser.add_argument("--version", default="1.0", help="Firmware/API version (default: 1.0)")
     parser.add_argument("--manufacturer", default="", help="Manufacturer name")
-    parser.add_argument("--format", default="auto", choices=["auto", "markdown", "swagger", "pdf", "proto"],
+    parser.add_argument("--format", default="auto", choices=["auto", "markdown", "swagger", "pdf", "proto", "docx"],
                         help="Document format (default: auto-detect)")
     parser.add_argument("--api-url", default="http://localhost:8000", help="API base URL")
     parser.add_argument("--force", action="store_true", help="Force re-upload even if document already exists (bypass deduplication)")

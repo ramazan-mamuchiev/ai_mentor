@@ -193,3 +193,45 @@ groups:
           description: "Multiple Ollama connection failures detected in the last 5 minutes."
         labels:
           severity: critical
+
+      - uid: lexiro-s3-write-failures
+        title: "S3 Write Failures (>3 in 5m)"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({container=~"/lexiro-worker.*"} | json | event = "S3 write failed" [5m])) > 3'
+              queryType: instant
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "MinIO/S3 write failures detected"
+          description: "More than 3 S3 write failures in 5 minutes. Storage may be degraded — check MinIO health (disk space, drives)."
+        labels:
+          severity: critical
+
+      - uid: lexiro-s3-health-probe
+        title: "MinIO Unhealthy (write probe failed)"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'count_over_time({container=~"/lexiro-worker.*"} | json | event = "S3 health probe FAILED" [5m]) > 2'
+              queryType: instant
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "MinIO storage is NOT writable — admin intervention required"
+          description: "The periodic S3 write probe has failed multiple times. MinIO may have degraded drives or insufficient disk space."
+        labels:
+          severity: critical
