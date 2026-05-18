@@ -38,8 +38,8 @@ services:
     ports: ["8000:8000"]
     depends_on: [postgres, redis, minio]
     environment:
-      DATABASE_URL: postgresql+asyncpg://ai-mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
-      DATABASE_URL_SYNC: postgresql://ai-mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
+      DATABASE_URL: postgresql+asyncpg://ai_mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
+      DATABASE_URL_SYNC: postgresql://ai_mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT: http://minio:9000
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
@@ -266,8 +266,8 @@ File naming convention: `source.{ext}` where `ext` matches the original format (
 
 ```bash
 # === Database ===
-DATABASE_URL=postgresql+asyncpg://ai-mentor:password@postgres:5432/ai_mentor
-DATABASE_URL_SYNC=postgresql://ai-mentor:password@postgres:5432/ai_mentor
+DATABASE_URL=postgresql+asyncpg://ai_mentor:password@postgres:5432/ai_mentor
+DATABASE_URL_SYNC=postgresql://ai_mentor:password@postgres:5432/ai_mentor
 
 # === Redis ===
 REDIS_URL=redis://redis:6379/0

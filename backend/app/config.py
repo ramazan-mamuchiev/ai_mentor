@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://ai-mentor:ai_mentor_dev@localhost:5432/ai_mentor"
+    database_url: str = "postgresql+asyncpg://ai_mentor:ai_mentor_dev@localhost:5432/ai_mentor"
 
     api_key: str = "ipx_dev_key_12345"
 
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     s3_secret_key: str = "ai_mentor_dev"
     s3_bucket: str = "ai-mentor-storage"
 
-    database_url_sync: str = "postgresql://ai-mentor:ai_mentor_dev@localhost:5432/ai_mentor"
+    database_url_sync: str = "postgresql://ai_mentor:ai_mentor_dev@localhost:5432/ai_mentor"
 
     max_upload_size_mb: int = 50
     max_archive_size_mb: int = 350
