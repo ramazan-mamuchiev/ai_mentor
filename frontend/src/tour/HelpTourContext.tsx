@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
+﻿import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
 import { driver, type DriveStep, type Driver } from 'driver.js'
 import { useTranslation } from 'react-i18next'
 
@@ -20,7 +20,7 @@ export function useHelpTour() {
   return useContext(HelpTourContext)
 }
 
-const HELP_SEEN_PREFIX = 'lexiro-help-seen-'
+const HELP_SEEN_PREFIX = 'ai-mentor-help-seen-'
 
 export function resetAllHelpTours() {
   const keys = Object.keys(localStorage).filter(k => k.startsWith(HELP_SEEN_PREFIX))
@@ -42,7 +42,7 @@ export function HelpTourProvider({ children }: { children: ReactNode }) {
       overlayColor: 'rgba(0, 0, 0, 0.6)',
       stagePadding: 8,
       stageRadius: 10,
-      popoverClass: 'lexiro-tour-popover',
+      popoverClass: 'ai-mentor-tour-popover',
       nextBtnText: t('help.next'),
       prevBtnText: t('help.prev'),
       doneBtnText: t('help.done'),

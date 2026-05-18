@@ -1,4 +1,4 @@
-"""Integration tests for Chat functionality with real PostgreSQL."""
+﻿"""Integration tests for Chat functionality with real PostgreSQL."""
 
 import json
 from datetime import datetime, timezone
@@ -197,7 +197,7 @@ class TestRAGIntegration:
 
         assert len(messages) >= 2
         assert messages[0]["role"] == "system"
-        assert "Lexiro AI" in messages[0]["content"]
+        assert "AI Mentor" in messages[0]["content"]
         assert messages[-1]["role"] == "user"
         assert messages[-1]["content"] == "How to authenticate with HMAC?"
         assert len(sources) > 0

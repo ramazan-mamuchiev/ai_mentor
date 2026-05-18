@@ -1,4 +1,4 @@
-# Lexiro — Backlog
+﻿# AI Mentor — Backlog
 
 > Tasks planned for future implementation. Each item includes problem statement, proposed solution, and complexity estimate.
 >
@@ -323,7 +323,7 @@ No `CORSMiddleware` is configured in FastAPI. Currently works because nginx prox
 ### Implementation plan
 
 1. **Add `CORSMiddleware`** to `main.py` with configurable `allowed_origins` from `.env`
-2. **Production**: allow `https://lexiro.io`, `https://www.lexiro.io`
+2. **Production**: allow `https://ai-mentor.ru`, `https://www.ai-mentor.ru`
 3. **Development**: allow `http://localhost:*`
 4. **API key requests**: consider allowing `*` origin for `/mcp` and API-key-authenticated endpoints (no cookies involved)
 
@@ -626,7 +626,7 @@ No webhook system exists. Vendor integrations and third-party consumers cannot b
 1. **`webhooks` table** — `id`, `tenant_id`, `url`, `events` (array), `secret` (for HMAC signing), `active`, `created_at`
 2. **CRUD endpoints** — `POST/GET/DELETE /api/v1/webhooks`
 3. **Event emission** — after key operations (document.ingested, document.failed, product.created), enqueue a Celery task that POSTs JSON payload to registered webhook URLs
-4. **HMAC signing** — sign payloads with `X-Lexiro-Signature` header for verification
+4. **HMAC signing** — sign payloads with `X-AI Mentor-Signature` header for verification
 5. **Retry logic** — retry failed deliveries with exponential backoff (3 attempts)
 6. **Delivery log** — store last N delivery attempts with status codes for debugging
 
@@ -649,7 +649,7 @@ No webhook system exists. Vendor integrations and third-party consumers cannot b
 ### Implementation plan
 
 1. **Choose provider** — Stripe (most mature) or Paddle (simpler VAT handling for SaaS)
-2. **Subscription management** — sync tier changes with the payment provider; map Lexiro roles to Stripe price IDs
+2. **Subscription management** — sync tier changes with the payment provider; map AI Mentor roles to Stripe price IDs
 3. **Usage-based billing** — report metered usage (LLM tokens, storage GB, API calls) to Stripe at end of billing period
 4. **Hard limits** — when quota is exceeded, return `402 Payment Required` with upgrade CTA
 5. **Customer portal** — billing history, invoices, payment method management (can use Stripe's hosted portal)
@@ -797,7 +797,7 @@ Single VPS with one instance of each service. No redundancy — any service fail
 
 ### Problem
 
-Input validation relies on Pydantic schemas for type checking, but there is no explicit HTML/XSS sanitization for user-supplied text fields (product names, document titles, chat messages). While the React frontend escapes output by default, API consumers rendering Lexiro data in other contexts may be vulnerable.
+Input validation relies on Pydantic schemas for type checking, but there is no explicit HTML/XSS sanitization for user-supplied text fields (product names, document titles, chat messages). While the React frontend escapes output by default, API consumers rendering AI Mentor data in other contexts may be vulnerable.
 
 ### Implementation plan
 

@@ -1,9 +1,9 @@
----
+﻿---
 description: Project infrastructure and Docker setup context
 alwaysApply: true
 ---
 
-# Lexiro — Infrastructure Context
+# AI Mentor — Infrastructure Context
 
 ## Stack
 
@@ -22,15 +22,15 @@ Backend services run in Docker. Nginx runs on the **host** (systemd), not in Doc
 - `docker-compose.dev.yml` — dev (postgres only)
 - `backend/Dockerfile` — Python 3.11-slim, uvicorn
 - `frontend/Dockerfile` — multi-stage: node:20-alpine build (used to compile static files)
-- `nginx/lexiro.conf` — host Nginx config: reverse proxy /api/ to localhost:8000, SPA fallback, SSE, TUS, maintenance mode
+- `nginx/ai-mentor.conf` — host Nginx config: reverse proxy /api/ to localhost:8000, SPA fallback, SSE, TUS, maintenance mode
 
 ### Docker services
 
 | Service  | Port | Image               | Notes |
 |----------|------|---------------------|-------|
-| api      | 8000 | lexiro-backend      | builds the shared backend image |
-| worker   | -    | lexiro-backend      | no build, reuses api image |
-| beat     | -    | lexiro-backend      | no build, reuses api image |
+| api      | 8000 | ai-mentor-backend      | builds the shared backend image |
+| worker   | -    | ai-mentor-backend      | no build, reuses api image |
+| beat     | -    | ai-mentor-backend      | no build, reuses api image |
 | postgres | 5432 | pgvector/pgvector:pg16 | |
 | redis    | 6379 | redis:7-alpine      | |
 | minio    | 9000/9001 | minio/minio    | |
@@ -47,7 +47,7 @@ Backend services run in Docker. Nginx runs on the **host** (systemd), not in Doc
 
 ### Common commands
 
-- Rebuild frontend: `docker build --target build -t lexiro-frontend-build ./frontend && docker run --rm -v /var/www/lexiro:/out lexiro-frontend-build sh -c 'cp -r /app/dist/* /out/'`
+- Rebuild frontend: `docker build --target build -t ai-mentor-frontend-build ./frontend && docker run --rm -v /var/www/ai-mentor:/out ai-mentor-frontend-build sh -c 'cp -r /app/dist/* /out/'`
 - Rebuild & restart backend: `docker compose build api && docker compose up -d api worker beat`
 - Reload Nginx: `nginx -t && nginx -s reload`
 - Full stack up: `docker compose up -d`

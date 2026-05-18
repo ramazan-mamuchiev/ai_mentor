@@ -1,21 +1,21 @@
-{
+﻿{
   "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
   "manifestVersion": "1.17",
   "version": "1.0.0",
   "id": "366800d6-60c2-4364-b571-9d12ec1a1667",
   "developer": {
     "name": "AxxonSoft",
-    "websiteUrl": "https://lexiro.io",
-    "privacyUrl": "https://lexiro.io/privacy",
-    "termsOfUseUrl": "https://lexiro.io/terms"
+    "websiteUrl": "https://ai-mentor.ru",
+    "privacyUrl": "https://ai-mentor.ru/privacy",
+    "termsOfUseUrl": "https://ai-mentor.ru/terms"
   },
   "name": {
-    "short": "Lexiro Bot",
-    "full": "Lexiro Documentation Assistant"
+    "short": "AI Mentor Bot",
+    "full": "AI Mentor Documentation Assistant"
   },
   "description": {
     "short": "AI-powered documentation search for hardware integration developers",
-    "full": "Lexiro Bot helps developers find API documentation for IP cameras, access controllers, intercoms, VMS platforms, and IoT SDKs. Ask questions in natural language and get accurate answers with code examples, endpoint details, and authentication instructions — all sourced from indexed vendor documentation."
+    "full": "AI Mentor Bot helps developers find API documentation for IP cameras, access controllers, intercoms, VMS platforms, and IoT SDKs. Ask questions in natural language and get accurate answers with code examples, endpoint details, and authentication instructions — all sourced from indexed vendor documentation."
   },
   "icons": {
     "color": "color.png",
@@ -50,5 +50,5 @@
     }
   ],
   "permissions": ["identity", "messageTeamMembers"],
-  "validDomains": ["lexiro.io"]
+  "validDomains": ["ai-mentor.ru"]
 }

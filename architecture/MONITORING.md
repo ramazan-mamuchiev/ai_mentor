@@ -1,6 +1,6 @@
-# Lexiro — Monitoring, Logging & Alerting
+﻿# AI Mentor — Monitoring, Logging & Alerting
 
-> Part of [Lexiro Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
+> Part of [AI Mentor Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
 
 ---
 
@@ -108,7 +108,7 @@ scrape_configs:
 Extracted labels (`level`, `logger`) enable efficient Loki queries like:
 
 ```logql
-{container="/lexiro-api-1", logger="mcp"} | json
+{container="/ai-mentor-api-1", logger="mcp"} | json
 ```
 
 ---
@@ -125,19 +125,19 @@ Extracted labels (`level`, `logger`) enable efficient Loki queries like:
 
 ## Grafana Dashboards
 
-9 provisioned dashboards in the `Lexiro` folder:
+9 provisioned dashboards in the `AI Mentor` folder:
 
 | Dashboard | File | Key Panels |
 |-----------|------|------------|
-| **Overview** | `lexiro-overview.json` | Request rate, error rate, avg response time, uptime, traffic by status code, latency percentiles, top endpoints, live logs |
-| **System Health** | `lexiro-system.json` | Uptime, DB pool usage, active requests, errors/min, embedding duration, log volume by level/logger |
-| **Ingestion Pipeline** | `lexiro-ingestion.json` | Ingestion count, chunks created, timing (5 stages: read/convert/parse/embed/db), format breakdown (PDF/Swagger/Markdown/Proto), queue depth, upload size, converter details, parallel PDF workers, progress tracking |
-| **Document Audit** | `lexiro-doc-audit.json` | Uploads over time, ingestion timing, embedding speed, search latency, similarity score distribution |
-| **Queue Monitor** | `lexiro-queue.json` | Celery pending/processing (4 workers), queue depth, wait time, task lifecycle, worker health, task runtime, Beat heartbeat |
-| **AI Chat** | `lexiro-ai-chat.json` | Chat requests, errors, response time, tokens/sec, RAG context build time, Ollama health, error log |
-| **Search Quality** | `lexiro-search.json` | Total/empty searches, avg similarity, avg results per query, search duration, low-similarity searches |
-| **MCP Tools** | `lexiro-mcp-tools.json` | Tool calls by instrument, duration, errors, live tool logs |
-| **Alerts & SLA** | `lexiro-alerts.json` | Availability %, latency SLA compliance, error budget burn, threshold lines, alert status |
+| **Overview** | `ai-mentor-overview.json` | Request rate, error rate, avg response time, uptime, traffic by status code, latency percentiles, top endpoints, live logs |
+| **System Health** | `ai-mentor-system.json` | Uptime, DB pool usage, active requests, errors/min, embedding duration, log volume by level/logger |
+| **Ingestion Pipeline** | `ai-mentor-ingestion.json` | Ingestion count, chunks created, timing (5 stages: read/convert/parse/embed/db), format breakdown (PDF/Swagger/Markdown/Proto), queue depth, upload size, converter details, parallel PDF workers, progress tracking |
+| **Document Audit** | `ai-mentor-doc-audit.json` | Uploads over time, ingestion timing, embedding speed, search latency, similarity score distribution |
+| **Queue Monitor** | `ai-mentor-queue.json` | Celery pending/processing (4 workers), queue depth, wait time, task lifecycle, worker health, task runtime, Beat heartbeat |
+| **AI Chat** | `ai-mentor-ai-chat.json` | Chat requests, errors, response time, tokens/sec, RAG context build time, Ollama health, error log |
+| **Search Quality** | `ai-mentor-search.json` | Total/empty searches, avg similarity, avg results per query, search duration, low-similarity searches |
+| **MCP Tools** | `ai-mentor-mcp-tools.json` | Tool calls by instrument, duration, errors, live tool logs |
+| **Alerts & SLA** | `ai-mentor-alerts.json` | Availability %, latency SLA compliance, error budget burn, threshold lines, alert status |
 
 All dashboards use Loki as the sole datasource. Panels use LogQL queries with `json` parser, `unwrap` for numeric aggregations, and `count_over_time` / `quantile_over_time` for statistics.
 
@@ -186,15 +186,15 @@ monitoring/
         │   └── loki.yml                     Loki datasource for Grafana
         ├── dashboards/
         │   ├── provider.yml                 Dashboard provisioning config
-        │   ├── lexiro-overview.json        Overview dashboard
-        │   ├── lexiro-system.json          System Health dashboard
-        │   ├── lexiro-ingestion.json       Ingestion Pipeline dashboard
-        │   ├── lexiro-doc-audit.json       Document Audit dashboard
-        │   ├── lexiro-queue.json           Queue Monitor dashboard
-        │   ├── lexiro-ai-chat.json         AI Chat dashboard
-        │   ├── lexiro-search.json          Search Quality dashboard
-        │   ├── lexiro-mcp-tools.json       MCP Tools dashboard
-        │   └── lexiro-alerts.json          Alerts & SLA dashboard
+        │   ├── ai-mentor-overview.json        Overview dashboard
+        │   ├── ai-mentor-system.json          System Health dashboard
+        │   ├── ai-mentor-ingestion.json       Ingestion Pipeline dashboard
+        │   ├── ai-mentor-doc-audit.json       Document Audit dashboard
+        │   ├── ai-mentor-queue.json           Queue Monitor dashboard
+        │   ├── ai-mentor-ai-chat.json         AI Chat dashboard
+        │   ├── ai-mentor-search.json          Search Quality dashboard
+        │   ├── ai-mentor-mcp-tools.json       MCP Tools dashboard
+        │   └── ai-mentor-alerts.json          Alerts & SLA dashboard
         └── alerting/
             └── rules.yml                    10 alert rules (YAML)
 ```

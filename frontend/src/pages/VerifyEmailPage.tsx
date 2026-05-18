@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { verifyEmail, resendVerification } from '../auth/api'
@@ -76,9 +76,9 @@ export function VerifyEmailPage() {
       </div>
       <div className="auth-card verify-card">
         <div className="auth-logo">
-          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
-          <div className="auth-brand-name">Lexiro</div>
+          <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
+          <div className="auth-brand-name">AI Mentor</div>
         </div>
 
         {state === 'pending' && (

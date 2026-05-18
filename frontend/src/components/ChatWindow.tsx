@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Cpu, ArrowDown, Share2 } from 'lucide-react'
 import type { SourceInfo, StreamStatus, DebugInfo, SuggestionChip } from '../types'
 import type { ChatMessage as ChatMessageType } from '../types'
 import { getSuggestions } from '../api/products'
 import { useRotatingSlogan } from '../hooks/useRotatingSlogan'
-import { useRotatingLexiroChip } from '../hooks/useRotatingLexiroChip'
+import { useRotatingAIMentorChip } from '../hooks/useRotatingAIMentorChip'
 import { usePermission } from '../auth/usePermission'
 import { ChatMessageComponent } from './ChatMessage'
 import { ChatInput } from './ChatInput'
@@ -161,7 +161,7 @@ export function ChatWindow({
   const chatTourSteps = useMemo(() => getChatSteps(t), [t])
   usePageTour('chat', chatTourSteps)
   const { line1, line2, accent, visible: sloganVisible } = useRotatingSlogan()
-  const lexiroChip = useRotatingLexiroChip()
+  const aiMentorChip = useRotatingAIMentorChip()
   const isEmpty = messages.length === 0 && !streamingContent
 
   const [dynamicChips, setDynamicChips] = useState<SuggestionChip[] | null>(null)
@@ -216,10 +216,10 @@ export function ChatWindow({
               </p>
               <div className="empty-suggestions">
                 <button
-                  className={`empty-suggestion-chip lexiro-chip${lexiroChip.visible ? '' : ' fading'}`}
-                  onClick={() => onSend(lexiroChip.text)}
+                  className={`empty-suggestion-chip ai-mentor-chip${aiMentorChip.visible ? '' : ' fading'}`}
+                  onClick={() => onSend(aiMentorChip.text)}
                 >
-                  {lexiroChip.text}
+                  {aiMentorChip.text}
                 </button>
                 {dynamicChips
                   ? dynamicChips.map((chip, idx) => {

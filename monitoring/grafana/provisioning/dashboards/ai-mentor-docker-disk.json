@@ -1,7 +1,7 @@
-{
-  "uid": "lexiro-docker-disk",
-  "title": "Lexiro Docker Disk Usage",
-  "tags": ["lexiro", "docker", "disk"],
+﻿{
+  "uid": "ai-mentor-docker-disk",
+  "title": "AI Mentor Docker Disk Usage",
+  "tags": ["ai_mentor", "docker", "disk"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,

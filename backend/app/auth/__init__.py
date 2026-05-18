@@ -1,1 +1,1 @@
-"""Authentication & authorization module for Lexiro."""
+﻿"""Authentication & authorization module for AI Mentor."""

@@ -1,0 +1,344 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: lexiro
+      POSTGRES_USER: lexiro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexiro_dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lexiro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-lexiro}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-lexiro_dev}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: lexiro-backend
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 3G
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-lexiro}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-lexiro_dev}
+      S3_BUCKET: ${S3_BUCKET:-lexiro-storage}
+      API_KEY: ${API_KEY:-ipx_dev_key_12345}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-50}
+      MAX_ARCHIVE_SIZE_MB: ${MAX_ARCHIVE_SIZE_MB:-350}
+      EMBEDDING_MODEL_GEMINI: ${EMBEDDING_MODEL_GEMINI:-gemini-embedding-2-preview}
+      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      BOTHUB_API_KEY: ${BOTHUB_API_KEY:-}
+      BOTHUB_BASE_URL: ${BOTHUB_BASE_URL:-https://bothub.chat/api/v2/openai/v1}
+      BOTHUB_LLM_MODEL: ${BOTHUB_LLM_MODEL:-gemini-2.5-flash}
+      BOTHUB_EMBEDDING_MODEL: ${BOTHUB_EMBEDDING_MODEL:-text-embedding-3-large}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.2}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-600}
+      LLM_MAX_CONTINUATIONS: ${LLM_MAX_CONTINUATIONS:-3}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-pro}
+      RAG_TOP_K: ${RAG_TOP_K:-10}
+      RAG_MIN_SIMILARITY: ${RAG_MIN_SIMILARITY:-0.35}
+      RAG_HISTORY_MESSAGES: ${RAG_HISTORY_MESSAGES:-6}
+      RAG_HISTORY_MAX_TOKENS: ${RAG_HISTORY_MAX_TOKENS:-8000}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      APP_BASE_URL: ${APP_BASE_URL:-https://lexiro.io}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-onboarding@resend.dev}
+      CONFLUENCE_CREDENTIALS_KEY: ${CONFLUENCE_CREDENTIALS_KEY:-}
+      APP_ENV: production
+      APP_LOG_LEVEL: INFO
+      LOG_DIR: /app/logs
+    volumes:
+      - ${LOG_DIR:-./logs}:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
+
+  worker:
+    image: lexiro-backend
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 6G
+        reservations:
+          memory: 512M
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: &worker-env
+      DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-lexiro}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-lexiro_dev}
+      S3_BUCKET: ${S3_BUCKET:-lexiro-storage}
+      EMBEDDING_MODEL_GEMINI: ${EMBEDDING_MODEL_GEMINI:-gemini-embedding-2-preview}
+      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+<<<<<<< HEAD
+      BOTHUB_API_KEY: ${BOTHUB_API_KEY:-}
+      BOTHUB_BASE_URL: ${BOTHUB_BASE_URL:-https://bothub.chat/api/v2/openai/v1}
+      BOTHUB_LLM_MODEL: ${BOTHUB_LLM_MODEL:-gemini-2.5-flash}
+      BOTHUB_EMBEDDING_MODEL: ${BOTHUB_EMBEDDING_MODEL:-text-embedding-3-large}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+=======
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      APP_BASE_URL: ${APP_BASE_URL:-https://lexiro.io}
+      CONFLUENCE_CREDENTIALS_KEY: ${CONFLUENCE_CREDENTIALS_KEY:-}
+>>>>>>> main
+      APP_ENV: production
+      APP_LOG_LEVEL: INFO
+      LOG_DIR: /app/logs
+    volumes:
+      - ${LOG_DIR:-./logs}:/app/logs
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring,translation,critical
+
+  beat:
+    image: lexiro-backend
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: *worker-env
+    command: celery -A app.celery_app beat --loglevel=info
+
+  teams-bot:
+    build:
+      context: ./teams-bot
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    ports:
+      - "3978:3978"
+    environment:
+      BOT_ID: ${BOT_ID:-}
+      BOT_PASSWORD: ${BOT_PASSWORD:-}
+      CLIENT_ID: ${BOT_ID:-}
+      CLIENT_SECRET: ${BOT_PASSWORD:-}
+      TENANT_ID: ${ALLOWED_TENANT_ID:-}
+      OPENAI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      OPENAI_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
+      LEXIRO_MCP_URL: https://lexiro.io/mcp
+      LEXIRO_API_KEY: ${TEAMS_BOT_LEXIRO_API_KEY:-}
+      ALLOWED_TENANT_ID: ${ALLOWED_TENANT_ID:-}
+      ALLOWED_DOMAIN: ${ALLOWED_DOMAIN:-axxonsoft.dev}
+      PORT: "3978"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3978/api/messages',r=>{process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  loki:
+    image: grafana/loki:3.4.2
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml
+      - lokidata:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_UNIFIED_ALERTING_ENABLED: "true"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - loki
+      - prometheus
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheusdata:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--storage.tsdb.retention.size=2GB"
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    restart: unless-stopped
+    logging: *default-logging
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
+    restart: unless-stopped
+    logging: *default-logging
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+
+volumes:
+  pgdata:
+  redisdata:
+  minio_data:
+  lokidata:
+  grafanadata:
+  prometheusdata:

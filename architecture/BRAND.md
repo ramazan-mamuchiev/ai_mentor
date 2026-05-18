@@ -1,4 +1,4 @@
-# Lexiro — Brand Platform
+﻿# AI Mentor — Brand Platform
 
 > **Status**: v2.0 — March 26, 2026
 > **Author**: Oleg Voitekhovich
@@ -14,15 +14,15 @@
 
 | Parameter | Value |
 |-----------|-------|
-| **Brand Name** | **Lexiro** |
+| **Brand Name** | **AI Mentor** |
 | **Decision Date** | March 26, 2026 |
 | **Previous Names** | IPCodex (working title) → Plexicode (v1) |
 
-### 1.2 Why Lexiro
+### 1.2 Why AI Mentor
 
 **Naming criteria:**
 
-- [x] Short, 1–2 words, up to 10 characters — **Lexiro = 6 characters**
+- [x] Short, 1–2 words, up to 10 characters — **AI Mentor = 6 characters**
 - [x] Melodic pronunciation in Russian and English
 - [x] Easy to remember — musical, 3 syllables (LEK-si-ro)
 - [x] Energy and character (Figma, Notion, Miro class)
@@ -43,7 +43,7 @@
 | Aptova | 5/10 | Rejected | "Reliably neutral" — lacks energy and character |
 | Krevio | 4/10 | Rejected | Russian: "Криво" (crooked) — negative connotation |
 | Trovea | 4/10 | Rejected | Hard to pronounce |
-| **Lexiro** | **8.8/10** | **Selected** | Clean, melodic, energetic, minimal conflicts, strong semantic fit |
+| **AI Mentor** | **8.8/10** | **Selected** | Clean, melodic, energetic, minimal conflicts, strong semantic fit |
 
 ### 1.3 Previous Names Archive
 
@@ -62,7 +62,7 @@
 ### 2.1 Etymology
 
 ```
-Lexiro = Lex + iro
+AI Mentor = Lex + iro
          │     │
          │     └── Direction, movement (cf. giro, enviro)
          └──────── Latin "lex" = law, rule, word;
@@ -120,7 +120,7 @@ Lexiro = Lex + iro
 
 | Parameter | Result |
 |-----------|--------|
-| **"LEXIRO" exact match** | **Not found** |
+| **"AI_MENTOR" exact match** | **Not found** |
 | **Similar marks in Class 9/42** | None |
 | **Registration path** | **OPEN** |
 
@@ -128,7 +128,7 @@ Lexiro = Lex + iro
 
 | Parameter | Result |
 |-----------|--------|
-| **"LEXIRO" exact match** | **Not found** |
+| **"AI_MENTOR" exact match** | **Not found** |
 | **Similar marks in Class 9/42** | None |
 | **Registration path** | **OPEN** |
 
@@ -137,7 +137,7 @@ Lexiro = Lex + iro
 | Parameter | Result |
 |-----------|--------|
 | **Trademark** | **Not registered** |
-| **Company name** | **Lexiro LLP** (OC319450) — see §3.2 |
+| **Company name** | **AI Mentor LLP** (OC319450) — see §3.2 |
 
 #### Russia (FIPS / Rospatent)
 
@@ -152,7 +152,7 @@ Lexiro = Lex + iro
 
 | Parameter | Result |
 |-----------|--------|
-| **"LEXIRO" in any LATAM registry** | **Not found** |
+| **"AI_MENTOR" in any LATAM registry** | **Not found** |
 | **Similar companies** | None in tech sector |
 | **Registration path** | **OPEN** in all countries |
 
@@ -162,9 +162,9 @@ Lexiro = Lex + iro
 |-----------|--------|
 | **Global Brand Database** | **Not found** — manual verification recommended at branddb.wipo.int |
 
-### 3.2 Identified Companies Using "Lexiro"
+### 3.2 Identified Companies Using "AI Mentor"
 
-#### Lexiro LLP (United Kingdom)
+#### AI Mentor LLP (United Kingdom)
 
 | Parameter | Value |
 |-----------|-------|
@@ -182,12 +182,12 @@ Lexiro = Lex + iro
 
 **Risk assessment:** Legal services firm, completely different industry from software/SaaS. No trademark registered. No website. No online presence beyond Companies House listing. Low risk of confusion or legal conflict in software classes (9, 42).
 
-#### LEXIRO (India — Brand of Sitaram Enterprise)
+#### AI_MENTOR (India — Brand of Sitaram Enterprise)
 
 | Parameter | Value |
 |-----------|-------|
 | **Company** | Sitaram Enterprise |
-| **Brand** | LEXIRO |
+| **Brand** | AI_MENTOR |
 | **Founded** | 2019 |
 | **Location** | Rajkot, Gujarat, India |
 | **Industry** | Architectural hardware (cabinet handles, door handles, knobs) |
@@ -205,19 +205,19 @@ Lexiro = Lex + iro
 | lexiro.com | Parked / for sale | Timeout on fetch — likely on domain marketplace |
 | lexiro.in | Occupied | Indian hardware company |
 | lexiro.ai | Not purchased | Consider purchasing later |
-| **lexiro.dev** | **✅ Purchased** | DNS → 82.38.66.177, SSL pending activation |
-| **lexiro.io** | **✅ Purchased + HTTPS** | **Primary production domain** — DNS → 82.38.66.177, GlobalSign AlphaSSL active |
+| **dev.ai-mentor.ru** | **✅ Purchased** | DNS → 82.38.66.177, SSL pending activation |
+| **ai-mentor.ru** | **✅ Purchased + HTTPS** | **Primary production domain** — DNS → 82.38.66.177, GlobalSign AlphaSSL active |
 
-> **https://lexiro.io** is the live production URL with HTTPS (GlobalSign AlphaSSL, valid until Oct 2026).
-> **lexiro.dev** purchased, SSL certificate pending activation. Consider purchasing .ai later as brand protection.
+> **https://ai-mentor.ru** is the live production URL with HTTPS (GlobalSign AlphaSSL, valid until Oct 2026).
+> **dev.ai-mentor.ru** purchased, SSL certificate pending activation. Consider purchasing .ai later as brand protection.
 
 #### Developer Platforms
 
 | Platform | Status |
 |----------|--------|
-| **GitHub** (`github.com/lexiro`) | **Available** — no org or repo |
-| **npm** (`lexiro`) | **Available** |
-| **PyPI** (`lexiro`) | **Available** |
+| **GitHub** (`github.com/ai_mentor`) | **Available** — no org or repo |
+| **npm** (`ai_mentor`) | **Available** |
+| **PyPI** (`ai_mentor`) | **Available** |
 | **App Store** | **Available** — no app |
 | **Google Play** | **Available** — no app |
 | **Docker Hub** | **Available** |
@@ -226,10 +226,10 @@ Lexiro = Lex + iro
 
 | Platform | Status |
 |----------|--------|
-| **Twitter/X** (`@lexiro`) | **Likely available** — not found |
-| **LinkedIn** (`/company/lexiro`) | **Likely available** — not found |
-| **YouTube** (`@lexiro`) | **Likely available** — not found |
-| **Instagram** | `@lexiro29` — personal account (not brand) |
+| **Twitter/X** (`@ai_mentor`) | **Likely available** — not found |
+| **LinkedIn** (`/company/ai_mentor`) | **Likely available** — not found |
+| **YouTube** (`@ai_mentor`) | **Likely available** — not found |
+| **Instagram** | `@ai_mentor29` — personal account (not brand) |
 | **TikTok** | `@lexirobertsxo` — personal account ("Lexi Roberts") |
 
 ### 3.4 Linguistic Risk Analysis — All Languages
@@ -253,15 +253,15 @@ Lexiro = Lex + iro
 
 | Language | Note | Risk Level |
 |----------|------|------------|
-| **Portuguese** | "Lixo" = trash, "Lixeiro" = garbage collector. But "Lexiro" (/lek-si-ro/) vs "Lixeiro" (/li-shey-ru/) — different vowels, stress, consonants. Visual similarity "Lex-" vs "Lix-" is minimal. | **Low** |
-| **Catalan** | "Liró" = fool, simpleton (also: dormouse). But "Lexiro" (3 syllables) ≠ "Liró" (2 syllables). 10M speakers, niche market. | **Minimal** |
+| **Portuguese** | "Lixo" = trash, "Lixeiro" = garbage collector. But "AI Mentor" (/lek-si-ro/) vs "Lixeiro" (/li-shey-ru/) — different vowels, stress, consonants. Visual similarity "Lex-" vs "Lix-" is minimal. | **Low** |
+| **Catalan** | "Liró" = fool, simpleton (also: dormouse). But "AI Mentor" (3 syllables) ≠ "Liró" (2 syllables). 10M speakers, niche market. | **Minimal** |
 
 ### 3.5 Risk Summary Matrix
 
 | Risk Factor | Level | Description | Mitigation |
 |-------------|-------|-------------|------------|
-| **Lexiro LLP (UK)** | 🟢 Low | Legal firm, no TM, no website, different industry | Register TM in Class 9/42 first |
-| **LEXIRO India** | 🟢 Low | Hardware manufacturer, only `.in` domain | No action needed |
+| **AI Mentor LLP (UK)** | 🟢 Low | Legal firm, no TM, no website, different industry | Register TM in Class 9/42 first |
+| **AI_MENTOR India** | 🟢 Low | Hardware manufacturer, only `.in` domain | No action needed |
 | **lexiro.com** | 🟡 Medium | Parked, may require purchase ($500–$3000) | Buy .ai/.dev/.io first |
 | **Portuguese "lixo"** | 🟢 Low | Different phonetics, different spelling | No action needed |
 | **Catalan "liró"** | 🟢 Low | Different word, niche market | No action needed |
@@ -279,7 +279,7 @@ Lexiro = Lex + iro
 
 | Context | EN | RU |
 |---------|----|----|
-| **Title / Badge** | Lexiro — AI Integration Platform | Lexiro — AI-платформа интеграции |
+| **Title / Badge** | AI Mentor — AI Integration Platform | AI Mentor — AI-платформа интеграции |
 | **Category** | Developer Tools / AI Coding Assistant | Инструменты разработчика / AI-ассистент |
 
 ### 4.2 Tagline (Hero)
@@ -314,11 +314,11 @@ See [BRAND_SLOGANS.md](BRAND_SLOGANS.md) for full collection including taglines,
 >
 > **The Solution**
 >
-> Lexiro channels chaotic documentation into a unified knowledge base. It transforms PDFs, Swagger specs, and web pages into structured, searchable intelligence — delivered directly to your AI coding assistant via MCP.
+> AI Mentor channels chaotic documentation into a unified knowledge base. It transforms PDFs, Swagger specs, and web pages into structured, searchable intelligence — delivered directly to your AI coding assistant via MCP.
 >
 > **The Name**
 >
-> "Lexiro" — from Latin "lex" (law, word, knowledge) and "-iro" (direction, flow). Directed knowledge. Complex docs, simple code.
+> "AI Mentor" — from Latin "lex" (law, word, knowledge) and "-iro" (direction, flow). Directed knowledge. Complex docs, simple code.
 
 ### 5.2 Mission Statement
 
@@ -342,45 +342,45 @@ See [BRAND_SLOGANS.md](BRAND_SLOGANS.md) for full collection including taglines,
 ### 6.1 Elevator Pitch (30 seconds)
 
 **EN:**
-> "Lexiro is an AI integration platform that transforms chaotic vendor documentation into structured knowledge for AI coding assistants. Developers ask questions in natural language, and Lexiro delivers accurate API answers via MCP — cutting integration time from days to minutes."
+> "AI Mentor is an AI integration platform that transforms chaotic vendor documentation into structured knowledge for AI coding assistants. Developers ask questions in natural language, and AI Mentor delivers accurate API answers via MCP — cutting integration time from days to minutes."
 
 **RU:**
-> "Lexiro — это AI-платформа интеграции, которая превращает хаотичную документацию вендоров в структурированные знания для AI-ассистентов. Разработчики задают вопросы на естественном языке, а Lexiro доставляет точные ответы по API через MCP — сокращая время интеграции с дней до минут."
+> "AI Mentor — это AI-платформа интеграции, которая превращает хаотичную документацию вендоров в структурированные знания для AI-ассистентов. Разработчики задают вопросы на естественном языке, а AI Mentor доставляет точные ответы по API через MCP — сокращая время интеграции с дней до минут."
 
 ### 6.2 Conference Introduction (60 seconds)
 
 **EN:**
-> "Hi, I'm [Name] from Lexiro. We solve a problem every developer knows: you need to integrate a new device API, and you're staring at a 200-page PDF with no search.
+> "Hi, I'm [Name] from AI Mentor. We solve a problem every developer knows: you need to integrate a new device API, and you're staring at a 200-page PDF with no search.
 >
-> Lexiro indexes that documentation — PDFs, Swagger specs, web pages — and serves it directly to your AI coding assistant via MCP. You ask 'How do I authenticate with HikCentral?' and get working code in seconds.
+> AI Mentor indexes that documentation — PDFs, Swagger specs, web pages — and serves it directly to your AI coding assistant via MCP. You ask 'How do I authenticate with HikCentral?' and get working code in seconds.
 >
-> We're already integrated with Cursor, and we support 50+ device vendors. Complex docs, simple code. That's Lexiro."
+> We're already integrated with Cursor, and we support 50+ device vendors. Complex docs, simple code. That's AI Mentor."
 
 **RU:**
-> "Привет, я [Имя] из Lexiro. Мы решаем проблему, знакомую каждому разработчику: нужно интегрировать новый API устройства, а перед тобой 200-страничный PDF без поиска.
+> "Привет, я [Имя] из AI Mentor. Мы решаем проблему, знакомую каждому разработчику: нужно интегрировать новый API устройства, а перед тобой 200-страничный PDF без поиска.
 >
-> Lexiro индексирует эту документацию — PDF, Swagger-спецификации, веб-страницы — и доставляет её напрямую в ваш AI-ассистент через MCP. Спрашиваете 'Как авторизоваться в HikCentral?' — получаете рабочий код за секунды.
+> AI Mentor индексирует эту документацию — PDF, Swagger-спецификации, веб-страницы — и доставляет её напрямую в ваш AI-ассистент через MCP. Спрашиваете 'Как авторизоваться в HikCentral?' — получаете рабочий код за секунды.
 >
-> Мы уже интегрированы с Cursor и поддерживаем 50+ вендоров устройств. Сложная документация, простой код. Это Lexiro."
+> Мы уже интегрированы с Cursor и поддерживаем 50+ вендоров устройств. Сложная документация, простой код. Это AI Mentor."
 
 ### 6.3 Email Signature
 
 ```
-[Name] | Lexiro
+[Name] | AI Mentor
 Complex docs. Simple code.
-https://lexiro.io
+https://ai-mentor.ru
 ```
 
 ### 6.4 GitHub README Header
 
 ```markdown
-# Lexiro
+# AI Mentor
 
 > **Complex docs. Simple code.**
 >
 > *From documentation to code. Instantly.*
 
-Lexiro transforms chaotic product documentation into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
+AI Mentor transforms chaotic product documentation into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
 ```
 
 ### 6.5 Social Media Bio
@@ -389,7 +389,7 @@ Lexiro transforms chaotic product documentation into a structured knowledge base
 > AI Integration Platform. Complex docs, simple code. From documentation to code — instantly. MCP-native. #DevTools #AI
 
 **LinkedIn (300 chars):**
-> Lexiro is an AI integration platform that transforms vendor documentation (PDF, Swagger, Markdown) into structured knowledge for AI coding assistants. Developers ask questions, Lexiro delivers accurate API answers via MCP. Complex docs. Simple code.
+> AI Mentor is an AI integration platform that transforms vendor documentation (PDF, Swagger, Markdown) into structured knowledge for AI coding assistants. Developers ask questions, AI Mentor delivers accurate API answers via MCP. Complex docs. Simple code.
 
 ### 6.6 One-Liner Variations
 
@@ -438,8 +438,8 @@ Lexiro transforms chaotic product documentation into a structured knowledge base
 
 | Domain | Priority | Status | Action |
 |--------|----------|--------|--------|
-| **lexiro.io** | **Primary** | **✅ Live HTTPS** | Production domain — GlobalSign AlphaSSL, HSTS, HTTP/2 |
-| **lexiro.dev** | **High** | **✅ Purchased** | DNS active, SSL pending activation |
+| **ai-mentor.ru** | **Primary** | **✅ Live HTTPS** | Production domain — GlobalSign AlphaSSL, HSTS, HTTP/2 |
+| **dev.ai-mentor.ru** | **High** | **✅ Purchased** | DNS active, SSL pending activation |
 | lexiro.ai | Medium | Not purchased | Consider later for brand protection |
 | lexiro.com | Low | Parked / for sale | Negotiate purchase ($500–$3000) if needed |
 
@@ -447,13 +447,13 @@ Lexiro transforms chaotic product documentation into a structured knowledge base
 
 | Platform | Handle | Priority |
 |----------|--------|----------|
-| GitHub | @lexiro (org) | **Critical** |
-| npm | lexiro | **Critical** |
-| PyPI | lexiro | **Critical** |
-| Twitter/X | @lexiro | High |
-| LinkedIn | /company/lexiro | High |
-| Docker Hub | lexiro | Medium |
-| YouTube | @lexiro | Medium |
+| GitHub | @ai_mentor (org) | **Critical** |
+| npm | ai_mentor | **Critical** |
+| PyPI | ai_mentor | **Critical** |
+| Twitter/X | @ai_mentor | High |
+| LinkedIn | /company/ai_mentor | High |
+| Docker Hub | ai_mentor | Medium |
+| YouTube | @ai_mentor | Medium |
 
 ### 8.3 Trademark Registration
 
@@ -471,7 +471,7 @@ Lexiro transforms chaotic product documentation into a structured knowledge base
 
 ## 9. Migration Checklist
 
-When renaming from Plexicode to Lexiro:
+When renaming from Plexicode to AI Mentor:
 
 ### 9.1 Code & Configuration
 
@@ -485,17 +485,17 @@ When renaming from Plexicode to Lexiro:
 
 ### 9.2 Documentation
 
-- [ ] `architecture/BRAND_SLOGANS.md` — update to reference Lexiro
+- [ ] `architecture/BRAND_SLOGANS.md` — update to reference AI Mentor
 - [ ] `architecture/GTM_STRATEGY.md` — update brand references
 - [ ] `architecture/MARKET_RESEARCH.md` — update brand references
 - [ ] `promo/` — update all marketing materials
 
 ### 9.3 External
 
-- [x] Domain registration — **lexiro.io purchased**, DNS active, **HTTPS live** (GlobalSign AlphaSSL)
-- [x] Domain registration — **lexiro.dev purchased**, DNS active, SSL pending
+- [x] Domain registration — **ai-mentor.ru purchased**, DNS active, **HTTPS live** (GlobalSign AlphaSSL)
+- [x] Domain registration — **dev.ai-mentor.ru purchased**, DNS active, SSL pending
 - [ ] Domain registration (.ai) — brand protection (deferred)
-- [ ] GitHub organization — create @lexiro
+- [ ] GitHub organization — create @ai_mentor
 - [ ] Social account registration (Twitter, LinkedIn, YouTube)
 - [ ] Trademark filing (FIPS, EUIPO, USPTO)
 
@@ -518,7 +518,7 @@ When renaming from Plexicode to Lexiro:
 | Aptova | v2 | 5/10 | Clean but "neutral", lacks energy | Rejected |
 | Krevio | v2 | 4/10 | Russian: "Криво" (crooked) | Rejected |
 | Trovea | v2 | 4/10 | Hard to pronounce | Rejected |
-| **Lexiro** | **v2** | **8.8/10** | UK LLP (law), India hardware — both irrelevant | **Selected (final)** |
+| **AI Mentor** | **v2** | **8.8/10** | UK LLP (law), India hardware — both irrelevant | **Selected (final)** |
 
 ---
 

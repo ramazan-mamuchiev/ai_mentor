@@ -1,0 +1,808 @@
+"""Confluence documentation crawler with optional OCR for images.
+
+Crawls a Confluence page tree via REST API and converts each page to Markdown.
+Supports both public (anonymous) and private (Basic Auth) Confluence instances.
+When OCR is enabled, downloads images from pages and extracts text via Gemini Vision.
+
+Discovery strategy (in order of priority):
+  1. Child pages via REST API  (parent → child hierarchy)
+  2. In-body Confluence links  (hyperlinks in page HTML pointing to same space)
+
+Usage:
+    pages = await crawl_confluence(
+        "https://docs.axxonsoft.com/confluence/spaces/one20en/pages/246484043/Documentation",
+        max_pages=500,
+    )
+    # pages: list[ConfluencePage]
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+import time
+from collections import deque
+from dataclasses import dataclass, field
+from urllib.parse import quote
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
+_CONNECT_TIMEOUT = 15
+_READ_TIMEOUT = 30
+_IMAGE_READ_TIMEOUT = 15
+_MAX_CRAWL_SECONDS = 7200
+_PAGE_LIMIT = 100
+
+_HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Lexiro/1.0",
+    "Accept": "application/json",
+}
+
+_CONFLUENCE_URL_PATTERN = re.compile(
+    r"(?P<base>https?://[^/]+(?:/[^/]+)*?)/spaces/(?P<space>[^/]+)/pages/(?P<page_id>\d+)"
+)
+
+_CONFLUENCE_SPACE_URL_PATTERN = re.compile(
+    r"(?P<base>https?://[^/]+(?:/[^/]+)*?)/spaces/(?P<space>[^/]+?)(?:/overview)?/?$"
+)
+
+_BODY_LINK_RE = re.compile(
+    r'/spaces/(?P<space>[^/]+)/pages/(?P<page_id>\d+)'
+)
+
+
+@dataclass
+class ConfluencePage:
+    page_id: str
+    title: str
+    markdown: str
+    url: str
+    space_key: str
+    depth: int = 0
+    children_count: int = 0
+    ocr_images_total: int = 0
+    ocr_images_success: int = 0
+    ocr_images_empty: int = 0
+    ocr_images_failed: int = 0
+    ocr_prompt_tokens: int = 0
+    ocr_completion_tokens: int = 0
+    ocr_ms: float = 0.0
+    ocr_error: str = ""
+
+
+@dataclass
+class CrawlResult:
+    pages: list[ConfluencePage] = field(default_factory=list)
+    root_title: str = ""
+    space_key: str = ""
+    base_url: str = ""
+    total_pages: int = 0
+    crawl_ms: float = 0.0
+    errors: list[str] = field(default_factory=list)
+    ocr_images_total: int = 0
+    ocr_images_success: int = 0
+    ocr_prompt_tokens: int = 0
+    ocr_completion_tokens: int = 0
+    ocr_ms: float = 0.0
+
+
+def _make_http_client(
+    image: bool = False,
+    auth: tuple[str, str] | None = None,
+) -> httpx.Client:
+    timeout = httpx.Timeout(
+        connect=_CONNECT_TIMEOUT,
+        read=_IMAGE_READ_TIMEOUT if image else _READ_TIMEOUT,
+        write=10.0,
+        pool=10.0,
+    )
+    return httpx.Client(
+        timeout=timeout,
+        headers=_HTTP_HEADERS,
+        auth=httpx.BasicAuth(auth[0], auth[1]) if auth else None,
+        verify=False,
+        follow_redirects=True,
+    )
+
+
+class ConfluenceAuthError(Exception):
+    """Raised when Confluence REST API requires authentication."""
+
+
+def _api_get(
+    url: str,
+    client: httpx.Client | None = None,
+    auth: tuple[str, str] | None = None,
+) -> dict:
+    """Fetch JSON from Confluence REST API."""
+    own_client = client is None
+    if own_client:
+        client = _make_http_client(auth=auth)
+    try:
+        resp = client.get(url)
+
+        content_type = resp.headers.get("content-type", "")
+        final_url = str(resp.url)
+
+        if "login" in final_url.lower() or "/dologin" in final_url.lower():
+            raise ConfluenceAuthError(
+                f"Confluence redirected to login page ({final_url}). "
+                "Anonymous access is not allowed — provide authentication credentials."
+            )
+
+        if "text/html" in content_type and "application/json" not in content_type:
+            snippet = resp.text[:300].lower()
+            if "login" in snippet or "log in" in snippet or "authenticate" in snippet:
+                raise ConfluenceAuthError(
+                    "Confluence returned an HTML login page instead of JSON. "
+                    "Anonymous access is not allowed — provide authentication credentials."
+                )
+            raise ConfluenceAuthError(
+                f"Confluence returned HTML instead of JSON (Content-Type: {content_type}). "
+                "This usually means anonymous access is denied."
+            )
+
+        resp.raise_for_status()
+        return resp.json()
+    finally:
+        if own_client:
+            client.close()
+
+
+def _resolve_space_homepage(
+    base_url: str,
+    space_key: str,
+    auth: tuple[str, str] | None = None,
+) -> str:
+    """Resolve the homepage page ID of a Confluence space via REST API.
+
+    Raises ValueError if the space does not exist or has no homepage.
+    """
+    api_url = f"{base_url}/rest/api/space/{space_key}?expand=homepage"
+    try:
+        data = _api_get(api_url, auth=auth)
+    except ConfluenceAuthError:
+        raise
+    except Exception as exc:
+        raise ValueError(
+            f"Cannot resolve Confluence space '{space_key}': "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+    homepage = data.get("homepage")
+    if not homepage or not homepage.get("id"):
+        raise ValueError(
+            f"Confluence space '{space_key}' has no homepage. "
+            "Provide a direct page URL instead."
+        )
+    return str(homepage["id"])
+
+
+def parse_confluence_url(
+    url: str,
+    auth: tuple[str, str] | None = None,
+) -> tuple[str, str, str]:
+    """Extract (base_url, space_key, page_id) from a Confluence URL.
+
+    Supports two URL formats:
+      - Page URL:  .../spaces/SPACE/pages/12345/Title
+      - Space URL: .../spaces/SPACE/overview  or  .../spaces/SPACE
+
+    For space URLs the homepage is resolved via REST API.
+    Raises ValueError if the URL doesn't match or the space has no homepage.
+    """
+    m = _CONFLUENCE_URL_PATTERN.search(url)
+    if m:
+        return m.group("base"), m.group("space"), m.group("page_id")
+
+    m = _CONFLUENCE_SPACE_URL_PATTERN.search(url)
+    if m:
+        base_url = m.group("base")
+        space_key = m.group("space")
+        page_id = _resolve_space_homepage(base_url, space_key, auth=auth)
+        logger.info("Resolved space homepage", extra={
+            "space_key": space_key, "homepage_page_id": page_id,
+        })
+        return base_url, space_key, page_id
+
+    raise ValueError(
+        f"Not a valid Confluence URL: {url}. "
+        f"Expected: .../spaces/SPACE/pages/12345/Title or .../spaces/SPACE/overview"
+    )
+
+
+_STORAGE_MIN_CHARS = 200
+
+
+def _format_confluence_date(iso_date: str) -> str:
+    """Format an ISO-8601 date string from Confluence into 'YYYY-MM-DD HH:MM'."""
+    if not iso_date:
+        return ""
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(iso_date.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return iso_date
+
+
+def _build_metadata_line(metadata: dict) -> str:
+    """Build a Markdown blockquote line from page metadata dict.
+
+    Returns empty string if no meaningful metadata is available.
+    """
+    parts: list[str] = []
+    if metadata.get("author"):
+        parts.append(f"**Author:** {metadata['author']}")
+    if metadata.get("created"):
+        parts.append(f"**Created:** {_format_confluence_date(metadata['created'])}")
+    if metadata.get("updated_by"):
+        parts.append(f"**Updated by:** {metadata['updated_by']}")
+    if metadata.get("updated"):
+        parts.append(f"**Updated:** {_format_confluence_date(metadata['updated'])}")
+    if not parts:
+        return ""
+    return "> " + " | ".join(parts)
+
+
+def _get_page_content(
+    base_url: str, page_id: str, client: httpx.Client | None = None,
+) -> tuple[str, str, dict]:
+    """Fetch page title, HTML body, and metadata via REST API.
+
+    Returns (title, html_body, metadata).
+    Metadata dict contains: author, created, updated_by, updated.
+
+    Requests both ``body.storage`` and ``body.export_view`` in a single call.
+    Uses ``storage`` by default (faster, cleaner for markdownify).  Falls back
+    to ``export_view`` when ``storage`` is too short — this happens for pages
+    whose content consists mostly of Confluence macros (children, toc, etc.)
+    that ``markdownify`` cannot parse from raw storage XML.
+    """
+    url = (
+        f"{base_url}/rest/api/content/{page_id}"
+        f"?expand=body.storage,body.export_view,title,history,version"
+    )
+    data = _api_get(url, client)
+    title = data.get("title", "")
+    body = data.get("body", {})
+    storage_html = body.get("storage", {}).get("value", "")
+    export_html = body.get("export_view", {}).get("value", "")
+
+    metadata = {
+        "author": data.get("history", {}).get("createdBy", {}).get("displayName", ""),
+        "created": data.get("history", {}).get("createdDate", ""),
+        "updated_by": data.get("version", {}).get("by", {}).get("displayName", ""),
+        "updated": data.get("version", {}).get("when", ""),
+    }
+
+    if len(storage_html) >= _STORAGE_MIN_CHARS:
+        return title, storage_html, metadata
+
+    if export_html:
+        logger.debug("Using export_view (storage too short: %d chars)", len(storage_html),
+                      extra={"page_id": page_id, "title": title})
+        return title, export_html, metadata
+
+    return title, storage_html, metadata
+
+
+def _get_child_pages(
+    base_url: str, page_id: str, client: httpx.Client | None = None,
+) -> list[dict]:
+    """Fetch all child pages (handles pagination)."""
+    children: list[dict] = []
+    start = 0
+    while True:
+        url = f"{base_url}/rest/api/content/{page_id}/child/page?limit={_PAGE_LIMIT}&start={start}"
+        data = _api_get(url, client)
+        results = data.get("results", [])
+        children.extend(results)
+        if len(results) < _PAGE_LIMIT:
+            break
+        start += _PAGE_LIMIT
+    return children
+
+
+def _extract_linked_page_ids(html_body: str, space_key: str) -> list[str]:
+    """Extract Confluence page IDs from hyperlinks in the HTML body.
+
+    Only returns pages that belong to the same space.
+    """
+    page_ids: list[str] = []
+    for m in _BODY_LINK_RE.finditer(html_body):
+        if m.group("space") == space_key:
+            pid = m.group("page_id")
+            if pid not in page_ids:
+                page_ids.append(pid)
+    return page_ids
+
+
+_AC_IMAGE_RE = re.compile(
+    r"<ac:image[^>]*>.*?<ri:attachment\s+ri:filename=\"([^\"]+)\"\s*/?>.*?</ac:image>",
+    re.DOTALL,
+)
+
+
+def _resolve_confluence_images(html: str, base_url: str, page_id: str) -> str:
+    """Replace Confluence <ac:image><ri:attachment/></ac:image> with standard <img> tags."""
+    def _replace(m: re.Match) -> str:
+        filename = m.group(1)
+        img_url = f"{base_url}/download/attachments/{page_id}/{quote(filename, safe='')}"
+        return f'<img src="{img_url}" alt="{filename}" />'
+    return _AC_IMAGE_RE.sub(_replace, html)
+
+
+def _html_to_markdown(
+    html: str,
+    page_title: str,
+    base_url: str = "",
+    page_id: str = "",
+    metadata: dict | None = None,
+) -> str:
+    """Convert Confluence storage format HTML to clean Markdown.
+
+    When *metadata* is provided, a blockquote with author/date info is
+    inserted right after the page title heading.
+    """
+    from markdownify import markdownify as md
+
+    if not html or not html.strip():
+        return ""
+
+    if base_url and page_id:
+        html = _resolve_confluence_images(html, base_url, page_id)
+
+    text = md(
+        html,
+        heading_style="ATX",
+        bullets="-",
+        strip=["script", "style", "nav", "footer", "header"],
+    )
+
+    lines = text.split("\n")
+    cleaned = []
+    blank_count = 0
+    for line in lines:
+        stripped = line.rstrip()
+        if not stripped:
+            blank_count += 1
+            if blank_count <= 2:
+                cleaned.append("")
+        else:
+            blank_count = 0
+            cleaned.append(stripped)
+
+    result = "\n".join(cleaned).strip()
+
+    meta_line = _build_metadata_line(metadata) if metadata else ""
+
+    if result and not result.startswith("#"):
+        result = f"# {page_title}\n\n{result}"
+
+    if meta_line and result.startswith("#"):
+        first_newline = result.find("\n")
+        if first_newline == -1:
+            result = f"{result}\n\n{meta_line}"
+        else:
+            result = f"{result[:first_newline]}\n\n{meta_line}{result[first_newline:]}"
+
+    return result
+
+
+_MD_CONTENT_MIN_CHARS = 80
+
+
+def _build_children_toc_markdown(
+    title: str,
+    children: list[dict],
+    base_url: str,
+    space_key: str,
+) -> str:
+    """Build a Table-of-Contents Markdown page from a list of child pages.
+
+    Used when the page body is essentially empty (macro-only TOC pages).
+    The generated markdown lists child page titles as links so the page
+    still produces at least one chunk for search.
+    """
+    if not children:
+        return ""
+    lines = [f"# {title}", ""]
+    for child in children:
+        child_title = child.get("title", "")
+        child_id = child.get("id", "")
+        if child_title and child_id:
+            child_url = f"{base_url}/spaces/{space_key}/pages/{child_id}/{quote(child_title, safe='')}"
+            lines.append(f"- [{child_title}]({child_url})")
+    if len(lines) <= 2:
+        return ""
+    return "\n".join(lines) + "\n"
+
+
+def get_page_with_children_toc(
+    base_url: str,
+    space_key: str,
+    page_id: str,
+    client: httpx.Client | None = None,
+    auth: tuple[str, str] | None = None,
+) -> tuple[str, str]:
+    """Fetch page content; fall back to a children-based TOC if body is empty.
+
+    Returns (title, markdown). Useful for standalone reingest of pages that
+    are TOC-only (children macro, no real text content).
+    """
+    if client is None and auth is not None:
+        client = _make_http_client(auth=auth)
+    title, html_body, metadata = _get_page_content(base_url, page_id, client)
+    markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id, metadata=metadata)
+
+    if len(markdown) < _MD_CONTENT_MIN_CHARS:
+        children = _get_child_pages(base_url, page_id, client)
+        if children:
+            toc_md = _build_children_toc_markdown(title, children, base_url, space_key)
+            if toc_md:
+                logger.info("Using children TOC for empty page", extra={
+                    "page_id": page_id, "title": title,
+                    "children_count": len(children),
+                })
+                markdown = toc_md
+
+    return title, markdown
+
+
+def _fetch_image_bytes(
+    url: str,
+    auth: tuple[str, str] | None = None,
+) -> bytes | None:
+    """Download image bytes from a URL. Returns None on failure."""
+    try:
+        with _make_http_client(image=True, auth=auth) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            return resp.content
+    except Exception as exc:
+        logger.debug("Failed to download image", extra={
+            "url": url[:200], "error": str(exc)[:200],
+        })
+        return None
+
+
+def _enrich_confluence_markdown_with_ocr(
+    md_text: str,
+    languages: list[str] | None = None,
+    auth: tuple[str, str] | None = None,
+) -> tuple[str, dict]:
+    """Download images referenced in Markdown and replace with OCR text.
+
+    Handles both absolute URLs and relative Confluence attachment paths.
+    Returns (enriched_markdown, ocr_stats).
+    """
+    from app.ingestion.converters.ocr import (
+        IMG_REF_RE,
+        OCR_IMAGE_MIN_AREA,
+        image_size_from_bytes,
+        ocr_image_bytes,
+    )
+
+    matches = list(IMG_REF_RE.finditer(md_text))
+    stats: dict = {
+        "ocr_images_total": 0,
+        "ocr_images_success": 0,
+        "ocr_images_empty": 0,
+        "ocr_images_failed": 0,
+        "ocr_prompt_tokens": 0,
+        "ocr_completion_tokens": 0,
+    }
+
+    if not matches:
+        return md_text, stats
+
+    def _process_image_url(img_url: str) -> str:
+        if not img_url or not img_url.startswith(("http://", "https://")):
+            return ""
+
+        stats["ocr_images_total"] += 1
+        try:
+            data = _fetch_image_bytes(img_url, auth=auth)
+            if data is None:
+                stats["ocr_images_failed"] += 1
+                return ""
+
+            try:
+                w, h = image_size_from_bytes(data)
+                if w * h < OCR_IMAGE_MIN_AREA:
+                    stats["ocr_images_empty"] += 1
+                    return ""
+            except Exception:
+                pass
+
+            ocr_text, usage = ocr_image_bytes(data, languages)
+            stats["ocr_prompt_tokens"] += usage.get("prompt_tokens", 0)
+            stats["ocr_completion_tokens"] += usage.get("completion_tokens", 0)
+            if not ocr_text.strip():
+                stats["ocr_images_empty"] += 1
+                return ""
+
+            stats["ocr_images_success"] += 1
+            return ocr_text.strip()
+
+        except Exception as exc:
+            stats["ocr_images_failed"] += 1
+            logger.warning("OCR failed for Confluence image", extra={
+                "url": img_url[:200],
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:200],
+            })
+            return ""
+
+    parts: list[str] = []
+    last_end = 0
+    for match in matches:
+        parts.append(md_text[last_end:match.start()])
+        replacement = _process_image_url(match.group(2))
+        parts.append(replacement)
+        last_end = match.end()
+    parts.append(md_text[last_end:])
+
+    return "".join(parts), stats
+
+
+async def crawl_confluence(
+    url: str,
+    max_pages: int = 500,
+    max_depth: int = 20,
+    progress_callback: callable | None = None,
+    max_seconds: int = _MAX_CRAWL_SECONDS,
+    page_callback: callable | None = None,
+    initial_queue: list[tuple[str, int]] | None = None,
+    initial_visited: set[str] | None = None,
+    checkpoint_callback: callable | None = None,
+    auth: tuple[str, str] | None = None,
+) -> CrawlResult:
+    """Crawl a Confluence page tree starting from the given URL.
+
+    Pages are discovered via two mechanisms:
+      - REST API child-page hierarchy (parent → child)
+      - In-body hyperlinks pointing to pages in the same Confluence space
+
+    Args:
+        url: Confluence page URL.
+        max_pages: Maximum number of pages to crawl.
+        max_depth: Maximum tree depth to traverse.
+        progress_callback: Optional callback(pages_done, total_estimated).
+        max_seconds: Hard wall-clock limit for the entire crawl.
+        page_callback: Optional callback(page: ConfluencePage) invoked for
+            each page immediately after it is crawled, before the next page
+            starts.  This allows the caller to persist / enqueue the page
+            without waiting for the full crawl to finish.
+        initial_queue: Restored BFS queue from a checkpoint (list of
+            (page_id, depth) pairs). When provided the crawl resumes from
+            this state instead of starting from the root page.
+        initial_visited: Set of already-visited page IDs from a checkpoint.
+        checkpoint_callback: Optional callback(queue_snapshot, visited_snapshot)
+            invoked after each page is processed (after page_callback).
+            Allows the caller to persist BFS state for resumability.
+        auth: Optional (username, password) for Basic Auth to private instances.
+
+    Returns:
+        CrawlResult with all crawled pages.
+    """
+    from app.ingestion.converters.ocr import (
+        detect_language_via_llm,
+        ocr_enabled as _ocr_enabled,
+    )
+
+    t0 = time.perf_counter()
+    deadline = t0 + max_seconds
+    base_url, space_key, root_page_id = parse_confluence_url(url, auth=auth)
+    do_ocr = _ocr_enabled()
+
+    logger.info("Confluence crawl started", extra={
+        "url": url, "base_url": base_url,
+        "space_key": space_key, "root_page_id": root_page_id,
+        "max_pages": max_pages, "ocr_enabled": do_ocr,
+        "max_seconds": max_seconds,
+    })
+
+    result = CrawlResult(base_url=base_url, space_key=space_key)
+
+    if initial_queue is not None:
+        queue: deque[tuple[str, int]] = deque(
+            (pid, d) for pid, d in initial_queue
+        )
+    else:
+        queue: deque[tuple[str, int]] = deque([(root_page_id, 0)])
+    visited: set[str] = set(initial_visited) if initial_visited else set()
+    pages_done = 0
+    ocr_languages: list[str] | None = None
+
+    client = _make_http_client(auth=auth)
+    try:
+        while queue and pages_done < max_pages:
+            if time.perf_counter() >= deadline:
+                logger.warning("Confluence crawl hit time limit", extra={
+                    "max_seconds": max_seconds, "pages_done": pages_done,
+                })
+                result.errors.append(
+                    f"Crawl stopped: wall-clock limit of {max_seconds}s reached "
+                    f"after {pages_done} pages"
+                )
+                break
+
+            page_id, depth = queue.popleft()
+
+            if page_id in visited:
+                continue
+            visited.add(page_id)
+
+            if depth > max_depth:
+                continue
+
+            try:
+                title, html_body, page_metadata = await asyncio.to_thread(
+                    _get_page_content, base_url, page_id, client,
+                )
+            except ConfluenceAuthError:
+                raise
+            except Exception as exc:
+                error_msg = f"Failed to fetch page {page_id}: {type(exc).__name__}: {exc}"
+                logger.warning(error_msg)
+                result.errors.append(error_msg)
+                continue
+
+            markdown = _html_to_markdown(html_body, title, base_url=base_url, page_id=page_id, metadata=page_metadata)
+
+            page_ocr_stats: dict = {}
+            page_ocr_ms = 0.0
+
+            if do_ocr and markdown:
+                if ocr_languages is None:
+<<<<<<< HEAD
+                    ocr_languages = detect_language_via_llm(markdown)
+=======
+                    ocr_languages, lang_usage = detect_language_via_gemini(markdown)
+                    page_ocr_stats["ocr_prompt_tokens"] = page_ocr_stats.get("ocr_prompt_tokens", 0) + lang_usage.get("prompt_tokens", 0)
+                    page_ocr_stats["ocr_completion_tokens"] = page_ocr_stats.get("ocr_completion_tokens", 0) + lang_usage.get("completion_tokens", 0)
+>>>>>>> main
+                t_ocr = time.perf_counter()
+                try:
+                    markdown, page_ocr_stats = await asyncio.to_thread(
+                        _enrich_confluence_markdown_with_ocr, markdown, ocr_languages, auth,
+                    )
+                except Exception as exc:
+                    ocr_error_msg = f"{type(exc).__name__}: {exc}"
+                    logger.warning("OCR enrichment failed for page", extra={
+                        "page_id": page_id, "title": title,
+                        "error": ocr_error_msg[:200],
+                    })
+                    page_ocr_stats = {"ocr_error": ocr_error_msg[:500]}
+                page_ocr_ms = round((time.perf_counter() - t_ocr) * 1000, 1)
+
+            page_url = f"{base_url}/spaces/{space_key}/pages/{page_id}/{quote(title, safe='')}"
+
+            children: list[dict] = []
+            try:
+                children = await asyncio.to_thread(
+                    _get_child_pages, base_url, page_id, client,
+                )
+            except Exception as exc:
+                error_msg = f"Failed to fetch children of page {page_id}: {type(exc).__name__}: {exc}"
+                logger.warning(error_msg)
+                result.errors.append(error_msg)
+
+            if len(markdown) < _MD_CONTENT_MIN_CHARS and children:
+                toc_md = _build_children_toc_markdown(
+                    title, children, base_url, space_key,
+                )
+                if toc_md:
+                    logger.info("Using children TOC for empty page", extra={
+                        "page_id": page_id, "title": title,
+                        "children_count": len(children),
+                    })
+                    markdown = toc_md
+
+            linked_ids = _extract_linked_page_ids(html_body, space_key)
+
+            page = ConfluencePage(
+                page_id=page_id,
+                title=title,
+                markdown=markdown,
+                url=page_url,
+                space_key=space_key,
+                depth=depth,
+                children_count=len(children),
+                ocr_images_total=page_ocr_stats.get("ocr_images_total", 0),
+                ocr_images_success=page_ocr_stats.get("ocr_images_success", 0),
+                ocr_images_empty=page_ocr_stats.get("ocr_images_empty", 0),
+                ocr_images_failed=page_ocr_stats.get("ocr_images_failed", 0),
+                ocr_prompt_tokens=page_ocr_stats.get("ocr_prompt_tokens", 0),
+                ocr_completion_tokens=page_ocr_stats.get("ocr_completion_tokens", 0),
+                ocr_ms=page_ocr_ms,
+                ocr_error=page_ocr_stats.get("ocr_error", ""),
+            )
+            result.pages.append(page)
+            pages_done += 1
+
+            result.ocr_images_total += page.ocr_images_total
+            result.ocr_images_success += page.ocr_images_success
+            result.ocr_prompt_tokens += page.ocr_prompt_tokens
+            result.ocr_completion_tokens += page.ocr_completion_tokens
+            result.ocr_ms += page_ocr_ms
+
+            if pages_done == 1:
+                result.root_title = title
+
+            for child in children:
+                child_id = child.get("id", "")
+                if child_id and child_id not in visited:
+                    queue.append((child_id, depth + 1))
+
+            for linked_id in linked_ids:
+                if linked_id not in visited:
+                    queue.append((linked_id, depth + 1))
+
+            if page_callback:
+                try:
+                    await asyncio.to_thread(page_callback, page)
+                except Exception as cb_exc:
+                    logger.warning("page_callback failed", extra={
+                        "page_id": page_id, "error": str(cb_exc)[:200],
+                    })
+
+            if checkpoint_callback:
+                try:
+                    checkpoint_callback(list(queue), set(visited))
+                except Exception as ckpt_exc:
+                    logger.warning("checkpoint_callback failed", extra={
+                        "page_id": page_id, "error": str(ckpt_exc)[:200],
+                    })
+
+            if progress_callback:
+                estimated_total = pages_done + len(queue)
+                try:
+                    progress_callback(pages_done, estimated_total)
+                except Exception:
+                    pass
+
+            logger.info("Page crawled", extra={
+                "page_id": page_id, "title": title,
+                "depth": depth, "children": len(children),
+                "linked_pages": len(linked_ids),
+                "md_length": len(markdown),
+                "ocr_images": page_ocr_stats.get("ocr_images_success", 0),
+                "ocr_ms": page_ocr_ms,
+            })
+    finally:
+        client.close()
+
+    result.total_pages = pages_done
+    result.crawl_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    non_empty = sum(1 for p in result.pages if p.markdown and p.markdown.strip())
+    if pages_done > 0 and non_empty == 0:
+        logger.warning(
+            "All crawled pages have empty content — possible authentication issue",
+            extra={
+                "url": url, "total_pages": pages_done,
+                "errors": len(result.errors),
+            },
+        )
+        result.errors.append(
+            f"All {pages_done} crawled pages returned empty content. "
+            "This usually means anonymous access is denied and authentication is required."
+        )
+
+    logger.info("Confluence crawl completed", extra={
+        "url": url, "total_pages": pages_done,
+        "non_empty_pages": non_empty,
+        "crawl_ms": result.crawl_ms,
+        "errors": len(result.errors),
+        "ocr_images_total": result.ocr_images_total,
+        "ocr_images_success": result.ocr_images_success,
+        "ocr_ms": result.ocr_ms,
+    })
+
+    return result

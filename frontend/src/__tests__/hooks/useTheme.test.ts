@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useTheme } from '../../hooks/useTheme'
 
@@ -9,7 +9,7 @@ beforeEach(() => {
 
 describe('useTheme', () => {
   it('initializes from localStorage', () => {
-    localStorage.setItem('lexiro-theme', 'dark')
+    localStorage.setItem('ai-mentor-theme', 'dark')
     const { result } = renderHook(() => useTheme())
     expect(result.current.theme).toBe('dark')
   })
@@ -29,7 +29,7 @@ describe('useTheme', () => {
   })
 
   it('toggle switches dark to light', () => {
-    localStorage.setItem('lexiro-theme', 'dark')
+    localStorage.setItem('ai-mentor-theme', 'dark')
     const { result } = renderHook(() => useTheme())
 
     act(() => result.current.toggle())
@@ -37,7 +37,7 @@ describe('useTheme', () => {
   })
 
   it('toggle switches light to dark', () => {
-    localStorage.setItem('lexiro-theme', 'light')
+    localStorage.setItem('ai-mentor-theme', 'light')
     const { result } = renderHook(() => useTheme())
 
     act(() => result.current.toggle())
@@ -45,10 +45,10 @@ describe('useTheme', () => {
   })
 
   it('syncs theme to document and localStorage', () => {
-    localStorage.setItem('lexiro-theme', 'light')
+    localStorage.setItem('ai-mentor-theme', 'light')
     renderHook(() => useTheme())
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
-    expect(localStorage.getItem('lexiro-theme')).toBe('light')
+    expect(localStorage.getItem('ai-mentor-theme')).toBe('light')
   })
 })

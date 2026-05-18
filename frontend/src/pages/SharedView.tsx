@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Loader2, FileText, Layers } from 'lucide-react'
@@ -74,8 +74,8 @@ export function SharedView() {
       <div className="shared-view">
         <div className="shared-view-header">
           <Link to="/" className="shared-view-logo">
-            <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-            <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+            <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+            <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
           </Link>
         </div>
         <div className="shared-view-error">
@@ -104,8 +104,8 @@ export function SharedView() {
     <div className="shared-view">
       <div className="shared-view-header">
         <Link to="/" className="shared-view-logo">
-          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+          <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
         </Link>
         <div className="shared-view-meta">
           {data.product_filter && (
@@ -179,8 +179,8 @@ function SharedLifecycleView({ data }: { data: SharedLifecycleContentResponse })
     <div className="shared-view shared-view--lifecycle">
       <div className="shared-view-header">
         <Link to="/" className="shared-view-logo">
-          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+          <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
         </Link>
         <div className="shared-view-meta">
           <h1 className="shared-view-title">{data.title}</h1>
@@ -248,8 +248,8 @@ function SharedDocumentPreviewView({ data }: { data: SharedDocumentPreviewRespon
     <div className="shared-view shared-view--document">
       <div className="shared-view-header">
         <Link to="/" className="shared-view-logo">
-          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+          <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
         </Link>
         <div className="shared-view-meta">
           <FileText size={18} />
@@ -297,8 +297,8 @@ function SharedDebugView({ data }: { data: SharedDebugContentResponse }) {
     <div className="shared-view shared-view--debug">
       <div className="shared-view-header">
         <Link to="/" className="shared-view-logo">
-          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
+          <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
         </Link>
         <div className="shared-view-meta">
           <h1 className="shared-view-title">{data.title}</h1>

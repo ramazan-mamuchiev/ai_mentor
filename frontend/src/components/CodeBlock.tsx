@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { Check, Copy, Download } from 'lucide-react'
@@ -60,7 +60,7 @@ function getFilename(language: string, code: string, filename?: string): string 
   if (ext && !ext.startsWith('.')) return ext
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const hash = shortHash(code)
-  return `lexiro_${lang}_${date}_${hash}${ext || '.txt'}`
+  return `ai_mentor_${lang}_${date}_${hash}${ext || '.txt'}`
 }
 
 interface Props {

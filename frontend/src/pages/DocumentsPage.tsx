@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -40,7 +40,7 @@ import { useDataTable } from '../hooks/useDataTable'
 import type { DocumentListItem, DocumentStatusValue } from '../types'
 
 const POLL_INTERVAL = 2000
-const STORAGE_KEY = 'lexiro-docs-table'
+const STORAGE_KEY = 'ai-mentor-docs-table'
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'

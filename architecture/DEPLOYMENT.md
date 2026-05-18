@@ -1,6 +1,6 @@
-# Lexiro — Deployment, Security & Operations
+﻿# AI Mentor — Deployment, Security & Operations
 
-> Part of [Lexiro Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
+> Part of [AI Mentor Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
 
 ---
 
@@ -14,9 +14,9 @@ services:
     image: pgvector/pgvector:pg16
     ports: ["5432:5432"]
     environment:
-      POSTGRES_DB: lexiro
-      POSTGRES_USER: lexiro
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexiro_dev}
+      POSTGRES_DB: ai_mentor
+      POSTGRES_USER: ai_mentor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_mentor_dev}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -31,15 +31,15 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-lexiro}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-lexiro_dev}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-ai_mentor_dev}
 
   api:
     build: ./backend
     ports: ["8000:8000"]
     depends_on: [postgres, redis, minio]
     environment:
-      DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
-      DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      DATABASE_URL: postgresql+asyncpg://ai-mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
+      DATABASE_URL_SYNC: postgresql://ai-mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT: http://minio:9000
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
@@ -119,9 +119,9 @@ services:
     image: pgvector/pgvector:pg16
     ports: ["5432:5432"]
     environment:
-      POSTGRES_DB: lexiro
-      POSTGRES_USER: lexiro
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexiro_dev}
+      POSTGRES_DB: ai_mentor
+      POSTGRES_USER: ai_mentor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_mentor_dev}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -143,9 +143,9 @@ services:
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| Web UI + Landing | https://lexiro.io | Landing (`/`) + App (`/app`) via nginx |
-| API | https://lexiro.io/api/ | Proxied to api:8000 by nginx |
-| Developer Hub | https://lexiro.dev | Currently 301 → lexiro.io. Will become Developer Portal |
+| Web UI + Landing | https://ai-mentor.ru | Landing (`/`) + App (`/app`) via nginx |
+| API | https://ai-mentor.ru/api/ | Proxied to api:8000 by nginx |
+| Developer Hub | https://dev.ai-mentor.ru | Currently 301 → ai-mentor.ru. Will become Developer Portal |
 
 ### Planned Docker Compose (Production)
 
@@ -164,14 +164,14 @@ Production environment.
 
 | Parameter | Value |
 |-----------|-------|
-| Primary domain | `lexiro.io` (SaaS product) |
-| Developer domain | `lexiro.dev` (Developer Hub — docs, blog, API reference) |
-| Domain registrar | [hb.by](https://hb.by/) (`lexiro.dev`) |
+| Primary domain | `ai-mentor.ru` (SaaS product) |
+| Developer domain | `dev.ai-mentor.ru` (Developer Hub — docs, blog, API reference) |
+| Domain registrar | [hb.by](https://hb.by/) (`dev.ai-mentor.ru`) |
 | IP | `82.38.66.177` |
 | OS | Ubuntu (Docker pre-installed) |
-| Access | `ssh root@lexiro.io` |
-| Project path | `/opt/lexiro` |
-| Repository | [`github.com/olegvphoenix/lexiro`](https://github.com/olegvphoenix/lexiro) (branch: `main`) |
+| Access | `ssh root@ai-mentor.ru` |
+| Project path | `/opt/ai-mentor` |
+| Repository | [`github.com/olegvphoenix/ai_mentor`](https://github.com/olegvphoenix/ai_mentor) (branch: `main`) |
 
 ### Running Services
 
@@ -196,25 +196,25 @@ Production environment.
 **Full stack rebuild (backend + frontend):**
 
 ```bash
-ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build api web && docker compose up -d api worker beat web"
+ssh root@ai-mentor.ru "cd /opt/ai-mentor && git pull && docker compose build api web && docker compose up -d api worker beat web"
 ```
 
 **Frontend only:**
 
 ```bash
-ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build web && docker compose up -d web"
+ssh root@ai-mentor.ru "cd /opt/ai-mentor && git pull && docker compose build web && docker compose up -d web"
 ```
 
 **Backend only:**
 
 ```bash
-ssh root@lexiro.io "cd /opt/lexiro && git pull && docker compose build api && docker compose up -d api worker beat"
+ssh root@ai-mentor.ru "cd /opt/ai-mentor && git pull && docker compose build api && docker compose up -d api worker beat"
 ```
 
 **View logs:**
 
 ```bash
-ssh root@lexiro.io "cd /opt/lexiro && docker compose logs -f web api"
+ssh root@ai-mentor.ru "cd /opt/ai-mentor && docker compose logs -f web api"
 ```
 
 ---
@@ -222,7 +222,7 @@ ssh root@lexiro.io "cd /opt/lexiro && docker compose logs -f web api"
 ## S3 Key Structure
 
 ```
-lexiro-storage/
+ai-mentor-storage/
   tenants/
     {tenant_id}/
       documents/
@@ -266,17 +266,17 @@ File naming convention: `source.{ext}` where `ext` matches the original format (
 
 ```bash
 # === Database ===
-DATABASE_URL=postgresql+asyncpg://lexiro:password@postgres:5432/lexiro
-DATABASE_URL_SYNC=postgresql://lexiro:password@postgres:5432/lexiro
+DATABASE_URL=postgresql+asyncpg://ai-mentor:password@postgres:5432/ai_mentor
+DATABASE_URL_SYNC=postgresql://ai-mentor:password@postgres:5432/ai_mentor
 
 # === Redis ===
 REDIS_URL=redis://redis:6379/0
 
 # === S3 / MinIO ===
 S3_ENDPOINT=http://minio:9000
-S3_ACCESS_KEY=lexiro
-S3_SECRET_KEY=lexiro_dev
-S3_BUCKET=lexiro-storage
+S3_ACCESS_KEY=ai_mentor
+S3_SECRET_KEY=ai_mentor_dev
+S3_BUCKET=ai-mentor-storage
 
 # === Auth ===
 API_KEY=ipx_dev_key_12345                    # single API key (MVP, no multi-tenancy yet)
@@ -368,7 +368,7 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
-APP_BASE_URL=https://lexiro.io
+APP_BASE_URL=https://ai-mentor.ru
 
 # === Email (Resend) ===
 RESEND_API_KEY=...
@@ -399,69 +399,69 @@ Two domains with distinct purposes:
 
 | Domain | Purpose | Audience | Content |
 |--------|---------|----------|---------|
-| **lexiro.io** | SaaS product | End-users: developers, CTOs, vendors | Landing, app, API, MCP |
-| **lexiro.dev** | Developer Hub | Developers integrating with Lexiro | Docs, blog, guides, changelog |
+| **ai-mentor.ru** | SaaS product | End-users: developers, CTOs, vendors | Landing, app, API, MCP |
+| **dev.ai-mentor.ru** | Developer Hub | Developers integrating with AI Mentor | Docs, blog, guides, changelog |
 
-### lexiro.io — Product (current)
-
-| URL | Content |
-|-----|---------|
-| `lexiro.io` | Marketing landing page |
-| `lexiro.io/app` | SaaS application (chat, upload, products) |
-| `lexiro.io/api/v1/...` | REST API (FastAPI) |
-| `lexiro.io/mcp` | MCP endpoint for Cursor/IDE |
-| `lexiro.io/pricing` | Pricing page (planned) |
-| `lexiro.io/vendors` | Vendor partnership page (planned) |
-| `lexiro.io/enterprise` | Enterprise demo booking (planned) |
-
-### lexiro.dev — Developer Hub (Phase 1: 301 → lexiro.io)
+### ai-mentor.ru — Product (current)
 
 | URL | Content |
 |-----|---------|
-| `lexiro.dev` | Developer Hub landing ("Build with Lexiro") |
-| `lexiro.dev/docs` | API documentation (Swagger/Redoc or custom) |
-| `lexiro.dev/docs/mcp` | MCP integration guide for Cursor |
-| `lexiro.dev/docs/api-keys` | API key management guide |
-| `lexiro.dev/blog` | Technical blog (SEO articles from [GTM_STRATEGY.md](GTM_STRATEGY.md)) |
-| `lexiro.dev/guides` | Integration guides ("Hikvision ISAPI auth", "ONVIF PTZ Python") |
-| `lexiro.dev/changelog` | Product changelog |
-| `lexiro.dev/status` | Status page (uptime monitoring) |
-| `lexiro.dev/sdk` | SDK/libraries (future) |
+| `ai-mentor.ru` | Marketing landing page |
+| `ai-mentor.ru/app` | SaaS application (chat, upload, products) |
+| `ai-mentor.ru/api/v1/...` | REST API (FastAPI) |
+| `ai-mentor.ru/mcp` | MCP endpoint for Cursor/IDE |
+| `ai-mentor.ru/pricing` | Pricing page (planned) |
+| `ai-mentor.ru/vendors` | Vendor partnership page (planned) |
+| `ai-mentor.ru/enterprise` | Enterprise demo booking (planned) |
+
+### dev.ai-mentor.ru — Developer Hub (Phase 1: 301 → ai-mentor.ru)
+
+| URL | Content |
+|-----|---------|
+| `dev.ai-mentor.ru` | Developer Hub landing ("Build with AI Mentor") |
+| `dev.ai-mentor.ru/docs` | API documentation (Swagger/Redoc or custom) |
+| `dev.ai-mentor.ru/docs/mcp` | MCP integration guide for Cursor |
+| `dev.ai-mentor.ru/docs/api-keys` | API key management guide |
+| `dev.ai-mentor.ru/blog` | Technical blog (SEO articles from [GTM_STRATEGY.md](GTM_STRATEGY.md)) |
+| `dev.ai-mentor.ru/guides` | Integration guides ("Hikvision ISAPI auth", "ONVIF PTZ Python") |
+| `dev.ai-mentor.ru/changelog` | Product changelog |
+| `dev.ai-mentor.ru/status` | Status page (uptime monitoring) |
+| `dev.ai-mentor.ru/sdk` | SDK/libraries (future) |
 
 ### DNS Configuration (hb.by)
 
-`lexiro.dev` DNS managed at [hb.by](https://hb.by/):
+`dev.ai-mentor.ru` DNS managed at [hb.by](https://hb.by/):
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
 | `A` | `@` | `82.38.66.177` | 3600 |
-| `CNAME` | `www` | `lexiro.dev` | 3600 |
+| `CNAME` | `www` | `dev.ai-mentor.ru` | 3600 |
 
 ### SSL
 
-- `lexiro.io` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
-- `lexiro.dev` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.dev.fullchain.pem` + `lexiro.dev.key`. **HTTPS is mandatory** for `.dev` domains (HSTS preload list)
+- `ai-mentor.ru` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/ai-mentor/ssl/ai-mentor.ru.fullchain.pem` + `ai-mentor.ru.key`
+- `dev.ai-mentor.ru` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/ai-mentor/ssl/dev.ai-mentor.ru.fullchain.pem` + `dev.ai-mentor.ru.key`. **HTTPS is mandatory** for `.dev` domains (HSTS preload list)
 
 ### Nginx Configuration
 
 Both domains served by one nginx instance on VPS, as separate server blocks:
 
 ```
-lexiro.io   →  Docker web container (React SPA + /api/ proxy to backend)
-lexiro.dev  →  Phase 1: 301 redirect → lexiro.io
+ai-mentor.ru   →  Docker web container (React SPA + /api/ proxy to backend)
+dev.ai-mentor.ru  →  Phase 1: 301 redirect → ai-mentor.ru
                 Phase 2: static site (Docusaurus / VitePress / Astro)
 ```
 
 ### Rollout Timeline
 
-| Phase | When | lexiro.dev behavior |
+| Phase | When | dev.ai-mentor.ru behavior |
 |-------|------|---------------------|
-| **Phase 1** ✅ | March 2026 | SSL + 301 redirect → `lexiro.io` |
+| **Phase 1** ✅ | March 2026 | SSL + 301 redirect → `ai-mentor.ru` |
 | **Phase 2** (now) | Month 1-2 | Static site with API docs + MCP guide |
 | **Phase 3** | Month 3-4 | Add blog (first SEO articles from GTM strategy) |
 | **Phase 4** | Month 6+ | Full Developer Hub: docs, blog, guides, changelog, status |
 
-CTA flow: every article on `lexiro.dev/blog` ends with **"Try Lexiro free → lexiro.io"** — content drives product signups.
+CTA flow: every article on `dev.ai-mentor.ru/blog` ends with **"Try AI Mentor free → ai-mentor.ru"** — content drives product signups.
 
 ### Industry Examples
 
@@ -477,8 +477,8 @@ CTA flow: every article on `lexiro.dev/blog` ends with **"Try Lexiro free → le
 
 ### Transport
 - **HTTPS only** in production
-- `lexiro.io` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.io.fullchain.pem` + `lexiro.io.key`
-- `lexiro.dev` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/lexiro/ssl/lexiro.dev.fullchain.pem` + `lexiro.dev.key`, HTTPS mandatory (`.dev` is in HSTS preload list)
+- `ai-mentor.ru` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/ai-mentor/ssl/ai-mentor.ru.fullchain.pem` + `ai-mentor.ru.key`
+- `dev.ai-mentor.ru` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/ai-mentor/ssl/dev.ai-mentor.ru.fullchain.pem` + `dev.ai-mentor.ru.key`, HTTPS mandatory (`.dev` is in HSTS preload list)
 - TLS 1.2 + TLS 1.3, HTTP/2 enabled
 - HTTP → HTTPS redirect (301) for all requests
 - HSTS: `max-age=63072000; includeSubDomains; preload`
@@ -486,7 +486,7 @@ CTA flow: every article on `lexiro.dev/blog` ends with **"Try Lexiro free → le
 
 ### CORS
 - Configurable `CORS_ORIGINS` via env variable
-- Production: `https://lexiro.io`, `https://lexiro.dev`, and customer domains
+- Production: `https://ai-mentor.ru`, `https://dev.ai-mentor.ru`, and customer domains
 - Credentials mode: `allow_credentials=True` (for JWT cookies)
 
 ### Input Validation

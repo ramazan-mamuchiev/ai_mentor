@@ -1,7 +1,7 @@
-{
-  "uid": "lexiro-system",
-  "title": "Lexiro System Health",
-  "tags": ["lexiro", "system"],
+﻿{
+  "uid": "ai-mentor-system",
+  "title": "AI Mentor System Health",
+  "tags": ["ai_mentor", "system"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -33,7 +33,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap uptime_sec [$__range]) by ()",
+          "expr": "last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap uptime_sec [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -74,7 +74,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [$__range]) by () / last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [$__range]) by () * 100",
+          "expr": "last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [$__range]) by () / last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [$__range]) by () * 100",
           "queryType": "instant"
         }
       ],
@@ -118,7 +118,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap active_requests [$__range]) by ()",
+          "expr": "last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap active_requests [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -161,7 +161,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | level = \"error\" [1m]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | level = \"error\" [1m]))",
           "queryType": "instant"
         }
       ],
@@ -212,19 +212,19 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by ()",
+          "expr": "last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by ()",
           "legendFormat": "pool_size"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by ()",
+          "expr": "last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by ()",
           "legendFormat": "checked_out"
         },
         {
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_overflow [1m]) by ()",
+          "expr": "last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap db_pool_overflow [1m]) by ()",
           "legendFormat": "overflow"
         }
       ],
@@ -271,7 +271,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by () / last_over_time({container=\"/lexiro-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by () * 100",
+          "expr": "last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap db_pool_checked_out [1m]) by () / last_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"system\" | unwrap db_pool_size [1m]) by () * 100",
           "legendFormat": "utilization %"
         }
       ],
@@ -330,13 +330,13 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap duration_ms [5m]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "avg duration_ms"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/lexiro-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap duration_ms [5m]) by ()",
+          "expr": "max_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap duration_ms [5m]) by ()",
           "legendFormat": "max duration_ms"
         }
       ],
@@ -383,7 +383,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum_over_time({container=\"/lexiro-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap texts_count [$__range]) by ()",
+          "expr": "sum_over_time({container=\"/ai-mentor-api-1\"} | json | logger = \"app.ingestion.embedder\" | event = \"Embedding batch completed\" | unwrap texts_count [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -432,7 +432,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (level) (count_over_time({container=\"/lexiro-api-1\"} | json [5m]))",
+          "expr": "sum by (level) (count_over_time({container=\"/ai-mentor-api-1\"} | json [5m]))",
           "legendFormat": "{{level}}"
         }
       ],
@@ -504,7 +504,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (logger) (count_over_time({container=\"/lexiro-api-1\"} | json [$__range]))",
+          "expr": "sum by (logger) (count_over_time({container=\"/ai-mentor-api-1\"} | json [$__range]))",
           "legendFormat": "{{logger}}",
           "queryType": "instant"
         }
@@ -551,7 +551,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/lexiro-api-1\"} | json | logger = \"system\"",
+          "expr": "{container=\"/ai-mentor-api-1\"} | json | logger = \"system\"",
           "queryType": "range"
         }
       ],

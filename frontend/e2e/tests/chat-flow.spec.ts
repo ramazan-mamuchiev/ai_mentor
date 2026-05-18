@@ -1,9 +1,9 @@
-import { test, expect } from '../fixtures'
+﻿import { test, expect } from '../fixtures'
 
 test.describe('Chat Flow', () => {
   test('shows empty state on load', async ({ page }) => {
     await page.goto('/')
-    await expect(page.locator('.messages-empty-title')).toHaveText('Lexiro')
+    await expect(page.locator('.messages-empty-title')).toHaveText('AI Mentor')
     await expect(page.locator('.messages-empty-subtitle')).toContainText('Ask me anything')
   })
 

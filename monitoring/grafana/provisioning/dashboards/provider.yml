@@ -1,9 +1,9 @@
-apiVersion: 1
+﻿apiVersion: 1
 
 providers:
-  - name: Lexiro
+  - name: AI Mentor
     orgId: 1
-    folder: Lexiro
+    folder: AI Mentor
     type: file
     disableDeletion: false
     editable: true

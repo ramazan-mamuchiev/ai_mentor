@@ -1,6 +1,6 @@
-# Lexiro — Slogans, Taglines, Catchphrases & Acronyms
+﻿# AI Mentor — Slogans, Taglines, Catchphrases & Acronyms
 
-> **Status**: v2.0 — March 26, 2026 · **РЕБРЕНДИНГ: Plexicode → Lexiro**
+> **Status**: v2.0 — March 26, 2026 · **РЕБРЕНДИНГ: Plexicode → AI Mentor**
 > **Author**: Oleg Voitekhovich
 > **Purpose**: Слоганы, речёвки, рекламные тейпы, акронимы, конкурентный анализ позиционирования
 >
@@ -10,19 +10,19 @@
 
 > **⚠️ РЕБРЕНДИНГ (March 26, 2026)**
 >
-> Проект переименован из **Plexicode** в **Lexiro**.
+> Проект переименован из **Plexicode** в **AI Mentor**.
 > Полная документация по бренду: **[BRAND.md](BRAND.md)**
 >
 > **Причина:** Plexicode — конфликт с Cyprus shell company, GitHub occupation, US slang, длинное (9 chars).
-> **Новое название:** Lexiro (от лат. "lex" — слово/знание + "-iro" — направление/поток)
+> **Новое название:** AI Mentor (от лат. "lex" — слово/знание + "-iro" — направление/поток)
 > **Новый слоган:** "Complex docs. Simple code." / "Сложная документация. Простой код."
 
 ---
 
 > **✅ Позиционирование продукта (title / badge)**
 >
-> **EN: "Lexiro — AI Integration Platform"**
-> **RU: "Lexiro — AI-платформа интеграции"**
+> **EN: "AI Mentor — AI Integration Platform"**
+> **RU: "AI Mentor — AI-платформа интеграции"**
 
 ---
 
@@ -82,7 +82,7 @@
 
 ---
 
-## 2. Acronym Decipherings (LEXIRO)
+## 2. Acronym Decipherings (AI_MENTOR)
 
 Варианты расшифровки бренда как акронима для разных маркетинговых контекстов:
 
@@ -97,7 +97,7 @@ R — Retrieval        (извлечение — RAG, семантический
 O — Orchestration    (оркестрация — управление потоками знаний)
 ```
 
-**Pitch-версия:** *"LEXIRO — Lexical Engine for eXchange, Intelligence, Retrieval & Orchestration"*
+**Pitch-версия:** *"AI_MENTOR — Lexical Engine for eXchange, Intelligence, Retrieval & Orchestration"*
 
 ### 2.2 Технический вариант
 
@@ -110,7 +110,7 @@ R — RAG              (Retrieval-Augmented Generation)
 O — Output           (результат — готовый код)
 ```
 
-**Pitch-версия:** *"LEXIRO — Language Extraction & Cross-platform Indexing for RAG Output"*
+**Pitch-версия:** *"AI_MENTOR — Language Extraction & Cross-platform Indexing for RAG Output"*
 
 ### 2.3 Бизнес-вариант
 
@@ -123,7 +123,7 @@ R — Results          (результаты — рабочий код)
 O — On-demand        (по запросу — когда нужно)
 ```
 
-**Pitch-версия:** *"LEXIRO — Learn Every API. eXpertise Instantly. Results On-demand."*
+**Pitch-версия:** *"AI_MENTOR — Learn Every API. eXpertise Instantly. Results On-demand."*
 
 ### 2.4 Минималистичный вариант
 
@@ -132,7 +132,7 @@ L.E.X. — Lexical EXtraction
 I.R.O. — Intelligent Response Orchestration
 ```
 
-**Pitch-версия:** *"Lexiro: Lexical Extraction → Intelligent Response"*
+**Pitch-версия:** *"AI Mentor: Lexical Extraction → Intelligent Response"*
 
 ---
 
@@ -146,7 +146,7 @@ I.R.O. — Intelligent Response Orchestration
 | 2 | Lex reads. You code. | Lex читает. Ты кодишь. | Developer-focused |
 | 3 | Knowledge, directed. | Знание с направлением. | Brand philosophy |
 | 4 | From words to code. | Из слов — в код. | Minimalist |
-| 5 | Lexiro knows the API. You write the code. | Lexiro знает API. Ты пишешь код. | Feature highlight |
+| 5 | AI Mentor knows the API. You write the code. | AI Mentor знает API. Ты пишешь код. | Feature highlight |
 | 6 | The lexicon your AI was missing. | Лексикон, которого не хватало твоему AI. | Technical / Copilot users |
 | 7 | Docs in. Code out. | Документация на входе. Код на выходе. | Pipeline metaphor |
 | 8 | Your API dictionary, AI-powered. | Твой словарь API с AI-мозгом. | Semantic meaning of "lex" |
@@ -182,9 +182,9 @@ I.R.O. — Intelligent Response Orchestration
 
 | # | EN | RU |
 |---|----|----|
-| 26 | Search engines guess. Lexiro knows. | Поисковики гадают. Lexiro знает. |
-| 27 | Copilot writes code. Lexiro teaches it the API. | Copilot пишет код. Lexiro учит его API. |
-| 28 | Doc platforms host pages. Lexiro delivers answers. | Платформы хостят страницы. Lexiro даёт ответы. |
+| 26 | Search engines guess. AI Mentor knows. | Поисковики гадают. AI Mentor знает. |
+| 27 | Copilot writes code. AI Mentor teaches it the API. | Copilot пишет код. AI Mentor учит его API. |
+| 28 | Doc platforms host pages. AI Mentor delivers answers. | Платформы хостят страницы. AI Mentor даёт ответы. |
 
 ### 3.5 Истории в одну строку — для конференций и питчей
 
@@ -207,11 +207,11 @@ I.R.O. — Intelligent Response Orchestration
 
 | # | Headline | Subtitle | CTA |
 |---|----------|----------|-----|
-| A | **Complex docs. Simple code.** | Lexiro transforms API documentation into working code via AI. | Try Lexiro free → |
+| A | **Complex docs. Simple code.** | AI Mentor transforms API documentation into working code via AI. | Try AI Mentor free → |
 | B | **500 pages of API docs?** | One question. One answer. Working code. | Get started → |
-| C | **Stop reading manuals.** | Ask your AI assistant. Get code in seconds. | Connect Lexiro → |
-| D | **RTFM is dead.** | Lexiro reads 10,000 pages so you don't have to. | Start coding → |
-| E | **3 days to integrate an API?** | With Lexiro — 3 minutes. | See how → |
+| C | **Stop reading manuals.** | Ask your AI assistant. Get code in seconds. | Connect AI Mentor → |
+| D | **RTFM is dead.** | AI Mentor reads 10,000 pages so you don't have to. | Start coding → |
+| E | **3 days to integrate an API?** | With AI Mentor — 3 minutes. | See how → |
 
 ### 4.2 Video Ad Script (15 sec)
 
@@ -221,21 +221,21 @@ I.R.O. — Intelligent Response Orchestration
 > [Screen: single chat input field appears]
 > Voice: "One question."
 > [Screen: code block appears instantly]
-> Voice: "Lexiro. Complex docs. Simple code."
+> Voice: "AI Mentor. Complex docs. Simple code."
 
 **Script B — "The Clock":**
 > [Screen: clock counting — 3 days... 3 hours... 3 minutes...]
 > Voice: "How long does it take to integrate a new API?"
 > [Screen: clock stops at 0:03]
-> Voice: "With Lexiro? Three minutes."
+> Voice: "With AI Mentor? Three minutes."
 > [Screen: logo + tagline]
 > Voice: "From documentation to code. Instantly."
 
 **Script C — "The Developer":**
 > [Screen: developer switching between 12 browser tabs, Swagger, PDF, Stack Overflow]
 > Voice: "This is you. Integrating a new device API."
-> [Screen: all tabs collapse into one Lexiro chat]
-> Voice: "This is you on Lexiro."
+> [Screen: all tabs collapse into one AI Mentor chat]
+> Voice: "This is you on AI Mentor."
 > [Screen: logo]
 > Voice: "Complex docs. Simple code."
 
@@ -251,7 +251,7 @@ I.R.O. — Intelligent Response Orchestration
 │   From documentation to code.           │
 │            Instantly.                    │
 │                                         │
-│         ▸ lexiro.io                     │
+│         ▸ ai-mentor.ru                     │
 │                                         │
 └─────────────────────────────────────────┘
 ```
@@ -262,13 +262,13 @@ I.R.O. — Intelligent Response Orchestration
 |---|-------------|--------|
 | 1 | Stop reading API docs. Start coding. | Developers |
 | 2 | What if your AI assistant already knew the API? | Cursor/Copilot users |
-| 3 | 500 pages → 1 answer. Meet Lexiro. | Cold outreach |
+| 3 | 500 pages → 1 answer. Meet AI Mentor. | Cold outreach |
 | 4 | Your team spends 3 days per integration. We cut it to 3 minutes. | Tech leads / CTOs |
-| 5 | Lexiro: the API knowledge base your AI was missing | Product managers |
+| 5 | AI Mentor: the API knowledge base your AI was missing | Product managers |
 
 ### 4.5 Podcast / Webinar Intro (10 sec)
 
-> "This episode is powered by Lexiro — the AI integration platform that transforms documentation into code. Complex docs, simple code. Check it out at lexiro.io."
+> "This episode is powered by AI Mentor — the AI integration platform that transforms documentation into code. Complex docs, simple code. Check it out at ai-mentor.ru."
 
 ---
 
@@ -289,10 +289,10 @@ I.R.O. — Intelligent Response Orchestration
 
 | # | EN | RU |
 |---|----|----|
-| 5 | "Just Lexiro'd it." (= instantly solved via Lexiro) | "Залексирил." |
+| 5 | "Just AI Mentor'd it." (= instantly solved via AI Mentor) | "Залексирил." |
 | 6 | "Don't read it. Lex it." | "Не читай. Лексирь." |
 | 7 | "Lex it up." | "Лексирни это." |
-| 8 | "Another API, another Lexiro minute." | "Ещё один API, ещё одна минута с Lexiro." |
+| 8 | "Another API, another AI Mentor minute." | "Ещё один API, ещё одна минута с AI Mentor." |
 
 ### 5.3 Для продаж / питчей
 
@@ -300,23 +300,23 @@ I.R.O. — Intelligent Response Orchestration
 |---|----|----|
 | 9 | "Your developers read docs. Ours don't have to." | "Ваши разработчики читают доки. Нашим не нужно." |
 | 10 | "We read the docs so you don't have to." | "Мы читаем документацию, чтобы вам не пришлось." |
-| 11 | "Lexiro turns every API into a conversation." | "Lexiro превращает каждый API в разговор." |
+| 11 | "AI Mentor turns every API into a conversation." | "AI Mentor превращает каждый API в разговор." |
 | 12 | "From 500 pages to 5 seconds." | "Из 500 страниц — в 5 секунд." |
 
 ---
 
-## 6. Sound in Context — How Lexiro Sounds in Real Life
+## 6. Sound in Context — How AI Mentor Sounds in Real Life
 
 | Scenario | Example |
 |----------|---------|
-| Slack message | "Just check Lexiro, it knows the Hikvision auth flow" |
-| Code comment | `// see Lexiro for full ISAPI spec` |
-| Meeting | "Let's hook up Lexiro to the new vendor's docs" |
-| Twitter | "Saved 2 hours today. Lexiro'd the entire Dahua Events API" |
-| Job posting | "We use Lexiro for API integration — no manual doc-reading" |
-| Conference talk | "...and then we connected Lexiro, and the team stopped opening PDFs" |
-| Support ticket | "Have you checked Lexiro for the Bosch BVMS endpoint?" |
-| Onboarding | "First, connect your Cursor to Lexiro. It has all vendor APIs indexed." |
+| Slack message | "Just check AI Mentor, it knows the Hikvision auth flow" |
+| Code comment | `// see AI Mentor for full ISAPI spec` |
+| Meeting | "Let's hook up AI Mentor to the new vendor's docs" |
+| Twitter | "Saved 2 hours today. AI Mentor'd the entire Dahua Events API" |
+| Job posting | "We use AI Mentor for API integration — no manual doc-reading" |
+| Conference talk | "...and then we connected AI Mentor, and the team stopped opening PDFs" |
+| Support ticket | "Have you checked AI Mentor for the Bosch BVMS endpoint?" |
+| Onboarding | "First, connect your Cursor to AI Mentor. It has all vendor APIs indexed." |
 
 ---
 
@@ -341,7 +341,7 @@ I.R.O. — Intelligent Response Orchestration
 | **GitHub Copilot** | **"Your AI pair programmer"** | AI code assistant |
 | **Postman** | **"From Siloed to Synced"** | API platform |
 
-### 7.3 Lexiro's Differentiation
+### 7.3 AI Mentor's Differentiation
 
 **No competitor says:**
 - "Documentation → working code instantly"
@@ -349,7 +349,7 @@ I.R.O. — Intelligent Response Orchestration
 - "Every vendor API in one knowledge base"
 - "MCP-native integration for AI assistants"
 
-Lexiro occupies the unique intersection of **documentation intelligence** + **code generation** + **MCP delivery**.
+AI Mentor occupies the unique intersection of **documentation intelligence** + **code generation** + **MCP delivery**.
 
 ---
 
@@ -357,10 +357,10 @@ Lexiro occupies the unique intersection of **documentation intelligence** + **co
 
 ### Branding
 
-- [x] Register domain — **lexiro.io purchased**, DNS active, **HTTPS live** (GlobalSign AlphaSSL)
-- [x] Register domain — **lexiro.dev purchased**, DNS active, SSL pending
+- [x] Register domain — **ai-mentor.ru purchased**, DNS active, **HTTPS live** (GlobalSign AlphaSSL)
+- [x] Register domain — **dev.ai-mentor.ru purchased**, DNS active, SSL pending
 - [ ] Register domain (lexiro.ai) — brand protection (deferred)
-- [ ] Register social accounts (@lexiro on GitHub, Twitter, LinkedIn, YouTube)
+- [ ] Register social accounts (@ai_mentor on GitHub, Twitter, LinkedIn, YouTube)
 - [ ] File trademark (FIPS, EUIPO, USPTO) — Classes 9, 42
 - [ ] Commission logo design (brief in BRAND.md §7)
 

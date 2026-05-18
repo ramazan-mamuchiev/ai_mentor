@@ -1,4 +1,4 @@
-"""Admin REST endpoints — platform management, moderation, audit, stats, logs."""
+﻿"""Admin REST endpoints — platform management, moderation, audit, stats, logs."""
 
 import uuid
 import logging
@@ -398,14 +398,14 @@ async def mcp_stats(
 
 LOKI_URL = "http://loki:3100"
 _SERVICE_TO_CONTAINER = {
-    "api": "/lexiro-api-1",
-    "worker": "/lexiro-worker-1",
-    "beat": "/lexiro-beat-1",
-    "web": "/lexiro-web-1",
-    "postgres": "/lexiro-postgres-1",
-    "redis": "/lexiro-redis-1",
-    "minio": "/lexiro-minio-1",
-    "nginx": "/lexiro-web-1",
+    "api": "/ai-mentor-api-1",
+    "worker": "/ai-mentor-worker-1",
+    "beat": "/ai-mentor-beat-1",
+    "web": "/ai-mentor-web-1",
+    "postgres": "/ai-mentor-postgres-1",
+    "redis": "/ai-mentor-redis-1",
+    "minio": "/ai-mentor-minio-1",
+    "nginx": "/ai-mentor-web-1",
 }
 
 _CONTAINER_TO_SERVICE = {v: k for k, v in _SERVICE_TO_CONTAINER.items()}
@@ -426,7 +426,7 @@ async def get_logs(
 ):
     label_parts: list[str] = []
     if service_name:
-        container = _SERVICE_TO_CONTAINER.get(service_name, f"/lexiro-{service_name}-1")
+        container = _SERVICE_TO_CONTAINER.get(service_name, f"/ai-mentor-{service_name}-1")
         label_parts.append(f'container="{container}"')
     else:
         regex = "|".join(_APP_CONTAINERS)

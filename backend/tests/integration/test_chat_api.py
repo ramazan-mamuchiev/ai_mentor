@@ -1,4 +1,4 @@
-"""Integration tests for Chat REST API endpoints with real PostgreSQL."""
+﻿"""Integration tests for Chat REST API endpoints with real PostgreSQL."""
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -29,7 +29,7 @@ def _create_chat_app(db_engine):
     async def lifespan(app: FastAPI):
         yield
 
-    app = FastAPI(title="Lexiro-Chat-Test", lifespan=lifespan)
+    app = FastAPI(title="AI Mentor-Chat-Test", lifespan=lifespan)
     app.include_router(chat_router, prefix="/api/v1")
 
     return app

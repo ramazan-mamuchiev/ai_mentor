@@ -1,4 +1,4 @@
-# Lexiro — Infrastructure Cost Analysis
+﻿# AI Mentor — Infrastructure Cost Analysis
 
 > **Status**: v1.4 — March 19, 2026 (actual Gemini/Opus prices, tiered LLM billing, per-model input+output pricing)
 > **Author**: Oleg Voitekhovich
@@ -9,7 +9,7 @@
 ## 1. Cost Components Overview
 
 ```
-                     Lexiro Infrastructure Cost Stack
+                     AI Mentor Infrastructure Cost Stack
 
  ┌─────────────────────────────────────────────────────────────┐
  │                      COMPUTE                                │
@@ -136,7 +136,7 @@ At scale (10x):
 | Medium | 300K | 1,000 docs | **$30-80** |
 | Large | 2M | 5,000 docs | **$200-500** |
 
-**Why Gemini**: Lexiro serves users in 100+ countries. Gemini Embedding 2 leads MTEB Multilingual benchmarks (68.3) and significantly outperforms alternatives on non-English retrieval (Russian, Chinese, Arabic, etc.). Even at large scale it's < $500/mo.
+**Why Gemini**: AI Mentor serves users in 100+ countries. Gemini Embedding 2 leads MTEB Multilingual benchmarks (68.3) and significantly outperforms alternatives on non-English retrieval (Russian, Chinese, Arabic, etc.). Even at large scale it's < $500/mo.
 
 ### 2.6 LLM API (for RAG Chat)
 
@@ -235,7 +235,7 @@ Compare: all-Gemini at this scale = $1,110. The premium tier adds ~$2,300–3,50
 
 **Future marketing lever**: temporarily waive output charges on Gemini Flash queries ("Free AI answers!") to drive user acquisition. Input charges still cover vector search cost. When users experience the quality difference with Opus, they upgrade. See [MONETIZATION.md](MONETIZATION.md#future-promotional-lever).
 
-**Previous approach**: Before Gemini, Lexiro used **Ollama with Qwen 2.5 Coder 7B** (local, $0 API cost). The switch to Gemini improved answer quality significantly but introduced an external API dependency and per-query cost.
+**Previous approach**: Before Gemini, AI Mentor used **Ollama with Qwen 2.5 Coder 7B** (local, $0 API cost). The switch to Gemini improved answer quality significantly but introduced an external API dependency and per-query cost.
 
 ### 2.7 ClamAV (Antivirus)
 
@@ -406,11 +406,11 @@ Year 3 breakdown ($32,695/mo):
 
 ---
 
-## 7. Comparison: Lexiro vs Typical SaaS Infrastructure
+## 7. Comparison: AI Mentor vs Typical SaaS Infrastructure
 
-| Metric | Lexiro | Typical B2B SaaS | Notes |
+| Metric | AI Mentor | Typical B2B SaaS | Notes |
 |--------|:-------:|:----------------:|-------|
-| Gross margin (Year 3) | 95%+ | 70-85% | Lexiro is extremely capital-efficient |
+| Gross margin (Year 3) | 95%+ | 70-85% | AI Mentor is extremely capital-efficient |
 | Infra cost per customer | $3-10/mo | $10-50/mo | Low due to shared vector DB + S3 |
 | Marginal cost per new customer | ~$0.50/mo | $5-20/mo | Adding a tenant is near-zero cost |
 | Main cost driver | PostgreSQL + Compute | Compute + Storage | pgvector needs RAM for HNSW index |

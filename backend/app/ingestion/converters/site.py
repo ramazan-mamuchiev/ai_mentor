@@ -1,4 +1,4 @@
-"""Universal website crawler using Crawl4AI Deep Crawling.
+﻿"""Universal website crawler using Crawl4AI Deep Crawling.
 
 BFS-traverses pages within a single domain, collecting:
 - HTML pages as Markdown (via Crawl4AI headless browser)
@@ -105,11 +105,11 @@ def _download_file(url: str, timeout: int = _FETCH_TIMEOUT) -> str | None:
     try:
         with httpx.Client(timeout=timeout, verify=False, follow_redirects=True) as client:
             resp = client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Lexiro/1.0",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AI Mentor/1.0",
             })
             resp.raise_for_status()
             ext = _get_extension(url) or ".bin"
-            fd, path = tempfile.mkstemp(suffix=ext, prefix="lexiro_site_")
+            fd, path = tempfile.mkstemp(suffix=ext, prefix="ai_mentor_site_")
             with os.fdopen(fd, "wb") as f:
                 f.write(resp.content)
             return path
@@ -137,7 +137,7 @@ def _httpx_fetch_as_markdown(url: str, timeout: int = _FETCH_TIMEOUT) -> tuple[s
         with httpx.Client(timeout=timeout, verify=False, follow_redirects=True) as client:
             resp = client.get(url, headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Lexiro/1.0",
+                              "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 AI Mentor/1.0",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             })

@@ -1,6 +1,6 @@
-# Lexiro Teams Bot
+﻿# AI Mentor Teams Bot
 
-AI-бот для Microsoft Teams, который ищет по документации вендоров через Lexiro MCP.
+AI-бот для Microsoft Teams, который ищет по документации вендоров через AI Mentor MCP.
 
 ## Архитектура
 
@@ -11,7 +11,7 @@ Teams Chat/Channel
 Azure Bot Service
     |
     v
-Teams SDK Bot (Node.js)  -->  MCP Client  -->  Lexiro MCP Server (lexiro.io/mcp)
+Teams SDK Bot (Node.js)  -->  MCP Client  -->  AI Mentor MCP Server (ai-mentor.ru/mcp)
     |                                               |
     v                                               v
 OpenAI / Azure OpenAI                    PostgreSQL + pgvector
@@ -22,7 +22,7 @@ OpenAI / Azure OpenAI                    PostgreSQL + pgvector
 
 - Node.js 20+
 - Azure-подписка (для Bot Service)
-- API-ключ Lexiro (`ipx_...`) — получить на lexiro.io -> Settings -> API Keys
+- API-ключ AI Mentor (`ipx_...`) — получить на ai-mentor.ru -> Settings -> API Keys
 - API-ключ OpenAI (`sk-...`) или Azure OpenAI
 
 ## 1. Регистрация Azure Bot Service
@@ -30,7 +30,7 @@ OpenAI / Azure OpenAI                    PostgreSQL + pgvector
 1. Откройте [Azure Portal](https://portal.azure.com)
 2. Найдите **Azure Bot** -> нажмите **Create**
 3. Заполните форму:
-   - **Bot handle**: `lexiro-teams-bot`
+   - **Bot handle**: `ai-mentor-teams-bot`
    - **Pricing tier**: F0 (Free) для тестирования
    - **Type of App**: Multi Tenant
    - **Microsoft App ID**: Create new -> Auto create
@@ -58,8 +58,8 @@ npm install
 | `AZURE_OPENAI_API_KEY` | Да* | API-ключ Azure OpenAI |
 | `AZURE_OPENAI_ENDPOINT` | Нет | Endpoint Azure OpenAI |
 | `AZURE_OPENAI_DEPLOYMENT` | Нет | Имя деплоя (по умолчанию gpt-4o) |
-| `LEXIRO_MCP_URL` | Да | URL MCP-сервера Lexiro |
-| `LEXIRO_API_KEY` | Да | API-ключ Lexiro (ipx_...) |
+| `AI_MENTOR_MCP_URL` | Да | URL MCP-сервера AI Mentor |
+| `AI_MENTOR_API_KEY` | Да | API-ключ AI Mentor (ipx_...) |
 | `PORT` | Нет | Порт сервера (по умолчанию 3978) |
 
 *Нужен либо `OPENAI_API_KEY`, либо `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT`
@@ -83,16 +83,16 @@ ngrok http 3978
 
 ```bash
 npm run build
-az webapp up --name lexiro-teams-bot --runtime "NODE:20-lts"
-az webapp config appsettings set --name lexiro-teams-bot \
+az webapp up --name ai-mentor-teams-bot --runtime "NODE:20-lts"
+az webapp config appsettings set --name ai-mentor-teams-bot \
   --settings BOT_ID=... BOT_PASSWORD=... OPENAI_API_KEY=... \
-  LEXIRO_MCP_URL=https://lexiro.io/mcp LEXIRO_API_KEY=ipx_...
+  AI_MENTOR_MCP_URL=https://ai-mentor.ru/mcp AI_MENTOR_API_KEY=ipx_...
 ```
 
 ### Вариант B: Docker
 
 ```bash
-docker build -t lexiro-teams-bot .
+docker build -t ai-mentor-teams-bot .
 docker compose up -d
 ```
 
@@ -112,7 +112,7 @@ docker compose up -d
 
 ## 6. Использование
 
-В чате или канале: `@Lexiro Bot как открыть дверь через HikCentral API?`
+В чате или канале: `@AI Mentor Bot как открыть дверь через HikCentral API?`
 
 ### Команды
 - `help` — справка
@@ -121,7 +121,7 @@ docker compose up -d
 ### Функции
 - Ответы в тредах (в каналах)
 - Adaptive Cards для длинных ответов
-- 11 инструментов Lexiro: поиск, endpoint lookup, code examples, lifecycle
+- 11 инструментов AI Mentor: поиск, endpoint lookup, code examples, lifecycle
 - Русский и английский языки
 
 ## Стоимость
@@ -131,5 +131,5 @@ docker compose up -d
 | Azure Bot Service F0 | Бесплатно |
 | Azure App Service B1 | ~$13 |
 | OpenAI API (gpt-4o) | ~$5-20 |
-| Lexiro API | Включено |
+| AI Mentor API | Включено |
 | **Итого** | **~$20-35/мес** |

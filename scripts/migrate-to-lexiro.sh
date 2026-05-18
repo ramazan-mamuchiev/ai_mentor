@@ -1,11 +1,11 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 set -euo pipefail
 
-# Lexiro rebrand migration — run on VPS in /opt/ipcodex (or /opt/lexiro)
-# Renames: DB ipcodex→lexiro, user ipcodex→lexiro, S3 bucket, .env, project dir
+# AI Mentor rebrand migration — run on VPS in /opt/ipcodex (or /opt/ai-mentor)
+# Renames: DB ipcodex→ai_mentor, user ipcodex→ai_mentor, S3 bucket, .env, project dir
 
 PROJECT_DIR="/opt/ipcodex"
-NEW_DIR="/opt/lexiro"
+NEW_DIR="/opt/ai-mentor"
 
 cd "$PROJECT_DIR"
 
@@ -21,11 +21,11 @@ echo "=== Step 3: Rename PostgreSQL database and user ==="
 docker compose exec -T postgres psql -U ipcodex -d postgres -c \
   "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'ipcodex' AND pid <> pg_backend_pid();"
 docker compose exec -T postgres psql -U ipcodex -d postgres -c \
-  "ALTER DATABASE ipcodex RENAME TO lexiro;"
+  "ALTER DATABASE ipcodex RENAME TO ai_mentor;"
 docker compose exec -T postgres psql -U ipcodex -d postgres -c \
-  "ALTER USER ipcodex RENAME TO lexiro;"
-docker compose exec -T postgres psql -U lexiro -d postgres -c \
-  "ALTER USER lexiro WITH PASSWORD 'lexiro_dev';"
+  "ALTER USER ipcodex RENAME TO ai_mentor;"
+docker compose exec -T postgres psql -U ai_mentor -d postgres -c \
+  "ALTER USER ai_mentor WITH PASSWORD 'ai_mentor_dev';"
 echo "PostgreSQL: database and user renamed successfully"
 
 echo ""
@@ -37,13 +37,13 @@ docker compose exec -T minio sh -c '
   fi
   mc alias set local http://localhost:9000 ${MINIO_ROOT_USER:-ipcodex} ${MINIO_ROOT_PASSWORD:-ipcodex_dev} 2>/dev/null || true
   if mc ls local/ipcodex-storage >/dev/null 2>&1; then
-    mc mb local/lexiro-storage --ignore-existing
-    mc mirror --overwrite local/ipcodex-storage local/lexiro-storage
+    mc mb local/ai-mentor-storage --ignore-existing
+    mc mirror --overwrite local/ipcodex-storage local/ai-mentor-storage
     mc rb --force local/ipcodex-storage
-    echo "S3: bucket migrated ipcodex-storage -> lexiro-storage"
+    echo "S3: bucket migrated ipcodex-storage -> ai-mentor-storage"
   else
-    mc mb local/lexiro-storage --ignore-existing
-    echo "S3: ipcodex-storage not found, created lexiro-storage"
+    mc mb local/ai-mentor-storage --ignore-existing
+    echo "S3: ipcodex-storage not found, created ai-mentor-storage"
   fi
 '
 
@@ -51,13 +51,13 @@ echo ""
 echo "=== Step 5: Update .env on VPS ==="
 if [ -f .env ]; then
   cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
-  sed -i 's|ipcodex:ipcodex_dev@|lexiro:lexiro_dev@|g' .env
-  sed -i 's|/ipcodex$|/lexiro|g' .env
-  sed -i 's|POSTGRES_PASSWORD=ipcodex_dev|POSTGRES_PASSWORD=lexiro_dev|g' .env
-  sed -i 's|S3_ACCESS_KEY=ipcodex|S3_ACCESS_KEY=lexiro|g' .env
-  sed -i 's|S3_SECRET_KEY=ipcodex_dev|S3_SECRET_KEY=lexiro_dev|g' .env
-  sed -i 's|S3_BUCKET=ipcodex-storage|S3_BUCKET=lexiro-storage|g' .env
-  sed -i 's|/opt/ipcodex|/opt/lexiro|g' .env
+  sed -i 's|ipcodex:ipcodex_dev@|ai-mentor:ai_mentor_dev@|g' .env
+  sed -i 's|/ipcodex$|/ai_mentor|g' .env
+  sed -i 's|POSTGRES_PASSWORD=ipcodex_dev|POSTGRES_PASSWORD=ai_mentor_dev|g' .env
+  sed -i 's|S3_ACCESS_KEY=ipcodex|S3_ACCESS_KEY=ai_mentor|g' .env
+  sed -i 's|S3_SECRET_KEY=ipcodex_dev|S3_SECRET_KEY=ai_mentor_dev|g' .env
+  sed -i 's|S3_BUCKET=ipcodex-storage|S3_BUCKET=ai-mentor-storage|g' .env
+  sed -i 's|/opt/ipcodex|/opt/ai-mentor|g' .env
   echo ".env updated (backup saved)"
 else
   echo "No .env file found, skipping"
@@ -68,8 +68,8 @@ echo "=== Step 6: Update MinIO credentials ==="
 # MinIO root credentials need to be updated to match new S3_ACCESS_KEY
 docker compose exec -T minio sh -c '
   mc alias set local http://localhost:9000 ${MINIO_ROOT_USER:-ipcodex} ${MINIO_ROOT_PASSWORD:-ipcodex_dev} 2>/dev/null || true
-  mc admin user add local lexiro lexiro_dev 2>/dev/null || true
-  mc admin policy attach local readwrite --user=lexiro 2>/dev/null || true
+  mc admin user add local ai_mentor ai_mentor_dev 2>/dev/null || true
+  mc admin policy attach local readwrite --user=ai_mentor 2>/dev/null || true
 ' || echo "MinIO credential update skipped (may need manual config)"
 
 echo ""
@@ -80,7 +80,7 @@ docker compose up -d
 echo ""
 echo "=== Step 8: Verify ==="
 sleep 5
-docker compose exec -T postgres psql -U lexiro -d lexiro -c "SELECT count(*) as products FROM products;"
+docker compose exec -T postgres psql -U ai_mentor -d ai_mentor -c "SELECT count(*) as products FROM products;"
 echo ""
 docker compose logs --tail=10 api
 

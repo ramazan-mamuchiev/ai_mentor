@@ -1,6 +1,6 @@
-# Lexiro — Data Flows & Pipelines
+﻿# AI Mentor — Data Flows & Pipelines
 
-> Part of [Lexiro Architecture](PLAN.md) | See also: [API Reference](API.md), [Database Schema](DATABASE.md)
+> Part of [AI Mentor Architecture](PLAN.md) | See also: [API Reference](API.md), [Database Schema](DATABASE.md)
 
 ---
 
@@ -350,7 +350,7 @@ MCP call: search_documentation(
 )
         │
         ▼
-Lexiro server:
+AI Mentor server:
   1. Authenticate API Key (ipx_...) → resolve tenant_id
   2. check_and_meter: quota check → log to usage_log (action=search)
   3. Query classification (if mcp_classify_enabled): detect query_type + product
@@ -384,7 +384,7 @@ Vendor (e.g. Hikvision) publishes new firmware documentation:
       files: [openapi_v5.7.21.md, user_guide_v5.7.21.md] }
         │
         ▼
-  Lexiro server:
+  AI Mentor server:
     1. Authenticate Vendor Key (ipv_...) → resolve vendor_id
     2. Check vendor tier limits (Basic: 20 devices, 50 docs)
     3. Create/update device record (link to vendor_id)
@@ -437,7 +437,7 @@ Vendor uploads new firmware + SDK for a device:
     }
         │
         ▼
-  Lexiro server:
+  AI Mentor server:
     1. Authenticate Vendor Key → resolve vendor_id
     2. Check vendor tier storage quota (used + new files < limit)
     3. Generate SHA-256 checksum for each file
@@ -691,7 +691,7 @@ Frontend: polls product list (5s interval when pending/processing)
 ## Frontend Routing Flow
 
 ```
-User opens https://lexiro.io/ (or http://localhost/)
+User opens https://ai-mentor.ru/ (or http://localhost/)
         │
         ▼
 nginx: try_files $uri $uri/ /index.html (SPA fallback)

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+﻿import { test, expect } from '@playwright/test'
 
 const FULL_STACK_URL = process.env.E2E_BASE_URL || 'http://localhost'
 
@@ -7,8 +7,8 @@ test.describe('Full-stack smoke @slow', () => {
 
   test('loads the application', async ({ page }) => {
     await page.goto(FULL_STACK_URL)
-    await expect(page.locator('.messages-empty-title')).toHaveText('Lexiro', { timeout: 15000 })
-    await expect(page.locator('.sidebar-title')).toHaveText('Lexiro')
+    await expect(page.locator('.messages-empty-title')).toHaveText('AI Mentor', { timeout: 15000 })
+    await expect(page.locator('.sidebar-title')).toHaveText('AI Mentor')
   })
 
   test('sends a real message and gets LLM response', async ({ page }) => {

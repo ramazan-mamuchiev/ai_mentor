@@ -1,4 +1,4 @@
--- 022: Backfill products.category for known catalog rows (one-time data fix).
+﻿-- 022: Backfill products.category for known catalog rows (one-time data fix).
 --
 -- Preview before deploy (same filters as UPDATEs):
 --   SELECT id, slug, name, manufacturer, category FROM products ORDER BY id;
@@ -12,8 +12,8 @@
 --   SELECT id, slug, name, manufacturer, category FROM products
 --   WHERE coalesce(category, '') = ''
 --     AND (
---       name ILIKE 'lexiro%'
---       OR (manufacturer ILIKE '%voitehovich%' AND name ILIKE '%lexiro%')
+--       name ILIKE 'ai_mentor%'
+--       OR (manufacturer ILIKE '%voitehovich%' AND name ILIKE '%ai_mentor%')
 --     );
 --
 --   SELECT id, slug, name, manufacturer, category FROM products
@@ -37,8 +37,8 @@ UPDATE products
 SET category = 'platform'
 WHERE coalesce(category, '') = ''
   AND (
-    name ILIKE 'lexiro%'
-    OR (manufacturer ILIKE '%voitehovich%' AND name ILIKE '%lexiro%')
+    name ILIKE 'ai_mentor%'
+    OR (manufacturer ILIKE '%voitehovich%' AND name ILIKE '%ai_mentor%')
   );
 
 UPDATE products

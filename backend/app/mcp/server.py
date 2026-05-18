@@ -1,4 +1,4 @@
-"""MCP tools for Lexiro: semantic search over product documentation for writing integration code."""
+﻿"""MCP tools for AI Mentor: semantic search over product documentation for writing integration code."""
 
 import asyncio
 import hashlib
@@ -304,9 +304,9 @@ async def tool_search_documentation(
     code_language: str | None = None,
     limit: int | None = None,
 ) -> str:
-    """Search Lexiro knowledge base for product integration documentation.
+    """Search AI Mentor knowledge base for product integration documentation.
 
-    Lexiro indexes API documentation for hardware devices (IP cameras, access controllers,
+    AI Mentor indexes API documentation for hardware devices (IP cameras, access controllers,
     intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs).
 
     Use this tool when you need to write integration code and need to find:
@@ -673,7 +673,7 @@ async def tool_list_products(
     category: str | None = None,
     query: str | None = None,
 ) -> str:
-    """List products with indexed documentation available in Lexiro.
+    """List products with indexed documentation available in AI Mentor.
 
     Call this FIRST to discover what products are available before using search_documentation.
 
@@ -1504,7 +1504,7 @@ async def tool_grep_docs(
 async def tool_get_product_info(
     product: str,
 ) -> str:
-    """Get a detailed summary about a specific product in the Lexiro knowledge base.
+    """Get a detailed summary about a specific product in the AI Mentor knowledge base.
 
     Returns: manufacturer, category, available firmware/API versions, document count,
     total chunks, doc types breakdown, and top-level documentation topics.

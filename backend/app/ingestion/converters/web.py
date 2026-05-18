@@ -1,4 +1,4 @@
-"""URL -> Markdown converter.
+﻿"""URL -> Markdown converter.
 
 Auto-detects content type:
 - Postman Documenter published page -> fetches collection JSON via API
@@ -80,7 +80,7 @@ def _fetch_url(
         bearer_token: Optional Bearer token for Authorization header.
     """
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Lexiro/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AI Mentor/1.0",
         "Accept": accept,
     }
     if bearer_token:

@@ -1,4 +1,4 @@
-.app-layout {
+﻿.app-layout {
   display: flex;
   height: 100vh;
   height: 100dvh;
@@ -443,29 +443,29 @@
   border-color: rgba(119, 184, 253, 0.25);
 }
 
-.lexiro-chip {
+.ai-mentor-chip {
   border-color: rgba(37, 99, 235, 0.25);
   color: var(--accent);
   background: rgba(37, 99, 235, 0.04);
   transition: opacity 0.4s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
-.lexiro-chip:hover {
+.ai-mentor-chip:hover {
   background: rgba(37, 99, 235, 0.10);
   border-color: rgba(37, 99, 235, 0.4);
 }
 
-.lexiro-chip.fading {
+.ai-mentor-chip.fading {
   opacity: 0;
 }
 
-[data-theme='dark'] .lexiro-chip {
+[data-theme='dark'] .ai-mentor-chip {
   border-color: rgba(119, 184, 253, 0.25);
   color: var(--accent);
   background: rgba(119, 184, 253, 0.06);
 }
 
-[data-theme='dark'] .lexiro-chip:hover {
+[data-theme='dark'] .ai-mentor-chip:hover {
   background: rgba(119, 184, 253, 0.12);
   border-color: rgba(119, 184, 253, 0.4);
 }

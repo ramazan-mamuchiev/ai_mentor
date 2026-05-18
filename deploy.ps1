@@ -1,9 +1,9 @@
-#!/usr/bin/env pwsh
-# Lexiro deploy script — pushes to git and deploys to VPS (lexiro.io)
+﻿#!/usr/bin/env pwsh
+# AI Mentor deploy script — pushes to git and deploys to VPS (ai-mentor.ru)
 #
 # Architecture:
 #   - Backend (api/worker/beat) runs in Docker
-#   - Frontend is built via Docker and copied to /var/www/lexiro/ (served by host nginx)
+#   - Frontend is built via Docker and copied to /var/www/ai-mentor/ (served by host nginx)
 #   - Nginx runs on the host (systemd), not in Docker
 #
 # Usage:
@@ -19,8 +19,8 @@ param(
     [switch]$SkipPush
 )
 
-$VPS = "root@lexiro.io"
-$REMOTE_DIR = "/opt/lexiro"
+$VPS = "root@ai-mentor.ru"
+$REMOTE_DIR = "/opt/ai-mentor"
 $ErrorActionPreference = "Stop"
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
@@ -59,7 +59,7 @@ $updateNginx   = $Services -contains "nginx"
 
 $planParts = @()
 if ($buildApi)      { $planParts += "backend (api+worker+beat)" }
-if ($buildFrontend) { $planParts += "frontend -> /var/www/lexiro/" }
+if ($buildFrontend) { $planParts += "frontend -> /var/www/ai-mentor/" }
 if ($updateNginx)   { $planParts += "nginx config" }
 Write-Step "Plan: $($planParts -join ', '), no-cache=$NoCache"
 
@@ -117,20 +117,20 @@ if ($buildApi) {
 
 # --- Build frontend ---
 if ($buildFrontend) {
-    Write-Step "Building frontend and deploying to /var/www/lexiro/..."
+    Write-Step "Building frontend and deploying to /var/www/ai-mentor/..."
     $nocacheArg = if ($NoCache) { "--no-cache" } else { "" }
-    ssh $VPS "cd $REMOTE_DIR; docker build $nocacheArg --target build -t lexiro-frontend-build ./frontend && docker run --rm -v /var/www/lexiro:/out lexiro-frontend-build sh -c 'cp -r /app/dist/* /out/'"
+    ssh $VPS "cd $REMOTE_DIR; docker build $nocacheArg --target build -t ai-mentor-frontend-build ./frontend && docker run --rm -v /var/www/ai-mentor:/out ai-mentor-frontend-build sh -c 'cp -r /app/dist/* /out/'"
     if ($LASTEXITCODE -ne 0) {
         ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
         Write-Error "Frontend build failed"; exit 1
     }
-    Write-OK "Frontend deployed to /var/www/lexiro/"
+    Write-OK "Frontend deployed to /var/www/ai-mentor/"
 }
 
 # --- Update nginx config ---
 if ($updateNginx) {
     Write-Step "Updating nginx config on VPS..."
-    ssh $VPS "cp $REMOTE_DIR/nginx/lexiro.conf /etc/nginx/sites-available/lexiro.conf"
+    ssh $VPS "cp $REMOTE_DIR/nginx/ai-mentor.conf /etc/nginx/sites-available/ai-mentor.conf"
     Write-OK "Config copied"
 }
 

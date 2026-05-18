@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+﻿import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useTranslation } from 'react-i18next'
@@ -47,9 +47,9 @@ export function RegisterPage() {
       </div>
       <div className="auth-card">
         <div className="auth-logo">
-          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
-          <div className="auth-brand-name">Lexiro</div>
+          <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
+          <div className="auth-brand-name">AI Mentor</div>
         </div>
         <h1 className="auth-title">{t('auth.createAccount')}</h1>
         <p className="auth-subtitle">{t('auth.registerSubtitle')}</p>

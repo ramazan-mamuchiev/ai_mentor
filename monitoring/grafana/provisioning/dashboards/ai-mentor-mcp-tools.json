@@ -1,7 +1,7 @@
-{
-  "uid": "lexiro-mcp-tools",
-  "title": "Lexiro MCP Tools",
-  "tags": ["lexiro", "mcp"],
+﻿{
+  "uid": "ai-mentor-mcp-tools",
+  "title": "AI Mentor MCP Tools",
+  "tags": ["ai_mentor", "mcp"],
   "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,
@@ -32,7 +32,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"MCP.*\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | event =~ \"MCP.*\" [$__range]))",
           "queryType": "instant",
           "legendFormat": ""
         }
@@ -76,7 +76,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"MCP.*completed|MCP.*slow\" | unwrap duration_ms [$__range]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event =~ \"MCP.*completed|MCP.*slow\" | unwrap duration_ms [$__range]) by ()",
           "queryType": "instant",
           "legendFormat": ""
         }
@@ -123,7 +123,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"MCP.*failed|MCP.*error\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | event =~ \"MCP.*failed|MCP.*error\" [$__range]))",
           "queryType": "instant",
           "legendFormat": ""
         }
@@ -168,7 +168,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"MCP.*completed|MCP.*slow\" | unwrap duration_ms [$__range]) by ()",
+          "expr": "max_over_time({container=\"/ai-mentor-api-1\"} | json | event =~ \"MCP.*completed|MCP.*slow\" | unwrap duration_ms [$__range]) by ()",
           "queryType": "instant",
           "legendFormat": ""
         }
@@ -222,7 +222,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (tool) (count_over_time({container=\"/lexiro-api-1\"} | json | tool != \"\" [$__range]))",
+          "expr": "sum by (tool) (count_over_time({container=\"/ai-mentor-api-1\"} | json | tool != \"\" [$__range]))",
           "queryType": "instant",
           "legendFormat": "{{tool}}"
         }
@@ -271,35 +271,35 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | tool=\"search_documentation\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | tool=\"search_documentation\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "search_documentation"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | tool=\"ingest_document\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | tool=\"ingest_document\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "ingest_document"
         },
         {
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | tool=\"ingest_url\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | tool=\"ingest_url\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "ingest_url"
         },
         {
           "refId": "D",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | tool=\"list_devices\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | tool=\"list_devices\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "list_devices"
         },
         {
           "refId": "E",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | tool=\"get_api_endpoint\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | tool=\"get_api_endpoint\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "get_api_endpoint"
         }
@@ -374,7 +374,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event =~ \"MCP.*failed|MCP.*error\" [$__interval]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | event =~ \"MCP.*failed|MCP.*error\" [$__interval]))",
           "queryType": "range",
           "legendFormat": "errors"
         }
@@ -443,7 +443,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/lexiro-api-1\"} | json | event =~ \"MCP.*failed|MCP.*error\"",
+          "expr": "{container=\"/ai-mentor-api-1\"} | json | event =~ \"MCP.*failed|MCP.*error\"",
           "queryType": "range",
           "legendFormat": ""
         }
@@ -554,7 +554,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/lexiro-api-1\"} | json | event =~ \"MCP.*\"",
+          "expr": "{container=\"/ai-mentor-api-1\"} | json | event =~ \"MCP.*\"",
           "queryType": "range",
           "legendFormat": ""
         }

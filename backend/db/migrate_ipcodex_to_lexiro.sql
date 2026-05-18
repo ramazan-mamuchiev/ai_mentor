@@ -1,4 +1,4 @@
--- Migration: rename database ipcodex -> lexiro, user ipcodex -> lexiro
+﻿-- Migration: rename database ipcodex -> ai_mentor, user ipcodex -> ai_mentor
 -- 
 -- IMPORTANT: Run this script connected to the "postgres" database (not ipcodex),
 -- and ensure no active connections to ipcodex exist.
@@ -15,10 +15,10 @@ FROM pg_stat_activity
 WHERE datname = 'ipcodex' AND pid <> pg_backend_pid();
 
 -- 2. Rename database
-ALTER DATABASE ipcodex RENAME TO lexiro;
+ALTER DATABASE ipcodex RENAME TO ai_mentor;
 
 -- 3. Rename user
-ALTER USER ipcodex RENAME TO lexiro;
+ALTER USER ipcodex RENAME TO ai_mentor;
 
 -- 4. Update password to match new defaults
-ALTER USER lexiro WITH PASSWORD 'lexiro_dev';
+ALTER USER ai_mentor WITH PASSWORD 'ai_mentor_dev';

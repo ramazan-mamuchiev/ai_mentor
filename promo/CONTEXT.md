@@ -1,8 +1,8 @@
-# Lexiro — Project Context & Technical Specification
+﻿# AI Mentor — Project Context & Technical Specification
 
 ## Product Vision
 
-**Lexiro** — коммерческий standalone-продукт (платформа) для управления и версионирования API-документации физических устройств (IP-камеры, POS-терминалы, СКУД, IoT-устройства).
+**AI Mentor** — коммерческий standalone-продукт (платформа) для управления и версионирования API-документации физических устройств (IP-камеры, POS-терминалы, СКУД, IoT-устройства).
 
 ### Brand Slogan
 
@@ -13,10 +13,10 @@
 > *"Из документации в код. Мгновенно."*
 
 ### Ключевая идея
-Компании, интегрирующие физические устройства, тратят значительное время на работу с хаотичной документацией от производителей. Lexiro решает это, преобразуя документацию в структурированный Markdown, и делает её доступной для AI-помощников в IDE (Cursor, Antigravity, Windsurf, GitHub Copilot) через RAG + MCP.
+Компании, интегрирующие физические устройства, тратят значительное время на работу с хаотичной документацией от производителей. AI Mentor решает это, преобразуя документацию в структурированный Markdown, и делает её доступной для AI-помощников в IDE (Cursor, Antigravity, Windsurf, GitHub Copilot) через RAG + MCP.
 
 ### Elevator Pitch
-Lexiro превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в **структурированную базу знаний**, на основе которой **AI-помощники пишут рабочий код интеграции**. Прямых аналогов на рынке нет.
+AI Mentor превращает хаотичную документацию физических устройств (PDF, Swagger, веб-страницы) в **структурированную базу знаний**, на основе которой **AI-помощники пишут рабочий код интеграции**. Прямых аналогов на рынке нет.
 
 ---
 
@@ -103,7 +103,7 @@ Lexiro превращает хаотичную документацию физи
 ## S3 Key Structure
 
 ```
-lexiro/
+ai-mentor/
   devices/{device_id}/
     {firmware_version}/{document_title}/
       v1.md
@@ -202,7 +202,7 @@ lexiro/
 
 ### Adjacent Market Players
 
-| Product | Type | Funding | What They Do | Lexiro Difference |
+| Product | Type | Funding | What They Do | AI Mentor Difference |
 |---------|------|---------|-------------|-------------------|
 | **Context7** (Upstash) | MCP for software libs | Upstash-backed | Доставляет документацию софтверных библиотек (React, Next.js) в AI IDE через MCP | Только софт-библиотеки. Нет PDF/OCR, нет устройств, нет конвертации |
 | **Documentation.AI** | Docs creation platform | #1 Product Hunt | AI-платформа для создания документации продуктов. AI-агент, MCP, llms.txt | Пользователи пишут свои docs. Нет импорта из PDF, нет OCR, нет версионирования по прошивкам |
@@ -211,13 +211,13 @@ lexiro/
 | **ReadMe.com** | API docs | $9M raised | API-документация с playground, Swagger import, analytics | Нет PDF/OCR, нет firmware versioning, нет MCP |
 
 ### Ключевой вывод
-Рынок AI-документации **валидирован** хорошо профинансированными компаниями (Mintlify $21.3M, ReadMe $9M). Они доказывают, что разработчики платят за инструменты документации. Lexiro занимает **незанятую вертикаль** — документация физических устройств — применяя проверенные паттерны (MCP, RAG, AI Chat) к рынку без специализированного решения.
+Рынок AI-документации **валидирован** хорошо профинансированными компаниями (Mintlify $21.3M, ReadMe $9M). Они доказывают, что разработчики платят за инструменты документации. AI Mentor занимает **незанятую вертикаль** — документация физических устройств — применяя проверенные паттерны (MCP, RAG, AI Chat) к рынку без специализированного решения.
 
 ### Потенциальные партнёрства
-- **Context7**: Lexiro-документация устройств может быть проиндексирована Context7, делая hardware APIs доступными через их MCP рядом с софтверными библиотеками
-- **Documentation.AI**: Вендоры могут использовать Documentation.AI для публикации документации устройств, пока Lexiro обрабатывает конвертацию и AI-обогащение
+- **Context7**: AI Mentor-документация устройств может быть проиндексирована Context7, делая hardware APIs доступными через их MCP рядом с софтверными библиотеками
+- **Documentation.AI**: Вендоры могут использовать Documentation.AI для публикации документации устройств, пока AI Mentor обрабатывает конвертацию и AI-обогащение
 
-Подробный анализ: `Lexiro/comparison.html`
+Подробный анализ: `AI Mentor/comparison.html`
 
 ---
 
@@ -266,8 +266,8 @@ lexiro/
 ## File Structure (Current)
 
 ```
-Lexiro/
-├── lexiro.html               # Интерактивная презентация (EN/RU, light/dark)
+AI Mentor/
+├── ai-mentor.html               # Интерактивная презентация (EN/RU, light/dark)
 ├── comparison.html            # Детальный конкурентный анализ
 ├── (логотипы встроены inline SVG в HTML, исходники в frontend/public/)
 ├── ipcodex-plan-backup.html   # Резервная копия ранней версии (legacy name)
@@ -276,7 +276,7 @@ Lexiro/
 
 ---
 
-## Presentation Features (lexiro.html)
+## Presentation Features (ai-mentor.html)
 
 - **Интерактивная одностраничная презентация** для инвесторов/партнёров
 - **Двуязычность**: EN (default) / RU с переключателем
@@ -292,7 +292,7 @@ Lexiro/
 ## GitHub Pages
 
 - **URL**: https://olegvphoenix.github.io/mcp-servers/
-- **index.html** в корне репозитория делает redirect на `promo/lexiro.html`
+- **index.html** в корне репозитория делает redirect на `promo/ai-mentor.html`
 - Ветка: `main`, папка: `/` (root)
 
 ---
@@ -327,7 +327,7 @@ Lexiro/
 
 ### 1. Аудит фактических данных о конкурентах
 
-Проведена сверка данных из `lexiro.html`, `comparison.html` и `CONTEXT.md` с публичными источниками (Crunchbase, Tracxn, официальные сайты).
+Проведена сверка данных из `ai-mentor.html`, `comparison.html` и `CONTEXT.md` с публичными источниками (Crunchbase, Tracxn, официальные сайты).
 
 #### Обнаруженные и исправленные ошибки:
 
@@ -337,16 +337,16 @@ Lexiro/
 | Mintlify total funding | $18.5M (только Series A) | $21.3M total ($2.8M Seed + $18.5M Series A) | Tracxn, Crunchbase |
 | Mintlify MCP-сервер | ✗ (нет) | ✓ (есть, ограничен собственной платформой) | mintlify.com/docs/integrations/mcp |
 | GitBook MCP-сервер | ✗ (нет) | ✓ (есть, ограничен собственной платформой) | gitbook.com/solutions/mcp |
-| SAM (CONTEXT.md) | $340M | $180M (приведено к lexiro.html) | Внутренняя сверка |
-| SOM (CONTEXT.md) | $12M | $5M (приведено к lexiro.html) | Внутренняя сверка |
-| Pricing Free tier | 3 устройства | 20 устройств (приведено к lexiro.html) | Внутренняя сверка |
-| Pricing Pro tier | 50 устройств | 100 устройств (приведено к lexiro.html) | Внутренняя сверка |
-| Pricing Team tier | 200 устройств | Безлимит (приведено к lexiro.html) | Внутренняя сверка |
-| Infrastructure MVP PostgreSQL | $15-25 (managed) | $0 (same VPS) | Приведено к lexiro.html |
+| SAM (CONTEXT.md) | $340M | $180M (приведено к ai-mentor.html) | Внутренняя сверка |
+| SOM (CONTEXT.md) | $12M | $5M (приведено к ai-mentor.html) | Внутренняя сверка |
+| Pricing Free tier | 3 устройства | 20 устройств (приведено к ai-mentor.html) | Внутренняя сверка |
+| Pricing Pro tier | 50 устройств | 100 устройств (приведено к ai-mentor.html) | Внутренняя сверка |
+| Pricing Team tier | 200 устройств | Безлимит (приведено к ai-mentor.html) | Внутренняя сверка |
+| Infrastructure MVP PostgreSQL | $15-25 (managed) | $0 (same VPS) | Приведено к ai-mentor.html |
 
 #### Ключевой вывод по MCP-серверам конкурентов:
 
-Mintlify и GitBook **имеют** MCP-серверы, но они ограничены работой с документацией, созданной на их собственных платформах. Lexiro отличается тем, что:
+Mintlify и GitBook **имеют** MCP-серверы, но они ограничены работой с документацией, созданной на их собственных платформах. AI Mentor отличается тем, что:
 - Конвертирует **внешнюю** документацию (PDF, Swagger, URL) в формат, пригодный для MCP
 - Поддерживает **firmware-based versioning** — уникальная функция для физических устройств
 - Работает с **любой** документацией, а не только с той, что создана на платформе
@@ -357,7 +357,7 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 - MCP-сервер для доставки документации open-source библиотек в AI IDE
 - За спиной Upstash — инфраструктурная компания с серьёзным финансированием
 - Только софтверные библиотеки, нет поддержки физических устройств
-- **Потенциальный партнёр**: Lexiro-документация может быть проиндексирована Context7
+- **Потенциальный партнёр**: AI Mentor-документация может быть проиндексирована Context7
 
 #### Documentation.AI
 - #1 Product Hunt, AI-платформа для создания документации
@@ -390,10 +390,10 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 - Карточки игроков (`.player`) получили цветные градиенты слева (blue, purple, pink, green, amber)
 - Блоки Strengths/Limitations — цветные фоны (green/red) с иконками
 - Таблица сравнения — sticky first column для мобильных
-- Market Map — выделение Lexiro карточки градиентной рамкой
+- Market Map — выделение AI Mentor карточки градиентной рамкой
 - Conclusion — градиентная верхняя граница, выделение ключевых цифр `<strong>`
 
-#### Выравнивание стилей с lexiro.html
+#### Выравнивание стилей с ai-mentor.html
 - Заменены Unicode-эмодзи на SVG-иконки (Lucide-style) в Market Map
 - Section titles: `text-align:center`, `color:var(--text)`, `font-size:1.15rem`, `font-weight:600`
 - Section descriptions: `font-weight:300`, `max-width:780px`, `margin:0 auto`
@@ -405,7 +405,7 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 - Footer: `padding:48px 24px 32px`, `font-size:.82rem`
 - Subtitle: `font-size:.88rem`, `font-weight:300`
 
-### 4. Дизайн-решения для lexiro.html
+### 4. Дизайн-решения для ai-mentor.html
 
 #### Мобильная адаптивность
 - Tabs: `flex-wrap:nowrap`, `overflow-x:auto`, `scrollbar-width:none`
@@ -449,15 +449,15 @@ Mintlify и GitBook **имеют** MCP-серверы, но они ограни�
 
 | Файл | Назначение |
 |------|-----------|
-| `Lexiro/lexiro.html` | Основная интерактивная презентация (лендинг для инвесторов) |
-| `Lexiro/comparison.html` | Детальный конкурентный анализ |
-| `Lexiro/CONTEXT.md` | Техническая спецификация и контекст проекта |
+| `AI Mentor/ai-mentor.html` | Основная интерактивная презентация (лендинг для инвесторов) |
+| `AI Mentor/comparison.html` | Детальный конкурентный анализ |
+| `AI Mentor/CONTEXT.md` | Техническая спецификация и контекст проекта |
 | `doc2md-mcp/server.py` | Готовые функции конвертации (PDF, Swagger, URL → Markdown) |
-| `index.html` | Redirect на Lexiro/lexiro.html для GitHub Pages |
+| `index.html` | Redirect на AI Mentor/ai-mentor.html для GitHub Pages |
 
 ### 7. GitHub Pages
 
 - URL: https://olegvphoenix.github.io/mcp-servers/
-- Основная страница: `Lexiro/lexiro.html`
-- Конкурентный анализ: `Lexiro/comparison.html`
+- Основная страница: `AI Mentor/ai-mentor.html`
+- Конкурентный анализ: `AI Mentor/comparison.html`
 - Ветка: `main`, папка: `/` (root)

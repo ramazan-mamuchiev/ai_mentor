@@ -1,4 +1,4 @@
-# Lexiro SaaS Platform — Architecture & Implementation Plan
+﻿# AI Mentor SaaS Platform — Architecture & Implementation Plan
 
 > **Status**: Draft v1.0 — March 15, 2026
 > **Author**: Oleg Voitekhovich
@@ -13,14 +13,14 @@
 | [DATABASE.md](DATABASE.md) | Database schema (all tables), indexes, RLS policies, vector search query, sharing model | ~340 |
 | [API.md](API.md) | REST API endpoints, MCP tools, API key flows, registration flows, error handling | ~310 |
 | [MONETIZATION.md](MONETIZATION.md) | Developer tiers, vendor tiers, billing units, marketplace strategy, revenue streams | ~270 |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Docker Compose, .env config, S3 structure, security, domain strategy (lexiro.io + lexiro.dev), Celery Beat, testing, CI/CD, logging | ~370 |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Docker Compose, .env config, S3 structure, security, domain strategy (ai-mentor.ru + dev.ai-mentor.ru), Celery Beat, testing, CI/CD, logging | ~370 |
 | [FLOWS.md](FLOWS.md) | Ingestion pipeline, supported formats, E2E flows (developer, vendor docs, firmware) | ~190 |
 | [MARKET_RESEARCH.md](MARKET_RESEARCH.md) | Market sizing, competitive analysis, pricing rationale, revenue projections | ~270 |
 | [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md) | Per-component cost breakdown, unit economics, break-even, revenue vs infra cross-check | ~460 |
 | [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) | Go-to-market strategy: vendor partnerships, co-marketing playbook, target vendors, KPIs | ~430 |
 | [GTM_STRATEGY.md](GTM_STRATEGY.md) | AI-first positioning, messaging framework, 12-month execution roadmap, channel priorities, budget | ~400 |
 | [MONITORING.md](MONITORING.md) | Monitoring stack (Grafana + Loki + Promtail), dashboards, alert rules, structured logging | ~200 |
-| [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 Lexiro slogan candidates (EN/RU), next steps for partner review | ~130 |
+| [BRAND_SLOGANS.md](BRAND_SLOGANS.md) | Competitor slogan analysis, 28 AI Mentor slogan candidates (EN/RU), next steps for partner review | ~130 |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Design system: colors, typography, icons, components, logo, animations, UI/UX competitor analysis | ~310 |
 | [CONTENT_PLAN.md](CONTENT_PLAN.md) | Documentation sources, vendor priorities, ingestion roadmap, protocols & standards | ~500 |
 | [CONTENT_SOURCES.md](CONTENT_SOURCES.md) | Verified import URLs for content ingestion, link verification log, quick start guide | ~230 |
@@ -30,7 +30,7 @@
 
 ## Product Summary
 
-**Lexiro** is a commercial SaaS platform that transforms chaotic product documentation — for both hardware devices (IP cameras, access controllers, intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs) — into a structured knowledge base with semantic search, and serves as a distribution hub for firmware, SDKs, and tools — enabling AI coding assistants (Cursor, Windsurf, GitHub Copilot) to write accurate integration code via RAG + MCP.
+**AI Mentor** is a commercial SaaS platform that transforms chaotic product documentation — for both hardware devices (IP cameras, access controllers, intercoms, sensors) and software platforms (VMS, PSIM, IoT platforms, SDKs) — into a structured knowledge base with semantic search, and serves as a distribution hub for firmware, SDKs, and tools — enabling AI coding assistants (Cursor, Windsurf, GitHub Copilot) to write accurate integration code via RAG + MCP.
 
 **Target scale**: 1000+ developer tenants + 100+ device vendors. Two-sided marketplace with hybrid monetization (subscription + overage for developers, tiered plans for vendors).
 
@@ -316,7 +316,7 @@ Full details: [FLOWS.md — Supported Document Formats](FLOWS.md#supported-docum
 - Default language: **en** (English) — used as the reference locale and fallback
 - Translation files: flat JSON in `frontend/src/locales/{lang}.json` (one file per language)
 - Language detection order: `localStorage` → browser `navigator` preference
-- User's language choice persisted in `localStorage` under `lexiro-lang` key
+- User's language choice persisted in `localStorage` under `ai-mentor-lang` key
 - All UI strings extracted to translation keys — no hardcoded text in components
 - Adding a new language requires only a new `{lang}.json` file; tests auto-discover all locale files and validate structure, key completeness, and interpolation placeholder consistency against the reference locale
 
@@ -346,7 +346,7 @@ Full partitioning DDL and details: [DATABASE.md — Vector Search Scaling](DATAB
 ## Project Structure
 
 ```
-lexiro/
+ai-mentor/
   backend/
     app/
       main.py                # FastAPI app + FastMCP registration + lifespan

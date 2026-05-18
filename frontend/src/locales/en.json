@@ -1,6 +1,6 @@
-{
+﻿{
   "empty.badge": "AI Integration Platform",
-  "empty.title": "Lexiro",
+  "empty.title": "AI Mentor",
   "empty.slogan": "Ask, don't search.",
   "empty.subslogan": "From documentation to code.",
   "empty.instantly": "Instantly.",
@@ -16,13 +16,13 @@
   "slogans.2.line2": "From documentation to code.",
   "slogans.2.accent": "In seconds.",
   "slogans.3.line1": "Stop reading! Start shipping!",
-  "slogans.3.line2": "Lexiro knows the API for you.",
+  "slogans.3.line2": "AI Mentor knows the API for you.",
   "slogans.3.accent": "Just ask.",
-  "lexiroChip.count": "4",
-  "lexiroChip.0": "What is Lexiro and what can you do?",
-  "lexiroChip.1": "What products are available in Lexiro?",
-  "lexiroChip.2": "How do I get started with Lexiro?",
-  "lexiroChip.3": "Show me Lexiro capabilities",
+  "aiMentorChip.count": "4",
+  "aiMentorChip.0": "What is AI Mentor and what can you do?",
+  "aiMentorChip.1": "What products are available in AI Mentor?",
+  "aiMentorChip.2": "How do I get started with AI Mentor?",
+  "aiMentorChip.3": "Show me AI Mentor capabilities",
 
   "empty.suggestion1": "How to authenticate via API?",
   "empty.suggestion2": "Show me the list of endpoints",
@@ -205,7 +205,7 @@
   "debug.mcp.viewSources": "View sources ({{count}})",
 
   "sidebar.newChat": "New chat",
-  "sidebar.title": "Lexiro",
+  "sidebar.title": "AI Mentor",
   "sidebar.collapse": "Collapse sidebar",
   "sidebar.expand": "Expand sidebar",
 
@@ -277,7 +277,7 @@
   "landing.nav.openApp": "Get Started",
 
   "landing.hero.badge": "AI Integration Platform",
-  "landing.hero.title": "Lexiro",
+  "landing.hero.title": "AI Mentor",
   "landing.hero.slogan": "Complex docs. Simple code.",
   "landing.hero.subslogan": "From documentation to code.",
   "landing.hero.instantly": "Instantly.",
@@ -286,7 +286,7 @@
   "landing.hero.author": "by",
 
   "landing.elevator.label": "Elevator Pitch",
-  "landing.elevator.text": "Lexiro transforms chaotic physical device documentation (PDF, Swagger, web pages) into a <strong>structured knowledge base</strong>, enabling <strong>AI assistants to write working integration code</strong>. We read the docs so you don't have to.",
+  "landing.elevator.text": "AI Mentor transforms chaotic physical device documentation (PDF, Swagger, web pages) into a <strong>structured knowledge base</strong>, enabling <strong>AI assistants to write working integration code</strong>. We read the docs so you don't have to.",
 
   "landing.mockup.question": "How to authenticate via ISAPI?",
   "landing.mockup.answer": "For ISAPI authentication, use HTTP Digest Auth. Here's a Python example:",
@@ -327,7 +327,7 @@
   "landing.howItWorks.step2.code": "Job #47 [RUNNING] ████████░░ 78%\n→ OCR: 142 pages processed\n→ Tables extracted: 23\n→ Code blocks found: 67\n→ Estimated: 2 min remaining",
   "landing.howItWorks.step3.title": "Versioned Storage",
   "landing.howItWorks.step3.text": "Result is saved to S3 with firmware versioning. If a document for this device already existed — a new version is created, diff shows API changes.",
-  "landing.howItWorks.step3.code": "S3: lexiro/devices/ds-2cd2143g2-i/5.7.21/\n  └── isapi-reference/\n      ├── v1.md  (2024-01-15, 234KB)\n      └── v2.md  (2024-06-20, 251KB)  ← NEW\n\nDiff: +17 endpoints, ~3 changed, -2 deprecated",
+  "landing.howItWorks.step3.code": "S3: ai-mentor/devices/ds-2cd2143g2-i/5.7.21/\n  └── isapi-reference/\n      ├── v1.md  (2024-01-15, 234KB)\n      └── v2.md  (2024-06-20, 251KB)  ← NEW\n\nDiff: +17 endpoints, ~3 changed, -2 deprecated",
   "landing.howItWorks.step4.title": "AI Indexing",
   "landing.howItWorks.step4.text": "Chunking pipeline splits Markdown into semantic fragments by headings (H1/H2/H3). Each fragment is vectorized via embedding API and stored in pgvector for semantic search.",
   "landing.howItWorks.step4.code": "Chunking: 251KB → 187 chunks\nEmbedding: 187 chunks → 187 vectors (1536 dims)\nIndex: HNSW cosine similarity\n\nChunk example:\n  heading: \"ISAPI > Cameras > GET /channels\"\n  tokens: 847",
@@ -349,7 +349,7 @@
   "landing.footer.resources": "Resources",
   "landing.footer.docs": "Documentation",
   "landing.footer.company": "Company",
-  "landing.footer.copyright": "© 2026 Lexiro",
+  "landing.footer.copyright": "© 2026 AI Mentor",
   "landing.footer.by": "by",
   "landing.footer.author": "Aleh Vaitsekhovich",
 
@@ -775,8 +775,8 @@
   "share.deactivate": "Deactivate link",
   "share.deactivated": "Link deactivated",
   "share.views": "{{count}} views",
-  "share.poweredBy": "Powered by Lexiro",
-  "share.tryIt": "Try Lexiro",
+  "share.poweredBy": "Powered by AI Mentor",
+  "share.tryIt": "Try AI Mentor",
   "share.notFound": "Shared content not found",
   "share.inactive": "This link is no longer active",
   "share.error": "Failed to create share link",
@@ -789,7 +789,7 @@
   "share.close": "Close",
 
   "auth.createAccount": "Create account",
-  "auth.registerSubtitle": "Start using Lexiro for free",
+  "auth.registerSubtitle": "Start using AI Mentor for free",
   "auth.continueGoogle": "Continue with Google",
   "auth.continueGithub": "Continue with GitHub",
   "auth.orEmail": "or continue with email",
@@ -805,7 +805,7 @@
   "auth.creating": "Creating...",
   "auth.haveAccount": "Already have an account?",
   "auth.signIn": "Sign in",
-  "auth.loginSubtitle": "Welcome back to Lexiro",
+  "auth.loginSubtitle": "Welcome back to AI Mentor",
   "auth.signingIn": "Signing in...",
   "auth.noAccount": "Don't have an account?",
   "auth.signOut": "Sign out",
@@ -825,7 +825,7 @@
   "verify.logout": "Sign out",
   "verify.redirecting": "Redirecting...",
 
-  "onboarding.title": "Welcome to Lexiro!",
+  "onboarding.title": "Welcome to AI Mentor!",
   "onboarding.subtitle": "Your workspace is ready ({{email}}). Here's how to get started:",
   "onboarding.step1": "Create your account",
   "onboarding.step2": "Copy your API key (Settings → API Keys)",
@@ -1445,7 +1445,7 @@
   "help.chat.product.title": "Product filter",
   "help.chat.product.desc": "Select a product to limit AI search to its documentation only. Or leave \"All products\" to search the entire knowledge base.",
   "help.chat.suggestions.title": "Quick suggestions",
-  "help.chat.suggestions.desc": "Click any suggestion to ask a ready-made question. This helps you get started with Lexiro.",
+  "help.chat.suggestions.desc": "Click any suggestion to ask a ready-made question. This helps you get started with AI Mentor.",
 
   "help.products.overview.title": "Product catalog",
   "help.products.overview.desc": "All products with uploaded documentation are listed here. Each product is a device or software with a set of documents.",
@@ -1455,7 +1455,7 @@
   "help.products.table.desc": "Open a product to view its documents. Status indicators show readiness: green — indexed, yellow — processing.",
 
   "help.analytics.overview.title": "Analytics",
-  "help.analytics.overview.desc": "Monitor your Lexiro usage: queries, tokens, costs, search quality, and user feedback.",
+  "help.analytics.overview.desc": "Monitor your AI Mentor usage: queries, tokens, costs, search quality, and user feedback.",
   "help.analytics.tabs.title": "Analytics sections",
   "help.analytics.tabs.desc": "Switch between overview, chat stats, documents, search, MCP, and cost breakdowns.",
   "help.analytics.stats.title": "Key metrics",
@@ -1466,7 +1466,7 @@
   "help.settings.profile.title": "Profile",
   "help.settings.profile.desc": "Change the name displayed in the system.",
   "help.settings.apikeys.title": "API Keys",
-  "help.settings.apikeys.desc": "Create an API key to connect Lexiro to your IDE via MCP. The key is shown only once — copy it immediately.",
+  "help.settings.apikeys.desc": "Create an API key to connect AI Mentor to your IDE via MCP. The key is shown only once — copy it immediately.",
   "help.settings.sharedlinks.title": "Shared Links",
   "help.settings.sharedlinks.desc": "View all links you've shared — chats, answers, documents, and debug info. Copy, open, or deactivate any link to revoke external access.",
 

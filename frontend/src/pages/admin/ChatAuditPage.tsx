@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -358,7 +358,7 @@ function SessionListView() {
     setExporting(true)
     try {
       const date = new Date().toISOString().slice(0, 10)
-      const base = `lexiro-chat-audit_${date}`
+      const base = `ai-mentor-chat-audit_${date}`
       if (format === 'json') {
         downloadBlob(exportItemsJSON(items), `${base}.json`, 'application/json')
       } else {

@@ -1,5 +1,5 @@
-/**
- * Adaptive Card builders for formatting Lexiro bot responses in Teams.
+﻿/**
+ * Adaptive Card builders for formatting AI Mentor bot responses in Teams.
  *
  * Uses raw Adaptive Card JSON schema (v1.5) for maximum compatibility
  * across Teams desktop, web, and mobile clients.
@@ -43,7 +43,7 @@ export function buildAnswerCard(
           items: [
             {
               type: "TextBlock",
-              text: "Lexiro Documentation Assistant",
+              text: "AI Mentor Documentation Assistant",
               wrap: true,
               isSubtle: true,
               size: "Small",

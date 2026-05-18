@@ -1,22 +1,22 @@
-# Lexiro
+﻿# AI Mentor
 
 > **Complex docs. Simple code.**
 >
 > *From documentation to code. Instantly.*
 
-Lexiro is an AI integration platform that transforms chaotic product documentation (PDF, Swagger/OpenAPI, Postman, Markdown, Protobuf, web pages, Confluence) into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
+AI Mentor is an AI integration platform that transforms chaotic product documentation (PDF, Swagger/OpenAPI, Postman, Markdown, Protobuf, web pages, Confluence) into a structured knowledge base with semantic search — enabling AI coding assistants to write accurate integration code via RAG + MCP.
 
-**Live**: [https://lexiro.io](https://lexiro.io)
+**Live**: [https://ai-mentor.ru](https://ai-mentor.ru)
 
 ## Why
 
-Developers integrating physical security and IoT products waste hours reading vendor documentation: 180-page PDFs with no search, scattered Swagger specs, outdated SDK examples. Lexiro indexes it all and serves relevant documentation to your AI assistant in real time.
+Developers integrating physical security and IoT products waste hours reading vendor documentation: 180-page PDFs with no search, scattered Swagger specs, outdated SDK examples. AI Mentor indexes it all and serves relevant documentation to your AI assistant in real time.
 
 ```
 Developer in Cursor:
   "Write C# code to open a door via HikCentral HTTP API"
 
-Lexiro returns:
+AI Mentor returns:
   — /acs/v1/door/doControl endpoint details
   — Request format: { doorIndexCodes, controlType, controlDirection }
   — AK/SK authentication headers
@@ -28,7 +28,7 @@ Total time: minutes, not hours.
 ## Project Structure
 
 ```
-lexiro/
+ai-mentor/
 ├── backend/              Python backend (FastAPI + Celery)
 │   ├── app/
 │   │   ├── mcp/          MCP server — AI coding assistant integration
@@ -52,7 +52,7 @@ lexiro/
 
 ### MCP Server
 
-The heart of Lexiro — an MCP server that gives AI coding assistants (Cursor, Windsurf, GitHub Copilot) instant access to indexed product documentation.
+The heart of AI Mentor — an MCP server that gives AI coding assistants (Cursor, Windsurf, GitHub Copilot) instant access to indexed product documentation.
 
 10 tools:
 
@@ -177,7 +177,7 @@ Full observability stack with 9 Grafana dashboards and 10 alert rules:
 
 ```bash
 git clone <repo-url>
-cd lexiro
+cd ai_mentor
 cp .env.example .env    # adjust settings if needed
 docker compose up -d
 ```
@@ -230,7 +230,7 @@ Add to your project's `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "lexiro": {
+    "ai_mentor": {
       "url": "http://localhost:8000/mcp",
       "headers": {
         "Authorization": "Bearer ipx_your_api_key_here"
@@ -240,13 +240,13 @@ Add to your project's `.cursor/mcp.json`:
 }
 ```
 
-For the hosted version at [lexiro.io](https://lexiro.io):
+For the hosted version at [ai-mentor.ru](https://ai-mentor.ru):
 
 ```json
 {
   "mcpServers": {
-    "lexiro": {
-      "url": "https://lexiro.io/mcp",
+    "ai_mentor": {
+      "url": "https://ai-mentor.ru/mcp",
       "headers": {
         "Authorization": "Bearer ipx_your_api_key_here"
       }

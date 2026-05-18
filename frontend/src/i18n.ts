@@ -1,4 +1,4 @@
-import i18n from 'i18next'
+﻿import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import en from './locales/en.json'
@@ -18,7 +18,7 @@ i18n
     interpolation: { escapeValue: false },
     detection: {
       order: ['localStorage', 'navigator'],
-      lookupLocalStorage: 'lexiro-lang',
+      lookupLocalStorage: 'ai-mentor-lang',
       caches: ['localStorage'],
     },
     saveMissing: false,

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -232,7 +232,7 @@ describe('ChatWindow language switching', () => {
   it('shows English empty state by default', () => {
     renderEmpty()
     expect(screen.getByText('AI Integration Platform')).toBeInTheDocument()
-    expect(screen.getByText('Lexiro')).toBeInTheDocument()
+    expect(screen.getByText('AI Mentor')).toBeInTheDocument()
     const slogan = document.querySelector('.empty-slogan')
     const count = parseInt(ALL_LOCALES[REFERENCE_FILE]['slogans.count'], 10) || 10
     const enLine1s = Array.from({ length: count }, (_, i) => ALL_LOCALES[REFERENCE_FILE][`slogans.${i}.line1`])
@@ -243,7 +243,7 @@ describe('ChatWindow language switching', () => {
     renderEmpty()
     await act(() => i18n.changeLanguage('ru'))
     expect(screen.getByText('AI-платформа интеграции')).toBeInTheDocument()
-    expect(screen.getByText('Lexiro')).toBeInTheDocument()
+    expect(screen.getByText('AI Mentor')).toBeInTheDocument()
     const slogan = document.querySelector('.empty-slogan')
     const ru = ALL_LOCALES['ru.json']
     const count = parseInt(ru['slogans.count'], 10) || 10
@@ -478,7 +478,7 @@ describe('i18n localStorage persistence', () => {
         interpolation: { escapeValue: false },
         detection: {
           order: ['localStorage', 'navigator'],
-          lookupLocalStorage: 'lexiro-lang',
+          lookupLocalStorage: 'ai-mentor-lang',
           caches: ['localStorage'],
         },
       })
@@ -486,17 +486,17 @@ describe('i18n localStorage persistence', () => {
 
   it('saves language to localStorage on change', async () => {
     await act(() => detectorI18n.changeLanguage('ru'))
-    expect(localStorage.getItem('lexiro-lang')).toBe('ru')
+    expect(localStorage.getItem('ai-mentor-lang')).toBe('ru')
   })
 
   it('saves back to en', async () => {
     await act(() => detectorI18n.changeLanguage('ru'))
     await act(() => detectorI18n.changeLanguage('en'))
-    expect(localStorage.getItem('lexiro-lang')).toBe('en')
+    expect(localStorage.getItem('ai-mentor-lang')).toBe('en')
   })
 
   it('restores language from localStorage on init', async () => {
-    localStorage.setItem('lexiro-lang', 'ru')
+    localStorage.setItem('ai-mentor-lang', 'ru')
 
     const { default: i18nCore2 } = await import('i18next')
     const { initReactI18next: iri } = await import('react-i18next')
@@ -517,7 +517,7 @@ describe('i18n localStorage persistence', () => {
         interpolation: { escapeValue: false },
         detection: {
           order: ['localStorage', 'navigator'],
-          lookupLocalStorage: 'lexiro-lang',
+          lookupLocalStorage: 'ai-mentor-lang',
           caches: ['localStorage'],
         },
       })

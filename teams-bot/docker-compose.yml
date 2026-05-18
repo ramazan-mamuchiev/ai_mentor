@@ -1,5 +1,5 @@
-services:
-  lexiro-teams-bot:
+﻿services:
+  ai-mentor-teams-bot:
     build: .
     ports:
       - "${PORT:-3978}:3978"

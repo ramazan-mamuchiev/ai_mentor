@@ -1,4 +1,4 @@
-# Lexiro — Partnership Marketing Strategy
+﻿# AI Mentor — Partnership Marketing Strategy
 
 > **Status**: v1.0 — March 18, 2026
 > **Author**: Oleg Voitekhovich
@@ -10,14 +10,14 @@
 
 ## 1. Why Partnership Marketing
 
-Lexiro is a **two-sided marketplace**: vendors (supply) and developers (demand). This creates a unique leverage point that most developer tools don't have.
+AI Mentor is a **two-sided marketplace**: vendors (supply) and developers (demand). This creates a unique leverage point that most developer tools don't have.
 
 ```
 Traditional developer tool:
   Marketing budget → Ads/Content → Developers
 
-Lexiro partnership model:
-  1 vendor partnership → vendor's 1,000+ integrator partners → developers discover Lexiro
+AI Mentor partnership model:
+  1 vendor partnership → vendor's 1,000+ integrator partners → developers discover AI Mentor
                        → vendor publishes docs → more content → more developers → more vendors
 ```
 
@@ -41,10 +41,10 @@ Lexiro partnership model:
 
 **Goal**: fill the platform with documentation to create value for developers.
 
-| What vendor gets | What Lexiro gets |
+| What vendor gets | What AI Mentor gets |
 |------------------|-------------------|
 | Free documentation hosting and indexing | Content that attracts developers |
-| "Listed on Lexiro" badge for marketing | Vendor brand in search results |
+| "Listed on AI Mentor" badge for marketing | Vendor brand in search results |
 | Basic search analytics (monthly email) | Platform credibility |
 
 **Target**: 50-100 vendors in Year 1.
@@ -59,7 +59,7 @@ Lexiro partnership model:
 
 **Goal**: convert Content Partners into paying customers through analytics value.
 
-| What vendor gets | What Lexiro gets |
+| What vendor gets | What AI Mentor gets |
 |------------------|-------------------|
 | Everything in Tier 1 | $499/mo recurring revenue |
 | "Verified Vendor" badge | Stronger vendor commitment |
@@ -78,7 +78,7 @@ Lexiro partnership model:
 
 **Goal**: deep integration with top-tier manufacturers. Each strategic partner is a growth multiplier.
 
-| What vendor gets | What Lexiro gets |
+| What vendor gets | What AI Mentor gets |
 |------------------|-------------------|
 | Everything in Tier 2 | $2K-5K/mo recurring revenue |
 | Custom documentation importer | Exclusive content moat |
@@ -97,14 +97,14 @@ Lexiro partnership model:
 
 ## 3. Founding Strategic Partner: AxxonSoft
 
-AxxonSoft is a **friendly company** to the Lexiro project and the ideal first strategic partner. This partnership should be activated before any other vendor outreach.
+AxxonSoft is a **friendly company** to the AI Mentor project and the ideal first strategic partner. This partnership should be activated before any other vendor outreach.
 
 ### Why AxxonSoft is the #1 partner
 
 | Factor | Details |
 |--------|---------|
 | **Relationship** | Friendly to the project — no cold outreach needed, direct access to decision-makers |
-| **Product fit** | VMS/PSIM platform that integrates 10,000+ IP device models — their integrators are Lexiro's exact target audience |
+| **Product fit** | VMS/PSIM platform that integrates 10,000+ IP device models — their integrators are AI Mentor's exact target audience |
 | **Rich API surface** | HTTP API, gRPC API, WebSocket, IIDK, ActiveX — complex documentation that developers struggle with |
 | **Documentation** | Extensive docs on docs.axxonsoft.com (Confluence) — ready for indexing |
 | **Partner network** | Active integrator partner program with training, co-branding, lead generation |
@@ -117,18 +117,18 @@ AxxonSoft is a **friendly company** to the Lexiro project and the ideal first st
 Level 1 (immediate):
   - Index Axxon One SDK documentation (HTTP API, gRPC, WebSocket)
   - Index Axxon PSIM integration guides (IIDK, ActiveX, HTTP Server)
-  - AxxonSoft developers become first beta users of Lexiro
+  - AxxonSoft developers become first beta users of AI Mentor
   - Validate product-market fit on real integration scenarios
 
 Level 2 (month 2-3):
-  - AxxonSoft recommends Lexiro to their integrator partners:
-    "Use Lexiro to integrate third-party devices with Axxon One faster"
-  - Joint blog post: "AI-powered device integration with Axxon One + Lexiro"
-  - AxxonSoft's partner training includes Lexiro as a recommended tool
+  - AxxonSoft recommends AI Mentor to their integrator partners:
+    "Use AI Mentor to integrate third-party devices with Axxon One faster"
+  - Joint blog post: "AI-powered device integration with Axxon One + AI Mentor"
+  - AxxonSoft's partner training includes AI Mentor as a recommended tool
 
 Level 3 (month 4-6):
-  - Custom importer for docs.axxonsoft.com (Confluence → Lexiro auto-sync)
-  - Co-branded landing page: "Lexiro for Axxon One Integrators"
+  - Custom importer for docs.axxonsoft.com (Confluence → AI Mentor auto-sync)
+  - Co-branded landing page: "AI Mentor for Axxon One Integrators"
   - Joint webinar for AxxonSoft partner network
   - AxxonSoft becomes the first published case study
 
@@ -136,8 +136,8 @@ Level 4 (month 6+):
   - AxxonSoft as "Founding Strategic Partner" — featured placement
   - Joint presence at ISC West / IFSEC
   - AxxonSoft's device integration partners (Axis, Hikvision, Dahua etc.)
-    introduced to Lexiro through AxxonSoft's network
-  - Potential: AxxonSoft bundles Lexiro access for their Enterprise customers
+    introduced to AI Mentor through AxxonSoft's network
+  - Potential: AxxonSoft bundles AI Mentor access for their Enterprise customers
 ```
 
 ### What AxxonSoft gets
@@ -151,7 +151,7 @@ Level 4 (month 6+):
 | Co-marketing content | Blog posts, webinars, case studies at zero cost |
 | Competitive edge | Their integrators are more productive than competitors' |
 
-### What Lexiro gets
+### What AI Mentor gets
 
 | Benefit | Value |
 |---------|-------|
@@ -166,19 +166,19 @@ Level 4 (month 6+):
 
 | Week | Action | Owner |
 |:----:|--------|-------|
-| 1 | Meet with AxxonSoft contact, present Lexiro vision and partnership proposal | Founder |
-| 2-3 | Index Axxon One SDK docs (HTTP API, gRPC) into Lexiro | Engineering |
+| 1 | Meet with AxxonSoft contact, present AI Mentor vision and partnership proposal | Founder |
+| 2-3 | Index Axxon One SDK docs (HTTP API, gRPC) into AI Mentor | Engineering |
 | 3-4 | Demo to AxxonSoft team: "here's your documentation searchable via Cursor MCP" | Founder |
 | 4-6 | AxxonSoft shares with 5-10 integrator partners for beta testing | AxxonSoft |
 | 6-8 | Collect feedback, iterate on product | Engineering |
 | 8-10 | Joint blog post + announce partnership | Both |
-| 10-12 | AxxonSoft includes Lexiro in partner communications | AxxonSoft |
+| 10-12 | AxxonSoft includes AI Mentor in partner communications | AxxonSoft |
 
 ---
 
 ## 3b. Founding Strategic Partner: Grundig Security
 
-Grundig Security is a **friendly company** to the Lexiro project and a technology partner of AxxonSoft. Together with AxxonSoft, Grundig forms the initial partnership foundation for Lexiro.
+Grundig Security is a **friendly company** to the AI Mentor project and a technology partner of AxxonSoft. Together with AxxonSoft, Grundig forms the initial partnership foundation for AI Mentor.
 
 ### Company profile
 
@@ -192,15 +192,15 @@ Grundig Security is a **friendly company** to the Lexiro project and a technolog
 | **Global presence** | Operations on 5 continents |
 | **AxxonSoft integration** | Axxon One VMS integrates Grundig SMART line cameras — edge analytics, Quick Smart Search with Auto-Configuration |
 
-### Why Grundig is a strategic partner for Lexiro
+### Why Grundig is a strategic partner for AI Mentor
 
-**1. Hardware vendor perspective.** AxxonSoft is a software (VMS) vendor. Grundig is a hardware (camera) vendor. Together they give Lexiro both sides of the integration story — the platform developers build on (Axxon One) and the devices they integrate (Grundig cameras).
+**1. Hardware vendor perspective.** AxxonSoft is a software (VMS) vendor. Grundig is a hardware (camera) vendor. Together they give AI Mentor both sides of the integration story — the platform developers build on (Axxon One) and the devices they integrate (Grundig cameras).
 
-**2. Edge AI documentation.** Grundig SMART line cameras have rich AI analytics (LPR, face recognition, crowd analysis, audio analysis, etc.) that require detailed integration documentation. Developers integrating these cameras with Axxon One or other VMS platforms need exactly what Lexiro provides.
+**2. Edge AI documentation.** Grundig SMART line cameras have rich AI analytics (LPR, face recognition, crowd analysis, audio analysis, etc.) that require detailed integration documentation. Developers integrating these cameras with Axxon One or other VMS platforms need exactly what AI Mentor provides.
 
-**3. Existing AxxonSoft partnership.** Grundig is already an AxxonSoft Solution Partner. This creates a natural three-way collaboration: AxxonSoft (VMS) + Grundig (cameras) + Lexiro (documentation & AI search).
+**3. Existing AxxonSoft partnership.** Grundig is already an AxxonSoft Solution Partner. This creates a natural three-way collaboration: AxxonSoft (VMS) + Grundig (cameras) + AI Mentor (documentation & AI search).
 
-**4. European market entry.** Grundig has strong presence in Europe (German roots, 5 continents). Partnership opens a path to European integrators — a market segment Lexiro hasn't addressed yet.
+**4. European market entry.** Grundig has strong presence in Europe (German roots, 5 continents). Partnership opens a path to European integrators — a market segment AI Mentor hasn't addressed yet.
 
 ### Partnership model with Grundig
 
@@ -212,17 +212,17 @@ Level 1 (immediate):
 
 Level 2 (month 2-4):
   - Joint content: "How to integrate Grundig SMART cameras with AI analytics"
-  - Grundig recommends Lexiro to their installers and integrators
-  - Three-way case study: AxxonSoft + Grundig + Lexiro
+  - Grundig recommends AI Mentor to their installers and integrators
+  - Three-way case study: AxxonSoft + Grundig + AI Mentor
 
 Level 3 (month 4-6):
-  - Grundig becomes "Founding Hardware Partner" — featured in Lexiro catalog
-  - Joint demo: Grundig camera → Axxon One VMS → Lexiro MCP search
-  - Grundig includes Lexiro link in their partner/support materials
+  - Grundig becomes "Founding Hardware Partner" — featured in AI Mentor catalog
+  - Joint demo: Grundig camera → Axxon One VMS → AI Mentor MCP search
+  - Grundig includes AI Mentor link in their partner/support materials
 
 Level 4 (month 6+):
   - Expand to full Grundig product line (Essential, Professional, Premium)
-  - Grundig analytics documentation as showcase for Lexiro AI search
+  - Grundig analytics documentation as showcase for AI Mentor search
   - Joint presence at European security trade shows (IFSEC, Security Essen)
 ```
 
@@ -236,25 +236,25 @@ Level 4 (month 6+):
 | Three-way marketing with AxxonSoft | Amplified reach through combined networks |
 | European integrators adopt faster | Reduced integration friction = more Grundig deployments |
 
-### What Lexiro gets
+### What AI Mentor gets
 
 | Benefit | Value |
 |---------|-------|
-| First hardware vendor partner | Proves Lexiro works for camera documentation, not just VMS |
+| First hardware vendor partner | Proves AI Mentor works for camera documentation, not just VMS |
 | European market credibility | German brand with 70+ year legacy |
 | Rich AI analytics content | Edge AI documentation is complex and high-value for developers |
-| Three-way partnership story | "AxxonSoft + Grundig + Lexiro" is a compelling narrative |
+| Three-way partnership story | "AxxonSoft + Grundig + AI Mentor" is a compelling narrative |
 | Access to Grundig's installer network | New developer-customer channel |
 
 ### Action plan
 
 | Week | Action | Owner |
 |:----:|--------|-------|
-| 1-2 | Intro via AxxonSoft contact, present Lexiro + partnership proposal | Founder |
+| 1-2 | Intro via AxxonSoft contact, present AI Mentor + partnership proposal | Founder |
 | 3-4 | Index Grundig SMART line documentation + Axxon One integration guides | Engineering |
 | 4-5 | Demo to Grundig team: "your camera docs searchable via AI" | Founder |
 | 6-8 | Joint content with AxxonSoft + Grundig (blog post or webinar) | All three |
-| 8-12 | Grundig includes Lexiro in installer communications | Grundig |
+| 8-12 | Grundig includes AI Mentor in installer communications | Grundig |
 
 ---
 
@@ -327,9 +327,9 @@ KPIs:
 ```
 Actions:
   1. Publish founding partners case study:
-     — "How AxxonSoft + Grundig integrators reduced integration time by X% with Lexiro"
-     — Three-way blog post: AxxonSoft blog + Grundig blog + Lexiro blog
-     — Narrative: VMS (AxxonSoft) + Cameras (Grundig) + AI Search (Lexiro) = faster integration
+     — "How AxxonSoft + Grundig integrators reduced integration time by X% with AI Mentor"
+     — Three-way blog post: AxxonSoft blog + Grundig blog + AI Mentor blog
+     — Narrative: VMS (AxxonSoft) + Cameras (Grundig) + AI Search (AI Mentor) = faster integration
   2. Collect 3 months of analytics for founding partners
   3. Create "Partner Impact Report":
      — "Your docs were searched 1,200 times by 89 unique developers"
@@ -339,7 +339,7 @@ Actions:
   5. Use AxxonSoft case study + Impact Reports to pitch 10 more vendors
   6. Launch co-marketing with AxxonSoft:
      — Joint webinar: "AI-powered device integration with Axxon One"
-     — AxxonSoft includes Lexiro in partner newsletter
+     — AxxonSoft includes AI Mentor in partner newsletter
 
 KPIs:
   - 2-3 founding partners converted to paid
@@ -355,7 +355,7 @@ KPIs:
 Actions:
   1. Hire part-time Partner Manager (or founder dedicates 50% time)
   2. Attend ISC West or IFSEC (not as exhibitor — as networker)
-     — Meet vendor product managers, pitch Lexiro
+     — Meet vendor product managers, pitch AI Mentor
      — Cost: $2-3K (travel + badge), not $15K+ for a booth
   3. Launch Vendor Partner Program page on website:
      — Benefits by tier, application form, success stories
@@ -379,13 +379,13 @@ KPIs:
 
 ```
 Actions:
-  1. Vendors start referring their integrators to Lexiro organically
-     — "Use Lexiro to integrate our cameras — it has our full API docs"
-  2. Launch "Lexiro Certified" program:
-     — Vendor certifies their docs are complete and up-to-date on Lexiro
-     — Badge on vendor's website: "Documentation available on Lexiro"
+  1. Vendors start referring their integrators to AI Mentor organically
+     — "Use AI Mentor to integrate our cameras — it has our full API docs"
+  2. Launch "AI Mentor Certified" program:
+     — Vendor certifies their docs are complete and up-to-date on AI Mentor
+     — Badge on vendor's website: "Documentation available on AI Mentor"
      — Developers trust certified vendors → more searches → more value for vendor
-  3. Annual "Lexiro Partner Summit" (virtual):
+  3. Annual "AI Mentor Partner Summit" (virtual):
      — Vendor presentations, roadmap, networking
      — Strengthens relationships, generates content
   4. Expand to adjacent verticals:
@@ -410,10 +410,10 @@ KPIs:
 
 | Format | Effort | Reach | Frequency |
 |--------|:------:|:-----:|:---------:|
-| Blog post: "How to integrate [Vendor] with Lexiro" | 4-8 hrs | Vendor's blog + Lexiro blog | 1-2/month |
+| Blog post: "How to integrate [Vendor] with AI Mentor" | 4-8 hrs | Vendor's blog + AI Mentor blog | 1-2/month |
 | Social media cross-post (LinkedIn, Twitter) | 1 hr | Both audiences | Weekly |
-| "Integration spotlight" email to Lexiro developers | 2 hrs | All Lexiro developers | Monthly |
-| Vendor includes Lexiro in their newsletter | 0 hrs (vendor does it) | Vendor's mailing list | Quarterly |
+| "Integration spotlight" email to AI Mentor developers | 2 hrs | All AI Mentor developers | Monthly |
+| Vendor includes AI Mentor in their newsletter | 0 hrs (vendor does it) | Vendor's mailing list | Quarterly |
 
 ### 5.2 Joint Events (medium effort, high conversion)
 
@@ -427,8 +427,8 @@ KPIs:
 
 | Program | Description | Value |
 |---------|-------------|-------|
-| "Lexiro Certified Documentation" | Vendor certifies docs are complete on Lexiro | Trust signal for developers |
-| "Preferred Integration Partner" | Lexiro recommends vendor's devices | Vendor pays premium for placement |
+| "AI Mentor Certified Documentation" | Vendor certifies docs are complete on AI Mentor | Trust signal for developers |
+| "Preferred Integration Partner" | AI Mentor recommends vendor's devices | Vendor pays premium for placement |
 | "Integration Bounty" | Vendor sponsors prizes for developers who build integrations | Developer engagement + vendor content |
 
 ---
@@ -452,7 +452,7 @@ Indexed (free)  →  Contacted  →  Content Partner  →  Paid Partner  →  St
 | Vendor MRR | $2K | $15K | $60K |
 | Developers acquired via vendor referral | 50 | 300 | 1,000 |
 | Co-marketing campaigns executed | 3 | 12 | 24 |
-| "Lexiro Certified" vendors | 0 | 5 | 20 |
+| "AI Mentor Certified" vendors | 0 | 5 | 20 |
 
 ### Revenue attribution
 
@@ -505,6 +505,6 @@ Indexed (free)  →  Contacted  →  Content Partner  →  Paid Partner  →  St
 - 5+ Strategic Partners (Enterprise/Platinum)
 
 **Year 3 — Flywheel spinning:**
-- Vendors proactively refer integrators to Lexiro
-- "Lexiro Certified" becomes an industry standard
+- Vendors proactively refer integrators to AI Mentor
+- "AI Mentor Certified" becomes an industry standard
 - Partnership-attributed revenue > 40% of total

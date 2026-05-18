@@ -1,4 +1,4 @@
-"""Integration tests for FastAPI endpoints and full MCP lifecycle."""
+﻿"""Integration tests for FastAPI endpoints and full MCP lifecycle."""
 
 import contextlib
 
@@ -25,7 +25,7 @@ def _create_test_app(db_engine):
     )
 
     mcp = FastMCP(
-        "Lexiro",
+        "AI Mentor",
         stateless_http=True,
         json_response=True,
         streamable_http_path="/",
@@ -40,7 +40,7 @@ def _create_test_app(db_engine):
         async with mcp.session_manager.run():
             yield
 
-    app = FastAPI(title="Lexiro-Test", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="AI Mentor-Test", version="0.1.0", lifespan=lifespan)
     app.router.routes.append(Mount("/mcp", app=mcp.streamable_http_app()))
 
     @app.get("/health")
@@ -116,7 +116,7 @@ class TestMCPProtocol:
         data = resp.json()
         assert data["jsonrpc"] == "2.0"
         assert "result" in data
-        assert data["result"]["serverInfo"]["name"] == "Lexiro"
+        assert data["result"]["serverInfo"]["name"] == "AI Mentor"
         assert "capabilities" in data["result"]
         assert "tools" in data["result"]["capabilities"]
 

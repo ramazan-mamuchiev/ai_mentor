@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+﻿import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LogIn, Moon, Sun, Globe } from 'lucide-react'
@@ -18,9 +18,9 @@ export function PublicKBLayout({ children }: { children: ReactNode }) {
     <div className="public-kb-layout">
       <header className="public-kb-header">
         <div className="public-kb-header-left" onClick={() => navigate('/')} role="button" style={{ cursor: 'pointer' }}>
-          <img src="/logo-on-light.svg" alt="Lexiro" className="public-kb-logo logo-light" />
-          <img src="/logo-on-dark.svg" alt="Lexiro" className="public-kb-logo logo-dark" />
-          <span className="public-kb-brand">Lexiro</span>
+          <img src="/logo-on-light.svg" alt="AI Mentor" className="public-kb-logo logo-light" />
+          <img src="/logo-on-dark.svg" alt="AI Mentor" className="public-kb-logo logo-dark" />
+          <span className="public-kb-brand">AI Mentor</span>
         </div>
         <div className="public-kb-header-actions">
           <button className="public-kb-btn" onClick={toggleLang} title={lang === 'ru' ? 'English' : 'Русский'}>

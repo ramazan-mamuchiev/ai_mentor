@@ -1,4 +1,4 @@
-"""Confluence documentation crawler with optional OCR for images.
+﻿"""Confluence documentation crawler with optional OCR for images.
 
 Crawls a Confluence page tree via REST API and converts each page to Markdown.
 Supports both public (anonymous) and private (Basic Auth) Confluence instances.
@@ -37,7 +37,7 @@ _MAX_CRAWL_SECONDS = 7200
 _PAGE_LIMIT = 100
 
 _HTTP_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Lexiro/1.0",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AI Mentor/1.0",
     "Accept": "application/json",
 }
 

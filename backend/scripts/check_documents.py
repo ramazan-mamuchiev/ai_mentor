@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Check document ingestion status in Lexiro.
+﻿#!/usr/bin/env python3
+"""Check document ingestion status in AI Mentor.
 
 Examples:
     # All documents summary
@@ -175,7 +175,7 @@ def _show(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Check document ingestion status in Lexiro.",
+        description="Check document ingestion status in AI Mentor.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Examples:\n"
                "  %(prog)s                              # full summary\n"

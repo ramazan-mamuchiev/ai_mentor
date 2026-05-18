@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -35,7 +35,7 @@ import { usePageTour } from '../hooks/usePageTour'
 import { getProductsSteps } from '../tour/steps/productsSteps'
 
 const POLL_INTERVAL = 2000
-const STORAGE_KEY = 'lexiro-products-table'
+const STORAGE_KEY = 'ai-mentor-products-table'
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'

@@ -1,8 +1,8 @@
-# Lexiro — Market Research & Competitive Analysis
+﻿# AI Mentor — Market Research & Competitive Analysis
 
 > **Status**: v1.0 — March 15, 2026
 > **Author**: Oleg Voitekhovich
-> **Purpose**: Market sizing, competitive landscape, and pricing rationale for Lexiro SaaS platform
+> **Purpose**: Market sizing, competitive landscape, and pricing rationale for AI Mentor SaaS platform
 
 ---
 
@@ -54,7 +54,7 @@
 | IoT / Smart Home | 200-500 |
 | **Total (with overlap)** | **500-1,000** |
 
-### 1.3 Total Addressable Market (TAM) for Lexiro
+### 1.3 Total Addressable Market (TAM) for AI Mentor
 
 ```
 Developer TAM (demand side):
@@ -99,7 +99,7 @@ The closest alternatives are manual approaches:
 
 ### 2.2 Adjacent Competitors (Semantic Search / RAG / Documentation Platforms)
 
-| Product | What it Does | Pricing | Relevance to Lexiro |
+| Product | What it Does | Pricing | Relevance to AI Mentor |
 |---------|-------------|---------|---------------------|
 | **Context7** | RAG search over open-source library docs via MCP | Free (plans to monetize) | Similar tech, but for public OSS docs only. Not for proprietary device docs |
 | **Algolia** | Search-as-a-Service API | Free → $110/mo → custom | Search infrastructure, not device-specific. Generic search, no MCP |
@@ -122,7 +122,7 @@ These are IoT SaaS platforms that serve similar B2B audiences:
 | **Particle** | IoT connectivity | Free | $99/mo | Custom |
 | **Azure IoT Central** | IoT management (Microsoft) | $0.20/device/mo | — | Volume discounts |
 
-**Key insight**: Niche B2B IoT platforms charge $100-550/mo for mid-tier and $1,000-3,000/mo for enterprise. Lexiro's pricing should be in this range, not in the consumer-grade $10-50/mo range.
+**Key insight**: Niche B2B IoT platforms charge $100-550/mo for mid-tier and $1,000-3,000/mo for enterprise. AI Mentor's pricing should be in this range, not in the consumer-grade $10-50/mo range.
 
 ### 2.4 AI Developer Tools (Pricing Benchmarks)
 
@@ -134,23 +134,23 @@ These are IoT SaaS platforms that serve similar B2B audiences:
 | **Swagger/SmartBear** | API design + testing | Free | $75/mo | Custom |
 | **RapidAPI** | API marketplace | Free | $20/mo | Custom |
 
-**Key insight**: General developer tools are priced lower ($10-50/mo) because they target millions of developers. Lexiro targets a niche with 100x fewer users → prices must be 2-5x higher to sustain the business.
+**Key insight**: General developer tools are priced lower ($10-50/mo) because they target millions of developers. AI Mentor targets a niche with 100x fewer users → prices must be 2-5x higher to sustain the business.
 
 ---
 
 ## 3. Pricing Rationale
 
-### 3.1 Why Lexiro Can (and Must) Charge Premium Prices
+### 3.1 Why AI Mentor Can (and Must) Charge Premium Prices
 
 **1. No direct competition.** Zero alternatives offer RAG search over IP device documentation with MCP integration. Price is determined by value, not by market competition.
 
 **2. B2B buyers, not consumers.** The buyer is a company, not an individual paying from pocket. $99-399/mo is a rounding error in a $100K+ integration project budget.
 
-**3. Extreme ROI.** A developer earning $50-100/hr who saves 10+ hours/month through better documentation search = $500-1,000/mo of value. Lexiro at $99-399/mo = 3-10x ROI.
+**3. Extreme ROI.** A developer earning $50-100/hr who saves 10+ hours/month through better documentation search = $500-1,000/mo of value. AI Mentor at $99-399/mo = 3-10x ROI.
 
 **4. High switching costs.** Once a company uploads 50+ documents, configures Cursor, trains the team — they won't switch for $50/mo savings.
 
-**5. Small TAM demands higher ARPU.** With ~25,000 addressable developers vs OpenAI's 50M+, Lexiro needs 100x higher revenue per user to build a sustainable business.
+**5. Small TAM demands higher ARPU.** With ~25,000 addressable developers vs OpenAI's 50M+, AI Mentor needs 100x higher revenue per user to build a sustainable business.
 
 ### 3.2 Price Elasticity Analysis
 
@@ -173,9 +173,9 @@ Getting 250 customers in a 25,000-person TAM (1%) is more realistic
 than getting 500 (2%).
 ```
 
-### 3.3 Comparison: Lexiro Value vs Cost
+### 3.3 Comparison: AI Mentor Value vs Cost
 
-| Scenario | Without Lexiro | With Lexiro | Savings |
+| Scenario | Without AI Mentor | With AI Mentor | Savings |
 |----------|:-:|:-:|:-:|
 | Developer reads PDF, finds endpoint | 30-60 min | 5-10 sec (MCP search) | 29-59 min |
 | Developer writes integration code | 4-8 hrs (trial & error) | 1-2 hrs (AI + correct docs) | 3-6 hrs |
@@ -183,7 +183,7 @@ than getting 500 (2%).
 | Onboard new developer to project | 1-2 weeks reading docs | Day 1 productive with MCP | 1-2 weeks |
 
 **Monthly value per developer**: 10-20 hrs saved × $50-100/hr = **$500-2,000/mo**
-**Lexiro cost (Pro)**: $99/mo → **ROI: 5-20x**
+**AI Mentor cost (Pro)**: $99/mo → **ROI: 5-20x**
 
 ---
 
@@ -279,7 +279,7 @@ Year 3: $200K/mo = $2.4M/year
 
 1. **Market is real and growing**: $25B system integration segment, 7.4% CAGR, 55,000-80,000 integration companies worldwide.
 
-2. **No direct competitors**: Lexiro would be first-to-market in RAG-over-device-docs via MCP.
+2. **No direct competitors**: AI Mentor would be first-to-market in RAG-over-device-docs via MCP.
 
 3. **Niche = premium pricing**: With 100x fewer users than general AI tools, prices must be 2-5x higher. $99-399/mo for developers, $499-1,999/mo for vendors.
 

@@ -1,8 +1,8 @@
-# Lexiro — Content Plan: Documentation Sources & Ingestion Priorities
+﻿# AI Mentor — Content Plan: Documentation Sources & Ingestion Priorities
 
 > **Status**: v1.0 — March 28, 2026
 > **Author**: Oleg Voitekhovich
-> **Purpose**: Structured plan for populating the Lexiro knowledge base with vendor documentation, protocol specs, and industry standards
+> **Purpose**: Structured plan for populating the AI Mentor knowledge base with vendor documentation, protocol specs, and industry standards
 >
 > Related: [CONTENT_SOURCES.md](CONTENT_SOURCES.md) · [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) · [GTM_STRATEGY.md](GTM_STRATEGY.md) · [FLOWS.md](FLOWS.md) · [MARKET_RESEARCH.md](MARKET_RESEARCH.md)
 
@@ -10,7 +10,7 @@
 
 ## 1. Ingestion Capabilities (Current)
 
-Lexiro supports 8 document formats — each with a dedicated converter in the ingestion pipeline:
+AI Mentor supports 8 document formats — each with a dedicated converter in the ingestion pipeline:
 
 | Format | Extensions | Converter | Ingestion Method |
 |--------|-----------|-----------|-----------------|
@@ -206,7 +206,7 @@ Strong niche positions with developer communities that need better tooling.
 
 ## 5. Tier C — Protocols & Standards (Cross-Vendor Value)
 
-Industry protocols used by dozens or hundreds of vendors. Indexing these provides value to **all** Lexiro users regardless of which vendor's devices they integrate.
+Industry protocols used by dozens or hundreds of vendors. Indexing these provides value to **all** AI Mentor users regardless of which vendor's devices they integrate.
 
 ### 5.1 Video Surveillance Protocols
 
@@ -499,4 +499,4 @@ Track per-vendor and per-document quality to prioritize improvement:
 | **D** — Long-Tail Catalog | 50–100 | 5,000–15,000 | Month 3–6 | Planned |
 | **Total** | **70–120+** | **13,000–30,000** | **6 months** | — |
 
-At projected scale, Lexiro will contain the most comprehensive AI-searchable database of physical security device documentation — covering the major vendors, industry protocols, and integration standards that developers work with daily.
+At projected scale, AI Mentor will contain the most comprehensive AI-searchable database of physical security device documentation — covering the major vendors, industry protocols, and integration standards that developers work with daily.

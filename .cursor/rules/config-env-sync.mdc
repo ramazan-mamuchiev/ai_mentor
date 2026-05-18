@@ -1,4 +1,4 @@
----
+﻿---
 description: Remind to sync VPS .env when changing config.py defaults
 globs: backend/app/config.py
 alwaysApply: false
@@ -6,20 +6,20 @@ alwaysApply: false
 
 # Config ↔ VPS `.env` Sync
 
-`backend/app/config.py` defines **default** values for settings. On the VPS, `/opt/lexiro/.env` **overrides** these defaults (Pydantic Settings always prefers env vars over code defaults).
+`backend/app/config.py` defines **default** values for settings. On the VPS, `/opt/ai-mentor/.env` **overrides** these defaults (Pydantic Settings always prefers env vars over code defaults).
 
 ## When changing a default in `config.py`
 
 1. **ALWAYS** check if the same setting exists in VPS `.env`:
    ```powershell
-   ssh root@lexiro.io "grep -i '<SETTING_NAME>' /opt/lexiro/.env"
+   ssh root@ai-mentor.ru "grep -i '<SETTING_NAME>' /opt/ai-mentor/.env"
    ```
 2. If it does — **update or remove it** in `.env`, otherwise the code change has NO effect in production.
 3. After `.env` changes, **restart all affected services** (`api`, `worker`, `beat`).
 
 ## Known `.env` overrides on VPS
 
-These settings are set in `/opt/lexiro/.env` and will override code defaults:
+These settings are set in `/opt/ai-mentor/.env` and will override code defaults:
 - `OPENAI_LLM_MODEL` — chat LLM model
 - `GEMINI_API_KEY` — API key
 - `DATABASE_URL` / `DATABASE_URL_SYNC` — DB connection

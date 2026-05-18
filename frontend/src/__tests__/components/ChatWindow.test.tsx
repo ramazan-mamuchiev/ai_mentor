@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ChatWindow } from '../../components/ChatWindow'
@@ -28,7 +28,7 @@ function renderChatWindow(overrides: Partial<Parameters<typeof ChatWindow>[0]> =
 describe('ChatWindow', () => {
   it('shows empty state when no messages', () => {
     renderChatWindow()
-    expect(screen.getByText('Lexiro')).toBeInTheDocument()
+    expect(screen.getByText('AI Mentor')).toBeInTheDocument()
     expect(screen.getByText(/Ask, don't search/)).toBeInTheDocument()
   })
 
@@ -41,7 +41,7 @@ describe('ChatWindow', () => {
   it('shows branded empty state with badge and slogan', () => {
     renderChatWindow()
     expect(screen.getByText('AI Integration Platform')).toBeInTheDocument()
-    expect(screen.getByText('Lexiro')).toBeInTheDocument()
+    expect(screen.getByText('AI Mentor')).toBeInTheDocument()
   })
 
   it('renders streaming message during streaming', () => {

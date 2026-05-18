@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -59,9 +59,9 @@ beforeEach(() => {
 })
 
 describe('Layout', () => {
-  it('renders sidebar with Lexiro title', () => {
+  it('renders sidebar with AI Mentor title', () => {
     renderLayout()
-    expect(screen.getByText('Lexiro')).toBeInTheDocument()
+    expect(screen.getByText('AI Mentor')).toBeInTheDocument()
   })
 
   it('renders children in main area', () => {
@@ -97,21 +97,21 @@ describe('Layout splitter', () => {
   })
 
   it('restores sidebar width from localStorage', () => {
-    localStorage.setItem('lexiro-sidebar-width', '350')
+    localStorage.setItem('ai-mentor-sidebar-width', '350')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('350px')
   })
 
   it('ignores invalid localStorage values and falls back to default', () => {
-    localStorage.setItem('lexiro-sidebar-width', 'garbage')
+    localStorage.setItem('ai-mentor-sidebar-width', 'garbage')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('280px')
   })
 
   it('clamps localStorage value within min/max bounds', () => {
-    localStorage.setItem('lexiro-sidebar-width', '50')
+    localStorage.setItem('ai-mentor-sidebar-width', '50')
     renderLayout()
     const sidebar = document.querySelector('.sidebar') as HTMLElement
     expect(sidebar.style.width).toBe('280px')
@@ -161,7 +161,7 @@ describe('Layout splitter', () => {
     fireEvent.pointerMove(splitter, { clientX: 400 })
     fireEvent.pointerUp(splitter)
 
-    expect(localStorage.getItem('lexiro-sidebar-width')).toBe('400')
+    expect(localStorage.getItem('ai-mentor-sidebar-width')).toBe('400')
   })
 
   it('does not resize when pointer moves without prior pointerDown', () => {

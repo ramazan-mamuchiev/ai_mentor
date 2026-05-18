@@ -1,6 +1,6 @@
-# Lexiro — Database Schema & Data Model
+﻿# AI Mentor — Database Schema & Data Model
 
-> Part of [Lexiro Architecture](PLAN.md)
+> Part of [AI Mentor Architecture](PLAN.md)
 
 ---
 

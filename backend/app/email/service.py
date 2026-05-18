@@ -1,4 +1,4 @@
-"""Send transactional emails via Resend."""
+﻿"""Send transactional emails via Resend."""
 
 import logging
 
@@ -23,13 +23,13 @@ def send_welcome_email(to: str, slug: str) -> None:
         resend.Emails.send({
             "from": settings.email_from,
             "to": [to],
-            "subject": "Welcome to Lexiro!",
+            "subject": "Welcome to AI Mentor!",
             "html": (
-                f"<h2>Welcome to Lexiro!</h2>"
+                f"<h2>Welcome to AI Mentor!</h2>"
                 f"<p>Your workspace <strong>{slug}</strong> is ready.</p>"
                 f"<p>Upload your product documentation, connect MCP to your IDE, "
                 f"and start getting AI-powered answers about your APIs.</p>"
-                f"<p>— Lexiro Team</p>"
+                f"<p>— AI Mentor Team</p>"
             ),
         })
         logger.info("Welcome email sent", extra={"to": to})
@@ -47,7 +47,7 @@ def send_email_verification(to: str, token: str) -> None:
         resend.Emails.send({
             "from": settings.email_from,
             "to": [to],
-            "subject": "Verify your Lexiro email",
+            "subject": "Verify your AI Mentor email",
             "html": (
                 f"<h2>Verify your email</h2>"
                 f"<p>Click the link below to verify your email address:</p>"
@@ -71,7 +71,7 @@ def send_guest_approval_request(admin_email: str, guest_email: str, token: str) 
         resend.Emails.send({
             "from": settings.email_from,
             "to": [admin_email],
-            "subject": f"Lexiro: approve registration for {guest_email}",
+            "subject": f"AI Mentor: approve registration for {guest_email}",
             "html": (
                 f"<h2>Guest Registration Approval</h2>"
                 f"<p>A new guest account has requested access:</p>"
@@ -97,7 +97,7 @@ def send_password_reset(to: str, token: str) -> None:
         resend.Emails.send({
             "from": settings.email_from,
             "to": [to],
-            "subject": "Reset your Lexiro password",
+            "subject": "Reset your AI Mentor password",
             "html": (
                 f"<h2>Password Reset</h2>"
                 f"<p>Click the link below to reset your password:</p>"

@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+﻿import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare, Box, BarChart3, Settings, X, Shield, Plug, Link2,
@@ -28,8 +28,8 @@ function useIsMobile() {
   return mobile
 }
 
-const WIDTH_KEY = 'lexiro-sidebar-width'
-const COLLAPSED_KEY = 'lexiro-sidebar-collapsed'
+const WIDTH_KEY = 'ai-mentor-sidebar-width'
+const COLLAPSED_KEY = 'ai-mentor-sidebar-collapsed'
 const DEFAULT_WIDTH = 280
 const MIN_WIDTH = 180
 const MAX_WIDTH = 600

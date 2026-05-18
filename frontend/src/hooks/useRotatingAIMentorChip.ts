@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const INTERVAL_MS = 6000
 const FADE_MS = 400
 
-export function useRotatingLexiroChip() {
+export function useRotatingAIMentorChip() {
   const { t } = useTranslation()
-  const count = parseInt(t('lexiroChip.count'), 10) || 1
+  const count = parseInt(t('aiMentorChip.count'), 10) || 1
   const [index, setIndex] = useState(() => Math.floor(Math.random() * count))
   const [visible, setVisible] = useState(true)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -28,7 +28,7 @@ export function useRotatingLexiroChip() {
   }, [rotate, count])
 
   return {
-    text: t(`lexiroChip.${index}`),
+    text: t(`aiMentorChip.${index}`),
     visible,
   }
 }

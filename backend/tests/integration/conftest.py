@@ -1,4 +1,4 @@
-"""Integration test fixtures: Testcontainers PostgreSQL + pgvector, mock embedder."""
+﻿"""Integration test fixtures: Testcontainers PostgreSQL + pgvector, mock embedder."""
 
 import os
 import pathlib
@@ -21,7 +21,7 @@ def pg_container():
         image="pgvector/pgvector:pg16",
         username="test",
         password="test",
-        dbname="lexiro_test",
+        dbname="ai_mentor_test",
     )
     with container:
         yield container
@@ -32,7 +32,7 @@ def pg_url(pg_container):
     """Async connection URL for the test database."""
     host = pg_container.get_container_host_ip()
     port = pg_container.get_exposed_port(5432)
-    return f"postgresql+asyncpg://test:test@{host}:{port}/lexiro_test"
+    return f"postgresql+asyncpg://test:test@{host}:{port}/ai_mentor_test"
 
 
 @pytest.fixture(scope="session")

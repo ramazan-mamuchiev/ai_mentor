@@ -1,4 +1,4 @@
-"""ASGI middleware for MCP endpoint: authenticate via Bearer API key (ipx_...)."""
+﻿"""ASGI middleware for MCP endpoint: authenticate via Bearer API key (ipx_...)."""
 
 import json
 import logging
@@ -66,7 +66,7 @@ class McpApiKeyAuthMiddleware:
                 if not tenant.email_verified:
                     await self._send_401(
                         send,
-                        "Email not verified. Please verify your email at https://lexiro.io/verify-email before using the API.",
+                        "Email not verified. Please verify your email at https://ai-mentor.ru/verify-email before using the API.",
                     )
                     return
 

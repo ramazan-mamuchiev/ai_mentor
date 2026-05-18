@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RefreshCw, X, Search, Radio, ChevronDown, ChevronRight,
@@ -220,7 +220,7 @@ export function LogsPage() {
 
       const date = new Date().toISOString().slice(0, 10)
       const svc = service || 'all'
-      const base = `lexiro-logs_${svc}_${timeRange}_${date}`
+      const base = `ai-mentor-logs_${svc}_${timeRange}_${date}`
 
       const converters: Record<ExportFormat, { fn: (e: LogEntry[]) => string; ext: string; mime: string }> = {
         json: { fn: entriesToJSON, ext: 'json', mime: 'application/json' },

@@ -1,8 +1,8 @@
-# Lexiro — Design System & UI/UX Guidelines
+﻿# AI Mentor — Design System & UI/UX Guidelines
 
 > **Status**: v1.0 — March 21, 2026
 > **Author**: Oleg Voitekhovich
-> **Purpose**: Единый источник правды по дизайн-системе для всех UI-компонентов Lexiro.
+> **Purpose**: Единый источник правды по дизайн-системе для всех UI-компонентов AI Mentor.
 > При реализации новых страниц и компонентов — использовать ТОЛЬКО этот документ.
 >
 > Related: [PLAN.md](PLAN.md) · [BRAND_SLOGANS.md](BRAND_SLOGANS.md) · [GTM_STRATEGY.md](GTM_STRATEGY.md)
@@ -32,7 +32,7 @@
   ```
 - **Empty state (чат)**: `frontend/src/components/ChatWindow.tsx` — 72×72px, с `drop-shadow`
 - **Landing hero**: `frontend/src/pages/LandingPage.tsx` — 80px, с `drop-shadow` glow, переключение по теме (✅ реализовано)
-- **Promo**: `promo/comparison.html`, `promo/lexiro.html` — inline SVG, 72×80px / 88px
+- **Promo**: `promo/comparison.html`, `promo/ai-mentor.html` — inline SVG, 72×80px / 88px
 
 ### Правила
 
@@ -429,7 +429,7 @@ import { DataTable } from '../components/DataTable'
 import { useDataTable } from '../hooks/useDataTable'
 
 const DEFAULT_COLUMN_ORDER = ['name', 'status', 'size', 'actions']
-const STORAGE_KEY = 'lexiro-my-table'
+const STORAGE_KEY = 'ai-mentor-my-table'
 
 // В компоненте:
 const { table, columnOrder, grouping, handleColumnOrderChange,
@@ -460,8 +460,8 @@ const { table, columnOrder, grouping, handleColumnOrderChange,
 
 | Страница | `storageKey` | Колонки |
 |----------|-------------|---------|
-| `DocumentsPage` | `lexiro-docs-table` | title, format, status, size, chunks, product, uploaded, indexed, actions |
-| `ProductsPage` | `lexiro-products-table` | name, documents, format, status, size, chunks, uploaded, indexed, actions |
+| `DocumentsPage` | `ai-mentor-docs-table` | title, format, status, size, chunks, product, uploaded, indexed, actions |
+| `ProductsPage` | `ai-mentor-products-table` | name, documents, format, status, size, chunks, uploaded, indexed, actions |
 
 #### Правило
 
@@ -714,7 +714,7 @@ padding: 40px 20px;
 - Уведомление об успешном сохранении после upload
 - Минималистичный UI, фокус на статусах
 
-### Синтезированные UI/UX принципы для Lexiro
+### Синтезированные UI/UX принципы для AI Mentor
 
 1. **Чистая таблица/список** документов с фильтрацией по статусу и продукту
 2. **Drag-and-drop upload** как основной способ загрузки
@@ -733,7 +733,7 @@ padding: 40px 20px;
 
 ### Разделы
 
-Lexiro — публичный коммерческий SaaS-продукт. Sidebar содержит 5 разделов навигации (паттерн из GitBook, Documentation.AI, Postman, Algolia):
+AI Mentor — публичный коммерческий SaaS-продукт. Sidebar содержит 5 разделов навигации (паттерн из GitBook, Documentation.AI, Postman, Algolia):
 
 | Иконка (lucide-react) | Раздел | `activePage` value | Статус |
 |---|---|---|---|
@@ -785,12 +785,12 @@ background: var(--surface-hover);
 
 ## 12. Copyright и брендинг
 
-Lexiro — **публичный коммерческий SaaS-продукт**. Copyright обязателен.
+AI Mentor — **публичный коммерческий SaaS-продукт**. Copyright обязателен.
 
 ### Лендинг footer ✅
 
 ```
-© 2026 Lexiro · by Aleh Vaitsekhovich
+© 2026 AI Mentor · by Aleh Vaitsekhovich
 ```
 
 Где "Aleh Vaitsekhovich" — кликабельная ссылка на LinkedIn:
@@ -804,7 +804,7 @@ Lexiro — **публичный коммерческий SaaS-продукт**. 
 В footer sidebar (рядом с переключателями темы и языка) добавить:
 
 ```
-© 2026 Lexiro · by Aleh Vaitsekhovich
+© 2026 AI Mentor · by Aleh Vaitsekhovich
 ```
 
 Стиль:
@@ -829,7 +829,7 @@ color: var(--text-muted);
 ### Локализация
 
 ```json
-"landing.footer.copyright": "© 2026 Lexiro",
+"landing.footer.copyright": "© 2026 AI Mentor",
 "landing.footer.by": "by" / "от",
 "landing.footer.author": "Aleh Vaitsekhovich"
 ```
@@ -860,7 +860,7 @@ frontend/src/styles/
 
 ## 14. Тип продукта
 
-**Lexiro — публичный коммерческий SaaS-продукт** для управления и поиска по технической документации с помощью AI.
+**AI Mentor — публичный коммерческий SaaS-продукт** для управления и поиска по технической документации с помощью AI.
 
 ### Следствия для UI/UX
 

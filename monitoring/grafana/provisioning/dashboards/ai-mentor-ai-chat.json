@@ -1,7 +1,7 @@
-{
-  "uid": "lexiro-ai-chat",
-  "title": "Lexiro AI Chat",
-  "tags": ["lexiro", "chat", "llm"],
+﻿{
+  "uid": "ai-mentor-ai-chat",
+  "title": "AI Mentor Chat",
+  "tags": ["ai_mentor", "chat", "llm"],
   "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,
@@ -32,7 +32,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -66,7 +66,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat stream error\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat stream error\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -103,7 +103,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" | unwrap duration_ms [$__range]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" | unwrap duration_ms [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -142,7 +142,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" | unwrap tokens_per_sec [$__range]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" | unwrap tokens_per_sec [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -181,7 +181,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" | unwrap token_count [$__range]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" | unwrap token_count [$__range]) by ()",
           "queryType": "instant"
         }
       ],
@@ -216,7 +216,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat session created\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat session created\" [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -257,14 +257,14 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" [$__interval]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" [$__interval]))",
           "queryType": "range",
           "legendFormat": "Completed"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat stream error\" [$__interval]))",
+          "expr": "sum(count_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat stream error\" [$__interval]))",
           "queryType": "range",
           "legendFormat": "Errors"
         }
@@ -300,28 +300,28 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg Total"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.95, {container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "quantile_over_time(0.95, {container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "p95 Total"
         },
         {
           "refId": "C",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" | unwrap llm_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" | unwrap llm_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg LLM"
         },
         {
           "refId": "D",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"Chat message completed\" | unwrap rag_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"Chat message completed\" | unwrap rag_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg RAG"
         }
@@ -362,14 +362,14 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"LLM stream completed\" | unwrap tokens_per_sec [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"LLM stream completed\" | unwrap tokens_per_sec [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg tokens/sec"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/lexiro-api-1\"} | json | event = \"LLM stream completed\" | unwrap tokens_per_sec [$__interval]) by ()",
+          "expr": "max_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"LLM stream completed\" | unwrap tokens_per_sec [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Max tokens/sec"
         }
@@ -403,14 +403,14 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"LLM stream completed\" | unwrap first_token_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"LLM stream completed\" | unwrap first_token_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg TTFT"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "quantile_over_time(0.95, {container=\"/lexiro-api-1\"} | json | event = \"LLM stream completed\" | unwrap first_token_ms [$__interval]) by ()",
+          "expr": "quantile_over_time(0.95, {container=\"/ai-mentor-api-1\"} | json | event = \"LLM stream completed\" | unwrap first_token_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "p95 TTFT"
         }
@@ -451,14 +451,14 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"RAG prompt built\" | unwrap rag_build_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"RAG prompt built\" | unwrap rag_build_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg RAG build"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"RAG prompt built\" | unwrap search_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"RAG prompt built\" | unwrap search_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg Search"
         }
@@ -492,14 +492,14 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"RAG prompt built\" | unwrap top_similarity [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"RAG prompt built\" | unwrap top_similarity [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg Top Similarity"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"RAG prompt built\" | unwrap chunks_found [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"RAG prompt built\" | unwrap chunks_found [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg Chunks Found"
         }
@@ -539,14 +539,14 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"LLM stream completed\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"LLM stream completed\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg LLM duration"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/lexiro-api-1\"} | json | event = \"LLM stream completed\" | unwrap duration_ms [$__interval]) by ()",
+          "expr": "max_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"LLM stream completed\" | unwrap duration_ms [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Max LLM duration"
         }
@@ -580,14 +580,14 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "avg_over_time({container=\"/lexiro-api-1\"} | json | event = \"LLM stream completed\" | unwrap token_count [$__interval]) by ()",
+          "expr": "avg_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"LLM stream completed\" | unwrap token_count [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Avg tokens"
         },
         {
           "refId": "B",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "max_over_time({container=\"/lexiro-api-1\"} | json | event = \"LLM stream completed\" | unwrap token_count [$__interval]) by ()",
+          "expr": "max_over_time({container=\"/ai-mentor-api-1\"} | json | event = \"LLM stream completed\" | unwrap token_count [$__interval]) by ()",
           "queryType": "range",
           "legendFormat": "Max tokens"
         }
@@ -628,7 +628,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{container=\"/lexiro-api-1\"} | json | event =~ \"Chat stream error|Ollama API error|Ollama unreachable|Ollama model not found|LLM stream.*\"  | level =~ \"error|warning\"",
+          "expr": "{container=\"/ai-mentor-api-1\"} | json | event =~ \"Chat stream error|Ollama API error|Ollama unreachable|Ollama model not found|LLM stream.*\"  | level =~ \"error|warning\"",
           "queryType": "range"
         }
       ],
@@ -648,14 +648,14 @@
   "annotations": { "list": [] },
   "links": [
     {
-      "title": "Lexiro Overview",
-      "url": "/d/lexiro-overview",
+      "title": "AI Mentor Overview",
+      "url": "/d/ai-mentor-overview",
       "type": "link",
       "icon": "dashboard"
     },
     {
-      "title": "Lexiro System",
-      "url": "/d/lexiro-system",
+      "title": "AI Mentor System",
+      "url": "/d/ai-mentor-system",
       "type": "link",
       "icon": "dashboard"
     }

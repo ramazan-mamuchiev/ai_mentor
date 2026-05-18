@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -141,9 +141,9 @@ export function LandingPage() {
           className="landing-header-logo"
           onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
         >
-          <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-          <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
-          <span>Lexiro</span>
+          <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+          <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
+          <span>AI Mentor</span>
         </a>
 
         <nav className="landing-nav">
@@ -239,14 +239,14 @@ export function LandingPage() {
               <div className="hero-mockup-dots">
                 <span /><span /><span />
               </div>
-              <span className="hero-mockup-url">lexiro.io</span>
+              <span className="hero-mockup-url">ai-mentor.ru</span>
             </div>
             <div className="hero-mockup-body">
               <aside className="hero-mockup-sidebar">
                 <div className="hero-mockup-sidebar-logo">
                   <img src="/logo-on-light.svg" alt="" className="logo-light" />
                   <img src="/logo-on-dark.svg" alt="" className="logo-dark" />
-                  <span>Lexiro</span>
+                  <span>AI Mentor</span>
                 </div>
                 <div className="hero-mockup-sidebar-nav">
                   <div className="hero-mockup-nav-item active"><MessageSquare size={14} /> {t('nav.chat')}</div>
@@ -411,9 +411,9 @@ channels = r.json()["VideoInputChannelList"]`}</code></pre>
         <div className="landing-footer-grid">
           <div className="landing-footer-brand">
             <div className="landing-footer-logo">
-              <img src="/logo-on-light.svg" alt="Lexiro" className="logo-light" />
-              <img src="/logo-on-dark.svg" alt="Lexiro" className="logo-dark" />
-              <span>Lexiro</span>
+              <img src="/logo-on-light.svg" alt="AI Mentor" className="logo-light" />
+              <img src="/logo-on-dark.svg" alt="AI Mentor" className="logo-dark" />
+              <span>AI Mentor</span>
             </div>
             <p className="landing-footer-tagline">{t('landing.footer.tagline')}</p>
           </div>

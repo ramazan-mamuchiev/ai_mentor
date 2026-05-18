@@ -1,10 +1,10 @@
-"""Application configuration via environment variables."""
+﻿"""Application configuration via environment variables."""
 
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://lexiro:lexiro_dev@localhost:5432/lexiro"
+    database_url: str = "postgresql+asyncpg://ai-mentor:ai_mentor_dev@localhost:5432/ai_mentor"
 
     api_key: str = "ipx_dev_key_12345"
 
@@ -16,11 +16,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "lexiro"
-    s3_secret_key: str = "lexiro_dev"
-    s3_bucket: str = "lexiro-storage"
+    s3_access_key: str = "ai_mentor"
+    s3_secret_key: str = "ai_mentor_dev"
+    s3_bucket: str = "ai-mentor-storage"
 
-    database_url_sync: str = "postgresql://lexiro:lexiro_dev@localhost:5432/lexiro"
+    database_url_sync: str = "postgresql://ai-mentor:ai_mentor_dev@localhost:5432/ai_mentor"
 
     max_upload_size_mb: int = 50
     max_archive_size_mb: int = 350
@@ -164,7 +164,7 @@ class Settings(BaseSettings):
 
     oauth_enabled: bool = False  # master switch — disables all OAuth providers when False
     allowed_email_domain: str = "axxonsoft.dev"  # only emails ending with this domain can register; empty = no restriction
-    guest_allowed_emails: str = ""  # comma-separated emails allowed outside allowed_email_domain, e.g. "test@lexiro.io,qa@lexiro.io"
+    guest_allowed_emails: str = ""  # comma-separated emails allowed outside allowed_email_domain, e.g. "test@ai-mentor.ru,qa@ai-mentor.ru"
     guest_approval_email: str = ""  # admin email that receives verification links for guest accounts
 
     app_base_url: str = "http://localhost:80"
@@ -176,7 +176,7 @@ class Settings(BaseSettings):
     # --- Sentry ---
     sentry_dsn: str = ""
 
-    platform_name: str = "Lexiro"
+    platform_name: str = "AI Mentor"
 
     app_env: str = "development"
     app_log_level: str = "INFO"

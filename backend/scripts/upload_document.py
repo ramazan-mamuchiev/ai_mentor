@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Upload a document or archive to Lexiro via REST API and wait for processing."""
+﻿#!/usr/bin/env python3
+"""Upload a document or archive to AI Mentor via REST API and wait for processing."""
 
 import argparse
 import os
@@ -189,7 +189,7 @@ def _wait_for_document(api_url: str, doc_id: int, timeout: int, t0: float):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Upload a document or ZIP archive to Lexiro and track ingestion progress.",
+        description="Upload a document or ZIP archive to AI Mentor and track ingestion progress.",
     )
     parser.add_argument("file", help="Path to document file or archive (ZIP, 7z, tar.gz, tgz, tar.bz2, tar.xz, tar, RAR)")
     parser.add_argument("--product", required=True, help="Product name (e.g. 'HikCentral Professional')")

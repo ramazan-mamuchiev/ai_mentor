@@ -1,8 +1,8 @@
-# Lexiro — Go-to-Market Strategy
+﻿# AI Mentor — Go-to-Market Strategy
 
 > **Status**: v1.0 — March 18, 2026
 > **Author**: Oleg Voitekhovich
-> **Purpose**: Go-to-market strategy with AI-first positioning — Lexiro as an AI accelerator for device API integration
+> **Purpose**: Go-to-market strategy with AI-first positioning — AI Mentor as an AI accelerator for device API integration
 >
 > Related: [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md) · [MARKET_RESEARCH.md](MARKET_RESEARCH.md) · [MONETIZATION.md](MONETIZATION.md) · [INFRASTRUCTURE_COSTS.md](INFRASTRUCTURE_COSTS.md)
 
@@ -10,10 +10,10 @@
 
 ## 1. Positioning: AI Integration Accelerator
 
-### 1.1 What Lexiro IS and IS NOT
+### 1.1 What AI Mentor IS and IS NOT
 
 ```
-Lexiro IS:                              Lexiro IS NOT:
+AI Mentor IS:                              AI Mentor IS NOT:
 ─────────────────────────────────        ─────────────────────────────────
 AI that understands device APIs          A documentation hosting platform
 An integration accelerator               A search engine
@@ -35,13 +35,13 @@ Slogan (hero) — melodic metaphor explaining what the product does. Subtitle �
 
 ### 1.3 Central message
 
-**Lexiro is AI that reads device documentation so developers don't have to. Integration that took days now takes hours.**
+**AI Mentor is AI that reads device documentation so developers don't have to. Integration that took days now takes hours.**
 
 The technology stack — RAG (Retrieval-Augmented Generation) + MCP (Model Context Protocol) + semantic search over device documentation — enables AI coding assistants like Cursor to generate accurate, working integration code by understanding the actual API specs of physical security devices.
 
 ### 1.4 Audience-specific messaging
 
-| Audience | Pain point | Lexiro message | Proof point |
+| Audience | Pain point | AI Mentor message | Proof point |
 |----------|-----------|-----------------|-------------|
 | **Developers** | Spend hours reading PDFs, guessing API parameters, trial-and-error | "Ask your IDE about any device API — get working code in seconds" | Find an API endpoint in 5 sec vs 30-60 min reading PDF |
 | **Integration companies** | Projects delayed because developers struggle with device documentation | "Cut integration time by 60-80%. Ship projects faster, win more deals" | 10-20 hrs/month saved per developer = $500-2,000/mo value |
@@ -49,13 +49,13 @@ The technology stack — RAG (Retrieval-Augmented Generation) + MCP (Model Conte
 
 ### 1.5 Competitive differentiation
 
-Lexiro occupies a unique position: **AI-native, device-specialized, IDE-integrated**.
+AI Mentor occupies a unique position: **AI-native, device-specialized, IDE-integrated**.
 
 ```
                         Device-specialized
                               │
                               │
-                    Lexiro ──┤
+                    AI Mentor ──┤
                               │
                               │
   Generic ────────────────────┼──────────────────── AI-native
@@ -68,14 +68,14 @@ Lexiro occupies a unique position: **AI-native, device-specialized, IDE-integrat
                         General-purpose
 ```
 
-| Competitor | What they do | Why Lexiro wins |
+| Competitor | What they do | Why AI Mentor wins |
 |------------|-------------|------------------|
 | **Reading PDFs manually** | Ctrl+F in 200-page PDF | AI semantic search finds answers in seconds, not minutes |
-| **Copy-paste into ChatGPT** | Paste docs into LLM manually | Lexiro auto-indexes all docs, always up-to-date, no context limits |
-| **Context7** | RAG over open-source library docs | Lexiro covers proprietary device docs (Axis, Hikvision, Dahua), not just OSS |
-| **Algolia / Pinecone** | Generic search infrastructure | Lexiro is a complete solution, not raw infrastructure. No setup needed |
-| **Vendor SDKs** | Code samples from one vendor | Lexiro covers 100+ vendors in one place, always current |
-| **Cursor rules files** | Manually written .mdc rules | Lexiro auto-generates from any doc format, scales to thousands of devices |
+| **Copy-paste into ChatGPT** | Paste docs into LLM manually | AI Mentor auto-indexes all docs, always up-to-date, no context limits |
+| **Context7** | RAG over open-source library docs | AI Mentor covers proprietary device docs (Axis, Hikvision, Dahua), not just OSS |
+| **Algolia / Pinecone** | Generic search infrastructure | AI Mentor is a complete solution, not raw infrastructure. No setup needed |
+| **Vendor SDKs** | Code samples from one vendor | AI Mentor covers 100+ vendors in one place, always current |
+| **Cursor rules files** | Manually written .mdc rules | AI Mentor auto-generates from any doc format, scales to thousands of devices |
 
 ---
 
@@ -104,13 +104,13 @@ Day 2:
   14:00  Integration working. Total time: ~12 hours across 2 days
 ```
 
-**With Lexiro + Cursor MCP:**
+**With AI Mentor + Cursor MCP:**
 
 ```
   09:00  Open Cursor. Ask: "How to stream video from Grundig SMART camera
          and register it in Axxon One with analytics metadata?"
 
-  09:00  Lexiro returns:
+  09:00  AI Mentor returns:
          — Grundig authentication API (from camera docs)
          — Grundig RTSP streaming endpoint (from camera docs)
          — Grundig SMART analytics metadata format (from camera docs)
@@ -128,7 +128,7 @@ Day 2:
 
 ### 2.2 Why this matters at scale
 
-| Metric | Without Lexiro | With Lexiro | Impact |
+| Metric | Without AI Mentor | With AI Mentor | Impact |
 |--------|:-:|:-:|--------|
 | Time to integrate one device | 8-16 hours | 1-3 hours | **5-8x faster** |
 | Devices integrated per month (per developer) | 2-4 | 10-20 | **5x more throughput** |
@@ -149,7 +149,7 @@ Developer asks question in Cursor IDE
             │
             ▼
     ┌───────────────┐
-    │  Lexiro API   │    Authenticated, rate-limited, metered
+    │  AI Mentor API   │    Authenticated, rate-limited, metered
     └───────┬───────┘
             │
             ▼
@@ -204,7 +204,7 @@ Founding partners:
 - **AxxonSoft** — VMS/PSIM platform, 10,000+ integrated devices, rich SDK (HTTP, gRPC, WebSocket)
 - **Grundig Security** — Camera vendor, SMART line with edge AI analytics, AxxonSoft technology partner
 
-**AI angle for partnerships**: position Lexiro as the AI layer that makes vendor documentation instantly accessible. Vendors get more integrations; developers get faster results.
+**AI angle for partnerships**: position AI Mentor as the AI layer that makes vendor documentation instantly accessible. Vendors get more integrations; developers get faster results.
 
 ### 3.2 Content SEO (Priority 2)
 
@@ -214,9 +214,9 @@ Founding partners:
 
 Every article follows the same structure:
 1. The integration problem (what developers struggle with)
-2. How AI solves it (Lexiro + MCP in action)
+2. How AI solves it (AI Mentor + MCP in action)
 3. Working code example
-4. Call-to-action: "Try Lexiro free"
+4. Call-to-action: "Try AI Mentor free"
 
 **First 10 articles (by target search query):**
 
@@ -234,7 +234,7 @@ Every article follows the same structure:
 | 10 | "MCP protocol for developers — how AI assistants use device docs" | mcp protocol developer | Growing |
 
 **Where to publish:**
-- Lexiro blog (primary — for SEO juice)
+- AI Mentor blog (primary — for SEO juice)
 - dev.to (cross-post — for developer reach)
 - Medium (cross-post — for general reach)
 - LinkedIn articles (for B2B audience)
@@ -246,19 +246,19 @@ Every article follows the same structure:
 | Format | Frequency | AI angle |
 |--------|:---------:|----------|
 | Technical blog post | 2/month | "How AI found the right API endpoint in 5 seconds" |
-| YouTube tutorial (5-10 min) | 1/month | Screen recording: Cursor + Lexiro MCP solving real integration task |
+| YouTube tutorial (5-10 min) | 1/month | Screen recording: Cursor + AI Mentor MCP solving real integration task |
 | Twitter/LinkedIn post | 3/week | Short tips, before/after comparisons, integration speed metrics |
 | Conference talk (virtual) | 1/quarter | "AI-powered device integration — from 2 days to 2 hours" |
 
-**Key DevRel narrative**: every piece of content should demonstrate the **AI acceleration** — show the before (manual) and after (Lexiro) side by side.
+**Key DevRel narrative**: every piece of content should demonstrate the **AI acceleration** — show the before (manual) and after (AI Mentor) side by side.
 
 ### 3.4 Community (Priority 4)
 
 **Launch at 100+ active users** (estimated month 6-8).
 
 - Discord server: channels per vendor (Axis, Hikvision, Axxon One, etc.)
-- Weekly "Integration Challenge": integrate a device using Lexiro, share results
-- "Ask the AI" showcase: interesting queries and answers from Lexiro
+- Weekly "Integration Challenge": integrate a device using AI Mentor, share results
+- "Ask the AI" showcase: interesting queries and answers from AI Mentor
 
 ### 3.5 Targeted Outbound (Priority 5)
 
@@ -285,7 +285,7 @@ Target: CTO/VP Engineering at SDM Top 100 integration companies.
 | **IPVM** | Industry authority | "First AI assistant for security device integration — how it works" |
 | **SDM Magazine** | Integrator audience | "AI reduces integration time by 80% — case study with [Partner]" |
 | **Security Sales & Integration** | Installer audience | "The AI tool that helps installers integrate devices faster" |
-| **Product Hunt** | Developer launch | "Lexiro — AI that reads device docs so you don't have to" |
+| **Product Hunt** | Developer launch | "AI Mentor — AI that reads device docs so you don't have to" |
 | **Hacker News** | Developer community | "Show HN: We built RAG + MCP for IP device documentation" |
 
 ### 3.7 Paid Ads (Priority 7 — last)
@@ -311,7 +311,7 @@ Target: CTO/VP Engineering at SDM Top 100 integration companies.
 
 ### 4.2 Elevator pitch (30 seconds)
 
-> "Developers at integration companies spend 30-60% of their time reading device documentation — PDFs, Swagger specs, SDK guides. Lexiro uses AI to index all of that documentation and make it searchable directly from Cursor or any AI coding assistant. Instead of spending 8 hours reading a 200-page PDF to integrate a camera, a developer asks a question and gets working code in seconds. AxxonSoft and Grundig integrators are already using it."
+> "Developers at integration companies spend 30-60% of their time reading device documentation — PDFs, Swagger specs, SDK guides. AI Mentor uses AI to index all of that documentation and make it searchable directly from Cursor or any AI coding assistant. Instead of spending 8 hours reading a 200-page PDF to integrate a camera, a developer asks a question and gets working code in seconds. AxxonSoft and Grundig integrators are already using it."
 
 ### 4.3 One-pagers by audience
 
@@ -327,13 +327,13 @@ THE SOLUTION:
   Open Cursor. Ask: "How to stream Grundig SMART camera
   with analytics metadata into Axxon One?"
 
-  Lexiro AI searches all 480 pages in milliseconds.
+  AI Mentor searches all 480 pages in milliseconds.
   Returns: authentication code + streaming endpoint +
   metadata format + Axxon One registration — all in one answer.
 
   Time saved: 12 hours → 1.5 hours.
 
-TRY FREE: lexiro.io
+TRY FREE: ai-mentor.ru
 ```
 
 **For integration company CTO:**
@@ -345,16 +345,16 @@ THE PROBLEM:
   Projects are delayed. New hires take 2 weeks to become productive.
 
 THE SOLUTION:
-  Lexiro AI indexes documentation for 100+ device vendors.
+  AI Mentor indexes documentation for 100+ device vendors.
   Your developers ask questions in their IDE and get working code.
 
   RESULT:
     — Integration time: 8-16 hrs → 1-3 hrs per device (5-8x faster)
     — New developer onboarding: 2 weeks → 1 day
     — Monthly value per developer: $500-2,000 in saved time
-    — Lexiro cost: $99/developer/month (ROI: 5-20x)
+    — AI Mentor cost: $99/developer/month (ROI: 5-20x)
 
-BOOK A DEMO: lexiro.io/enterprise
+BOOK A DEMO: ai-mentor.ru/enterprise
 ```
 
 **For device vendors:**
@@ -366,7 +366,7 @@ THE PROBLEM:
   Competitors with simpler APIs win deals you should be winning.
 
 THE SOLUTION:
-  Lexiro indexes your documentation with AI.
+  AI Mentor indexes your documentation with AI.
   Developers find your API answers in seconds, not hours.
   Your devices become the easiest to integrate.
 
@@ -374,9 +374,9 @@ THE SOLUTION:
     — More integrations = more device sales
     — 80% fewer support tickets about API usage
     — Analytics: see what developers search for (product feedback)
-    — "Verified on Lexiro" badge = developer trust signal
+    — "Verified on AI Mentor" badge = developer trust signal
 
-BECOME A PARTNER: lexiro.io/vendors
+BECOME A PARTNER: ai-mentor.ru/vendors
 ```
 
 ### 4.4 Key metrics for pitches
@@ -402,7 +402,7 @@ BECOME A PARTNER: lexiro.io/vendors
 Upgrade funnel powered by AI model tiers:
 
   FREE (Gemini Flash, 200 queries)
-    |  Developer tries Lexiro, gets good answers
+    |  Developer tries AI Mentor, gets good answers
     |  Sees "Upgrade to Pro for 100 Premium AI queries (Opus 4.6)"
     v
   PRO ($99/mo, Flash default + 100 Opus)
@@ -453,7 +453,7 @@ PARTNERSHIPS:
   Week 8-12: First co-marketing content with AxxonSoft
 
 PRODUCT:
-  Week 1-2:  Landing page live (lexiro.io)
+  Week 1-2:  Landing page live (ai-mentor.ru)
   Week 2-4:  Self-service sign-up + free tier working
   Week 4-8:  Iterate based on AxxonSoft integrator feedback
 
@@ -481,7 +481,7 @@ PARTNERSHIPS:
   — Convert 2-3 vendors to paid Pro ($499/mo)
 
 DEVREL:
-  — Launch Lexiro blog (technical content)
+  — Launch AI Mentor blog (technical content)
   — First YouTube tutorial: "Integrate [device] in 10 min with AI"
   — Start LinkedIn posting (3x/week)
 
@@ -543,7 +543,7 @@ PR:
 PARTNERSHIPS:
   — 20+ paid vendor partners
   — 3-5 Strategic Partners
-  — "Lexiro Certified" program pilot
+  — "AI Mentor Certified" program pilot
 
 GROWTH:
   — 1,000+ developer sign-ups
@@ -616,7 +616,7 @@ KPIs:
 | Attend trade shows with a booth | $15K+ per show, one-time impact | Attend as visitor ($3K), network, follow up digitally |
 | Pitch to Enterprise before having case studies | No credibility without proof | Build proof with AxxonSoft/Grundig first, then pitch |
 | Launch community before 100 users | Empty Discord = dead product signal | Wait for critical mass, then launch |
-| Compete on features with Algolia/Pinecone | They are infrastructure; Lexiro is a solution | Compete on outcome: "faster integration", not "better search" |
+| Compete on features with Algolia/Pinecone | They are infrastructure; AI Mentor is a solution | Compete on outcome: "faster integration", not "better search" |
 | Discount pricing to win early customers | Trains market to expect low prices. Hard to raise later | Offer free trial (14 days), not discounts. Price = value |
 
 ---
@@ -638,7 +638,7 @@ KPIs:
 - [ ] 5,000+ developer sign-ups
 - [ ] $50K+ MRR
 - [ ] 30%+ of new developers from vendor referrals
-- [ ] "Lexiro Certified" recognized in the industry
+- [ ] "AI Mentor Certified" recognized in the industry
 - [ ] Coverage in IPVM or SDM Magazine
 - [ ] First Enterprise contract ($1,999+/mo)
 
@@ -646,5 +646,5 @@ KPIs:
 
 - [ ] $200K+ MRR ($2.4M+ ARR)
 - [ ] 500+ vendors indexed
-- [ ] Lexiro = default tool for device integration in physical security
+- [ ] AI Mentor = default tool for device integration in physical security
 - [ ] Expansion into adjacent verticals (building automation, IoT)

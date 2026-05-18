@@ -1,4 +1,4 @@
-"""Unit tests for RAG service."""
+﻿"""Unit tests for RAG service."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -182,7 +182,7 @@ class TestBuildRagPrompt:
 
         assert len(messages) >= 3
         assert messages[0]["role"] == "system"
-        assert "Lexiro AI" in messages[0]["content"]
+        assert "AI Mentor" in messages[0]["content"]
         assert messages[1]["role"] == "user"
         assert "<documentation_context>" in messages[1]["content"]
         assert messages[-1]["role"] == "user"
@@ -324,7 +324,7 @@ class TestBuildRagPrompt:
         assert debug["chunks_found"] == 0
 
         system_content = messages[0]["content"]
-        assert "Lexiro AI" in system_content
+        assert "AI Mentor" in system_content
         assert "EMPTY" in system_content
         assert messages[-1]["role"] == "user"
         assert "какие документы есть?" in messages[-1]["content"]

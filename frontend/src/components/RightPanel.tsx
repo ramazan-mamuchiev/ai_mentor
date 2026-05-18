@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bug, FileSearch, Share2, X, Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { DebugInfo, SourceInfo, McpSourceInfo } from '../types'
@@ -9,7 +9,7 @@ import { ShareModal } from './ShareModal'
 import { fmtUsd } from '../utils/format'
 
 const MOBILE_BP = 768
-const RATIO_KEY = 'lexiro-right-panel-ratio'
+const RATIO_KEY = 'ai-mentor-right-panel-ratio'
 const DEFAULT_RATIO = 0.3
 const MIN_RATIO = 0.15
 const MAX_RATIO = 0.55

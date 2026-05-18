@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bug, Share2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ProductDebugContent } from './ProductDebugPanel'
@@ -6,7 +6,7 @@ import { DocumentDebugContent } from './DocumentDebugPanel'
 import { ShareModal } from './ShareModal'
 
 const MOBILE_BP = 768
-const RATIO_KEY = 'lexiro-docs-panel-ratio'
+const RATIO_KEY = 'ai-mentor-docs-panel-ratio'
 const DEFAULT_RATIO = 0.35
 const MIN_RATIO = 0.2
 const MAX_RATIO = 0.55

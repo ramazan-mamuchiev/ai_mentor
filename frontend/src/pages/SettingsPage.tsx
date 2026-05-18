@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Copy, Key, Link2, Plus, ShieldOff, Check, User, Save, X, ChevronDown, ChevronUp, Settings, Eye, EyeOff, RotateCcw, Trash2, ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
@@ -568,7 +568,7 @@ function NewKeyModal({ newKey, onClose }: { newKey: ApiKeyCreated; onClose: () =
 
   const mcpConfig = JSON.stringify({
     mcpServers: {
-      lexiro: {
+      ai-mentor: {
         url: `${window.location.origin}/mcp`,
         headers: {
           Authorization: `Bearer ${newKey.key}`,

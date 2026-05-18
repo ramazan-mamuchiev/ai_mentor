@@ -1,4 +1,4 @@
-"""PDF -> Markdown converter with optional OCR (Gemini Vision).
+﻿"""PDF -> Markdown converter with optional OCR (Gemini Vision).
 
 Two-pass pipeline (legacy) or async pipeline:
   Legacy: pymupdf4llm text extraction + synchronous OCR in one call
@@ -37,9 +37,9 @@ MAX_RETRIES = 2
 PAGES_PER_CHUNK_SMALL = 2
 PAGES_PER_CHUNK_LARGE = 10
 
-IMAGE_PLACEHOLDER_PREFIX = "lexiro:image"
+IMAGE_PLACEHOLDER_PREFIX = "ai-mentor:image"
 _PLACEHOLDER_RE = re.compile(
-    r"!\[([^\]]*)\]\(lexiro:image:(\d+):(\d+)\)"
+    r"!\[([^\]]*)\]\(ai-mentor:image:(\d+):(\d+)\)"
 )
 
 _XREF_WIDTH_RE = re.compile(r"/Width\s+(\d+)")
@@ -230,7 +230,7 @@ def _replace_image_refs_with_placeholders(
 
     pymupdf4llm generates refs like ![alt](path/image.png).
     Each image ref gets a positional seq (0, 1, 2, ...) matching the global seq
-    from collect_ocr_images. OCR-worthy refs become lexiro:image:DOC_ID:SEQ
+    from collect_ocr_images. OCR-worthy refs become ai-mentor:image:DOC_ID:SEQ
     placeholders; small/non-OCR refs are removed (blank string).
     """
     from app.ingestion.converters.ocr import IMG_REF_RE
@@ -263,7 +263,7 @@ def convert_pdf_text_only(
 
     Images above the OCR threshold are collected as PdfImageInfo for later
     async OCR processing. Image markdown refs in the text are replaced
-    with stable placeholders: ![alt](lexiro:image:DOC_ID:SEQ).
+    with stable placeholders: ![alt](ai-mentor:image:DOC_ID:SEQ).
 
     Returns:
         (markdown_text_with_placeholders, metadata, ocr_image_list)
@@ -373,10 +373,10 @@ def replace_placeholders_with_ocr(
     md_text: str,
     ocr_results: dict[str, str],
 ) -> str:
-    """Replace lexiro:image placeholders in markdown with OCR text.
+    """Replace ai-mentor:image placeholders in markdown with OCR text.
 
     Args:
-        md_text: Markdown text containing ![...](lexiro:image:DOC:SEQ) placeholders.
+        md_text: Markdown text containing ![...](ai-mentor:image:DOC:SEQ) placeholders.
         ocr_results: Mapping of "DOC_ID:SEQ" -> recognized text.
             Missing or empty entries leave the placeholder removed (blank).
 

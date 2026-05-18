@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 
 import { App } from "@microsoft/teams.apps";
 import { MessageActivity } from "@microsoft/teams.api";
@@ -12,7 +12,7 @@ import { ConsoleLogger } from "@microsoft/teams.common";
 
 import { buildAnswerCard, buildErrorCard } from "./cards.js";
 
-const logger = new ConsoleLogger("lexiro-bot", { level: "info" });
+const logger = new ConsoleLogger("ai-mentor-bot", { level: "info" });
 
 const _RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
 const _MAX_RETRIES = 3;
@@ -37,7 +37,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
   throw lastErr;
 }
 
-const SYSTEM_PROMPT = `You are Lexiro Bot — a documentation assistant for hardware integration developers.
+const SYSTEM_PROMPT = `You are AI Mentor Bot — a documentation assistant for hardware integration developers.
 Your knowledge base contains API documentation for IP cameras, access controllers, intercoms,
 video management systems (VMS), PSIM platforms, and IoT SDKs.
 
@@ -54,7 +54,7 @@ RULES:
 - Keep answers concise but complete. Include code examples when relevant.
 - If documentation quality is low or results are uncertain, warn the user.`;
 
-const HELP_MESSAGE = `**Lexiro Bot** — AI-ассистент по документации вендоров
+const HELP_MESSAGE = `**AI Mentor Bot** — AI-ассистент по документации вендоров
 
 **Как использовать:**
 Просто напишите вопрос, например:
@@ -94,17 +94,17 @@ function createPrompt(modelOverride?: string) {
     [mcpPlugin]
   );
 
-  const lexiroUrl = process.env.LEXIRO_MCP_URL;
-  const lexiroKey = process.env.LEXIRO_API_KEY;
-  if (!lexiroUrl || !lexiroKey) {
-    throw new Error("Missing LEXIRO_MCP_URL or LEXIRO_API_KEY");
+  const aiMentorUrl = process.env.AI_MENTOR_MCP_URL;
+  const aiMentorKey = process.env.AI_MENTOR_API_KEY;
+  if (!aiMentorUrl || !aiMentorKey) {
+    throw new Error("Missing AI_MENTOR_MCP_URL or AI_MENTOR_API_KEY");
   }
 
   prompt.usePlugin("mcpClient", {
-    url: lexiroUrl,
+    url: aiMentorUrl,
     params: {
       headers: {
-        Authorization: `Bearer ${lexiroKey}`,
+        Authorization: `Bearer ${aiMentorKey}`,
       },
     },
   });
@@ -225,13 +225,13 @@ app.on("message", async ({ send, activity }) => {
 
 app.on("install.add", async ({ send }) => {
   await send(
-    "Привет! Я **Lexiro Bot** — ваш AI-ассистент по документации вендоров. " +
-      "Задайте вопрос о любом API, и я найду ответ в базе знаний Lexiro.\n\n" +
+    "Привет! Я **AI Mentor Bot** — ваш AI-ассистент по документации вендоров. " +
+      "Задайте вопрос о любом API, и я найду ответ в базе знаний AI Mentor.\n\n" +
       "Напишите **help** для подробной справки."
   );
 });
 
 const port = parseInt(process.env.PORT || "3978", 10);
 app.start(port).then(() => {
-  logger.info(`Lexiro Teams Bot started on port ${port}`);
+  logger.info(`AI Mentor Teams Bot started on port ${port}`);
 });

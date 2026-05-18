@@ -1,4 +1,4 @@
-"""GitHub repository importer via GitHub REST API.
+﻿"""GitHub repository importer via GitHub REST API.
 
 Fetches the full file tree of a public repository using the Git Trees API,
 filters files by supported extensions, and downloads each file via
@@ -23,7 +23,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _FETCH_TIMEOUT = 30
-_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Lexiro/1.0"
+_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AI Mentor/1.0"
 
 SUPPORTED_EXTENSIONS = {
     ".md", ".txt", ".yaml", ".yml", ".json", ".pdf",
@@ -238,7 +238,7 @@ def _download_file(
                     })
                     return None
 
-            fd, path = tempfile.mkstemp(suffix=suffix, prefix="lexiro_gh_")
+            fd, path = tempfile.mkstemp(suffix=suffix, prefix="ai_mentor_gh_")
             with os.fdopen(fd, "wb") as f:
                 f.write(content)
             return path

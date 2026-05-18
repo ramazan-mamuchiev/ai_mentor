@@ -1,4 +1,4 @@
-x-logging: &default-logging
+﻿x-logging: &default-logging
   driver: json-file
   options:
     max-size: "10m"
@@ -17,14 +17,14 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: lexiro
-      POSTGRES_USER: lexiro
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexiro_dev}
+      POSTGRES_DB: ai_mentor
+      POSTGRES_USER: ai_mentor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_mentor_dev}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lexiro"]
+      test: ["CMD-SHELL", "pg_isready -U ai_mentor"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -58,7 +58,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-lexiro}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-lexiro_dev}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-ai_mentor_dev}
     volumes:
       - minio_data:/data
     healthcheck:
@@ -71,7 +71,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    image: lexiro-backend
+    image: ai-mentor-backend
     restart: unless-stopped
     logging: *default-logging
     deploy:
@@ -89,13 +89,13 @@ services:
       minio:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
-      DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      DATABASE_URL: postgresql+asyncpg://ai-mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
+      DATABASE_URL_SYNC: postgresql://ai-mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-lexiro}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-lexiro_dev}
-      S3_BUCKET: ${S3_BUCKET:-lexiro-storage}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-ai_mentor_dev}
+      S3_BUCKET: ${S3_BUCKET:-ai-mentor-storage}
       API_KEY: ${API_KEY:-ipx_dev_key_12345}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-50}
       MAX_ARCHIVE_SIZE_MB: ${MAX_ARCHIVE_SIZE_MB:-350}
@@ -124,7 +124,7 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      APP_BASE_URL: ${APP_BASE_URL:-https://lexiro.io}
+      APP_BASE_URL: ${APP_BASE_URL:-https://ai-mentor.ru}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-onboarding@resend.dev}
       CONFLUENCE_CREDENTIALS_KEY: ${CONFLUENCE_CREDENTIALS_KEY:-}
@@ -142,7 +142,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
 
   worker:
-    image: lexiro-backend
+    image: ai-mentor-backend
     restart: unless-stopped
     logging: *default-logging
     deploy:
@@ -158,13 +158,13 @@ services:
       redis:
         condition: service_healthy
     environment: &worker-env
-      DATABASE_URL: postgresql+asyncpg://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
-      DATABASE_URL_SYNC: postgresql://lexiro:${POSTGRES_PASSWORD:-lexiro_dev}@postgres:5432/lexiro
+      DATABASE_URL: postgresql+asyncpg://ai-mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
+      DATABASE_URL_SYNC: postgresql://ai-mentor:${POSTGRES_PASSWORD:-ai_mentor_dev}@postgres:5432/ai_mentor
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-lexiro}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-lexiro_dev}
-      S3_BUCKET: ${S3_BUCKET:-lexiro-storage}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-ai_mentor_dev}
+      S3_BUCKET: ${S3_BUCKET:-ai-mentor-storage}
       EMBEDDING_MODEL_GEMINI: ${EMBEDDING_MODEL_GEMINI:-gemini-embedding-2-preview}
       EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -181,7 +181,7 @@ services:
     command: celery -A app.celery_app worker --loglevel=info --concurrency=4 -Q celery,monitoring,translation,critical
 
   beat:
-    image: lexiro-backend
+    image: ai-mentor-backend
     restart: unless-stopped
     logging: *default-logging
     deploy:
@@ -219,8 +219,8 @@ services:
       OPENAI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       OPENAI_MODEL: ${OPENAI_LLM_MODEL:-gemini-2.5-flash}
-      LEXIRO_MCP_URL: https://lexiro.io/mcp
-      LEXIRO_API_KEY: ${TEAMS_BOT_LEXIRO_API_KEY:-}
+      AI_MENTOR_MCP_URL: https://ai-mentor.ru/mcp
+      AI_MENTOR_API_KEY: ${TEAMS_BOT_AI_MENTOR_API_KEY:-}
       ALLOWED_TENANT_ID: ${ALLOWED_TENANT_ID:-}
       ALLOWED_DOMAIN: ${ALLOWED_DOMAIN:-axxonsoft.dev}
       PORT: "3978"

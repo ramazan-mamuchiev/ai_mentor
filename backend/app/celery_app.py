@@ -1,4 +1,4 @@
-"""Celery application for background document ingestion."""
+﻿"""Celery application for background document ingestion."""
 
 import hashlib
 import logging
@@ -33,7 +33,7 @@ def _on_after_setup_logger(logger=None, **kw):
     """Re-apply our JSON logging after Celery replaces the root logger config."""
     setup_logging()
 
-celery = Celery("lexiro", broker=settings.redis_url, backend=settings.redis_url)
+celery = Celery("ai_mentor", broker=settings.redis_url, backend=settings.redis_url)
 celery.conf.update(
     task_serializer="json",
     accept_content=["json"],

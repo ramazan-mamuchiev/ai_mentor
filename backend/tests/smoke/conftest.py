@@ -1,4 +1,4 @@
-"""Smoke test fixtures: real PostgreSQL+pgvector WITHOUT mock embedder."""
+﻿"""Smoke test fixtures: real PostgreSQL+pgvector WITHOUT mock embedder."""
 
 import pathlib
 
@@ -17,7 +17,7 @@ def pg_container_smoke():
         image="pgvector/pgvector:pg16",
         username="test",
         password="test",
-        dbname="lexiro_smoke",
+        dbname="ai_mentor_smoke",
     )
     with container:
         yield container
@@ -27,7 +27,7 @@ def pg_container_smoke():
 def pg_url_smoke(pg_container_smoke):
     host = pg_container_smoke.get_container_host_ip()
     port = pg_container_smoke.get_exposed_port(5432)
-    return f"postgresql+asyncpg://test:test@{host}:{port}/lexiro_smoke"
+    return f"postgresql+asyncpg://test:test@{host}:{port}/ai_mentor_smoke"
 
 
 @pytest.fixture(scope="session")

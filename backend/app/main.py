@@ -1,4 +1,4 @@
-"""Lexiro — FastAPI application with MCP server (streamable HTTP transport)."""
+﻿"""AI Mentor — FastAPI application with MCP server (streamable HTTP transport)."""
 
 import asyncio
 import contextlib
@@ -40,12 +40,12 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
-    "Lexiro",
+    "AI Mentor",
     stateless_http=True,
     json_response=True,
     streamable_http_path="/",
     transport_security=TransportSecuritySettings(
-        allowed_hosts=["lexiro.io", "localhost", "127.0.0.1"],
+        allowed_hosts=["ai-mentor.ru", "localhost", "127.0.0.1"],
     ),
 )
 
@@ -443,7 +443,7 @@ async def lifespan(app: FastAPI):
     global _start_time
     _start_time = time.time()
     logger.info(
-        "Lexiro MCP server starting",
+        "AI Mentor MCP server starting",
         extra={"env": settings.app_env, "version": "0.1.0"},
     )
 
@@ -483,11 +483,11 @@ async def lifespan(app: FastAPI):
     from app.llm.http_client import close_clients
     await close_clients()
 
-    logger.info("Lexiro MCP server stopped")
+    logger.info("AI Mentor MCP server stopped")
 
 
 app = FastAPI(
-    title="Lexiro",
+    title="AI Mentor",
     version="0.1.0",
     lifespan=lifespan,
 )

@@ -1,8 +1,8 @@
-# Lexiro — Content Sources: Verified Import URLs
+﻿# AI Mentor — Content Sources: Verified Import URLs
 
 > **Status**: v1.0 — March 28, 2026
 > **Author**: Oleg Voitekhovich
-> **Purpose**: Operational reference of verified URLs for content ingestion into Lexiro. All links checked and confirmed working.
+> **Purpose**: Operational reference of verified URLs for content ingestion into AI Mentor. All links checked and confirmed working.
 >
 > Related: [CONTENT_PLAN.md](CONTENT_PLAN.md) · [FLOWS.md](FLOWS.md) · [PARTNERSHIP_MARKETING.md](PARTNERSHIP_MARKETING.md)
 
@@ -10,7 +10,7 @@
 
 ## How to Use This File
 
-Each section lists verified URLs grouped by vendor/standard. The **Method** column indicates which Lexiro ingestion pipeline to use:
+Each section lists verified URLs grouped by vendor/standard. The **Method** column indicates which AI Mentor ingestion pipeline to use:
 
 | Method | Description |
 |--------|-------------|

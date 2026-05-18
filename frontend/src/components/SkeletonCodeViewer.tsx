@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -8,7 +8,7 @@ import {
   type SkeletonLanguage,
 } from '../api/products'
 
-const LS_KEY = 'lexiro-skeleton-lang'
+const LS_KEY = 'ai-mentor-skeleton-lang'
 
 function getDefaultLang(available: Set<string>): SkeletonLanguage {
   try {

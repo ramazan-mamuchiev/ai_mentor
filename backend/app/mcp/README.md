@@ -1,10 +1,10 @@
-# Lexiro MCP Server
+﻿# AI Mentor MCP Server
 
 > **Complex docs. Simple code.**
 >
 > *From documentation to code. Instantly.*
 
-Lexiro is an MCP server that gives your AI coding assistant instant access to API documentation for hardware devices (IP cameras, access controllers, intercoms) and software platforms (VMS, PSIM, IoT platforms, SDKs) — so it can write accurate integration code instead of hallucinating APIs.
+AI Mentor is an MCP server that gives your AI coding assistant instant access to API documentation for hardware devices (IP cameras, access controllers, intercoms) and software platforms (VMS, PSIM, IoT platforms, SDKs) — so it can write accurate integration code instead of hallucinating APIs.
 
 ## The Problem
 
@@ -19,14 +19,14 @@ Developers integrating physical security and IoT products waste hours reading ch
 
 ## The Solution
 
-Lexiro indexes product documentation (PDF, Swagger/OpenAPI, Markdown, web pages) into a semantic knowledge base and serves it to AI assistants via MCP.
+AI Mentor indexes product documentation (PDF, Swagger/OpenAPI, Markdown, web pages) into a semantic knowledge base and serves it to AI assistants via MCP.
 
 ```
 Developer in Cursor:
   "Write Python code to stream video from a Hikvision camera
    and register it in Axxon One with analytics metadata"
 
-Lexiro returns:
+AI Mentor returns:
   — Hikvision RTSP streaming endpoint (from camera docs)
   — Hikvision authentication method (from camera docs)
   — Axxon One gRPC camera registration API (from VMS SDK docs)
@@ -48,7 +48,7 @@ docker compose up -d
 Every MCP connection requires an API key with the `ipx_` prefix.
 
 - **Local dev**: use the pre-seeded key from `.env`, or generate one in the admin panel (**Settings → API Keys**).
-- **Hosted (lexiro.io)**: sign up at [lexiro.io](https://lexiro.io), then go to **Settings → API Keys** to create one.
+- **Hosted (ai-mentor.ru)**: sign up at [ai-mentor.ru](https://ai-mentor.ru), then go to **Settings → API Keys** to create one.
 
 ### 3. Connect from Cursor
 
@@ -57,7 +57,7 @@ Add to your project's `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "lexiro": {
+    "ai_mentor": {
       "url": "http://localhost:8000/mcp",
       "headers": {
         "Authorization": "Bearer ipx_your_api_key_here"
@@ -72,8 +72,8 @@ For the hosted version:
 ```json
 {
   "mcpServers": {
-    "lexiro": {
-      "url": "https://lexiro.io/mcp",
+    "ai_mentor": {
+      "url": "https://ai-mentor.ru/mcp",
       "headers": {
         "Authorization": "Bearer ipx_your_api_key_here"
       }
@@ -103,11 +103,11 @@ Show me the ONVIF PTZ continuous move command for pan and tilt.
 What's the RTSP stream URL format for Hikvision DS-2CD2347G2-LU?
 ```
 
-Lexiro automatically provides the relevant documentation to your AI assistant.
+AI Mentor automatically provides the relevant documentation to your AI assistant.
 
 ## MCP Tools
 
-Lexiro exposes 3 tools via the Model Context Protocol:
+AI Mentor exposes 3 tools via the Model Context Protocol:
 
 ### `search_documentation`
 
@@ -151,7 +151,7 @@ Discover what products have indexed documentation. **Call this first** to see wh
 ## Architecture
 
 ```
-Cursor / AI IDE                    Lexiro Server
+Cursor / AI IDE                    AI Mentor Server
 ┌──────────────┐                  ┌──────────────────────────┐
 │  Developer   │  MCP over HTTP   │  FastAPI + FastMCP       │
 │  asks AI to  │ ───────────────> │                          │
@@ -191,7 +191,7 @@ Cursor / AI IDE                    Lexiro Server
 ```bash
 # Clone and start infrastructure
 git clone <repo-url>
-cd lexiro
+cd ai_mentor
 docker compose up -d
 
 # Install backend dependencies
@@ -213,7 +213,7 @@ Integration tests use Testcontainers (PostgreSQL + pgvector) — Docker must be 
 
 ## Compared to Context7
 
-| | Context7 | Lexiro |
+| | Context7 | AI Mentor |
 |---|---|---|
 | **Domain** | Open-source software libraries (React, Next.js) | Hardware devices + software platforms (cameras, VMS, access control) |
 | **Sources** | Public GitHub repos | PDF, Swagger, web pages, vendor portals |
