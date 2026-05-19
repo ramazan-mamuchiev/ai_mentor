@@ -1,4 +1,4 @@
-﻿"""Universal website crawler using Crawl4AI Deep Crawling.
+"""Universal website crawler using Crawl4AI Deep Crawling.
 
 BFS-traverses pages within a single domain, collecting:
 - HTML pages as Markdown (via Crawl4AI headless browser)

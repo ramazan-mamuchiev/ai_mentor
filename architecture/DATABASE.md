@@ -1,4 +1,4 @@
-﻿# AI Mentor — Database Schema & Data Model
+# AI Mentor — Database Schema & Data Model
 
 > Part of [AI Mentor Architecture](PLAN.md)
 

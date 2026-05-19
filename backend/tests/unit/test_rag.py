@@ -1,4 +1,4 @@
-﻿"""Unit tests for RAG service."""
+"""Unit tests for RAG service."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

@@ -1,4 +1,4 @@
-﻿"""SQLAlchemy ORM models for AI Mentor."""
+"""SQLAlchemy ORM models for AI Mentor."""
 
 from __future__ import annotations
 

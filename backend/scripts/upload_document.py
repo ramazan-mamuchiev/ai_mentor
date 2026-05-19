@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Upload a document or archive to AI Mentor via REST API and wait for processing."""
 
 import argparse

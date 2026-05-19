@@ -1,4 +1,4 @@
-﻿# AI Mentor — Brand Platform
+# AI Mentor — Brand Platform
 
 > **Status**: v2.0 — March 26, 2026
 > **Author**: Oleg Voitekhovich

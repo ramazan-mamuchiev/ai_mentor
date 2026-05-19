@@ -1,1 +1,1 @@
-﻿"""Authentication & authorization module for AI Mentor."""
+"""Authentication & authorization module for AI Mentor."""

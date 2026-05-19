@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 # AI Mentor deploy script — pushes to git and deploys to VPS (ai-mentor.ru)
 #
 # Architecture:

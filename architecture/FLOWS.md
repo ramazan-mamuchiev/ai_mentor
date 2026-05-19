@@ -1,4 +1,4 @@
-﻿# AI Mentor — Data Flows & Pipelines
+# AI Mentor — Data Flows & Pipelines
 
 > Part of [AI Mentor Architecture](PLAN.md) | See also: [API Reference](API.md), [Database Schema](DATABASE.md)
 

@@ -1,4 +1,4 @@
-﻿{
+{
   "uid": "ai-mentor-queue",
   "title": "AI Mentor Queue Monitor",
   "tags": ["ai_mentor", "queue", "celery"],

@@ -1,4 +1,4 @@
-﻿"""Integration tests for FastAPI endpoints and full MCP lifecycle."""
+"""Integration tests for FastAPI endpoints and full MCP lifecycle."""
 
 import contextlib
 

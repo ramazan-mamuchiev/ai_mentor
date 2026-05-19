@@ -1,4 +1,4 @@
-﻿# AI Mentor — Go-to-Market Strategy
+# AI Mentor — Go-to-Market Strategy
 
 > **Status**: v1.0 — March 18, 2026
 > **Author**: Oleg Voitekhovich

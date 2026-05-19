@@ -1,4 +1,4 @@
-﻿# AI Mentor — Project Context & Technical Specification
+# AI Mentor — Project Context & Technical Specification
 
 ## Product Vision
 

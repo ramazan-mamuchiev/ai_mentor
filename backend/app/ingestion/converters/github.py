@@ -1,4 +1,4 @@
-﻿"""GitHub repository importer via GitHub REST API.
+"""GitHub repository importer via GitHub REST API.
 
 Fetches the full file tree of a public repository using the Git Trees API,
 filters files by supported extensions, and downloads each file via

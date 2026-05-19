@@ -1,4 +1,4 @@
-﻿"""Send transactional emails via Resend."""
+"""Send transactional emails via Resend."""
 
 import logging
 

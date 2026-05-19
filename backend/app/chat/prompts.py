@@ -1,4 +1,4 @@
-﻿"""Centralized utility prompts for the chat pipeline.
+"""Centralized utility prompts for the chat pipeline.
 
 All inline prompt strings used by rag.py are collected here for maintainability.
 Product-specific prompts live in backend/app/chat/prompts/*.md and are loaded dynamically.

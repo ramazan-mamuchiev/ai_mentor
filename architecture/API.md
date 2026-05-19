@@ -1,4 +1,4 @@
-﻿# AI Mentor — API Reference & MCP Tools
+# AI Mentor — API Reference & MCP Tools
 
 > Part of [AI Mentor Architecture](PLAN.md) | See also: [Database Schema](DATABASE.md)
 

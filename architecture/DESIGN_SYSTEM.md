@@ -1,4 +1,4 @@
-﻿# AI Mentor — Design System & UI/UX Guidelines
+# AI Mentor — Design System & UI/UX Guidelines
 
 > **Status**: v1.0 — March 21, 2026
 > **Author**: Oleg Voitekhovich

@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 
 import { App } from "@microsoft/teams.apps";
 import { MessageActivity } from "@microsoft/teams.api";

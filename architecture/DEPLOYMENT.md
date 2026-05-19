@@ -1,4 +1,4 @@
-﻿# AI Mentor — Deployment, Security & Operations
+# AI Mentor — Deployment, Security & Operations
 
 > Part of [AI Mentor Architecture](PLAN.md) | See also: [Infrastructure Costs](INFRASTRUCTURE_COSTS.md), [Monitoring](MONITORING.md)
 

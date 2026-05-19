@@ -1,4 +1,4 @@
-﻿"""Integration test fixtures: Testcontainers PostgreSQL + pgvector, mock embedder."""
+"""Integration test fixtures: Testcontainers PostgreSQL + pgvector, mock embedder."""
 
 import os
 import pathlib

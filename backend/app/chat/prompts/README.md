@@ -1,4 +1,4 @@
-﻿# Prompt Templates
+# Prompt Templates
 
 This directory contains prompt templates for the AI Mentor RAG chat. The system automatically scans all `.md` files at startup and registers them as query types.
 

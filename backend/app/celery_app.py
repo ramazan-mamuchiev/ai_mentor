@@ -1,4 +1,4 @@
-﻿"""Celery application for background document ingestion."""
+"""Celery application for background document ingestion."""
 
 import hashlib
 import logging

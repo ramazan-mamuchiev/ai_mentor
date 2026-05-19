@@ -1,4 +1,4 @@
-﻿# AI Mentor — Content Sources: Verified Import URLs
+# AI Mentor — Content Sources: Verified Import URLs
 
 > **Status**: v1.0 — March 28, 2026
 > **Author**: Oleg Voitekhovich

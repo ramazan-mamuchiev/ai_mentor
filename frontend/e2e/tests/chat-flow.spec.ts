@@ -1,4 +1,4 @@
-﻿import { test, expect } from '../fixtures'
+import { test, expect } from '../fixtures'
 
 test.describe('Chat Flow', () => {
   test('shows empty state on load', async ({ page }) => {

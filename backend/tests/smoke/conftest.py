@@ -1,4 +1,4 @@
-﻿"""Smoke test fixtures: real PostgreSQL+pgvector WITHOUT mock embedder."""
+"""Smoke test fixtures: real PostgreSQL+pgvector WITHOUT mock embedder."""
 
 import pathlib
 

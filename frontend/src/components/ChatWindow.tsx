@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Cpu, ArrowDown, Share2 } from 'lucide-react'
 import type { SourceInfo, StreamStatus, DebugInfo, SuggestionChip } from '../types'

@@ -1,4 +1,4 @@
-﻿# AI Mentor — Market Research & Competitive Analysis
+# AI Mentor — Market Research & Competitive Analysis
 
 > **Status**: v1.0 — March 15, 2026
 > **Author**: Oleg Voitekhovich

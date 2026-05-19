@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, Upload, Key, MessageSquare, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

@@ -1,4 +1,4 @@
-﻿"""Integration tests for Chat REST API endpoints with real PostgreSQL."""
+"""Integration tests for Chat REST API endpoints with real PostgreSQL."""
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch

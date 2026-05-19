@@ -1,4 +1,4 @@
-﻿# AI Mentor — Monetization & Pricing
+# AI Mentor — Monetization & Pricing
 
 > Part of [AI Mentor Architecture](PLAN.md)
 >

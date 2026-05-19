@@ -1,4 +1,4 @@
-﻿# AI Mentor SaaS Platform — Architecture & Implementation Plan
+# AI Mentor SaaS Platform — Architecture & Implementation Plan
 
 > **Status**: Draft v1.0 — March 15, 2026
 > **Author**: Oleg Voitekhovich

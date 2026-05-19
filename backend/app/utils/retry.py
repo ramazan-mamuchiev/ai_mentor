@@ -1,4 +1,4 @@
-﻿"""Simple synchronous retry with exponential backoff."""
+"""Simple synchronous retry with exponential backoff."""
 
 import logging
 import time

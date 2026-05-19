@@ -1,4 +1,4 @@
-﻿"""Integration tests for Chat functionality with real PostgreSQL."""
+"""Integration tests for Chat functionality with real PostgreSQL."""
 
 import json
 from datetime import datetime, timezone

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bug, FileSearch, Share2, X, Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { DebugInfo, SourceInfo, McpSourceInfo } from '../types'

@@ -1,4 +1,4 @@
-﻿# AI Mentor — Monitoring, Logging & Alerting
+# AI Mentor — Monitoring, Logging & Alerting
 
 > Part of [AI Mentor Architecture](PLAN.md) | See also: [Deployment](DEPLOYMENT.md)
 

@@ -1,4 +1,4 @@
-﻿---
+---
 description: Remind to sync VPS .env when changing config.py defaults
 globs: backend/app/config.py
 alwaysApply: false

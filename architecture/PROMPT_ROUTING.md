@@ -1,4 +1,4 @@
-﻿# AI Mentor — Prompt Routing Architecture
+# AI Mentor — Prompt Routing Architecture
 
 > Part of [AI Mentor Architecture](PLAN.md) | See also: [Data Flows](FLOWS.md), [API Reference](API.md)
 

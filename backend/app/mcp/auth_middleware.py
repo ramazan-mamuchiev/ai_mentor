@@ -1,4 +1,4 @@
-﻿"""ASGI middleware for MCP endpoint: authenticate via Bearer API key (ipx_...)."""
+"""ASGI middleware for MCP endpoint: authenticate via Bearer API key (ipx_...)."""
 
 import json
 import logging

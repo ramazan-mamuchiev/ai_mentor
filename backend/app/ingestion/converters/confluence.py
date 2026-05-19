@@ -1,4 +1,4 @@
-﻿"""Confluence documentation crawler with optional OCR for images.
+"""Confluence documentation crawler with optional OCR for images.
 
 Crawls a Confluence page tree via REST API and converts each page to Markdown.
 Supports both public (anonymous) and private (Basic Auth) Confluence instances.

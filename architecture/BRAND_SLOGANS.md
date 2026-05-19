@@ -1,4 +1,4 @@
-﻿# AI Mentor — Slogans, Taglines, Catchphrases & Acronyms
+# AI Mentor — Slogans, Taglines, Catchphrases & Acronyms
 
 > **Status**: v2.0 — March 26, 2026 · **РЕБРЕНДИНГ: Plexicode → AI Mentor**
 > **Author**: Oleg Voitekhovich

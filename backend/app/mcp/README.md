@@ -1,4 +1,4 @@
-﻿# AI Mentor MCP Server
+# AI Mentor MCP Server
 
 > **Complex docs. Simple code.**
 >

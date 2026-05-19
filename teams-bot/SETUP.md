@@ -1,4 +1,4 @@
-﻿# AI Mentor Teams Bot
+# AI Mentor Teams Bot
 
 AI-бот для Microsoft Teams, который ищет по документации вендоров через AI Mentor MCP.
 

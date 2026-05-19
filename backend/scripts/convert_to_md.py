@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Offline document-to-Markdown converter.
 
 Converts files (and archives) to Markdown using the same converters as the

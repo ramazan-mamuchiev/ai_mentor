@@ -1,4 +1,4 @@
-﻿"""AI Mentor — FastAPI application with MCP server (streamable HTTP transport)."""
+"""AI Mentor — FastAPI application with MCP server (streamable HTTP transport)."""
 
 import asyncio
 import contextlib

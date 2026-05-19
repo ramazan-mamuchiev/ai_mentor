@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 
 const FULL_STACK_URL = process.env.E2E_BASE_URL || 'http://localhost'
 

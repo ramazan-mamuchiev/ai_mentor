@@ -1,4 +1,4 @@
-﻿-- 022: Backfill products.category for known catalog rows (one-time data fix).
+-- 022: Backfill products.category for known catalog rows (one-time data fix).
 --
 -- Preview before deploy (same filters as UPDATEs):
 --   SELECT id, slug, name, manufacturer, category FROM products ORDER BY id;

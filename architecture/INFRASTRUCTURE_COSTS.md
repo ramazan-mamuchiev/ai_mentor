@@ -1,4 +1,4 @@
-﻿# AI Mentor — Infrastructure Cost Analysis
+# AI Mentor — Infrastructure Cost Analysis
 
 > **Status**: v1.4 — March 19, 2026 (actual Gemini/Opus prices, tiered LLM billing, per-model input+output pricing)
 > **Author**: Oleg Voitekhovich

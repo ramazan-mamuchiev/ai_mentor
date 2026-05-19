@@ -1,4 +1,4 @@
-﻿"""PDF -> Markdown converter with optional OCR (Gemini Vision).
+"""PDF -> Markdown converter with optional OCR (Gemini Vision).
 
 Two-pass pipeline (legacy) or async pipeline:
   Legacy: pymupdf4llm text extraction + synchronous OCR in one call

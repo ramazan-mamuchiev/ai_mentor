@@ -1,4 +1,4 @@
-﻿"""Admin REST endpoints — platform management, moderation, audit, stats, logs."""
+"""Admin REST endpoints — platform management, moderation, audit, stats, logs."""
 
 import uuid
 import logging

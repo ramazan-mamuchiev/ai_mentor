@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bug, Share2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ProductDebugContent } from './ProductDebugPanel'

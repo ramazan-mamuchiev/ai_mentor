@@ -1,4 +1,4 @@
-﻿"""MCP tools for AI Mentor: semantic search over product documentation for writing integration code."""
+"""MCP tools for AI Mentor: semantic search over product documentation for writing integration code."""
 
 import asyncio
 import hashlib

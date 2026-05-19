@@ -1,4 +1,4 @@
-﻿# AI Mentor — Content Plan: Documentation Sources & Ingestion Priorities
+# AI Mentor — Content Plan: Documentation Sources & Ingestion Priorities
 
 > **Status**: v1.0 — March 28, 2026
 > **Author**: Oleg Voitekhovich

@@ -1,4 +1,4 @@
-﻿# AI Mentor — Backlog
+# AI Mentor — Backlog
 
 > Tasks planned for future implementation. Each item includes problem statement, proposed solution, and complexity estimate.
 >

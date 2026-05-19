@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Adaptive Card builders for formatting AI Mentor bot responses in Teams.
  *
  * Uses raw Adaptive Card JSON schema (v1.5) for maximum compatibility

@@ -1,4 +1,4 @@
-﻿"""URL -> Markdown converter.
+"""URL -> Markdown converter.
 
 Auto-detects content type:
 - Postman Documenter published page -> fetches collection JSON via API

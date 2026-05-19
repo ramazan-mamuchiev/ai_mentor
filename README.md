@@ -1,4 +1,4 @@
-﻿# AI Mentor
+# AI Mentor
 
 > **Complex docs. Simple code.**
 >

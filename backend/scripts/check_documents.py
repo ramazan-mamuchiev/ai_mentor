@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Check document ingestion status in AI Mentor.
 
 Examples:
