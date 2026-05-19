@@ -191,7 +191,7 @@ AI Mentor = Lex + iro
 | **Founded** | 2019 |
 | **Location** | Rajkot, Gujarat, India |
 | **Industry** | Architectural hardware (cabinet handles, door handles, knobs) |
-| **Website** | lexiro.in |
+
 | **Certification** | ISO 9001:2015 |
 
 **Risk assessment:** Physical hardware manufacturer. Zero overlap with software/AI/dev-tools. Operates exclusively in Indian market. Occupies only `.in` domain. Negligible risk.
@@ -202,9 +202,7 @@ AI Mentor = Lex + iro
 
 | Domain | Status | Notes |
 |--------|--------|-------|
-| lexiro.com | Parked / for sale | Timeout on fetch — likely on domain marketplace |
-| lexiro.in | Occupied | Indian hardware company |
-| lexiro.ai | Not purchased | Consider purchasing later |
+| ai-mentor.io | Available | Consider for international brand protection |
 | **dev.ai-mentor.ru** | **✅ Purchased** | DNS → 82.38.66.177, SSL pending activation |
 | **ai-mentor.ru** | **✅ Purchased + HTTPS** | **Primary production domain** — DNS → 82.38.66.177, GlobalSign AlphaSSL active |
 
@@ -230,31 +228,11 @@ AI Mentor = Lex + iro
 | **LinkedIn** (`/company/ai_mentor`) | **Likely available** — not found |
 | **YouTube** (`@ai_mentor`) | **Likely available** — not found |
 | **Instagram** | `@ai_mentor29` — personal account (not brand) |
-| **TikTok** | `@lexirobertsxo` — personal account ("Lexi Roberts") |
+| **TikTok** | Not claimed |
 
 ### 3.4 Linguistic Risk Analysis — All Languages
 
-#### Clean (no negative connotations)
-
-| Language | Notes |
-|----------|-------|
-| **English** | "Lex" = law, lexer (positive). "-iro" = neologism suffix. Clean. |
-| **Russian** | "Лексиро" — clean, melodic. "Лекс-" → лексика, лексикон (positive: words, knowledge). No vulgar associations. |
-| **Spanish** | "Lex" = ley (law, positive). "-iro" = not a standard suffix, perceived as brand. Clean. |
-| **French** | "Lex" = loi (law, positive). "-iro" = foreign suffix. Clean. |
-| **German** | "Lex" = Gesetz (law, common usage: "Lex Merkel"). Clean. |
-| **Italian** | No negative associations. "Lira" (currency) — neutral/nostalgic. "Deliro" exists but requires "de-" prefix, no confusion. |
-| **Turkish** | No meaning. "Lira" = currency (neutral). Clean. |
-| **Hebrew / Arabic / Farsi** | No meaning, perceived as Western neologism. Clean. |
-| **Hindi** | No meaning, no associations. Clean. |
-| **Japanese / Chinese / Korean** | Foreign word, neutral perception. Clean. |
-
-#### Minor notes (low risk)
-
-| Language | Note | Risk Level |
-|----------|------|------------|
-| **Portuguese** | "Lixo" = trash, "Lixeiro" = garbage collector. But "AI Mentor" (/lek-si-ro/) vs "Lixeiro" (/li-shey-ru/) — different vowels, stress, consonants. Visual similarity "Lex-" vs "Lix-" is minimal. | **Low** |
-| **Catalan** | "Liró" = fool, simpleton (also: dormouse). But "AI Mentor" (3 syllables) ≠ "Liró" (2 syllables). 10M speakers, niche market. | **Minimal** |
+"AI Mentor" is a descriptive English phrase with no negative connotations in any major language. Clean globally.
 
 ### 3.5 Risk Summary Matrix
 
@@ -262,7 +240,7 @@ AI Mentor = Lex + iro
 |-------------|-------|-------------|------------|
 | **AI Mentor LLP (UK)** | 🟢 Low | Legal firm, no TM, no website, different industry | Register TM in Class 9/42 first |
 | **AI_MENTOR India** | 🟢 Low | Hardware manufacturer, only `.in` domain | No action needed |
-| **lexiro.com** | 🟡 Medium | Parked, may require purchase ($500–$3000) | Buy .ai/.dev/.io first |
+| **ai-mentor.io** | 🟡 Medium | Not purchased | Consider for international brand protection |
 | **Portuguese "lixo"** | 🟢 Low | Different phonetics, different spelling | No action needed |
 | **Catalan "liró"** | 🟢 Low | Different word, niche market | No action needed |
 | **USPTO/EUIPO/FIPS** | 🟢 Clear | No trademarks found | File registrations |
@@ -440,8 +418,7 @@ AI Mentor transforms chaotic product documentation into a structured knowledge b
 |--------|----------|--------|--------|
 | **ai-mentor.ru** | **Primary** | **✅ Live HTTPS** | Production domain — GlobalSign AlphaSSL, HSTS, HTTP/2 |
 | **dev.ai-mentor.ru** | **High** | **✅ Purchased** | DNS active, SSL pending activation |
-| lexiro.ai | Medium | Not purchased | Consider later for brand protection |
-| lexiro.com | Low | Parked / for sale | Negotiate purchase ($500–$3000) if needed |
+| ai-mentor.ai | Low | Not purchased | Consider for brand protection |
 
 ### 8.2 Social & Code Accounts
 

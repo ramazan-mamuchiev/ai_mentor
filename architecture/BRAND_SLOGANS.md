@@ -359,7 +359,7 @@ AI Mentor occupies the unique intersection of **documentation intelligence** + *
 
 - [x] Register domain — **ai-mentor.ru purchased**, DNS active, **HTTPS live** (GlobalSign AlphaSSL)
 - [x] Register domain — **dev.ai-mentor.ru purchased**, DNS active, SSL pending
-- [ ] Register domain (lexiro.ai) — brand protection (deferred)
+- [ ] Register domain (ai-mentor.ai) — brand protection (deferred)
 - [ ] Register social accounts (@ai_mentor on GitHub, Twitter, LinkedIn, YouTube)
 - [ ] File trademark (FIPS, EUIPO, USPTO) — Classes 9, 42
 - [ ] Commission logo design (brief in BRAND.md §7)

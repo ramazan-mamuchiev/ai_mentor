@@ -30,7 +30,7 @@ services:
     ports: ["9000:9000", "9001:9001"]
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-lexiro}
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-ai_mentor}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-ai_mentor_dev}
 
   api:
