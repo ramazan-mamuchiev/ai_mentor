@@ -16,7 +16,7 @@
 |-----------|-------|
 | **Brand Name** | **AI Mentor** |
 | **Decision Date** | March 26, 2026 |
-| **Previous Names** | IPCodex (working title) → Plexicode (v1) |
+| **Previous Names** | Plexicode (v1) |
 
 ### 1.2 Why AI Mentor
 
@@ -49,7 +49,7 @@
 
 | Name | Version | Period | Rejection Reason |
 |------|---------|--------|------------------|
-| IPCodex | Working title | 2024–2026 | Conflict with ООО «АЙПИ КОДЕКС» (Russia), registered TM |
+
 | SynCodex | v1 candidate | Mar 2026 | Syncodex AB (Sweden); "Syn" = Russian slang |
 | InCodex | v1 candidate | Mar 2026 | "Инкодекс" (Russia, same niche) |
 | ViaCodex | v1 candidate | Mar 2026 | "ВИА" association (Russia, Soviet music) |
@@ -484,7 +484,7 @@ When renaming from Plexicode to AI Mentor:
 
 | Name | Version | Score | Conflicts | Verdict |
 |------|---------|-------|-----------|---------|
-| IPCodex | v0 | 3/10 | ООО «АЙПИ КОДЕКС» (Russia), trademark | Rejected |
+
 | SynCodex | v1 | 6/10 | Syncodex AB (Sweden), "Syn" slang | Rejected |
 | InCodex | v1 | 4/10 | "Инкодекс" (Russia, same niche) | Rejected |
 | ViaCodex | v1 | 5/10 | "ВИА" association (Russia) | Rejected |

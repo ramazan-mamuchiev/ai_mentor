@@ -270,7 +270,7 @@ AI Mentor/
 ├── ai-mentor.html               # Интерактивная презентация (EN/RU, light/dark)
 ├── comparison.html            # Детальный конкурентный анализ
 ├── (логотипы встроены inline SVG в HTML, исходники в frontend/public/)
-├── ipcodex-plan-backup.html   # Резервная копия ранней версии (legacy name)
+
 ├── CONTEXT.md                 # Этот файл — полный контекст проекта
 ```
 
