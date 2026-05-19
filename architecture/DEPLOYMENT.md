@@ -170,7 +170,7 @@ Production environment.
 | IP | `82.38.66.177` |
 | OS | Ubuntu (Docker pre-installed) |
 | Access | `ssh root@ai-mentor.ru` |
-| Project path | `/opt/ai-mentor` |
+| Project path | `/opt/ai_mentor` |
 | Repository | [`github.com/olegvphoenix/ai_mentor`](https://github.com/olegvphoenix/ai_mentor) (branch: `main`) |
 
 ### Running Services
@@ -196,25 +196,25 @@ Production environment.
 **Full stack rebuild (backend + frontend):**
 
 ```bash
-ssh root@ai-mentor.ru "cd /opt/ai-mentor && git pull && docker compose build api web && docker compose up -d api worker beat web"
+ssh root@ai-mentor.ru "cd /opt/ai_mentor && git pull && docker compose build api web && docker compose up -d api worker beat web"
 ```
 
 **Frontend only:**
 
 ```bash
-ssh root@ai-mentor.ru "cd /opt/ai-mentor && git pull && docker compose build web && docker compose up -d web"
+ssh root@ai-mentor.ru "cd /opt/ai_mentor && git pull && docker compose build web && docker compose up -d web"
 ```
 
 **Backend only:**
 
 ```bash
-ssh root@ai-mentor.ru "cd /opt/ai-mentor && git pull && docker compose build api && docker compose up -d api worker beat"
+ssh root@ai-mentor.ru "cd /opt/ai_mentor && git pull && docker compose build api && docker compose up -d api worker beat"
 ```
 
 **View logs:**
 
 ```bash
-ssh root@ai-mentor.ru "cd /opt/ai-mentor && docker compose logs -f web api"
+ssh root@ai-mentor.ru "cd /opt/ai_mentor && docker compose logs -f web api"
 ```
 
 ---
@@ -439,8 +439,8 @@ Two domains with distinct purposes:
 
 ### SSL
 
-- `ai-mentor.ru` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/ai-mentor/ssl/ai-mentor.ru.fullchain.pem` + `ai-mentor.ru.key`
-- `dev.ai-mentor.ru` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/ai-mentor/ssl/dev.ai-mentor.ru.fullchain.pem` + `dev.ai-mentor.ru.key`. **HTTPS is mandatory** for `.dev` domains (HSTS preload list)
+- `ai-mentor.ru` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/ai_mentor/ssl/ai-mentor.ru.fullchain.pem` + `ai-mentor.ru.key`
+- `dev.ai-mentor.ru` — GlobalSign AlphaSSL (valid until Oct 2026), files: `/opt/ai_mentor/ssl/dev.ai-mentor.ru.fullchain.pem` + `dev.ai-mentor.ru.key`. **HTTPS is mandatory** for `.dev` domains (HSTS preload list)
 
 ### Nginx Configuration
 
@@ -477,8 +477,8 @@ CTA flow: every article on `dev.ai-mentor.ru/blog` ends with **"Try AI Mentor fr
 
 ### Transport
 - **HTTPS only** in production
-- `ai-mentor.ru` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/ai-mentor/ssl/ai-mentor.ru.fullchain.pem` + `ai-mentor.ru.key`
-- `dev.ai-mentor.ru` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/ai-mentor/ssl/dev.ai-mentor.ru.fullchain.pem` + `dev.ai-mentor.ru.key`, HTTPS mandatory (`.dev` is in HSTS preload list)
+- `ai-mentor.ru` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/ai_mentor/ssl/ai-mentor.ru.fullchain.pem` + `ai-mentor.ru.key`
+- `dev.ai-mentor.ru` — GlobalSign AlphaSSL certificate (valid until Oct 2026), files: `/opt/ai_mentor/ssl/dev.ai-mentor.ru.fullchain.pem` + `dev.ai-mentor.ru.key`, HTTPS mandatory (`.dev` is in HSTS preload list)
 - TLS 1.2 + TLS 1.3, HTTP/2 enabled
 - HTTP → HTTPS redirect (301) for all requests
 - HSTS: `max-age=63072000; includeSubDomains; preload`

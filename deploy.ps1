@@ -3,7 +3,7 @@
 #
 # Architecture:
 #   - Backend (api/worker/beat) runs in Docker
-#   - Frontend is built via Docker and copied to /var/www/ai-mentor/ (served by host nginx)
+#   - Frontend is built via Docker and copied to /var/www/ai_mentor/ (served by host nginx)
 #   - Nginx runs on the host (systemd), not in Docker
 #
 # Usage:
@@ -20,7 +20,7 @@ param(
 )
 
 $VPS = "root@ai-mentor.ru"
-$REMOTE_DIR = "/opt/ai-mentor"
+$REMOTE_DIR = "/opt/ai_mentor"
 $ErrorActionPreference = "Stop"
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
@@ -59,7 +59,7 @@ $updateNginx   = $Services -contains "nginx"
 
 $planParts = @()
 if ($buildApi)      { $planParts += "backend (api+worker+beat)" }
-if ($buildFrontend) { $planParts += "frontend -> /var/www/ai-mentor/" }
+if ($buildFrontend) { $planParts += "frontend -> /var/www/ai_mentor/" }
 if ($updateNginx)   { $planParts += "nginx config" }
 Write-Step "Plan: $($planParts -join ', '), no-cache=$NoCache"
 
@@ -117,14 +117,14 @@ if ($buildApi) {
 
 # --- Build frontend ---
 if ($buildFrontend) {
-    Write-Step "Building frontend and deploying to /var/www/ai-mentor/..."
+    Write-Step "Building frontend and deploying to /var/www/ai_mentor/..."
     $nocacheArg = if ($NoCache) { "--no-cache" } else { "" }
-    ssh $VPS "cd $REMOTE_DIR; docker build $nocacheArg --target build -t ai-mentor-frontend-build ./frontend && docker run --rm -v /var/www/ai-mentor:/out ai-mentor-frontend-build sh -c 'cp -r /app/dist/* /out/'"
+    ssh $VPS "cd $REMOTE_DIR; docker build $nocacheArg --target build -t ai-mentor-frontend-build ./frontend && docker run --rm -v /var/www/ai_mentor:/out ai-mentor-frontend-build sh -c 'cp -r /app/dist/* /out/'"
     if ($LASTEXITCODE -ne 0) {
         ssh $VPS "rm -f $REMOTE_DIR/maintenance-flag/on"
         Write-Error "Frontend build failed"; exit 1
     }
-    Write-OK "Frontend deployed to /var/www/ai-mentor/"
+    Write-OK "Frontend deployed to /var/www/ai_mentor/"
 }
 
 # --- Update nginx config ---

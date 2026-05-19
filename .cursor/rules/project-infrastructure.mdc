@@ -47,7 +47,7 @@ Backend services run in Docker. Nginx runs on the **host** (systemd), not in Doc
 
 ### Common commands
 
-- Rebuild frontend: `docker build --target build -t ai-mentor-frontend-build ./frontend && docker run --rm -v /var/www/ai-mentor:/out ai-mentor-frontend-build sh -c 'cp -r /app/dist/* /out/'`
+- Rebuild frontend: `docker build --target build -t ai-mentor-frontend-build ./frontend && docker run --rm -v /var/www/ai_mentor:/out ai-mentor-frontend-build sh -c 'cp -r /app/dist/* /out/'`
 - Rebuild & restart backend: `docker compose build api && docker compose up -d api worker beat`
 - Reload Nginx: `nginx -t && nginx -s reload`
 - Full stack up: `docker compose up -d`

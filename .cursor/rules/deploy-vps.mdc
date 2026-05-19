@@ -10,7 +10,7 @@ When the user asks to publish/deploy changes to VPS (ai-mentor.ru):
 ## Architecture
 
 Nginx runs on the **host** (systemd), not in Docker. It serves:
-- `ai-mentor.ru` — static files from `/var/www/ai-mentor/` + reverse proxy to Docker `api:8000`
+- `ai-mentor.ru` — static files from `/var/www/ai_mentor/` + reverse proxy to Docker `api:8000`
 
 Nginx configs live in `/etc/nginx/sites-available/` and are symlinked to `sites-enabled/`.
 AI Mentor config source is kept in the repo under `nginx/ai-mentor.conf` for version control.
@@ -30,17 +30,17 @@ AI Mentor config source is kept in the repo under `nginx/ai-mentor.conf` for ver
 
 2. **Enable maintenance mode** — ALWAYS do this BEFORE any VPS changes:
    ```powershell
-   ssh root@ai-mentor.ru "touch /opt/ai-mentor/maintenance-flag/on"
+   ssh root@ai-mentor.ru "touch /opt/ai_mentor/maintenance-flag/on"
    ```
 
 3. **Pull on VPS**:
    ```powershell
-   ssh root@ai-mentor.ru "cd /opt/ai-mentor && git pull origin main"
+   ssh root@ai-mentor.ru "cd /opt/ai_mentor && git pull origin main"
    ```
 
 4. **Build backend** (if **ANY** backend file changed — code, config, templates, anything under `backend/`):
    ```powershell
-   ssh root@ai-mentor.ru "cd /opt/ai-mentor && docker compose build api"
+   ssh root@ai-mentor.ru "cd /opt/ai_mentor && docker compose build api"
    ```
    - `api` builds the shared `ai-mentor-backend` image used by `api`, `worker`, and `beat`.
    - **CRITICAL**: `--force-recreate` alone does NOT update code inside the container. It reuses the old image. You MUST run `docker compose build api` FIRST to bake new code into the image, THEN restart services.
@@ -48,13 +48,13 @@ AI Mentor config source is kept in the repo under `nginx/ai-mentor.conf` for ver
 
 5. **Build frontend** (if frontend changed):
    ```powershell
-   ssh root@ai-mentor.ru "cd /opt/ai-mentor && docker build --target build -t ai-mentor-frontend-build ./frontend && docker run --rm -v /var/www/ai-mentor:/out ai-mentor-frontend-build sh -c 'cp -r /app/dist/* /out/'"
+   ssh root@ai-mentor.ru "cd /opt/ai_mentor && docker build --target build -t ai-mentor-frontend-build ./frontend && docker run --rm -v /var/www/ai_mentor:/out ai-mentor-frontend-build sh -c 'cp -r /app/dist/* /out/'"
    ```
-   This builds the React app inside Docker and copies the `dist/` output to `/var/www/ai-mentor/`.
+   This builds the React app inside Docker and copies the `dist/` output to `/var/www/ai_mentor/`.
 
 6. **Restart changed Docker services**:
    ```powershell
-   ssh root@ai-mentor.ru "cd /opt/ai-mentor && docker compose up -d api worker beat"
+   ssh root@ai-mentor.ru "cd /opt/ai_mentor && docker compose up -d api worker beat"
    ```
    - After `docker compose build api` (step 4), Compose detects image change and auto-recreates containers.
    - **NEVER** use `--force-recreate` as a substitute for `build`. Recreate ≠ Rebuild.
@@ -71,29 +71,29 @@ AI Mentor config source is kept in the repo under `nginx/ai-mentor.conf` for ver
 
 9. **Disable maintenance mode** — ALWAYS do this as the final step:
    ```powershell
-   ssh root@ai-mentor.ru "rm -f /opt/ai-mentor/maintenance-flag/on"
+   ssh root@ai-mentor.ru "rm -f /opt/ai_mentor/maintenance-flag/on"
    ```
 
 ## Update Nginx configs
 
 If `nginx/ai-mentor.conf` changed in the repo, copy it to VPS after `git pull` (step 3):
 ```powershell
-ssh root@ai-mentor.ru "cp /opt/ai-mentor/nginx/ai-mentor.conf /etc/nginx/sites-available/ai-mentor.conf && nginx -t && nginx -s reload"
+ssh root@ai-mentor.ru "cp /opt/ai_mentor/nginx/ai-mentor.conf /etc/nginx/sites-available/ai-mentor.conf && nginx -t && nginx -s reload"
 ```
 
 ## MANDATORY: Sync `.env` on VPS when changing config defaults
 
-The VPS has `/opt/ai-mentor/.env` that **overrides** defaults in `backend/app/config.py` (Pydantic Settings: env vars always win over code defaults).
+The VPS has `/opt/ai_mentor/.env` that **overrides** defaults in `backend/app/config.py` (Pydantic Settings: env vars always win over code defaults).
 
 **When changing ANY default value in `config.py` that affects runtime behavior:**
 
-1. Check if that setting is also defined in `/opt/ai-mentor/.env` on VPS:
+1. Check if that setting is also defined in `/opt/ai_mentor/.env` on VPS:
    ```powershell
-   ssh root@ai-mentor.ru "grep -i '<SETTING_NAME>' /opt/ai-mentor/.env"
+   ssh root@ai-mentor.ru "grep -i '<SETTING_NAME>' /opt/ai_mentor/.env"
    ```
 2. If the setting exists in `.env`, **update it there too** (or remove it to use the new code default):
    ```powershell
-   ssh root@ai-mentor.ru "sed -i 's/OLD_VALUE/NEW_VALUE/' /opt/ai-mentor/.env"
+   ssh root@ai-mentor.ru "sed -i 's/OLD_VALUE/NEW_VALUE/' /opt/ai_mentor/.env"
    ```
 3. After updating `.env`, restart the affected services (`api`, `worker`, `beat`).
 
@@ -107,7 +107,7 @@ The VPS has `/opt/ai-mentor/.env` that **overrides** defaults in `backend/app/co
 - **NEVER** skip `docker compose build api` when backend code changed. `--force-recreate` does NOT update code — it only recreates the container from the SAME old image. Build first, then restart.
 - **NEVER** copy full Docker images via `docker save` / `scp` / `docker load`. Always build on VPS.
 - **NEVER** use `--no-cache` unless `requirements.txt`, `package.json`, or `Dockerfile` changed.
-- **NEVER** change a default in `config.py` without checking `/opt/ai-mentor/.env` on VPS for an override.
+- **NEVER** change a default in `config.py` without checking `/opt/ai_mentor/.env` on VPS for an override.
 - If only frontend changed, build frontend (step 5) and reload Nginx (step 8). No Docker restart needed.
 - If only backend changed, build `api` (step 4) and restart `api` + `worker` + `beat` (step 6).
 - If both changed, do steps 4 + 5 + 6 + 8.
