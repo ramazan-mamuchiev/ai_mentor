@@ -568,7 +568,7 @@ function NewKeyModal({ newKey, onClose }: { newKey: ApiKeyCreated; onClose: () =
 
   const mcpConfig = JSON.stringify({
     mcpServers: {
-      ai-mentor: {
+      "ai-mentor": {
         url: `${window.location.origin}/mcp`,
         headers: {
           Authorization: `Bearer ${newKey.key}`,
